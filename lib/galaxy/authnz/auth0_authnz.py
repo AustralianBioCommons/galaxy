@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import jwt
 from social_core.backends.open_id_connect import OpenIdConnectAuth
@@ -20,10 +21,21 @@ if not auth_log.handlers:
     auth_log.addHandler(fh)
 
 
-def add_roles(user: User = None, backend: OpenIdConnectAuth = None, social: UserAuthnzToken = None, **kwargs):
+def decode_access_token(social: UserAuthnzToken, backend: OpenIdConnectAuth, **kwargs):
+    """
+    Decode the access token and add it to the 'social' data as
+    a new argument "access_token" that can be used in future pipeline steps
+
+    Depends on "access_token" being present in social.extra_data,
+    which should be handled by social_core.pipeline.social_auth.load_extra_data
+    """
     access_token_encoded = social.extra_data.get("access_token")
     access_token_data = _decode_access_token(token_str=access_token_encoded, backend=backend)
-    galaxy_roles: list[str] = [role for role in access_token_data["biocommons.org.au/roles"]
+    return {"access_token": access_token_data}
+
+
+def add_roles(user: User = None, access_token: dict[str, Any] = None, social: UserAuthnzToken = None, **kwargs):
+    galaxy_roles: list[str] = [role for role in access_token["biocommons.org.au/roles"]
                                if role.lower().startswith("galaxy/")]
     auth_log.info(f"Roles from access token: {galaxy_roles}")
     existing_roles: list[Role] = user.all_roles()
