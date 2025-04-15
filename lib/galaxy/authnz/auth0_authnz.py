@@ -73,14 +73,16 @@ def _decode_access_token(token_str: str, id_token_str: str, backend: OpenIdConne
     signing_key = backend.find_valid_key(token_str)
     jwk = jwt.PyJWK(signing_key)
     auth_log.info(f"Signing token: {jwk}")
+    auth_log.info(f"{backend.strategy.config['accepted_audiences']=}")
     decoded = jwt.decode(
         token_str,
         key=jwk,
         algorithms=[jwk.algorithm_name],
-        # TODO: want to get audience from backend/config but not 100% sure if it's passed
-        #   through currently
-        audience="https://dev-bc.minh.com/api",
+        audience=backend.strategy.config["accepted_audiences"],
         issuer=backend.id_token_issuer(),
         options={"verify_signature": True, "verify_exp": True, "verify_aud": True},
     )
+    # NOTE: could try to validate at_hash here but it should already be handled
+    #   by python-social-auth, and python-social-auth doesn't seem to like
+    #   fetching the id token again as it interferes with the nonce
     return decoded
