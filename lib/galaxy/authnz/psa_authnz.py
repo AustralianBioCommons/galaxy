@@ -93,6 +93,7 @@ AUTH_PIPELINE = (
     "social_core.pipeline.social_auth.load_extra_data",
     # Update the user record with any changed info from the auth service.
     "social_core.pipeline.user.user_details",
+    "galaxy.authnz.auth0_authnz.decode_access_token",
     "galaxy.authnz.auth0_authnz.add_roles",
 )
 
