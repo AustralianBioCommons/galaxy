@@ -30,11 +30,21 @@ def decode_access_token(social: UserAuthnzToken, backend: OpenIdConnectAuth, **k
     which should be handled by social_core.pipeline.social_auth.load_extra_data
     """
     access_token_encoded = social.extra_data.get("access_token")
-    access_token_data = _decode_access_token(token_str=access_token_encoded, backend=backend)
+    id_token_encoded = social.extra_data["id_token"]
+    access_token_data = _decode_access_token(token_str=access_token_encoded, id_token_str=id_token_encoded, backend=backend)
     return {"access_token": access_token_data}
 
 
 def add_roles(user: User = None, access_token: dict[str, Any] = None, social: UserAuthnzToken = None, **kwargs):
+    """
+    Add roles for the current user based on the roles
+    in access_token["biocommons.org.au/roles"]
+
+    Depends on access_token data being available as a pipeline argument:
+    currently handled by the decode_access_token step
+    """
+    # TODO: make the claim name for the roles, and the prefix for the
+    #  roles to be added, configurable
     galaxy_roles: list[str] = [role for role in access_token["biocommons.org.au/roles"]
                                if role.lower().startswith("galaxy/")]
     auth_log.info(f"Roles from access token: {galaxy_roles}")
