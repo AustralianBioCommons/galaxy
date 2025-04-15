@@ -65,7 +65,11 @@ def add_roles(user: User = None, access_token: dict[str, Any] = None, social: Us
         rbac.associate_user_role(user=user, role=role)
 
 
-def _decode_access_token(token_str: str, backend: OpenIdConnectAuth) -> dict:
+def _decode_access_token(token_str: str, id_token_str: str, backend: OpenIdConnectAuth) -> dict:
+    """
+    Decode the access token (verifying that signature, expiry and
+    audience are valid)
+    """
     signing_key = backend.find_valid_key(token_str)
     jwk = jwt.PyJWK(signing_key)
     auth_log.info(f"Signing token: {jwk}")
