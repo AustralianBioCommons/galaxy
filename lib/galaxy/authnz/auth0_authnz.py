@@ -62,7 +62,10 @@ def add_roles(user: User = None, access_token: dict[str, Any] = None, social: Us
         auth_log.info(f"Adding role: {role_name} to user: {user.id}")
         role = (social.sa_session.query(Role)
                 .filter_by(name=role_name).first())
-        rbac.associate_user_role(user=user, role=role)
+        if role is not None:
+            rbac.associate_user_role(user=user, role=role)
+        else:
+            auth_log.warning(f"Role {role_name} not found - currently only existing roles are added")
 
 
 def _decode_access_token(token_str: str, id_token_str: str, backend: OpenIdConnectAuth) -> dict:
