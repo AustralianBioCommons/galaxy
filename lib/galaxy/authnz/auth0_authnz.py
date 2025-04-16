@@ -4,10 +4,12 @@ from typing import Any
 import jwt
 from social_core.backends.open_id_connect import OpenIdConnectAuth
 
-from galaxy.model import UserAuthnzToken
+from galaxy.model import UserAuthnzToken, UserRoleAssociation
 from galaxy.model.db.user import User
 from galaxy.model.db.role import Role
 from galaxy.model.security import GalaxyRBACAgent
+
+ROLE_PREFIX = "galaxy/"
 
 # Set up a temp logger for debugging auth
 auth_log = logging.getLogger("auth_log")
@@ -45,17 +47,27 @@ def add_roles(user: User = None, access_token: dict[str, Any] = None, social: Us
     """
     # TODO: make the claim name for the roles, and the prefix for the
     #  roles to be added, configurable
-    galaxy_roles: list[str] = [role for role in access_token["biocommons.org.au/roles"]
-                               if role.lower().startswith("galaxy/")]
-    auth_log.info(f"Roles from access token: {galaxy_roles}")
-    existing_roles: list[Role] = user.all_roles()
+    token_roles: list[str] = [role for role in access_token["biocommons.org.au/roles"]
+                               if role.lower().startswith(ROLE_PREFIX)]
+    auth_log.info(f"Roles from access token: {token_roles}")
+    # TODO: all the querying and db operations here can definitely
+    #   be done more efficiently, but want to make sure the
+    #   logic is clear to start with
+    # Only look at roles beginning with ROLE_PREFIX - others are not
+    #   managed via OIDC
+    existing_roles: list[Role] = [role for role in user.all_roles()
+                                  if role.name.lower().startswith(ROLE_PREFIX)]
     existing_names = [role.name for role in existing_roles]
     auth_log.info(f"Existing roles: {existing_names}")
     roles_to_add = []
-    for role_name in galaxy_roles:
+    for role_name in token_roles:
         if role_name not in existing_names:
             roles_to_add.append(role_name)
     auth_log.info(f"Roles to add: {roles_to_add}")
+    roles_to_remove = []
+    for role in existing_roles:
+        if role.name not in token_roles:
+            roles_to_remove.append(role)
 
     rbac = GalaxyRBACAgent(sa_session=social.sa_session)
     for role_name in roles_to_add:
@@ -66,6 +78,11 @@ def add_roles(user: User = None, access_token: dict[str, Any] = None, social: Us
             rbac.associate_user_role(user=user, role=role)
         else:
             auth_log.warning(f"Role {role_name} not found - currently only existing roles are added")
+
+    for role in roles_to_remove:
+        assoc = social.sa_session.query(UserRoleAssociation).filter_by(role_id=role.id, user_id=user.id)
+        assoc.delete()
+        social.sa_session.commit()
 
 
 def _decode_access_token(token_str: str, id_token_str: str, backend: OpenIdConnectAuth) -> dict:
