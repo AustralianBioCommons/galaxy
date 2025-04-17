@@ -1,18 +1,17 @@
 import base64
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from unittest.mock import MagicMock
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
+import jwt
 # Tools from hazmat should only be used for testing!
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
-from jwt import InvalidIssuerError, InvalidAudienceError
-
-from galaxy.util.unittest import TestCase
-import jwt
+from jwt import InvalidIssuerError, InvalidAudienceError, InvalidSignatureError
 
 from galaxy.authnz.auth0_authnz import decode_access_token
+from galaxy.util.unittest import TestCase
 
 
 @dataclass
@@ -129,6 +128,22 @@ class TestAuth0Authnz(TestCase):
         mock_backend.id_token_issuer.return_value = dummy_access_token.access_token_data["iss"]
         data = decode_access_token(social=mock_social, backend=mock_backend)
         assert data["access_token"] == dummy_access_token.access_token_data
+
+    def test_decode_access_token_invalid_key(self):
+        """
+        Test that decoding fails when an invalid key is provided.
+        """
+        dummy_access_token = create_access_token()
+        incorrect_public_key, incorrect_private_key = generate_public_private_key_pair()
+        mock_social = MagicMock()
+        mock_social.extra_data.get.return_value = dummy_access_token.access_token_str
+        mock_backend = MagicMock()
+        incorrect_public_key_data = get_jwk_data(incorrect_public_key)
+        mock_backend.find_valid_key.return_value = incorrect_public_key_data
+        mock_backend.strategy.config = {"accepted_audiences": dummy_access_token.access_token_data["aud"]}
+        mock_backend.id_token_issuer.return_value = dummy_access_token.access_token_data["iss"]
+        with self.assertRaises(InvalidSignatureError):
+            data = decode_access_token(social=mock_social, backend=mock_backend)
 
     def test_decode_access_token_invalid_issuer(self):
         """
