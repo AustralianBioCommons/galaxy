@@ -32,8 +32,7 @@ def decode_access_token(social: UserAuthnzToken, backend: OpenIdConnectAuth, **k
     which should be handled by social_core.pipeline.social_auth.load_extra_data
     """
     access_token_encoded = social.extra_data.get("access_token")
-    id_token_encoded = social.extra_data["id_token"]
-    access_token_data = _decode_access_token(token_str=access_token_encoded, id_token_str=id_token_encoded, backend=backend)
+    access_token_data = _decode_access_token(token_str=access_token_encoded, backend=backend)
     return {"access_token": access_token_data}
 
 
@@ -85,7 +84,7 @@ def add_roles(user: User = None, access_token: dict[str, Any] = None, social: Us
         social.sa_session.commit()
 
 
-def _decode_access_token(token_str: str, id_token_str: str, backend: OpenIdConnectAuth) -> dict:
+def _decode_access_token(token_str: str, backend: OpenIdConnectAuth) -> dict:
     """
     Decode the access token (verifying that signature, expiry and
     audience are valid)
