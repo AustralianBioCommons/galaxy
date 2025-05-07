@@ -1,14 +1,18 @@
 import logging
+import re
 from typing import Any
 
 import jwt
 from social_core.backends.open_id_connect import OpenIdConnectAuth
 
-from galaxy.model import UserAuthnzToken, UserRoleAssociation
+from galaxy.model import UserAuthnzToken, UserRoleAssociation, Group
 from galaxy.model.db.user import User
 from galaxy.model.db.role import Role
 from galaxy.model.security import GalaxyRBACAgent
 
+log = logging.getLogger(__name__)
+
+ROLES_CLAIM = "biocommons.org.au/roles"
 ROLE_PREFIX = "galaxy/"
 
 # Set up a temp logger for debugging auth
@@ -23,6 +27,24 @@ if not auth_log.handlers:
     auth_log.addHandler(fh)
 
 
+def get_galaxy_groups_from_oidc_roles(roles: list[str]) -> list[str]:
+    """
+    Given a list of roles from Auth0, return a list of the Galaxy groups
+    included. The roles have additional structure e.g. 'Galaxy/Group/kangaroo_genome',
+    the result just includes the final group name 'kangaroo_genome'
+    """
+    group_pattern = r"^Galaxy/Group/(.+)$"
+    groups = []
+    for role in roles:
+        match = re.match(group_pattern, role)
+        if not match:
+            continue
+        group_name = match.group(1)
+        groups.append(group_name)
+    return groups
+
+
+
 def decode_access_token(social: UserAuthnzToken, backend: OpenIdConnectAuth, **kwargs):
     """
     Decode the access token and add it to the 'social' data as
@@ -34,6 +56,40 @@ def decode_access_token(social: UserAuthnzToken, backend: OpenIdConnectAuth, **k
     access_token_encoded = social.extra_data.get("access_token")
     access_token_data = _decode_access_token(token_str=access_token_encoded, backend=backend)
     return {"access_token": access_token_data}
+
+
+def sync_user_groups(user: User = None, access_token: dict[str, Any] = None, social: UserAuthnzToken = None, **kwargs):
+    roles: list[str] = access_token.get(ROLES_CLAIM)
+    if roles is None:
+        log.debug("No roles claim in access token")
+        return
+
+    auth0_groups = get_galaxy_groups_from_oidc_roles(roles)
+    existing_groups = user.groups
+    existing_group_names = [g.group.name for g in existing_groups]
+
+    groups_to_add: list[str] = [group for group in auth0_groups
+                                if group not in existing_group_names]
+    auth_log.info(f"Groups to add: {groups_to_add}")
+    groups_to_remove = [group for group in existing_groups
+                        if group.group.name not in auth0_groups]
+    auth_log.info(f"Groups to remove: {groups_to_remove}")
+
+    # Use RBAC API to handle changes where possible
+    rbac = GalaxyRBACAgent(sa_session=social.sa_session)
+    for group_name in groups_to_add:
+        auth_log.info(f"Adding group: {group_name} to user: {user.id}")
+        group = (social.sa_session.query(Group)
+                 .filter_by(name=group_name).first())
+        if group is not None:
+            rbac.associate_user_group(user=user, group=group)
+        else:
+            auth_log.warning(f"Group {group_name} not found - currently only existing groups are added")
+
+    for group in groups_to_remove:
+        auth_log.info(f"Removing group: {group.group.name} from user: {user.id}")
+        social.sa_session.delete(group)
+        social.sa_session.commit()
 
 
 def add_roles(user: User = None, access_token: dict[str, Any] = None, social: UserAuthnzToken = None, **kwargs):
