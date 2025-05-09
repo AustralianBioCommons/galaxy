@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from galaxy.model import Group, User
+from galaxy.model import Group, User, UserGroupAssociation
 from galaxy import model
 from galaxy.authnz.auth0_authnz import decode_access_token, sync_user_groups
 from galaxy.util.unittest import TestCase
@@ -215,3 +215,25 @@ class TestAuth0Authnz(TestCase):
             sync_user_groups(user=user, access_token=access_token.access_token_data, social=mock_social)
             groups = sorted(assoc.group.name for assoc in user.groups)
             assert groups == ["group1", "group2"]
+
+    def test_sync_user_groups_remove_group(self, db_session):
+        """
+        Test that we remove groups from the user when they're not in roles.
+        """
+        with db_session:
+            user = User(email="test@example.com", password="password")
+            group1 = Group(name="group1")
+            user_group1 = UserGroupAssociation(user=user, group=group1)
+            db_session.add(user)
+            db_session.add(group1)
+            db_session.add(user_group1)
+            db_session.commit()
+            db_session.refresh(user)
+            groups_before_sync = [assoc.group.name for assoc in user.groups]
+            assert groups_before_sync == ["group1"]
+            access_token = create_access_token(roles=[])
+            mock_social = MagicMock()
+            mock_social.sa_session = db_session
+            sync_user_groups(user=user, access_token=access_token.access_token_data, social=mock_social)
+            groups = sorted(assoc.group.name for assoc in user.groups)
+            assert groups == []
