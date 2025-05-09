@@ -2,16 +2,35 @@ import base64
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import jwt
 # Tools from hazmat should only be used for testing!
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from jwt import InvalidIssuerError, InvalidAudienceError, InvalidSignatureError
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from galaxy.authnz.auth0_authnz import decode_access_token
+from galaxy.model import Group, User
+from galaxy import model
+from galaxy.authnz.auth0_authnz import decode_access_token, sync_user_groups
 from galaxy.util.unittest import TestCase
+
+
+@pytest.fixture(scope="module")
+def engine():
+    return create_engine("sqlite:///:memory:")
+
+
+@pytest.fixture(scope="module")
+def db_session(engine):
+    model.mapper_registry.metadata.create_all(engine)
+    session = Session(bind=engine)
+    yield session
+    session.rollback()
+    session.close()
 
 
 @dataclass
@@ -176,3 +195,23 @@ class TestAuth0Authnz(TestCase):
         mock_backend.id_token_issuer.return_value = dummy_access_token.access_token_data["iss"]
         with self.assertRaises(InvalidAudienceError):
             data = decode_access_token(social=mock_social, backend=mock_backend)
+
+    def test_sync_user_groups(self, db_session):
+        """
+        Test that we add groups listed in the access token to the user.
+        """
+        with db_session:
+            user = User(email="test@example.com", password="password")
+            group1 = Group(name="group1")
+            group2 = Group(name="group2")
+            db_session.add(user)
+            db_session.add(group1)
+            db_session.add(group2)
+            db_session.commit()
+            db_session.refresh(user)
+            access_token = create_access_token(roles=["Galaxy/Group/group1", "Galaxy/Group/group2"])
+            mock_social = MagicMock()
+            mock_social.sa_session = db_session
+            sync_user_groups(user=user, access_token=access_token.access_token_data, social=mock_social)
+            groups = sorted(assoc.group.name for assoc in user.groups)
+            assert groups == ["group1", "group2"]
