@@ -42,6 +42,7 @@ from galaxy.model import (
 )
 from galaxy.model.base import ensure_object_added_to_session
 from galaxy.model.dataset_collections import matching
+from galaxy.model.dataset_collections.query import HistoryQuery
 from galaxy.schema.invocation import (
     CancelReason,
     FailureReason,
@@ -54,7 +55,11 @@ from galaxy.schema.invocation import (
 )
 from galaxy.tool_util.cwl.util import set_basename_and_derived_properties
 from galaxy.tool_util.parser import get_input_source
-from galaxy.tool_util.parser.output_objects import ToolExpressionOutput
+from galaxy.tool_util.parser.output_objects import (
+    ToolExpressionOutput,
+    ToolOutput,
+    ToolOutputCollection,
+)
 from galaxy.tools import (
     DatabaseOperationTool,
     DefaultToolState,
@@ -90,7 +95,6 @@ from galaxy.tools.parameters.grouping import (
     ConditionalWhen,
     Repeat,
 )
-from galaxy.tools.parameters.history_query import HistoryQuery
 from galaxy.tools.parameters.options import ParameterOption
 from galaxy.tools.parameters.populate_model import populate_model
 from galaxy.tools.parameters.workflow_utils import (
@@ -117,6 +121,7 @@ from galaxy.workflow.workflow_parameter_input_definitions import (
 )
 
 if TYPE_CHECKING:
+    from galaxy.managers.context import ProvidesUserContext
     from galaxy.schema.invocation import InvocationMessageUnion
     from galaxy.workflow.run import WorkflowProgress
 
@@ -598,6 +603,9 @@ class WorkflowModule:
                     effective_input_collection_type,
                     dataset_collection_type_descriptions,
                 )
+                if not progress.subworkflow_structure and history_query.direct_match(data):
+                    continue
+
                 subcollection_type_description = history_query.can_map_over(data) or None
                 if subcollection_type_description:
                     subcollection_type_list = subcollection_type_description.collection_type.split(":")
@@ -1123,34 +1131,8 @@ class InputDataCollectionModule(InputModule):
     collection_type = default_collection_type
 
     def get_inputs(self):
-        parameter_def = self._parse_state_into_dict()
-        collection_type = parameter_def["collection_type"]
-        tag = parameter_def["tag"]
-        optional = parameter_def["optional"]
-        collection_type_source = dict(
-            name="collection_type", label="Collection type", type="text", value=collection_type
-        )
-        collection_type_source["options"] = [
-            {"value": "list", "label": "List of Datasets"},
-            {"value": "paired", "label": "Dataset Pair"},
-            {"value": "list:paired", "label": "List of Dataset Pairs"},
-        ]
-        input_collection_type = TextToolParameter(None, collection_type_source)
-        tag_source = dict(
-            name="tag",
-            label="Tag filter",
-            type="text",
-            optional="true",
-            value=tag,
-            help="Tags to automatically filter inputs",
-        )
-        input_tag = TextToolParameter(None, tag_source)
-        inputs = {}
-        inputs["collection_type"] = input_collection_type
-        inputs["optional"] = optional_param(optional)
-        inputs["format"] = format_param(self.trans, parameter_def.get("format"))
-        inputs["tag"] = input_tag
-        return inputs
+        # migrated to frontend
+        return {}
 
     def get_runtime_inputs(self, step, connections: Optional[Iterable[WorkflowStepConnection]] = None):
         parameter_def = self._parse_state_into_dict()
@@ -1858,16 +1840,19 @@ class ToolModule(WorkflowModule):
     type = "tool"
     name = "Tool"
 
-    def __init__(self, trans, tool_id, tool_version=None, exact_tools=True, tool_uuid=None, **kwds):
+    def __init__(
+        self, trans: "ProvidesUserContext", tool_id, tool_version=None, exact_tools=True, tool_uuid=None, **kwds
+    ):
         super().__init__(trans, content_id=tool_id, **kwds)
         self.tool_id = tool_id
         self.tool_version = str(tool_version) if tool_version else None
         self.tool_uuid = tool_uuid
         self.tool = None
         if getattr(trans.app, "toolbox", None):
-            self.tool = trans.app.toolbox.get_tool(
-                tool_id, tool_version=tool_version, exact=exact_tools, tool_uuid=tool_uuid
-            )
+            if not self.tool:
+                self.tool = trans.app.toolbox.get_tool(
+                    tool_id, tool_version=tool_version, exact=exact_tools, tool_uuid=tool_uuid
+                )
         if self.tool:
             current_tool_version = str(self.tool.version)
             if exact_tools and self.tool_version and self.tool_version != current_tool_version:
@@ -1881,10 +1866,10 @@ class ToolModule(WorkflowModule):
                         f"Exact tool specified during workflow module creation for [{tool_id}] but couldn't find correct version [{tool_version}]."
                     )
                     self.tool = None
-        self.post_job_actions = {}
-        self.runtime_post_job_actions = {}
-        self.workflow_outputs = []
-        self.version_changes = []
+        self.post_job_actions: Dict[str, Any] = {}
+        self.runtime_post_job_actions: Dict[str, Any] = {}
+        self.workflow_outputs: List[Dict[str, Any]] = []
+        self.version_changes: List[str] = []
 
     # ---- Creating modules from various representations ---------------------
 
@@ -2076,10 +2061,10 @@ class ToolModule(WorkflowModule):
             for name, tool_output in self.tool.outputs.items():
                 if filter_output(self.tool, tool_output, self.state.inputs):
                     continue
-                extra_kwds = {}
+                extra_kwds: Dict[str, Any] = {}
                 if isinstance(tool_output, ToolExpressionOutput):
                     extra_kwds["parameter"] = True
-                if tool_output.collection:
+                if isinstance(tool_output, ToolOutputCollection):
                     extra_kwds["collection"] = True
                     collection_type = tool_output.structure.collection_type
                     if not collection_type and tool_output.structure.collection_type_from_rules:
@@ -2091,10 +2076,14 @@ class ToolModule(WorkflowModule):
                                 collection_type = rule_set.collection_type
                     extra_kwds["collection_type"] = collection_type
                     extra_kwds["collection_type_source"] = tool_output.structure.collection_type_source
-                    formats = ["input"]  # TODO: fix
-                elif tool_output.format_source is not None:
+                    formats: List[Optional[str]] = ["input"]  # TODO: fix
+                elif (
+                    isinstance(tool_output, (ToolOutput, ToolExpressionOutput, ToolOutputCollection))
+                    and tool_output.format_source is not None
+                ):
                     formats = ["input"]  # default to special name "input" which remove restrictions on connections
                 else:
+                    assert isinstance(tool_output, (ToolOutput, ToolExpressionOutput))
                     formats = [tool_output.format]
                 for change_format_model in tool_output.change_format:
                     format = change_format_model["format"]
@@ -2285,7 +2274,9 @@ class ToolModule(WorkflowModule):
     ) -> Optional[bool]:
         invocation = invocation_step.workflow_invocation
         step = invocation_step.workflow_step
-        tool = trans.app.toolbox.get_tool(step.tool_id, tool_version=step.tool_version, tool_uuid=step.tool_uuid)
+        tool = trans.app.toolbox.get_tool(
+            step.tool_id, tool_version=step.tool_version, tool_uuid=step.tool_uuid, user=trans.user
+        )
         if not tool.is_workflow_compatible:
             # TODO: why do we even create an invocation, seems like something we could check on submit?
             message = f"Specified tool [{tool.id}] in step {step.order_index + 1} is not workflow-compatible."

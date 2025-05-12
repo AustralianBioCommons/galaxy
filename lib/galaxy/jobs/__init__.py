@@ -2154,7 +2154,7 @@ class MinimalJobWrapper(HasResourceParameters):
                 final_job_state = job.states.ERROR
                 job.job_messages = [
                     {
-                        "type": "internal",
+                        "type": "max_discovered_files",
                         "desc": str(e),
                         "error_level": StdioErrorLevel.FATAL,
                     }
@@ -2438,9 +2438,6 @@ class MinimalJobWrapper(HasResourceParameters):
         if self.remote_command_line:
             return None
         return f'{self.version_command_line or ""}{self.command_line}'
-
-    def get_session_id(self):
-        return self.session_id
 
     def get_env_setup_clause(self):
         if self.app.config.environment_setup_file is None:
@@ -2982,9 +2979,6 @@ class TaskWrapper(JobWrapper):
 
     def get_command_line(self):
         return self.command_line
-
-    def get_session_id(self):
-        return self.session_id
 
     def get_output_file_id(self, file):
         # There is no permanent output file for tasks.

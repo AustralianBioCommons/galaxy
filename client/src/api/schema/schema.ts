@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Query
-         * @description We're off to ask the wizard
+         * @description We're off to ask the wizard and return a JSON response
          */
         post: operations["query_api_chat_post"];
         delete?: never;
@@ -608,6 +608,23 @@ export interface paths {
          * @description Set permissions of the given history dataset to the given role ids.
          */
         put: operations["update_permissions_api_datasets__dataset_id__permissions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return JSON content Galaxy will use to render Markdown reports */
+        get: operations["report_api_datasets__dataset_id__report_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1746,7 +1763,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Return all the citations for the tools used to produce the datasets in the history. */
+        /** Return all the references for the tools used to produce the datasets in the history. */
         get: operations["citations_api_histories__history_id__citations_get"];
         put?: never;
         post?: never;
@@ -3820,6 +3837,30 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proxy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Proxy
+         * @description Proxy a remote file to the client to avoid CORS issues.
+         */
+        get: operations["proxy_api_proxy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /**
+         * Proxy
+         * @description Proxy a remote file to the client to avoid CORS issues.
+         */
+        head: operations["proxy_api_proxy_head"];
         patch?: never;
         trace?: never;
     };
@@ -6662,6 +6703,24 @@ export interface components {
              */
             query: string;
         };
+        /** ChatResponse */
+        ChatResponse: {
+            /**
+             * Error Code
+             * @description The error code, if any, for the chat query.
+             */
+            error_code: number | null;
+            /**
+             * Error Message
+             * @description The error message, if any, for the chat query.
+             */
+            error_message: string | null;
+            /**
+             * Response
+             * @description The response to the chat query.
+             */
+            response: string;
+        };
         /** CheckForUpdatesResponse */
         CheckForUpdatesResponse: {
             /**
@@ -8612,11 +8671,6 @@ export interface components {
              */
             quota_percent?: number | null;
             /**
-             * Tags used
-             * @description Tags used by the user
-             */
-            tags_used: string[];
-            /**
              * Total disk usage
              * @description Size of all non-purged, unique datasets of the user in bytes.
              */
@@ -8969,6 +9023,22 @@ export interface components {
              * @description The source of this dataset, either `hda`, `ldda`, `hdca`, `dce` or `dc` depending of its origin.
              */
             src: components["schemas"]["DataItemSourceType"];
+        };
+        /** ExitCodeJobMessage */
+        ExitCodeJobMessage: {
+            /** Code Desc */
+            code_desc?: string | null;
+            /** Desc */
+            desc: string | null;
+            /** Error Level */
+            error_level: number;
+            /** Exit Code */
+            exit_code: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "exit_code";
         };
         /** ExportHistoryArchivePayload */
         ExportHistoryArchivePayload: {
@@ -9341,7 +9411,8 @@ export interface components {
                 | "googledrive"
                 | "elabftw"
                 | "inveniordm"
-                | "zenodo";
+                | "zenodo"
+                | "rspace";
             /** Variables */
             variables?:
                 | (
@@ -14318,6 +14389,20 @@ export interface components {
              */
             source: components["schemas"]["DatasetSourceType"];
         };
+        /** MaxDiscoveredFilesJobMessage */
+        MaxDiscoveredFilesJobMessage: {
+            /** Code Desc */
+            code_desc?: string | null;
+            /** Desc */
+            desc: string | null;
+            /** Error Level */
+            error_level: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "max_discovered_files";
+        };
         /** MessageExceptionModel */
         MessageExceptionModel: {
             /** Err Code */
@@ -14817,7 +14902,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "aws_s3" | "azure_blob" | "boto3" | "disk" | "generic_s3" | "onedata";
+            type: "aws_s3" | "azure_blob" | "boto3" | "disk" | "generic_s3" | "onedata" | "rucio" | "irods";
             /** Variables */
             variables?:
                 | (
@@ -15636,6 +15721,24 @@ export interface components {
             /** Workflow */
             workflow: string;
         };
+        /** RegexJobMessage */
+        RegexJobMessage: {
+            /** Code Desc */
+            code_desc?: string | null;
+            /** Desc */
+            desc: string | null;
+            /** Error Level */
+            error_level: number;
+            /** Match */
+            match: string | null;
+            /** Stream */
+            stream: string | null;
+            /**
+             * Type
+             * @constant
+             */
+            type: "regex";
+        };
         /** ReloadFeedback */
         ReloadFeedback: {
             /** Failed */
@@ -16319,7 +16422,13 @@ export interface components {
              * Job Messages
              * @description List with additional information and possible reasons for a failed job.
              */
-            job_messages?: unknown[] | null;
+            job_messages?:
+                | (
+                      | components["schemas"]["ExitCodeJobMessage"]
+                      | components["schemas"]["RegexJobMessage"]
+                      | components["schemas"]["MaxDiscoveredFilesJobMessage"]
+                  )[]
+                | null;
             /**
              * Job Metrics
              * @description Collections of metrics provided by `JobInstrumenter` plugins on a particular job. Only administrators can see these metrics.
@@ -16542,6 +16651,11 @@ export interface components {
              * @description Whether this item is marked as deleted.
              */
             deleted: boolean;
+            /**
+             * DOI
+             * @description A list of Digital Object Identifiers associated with this workflow.
+             */
+            doi?: string[] | null;
             /**
              * Email Hash
              * @description The hash of the email of the creator of this workflow
@@ -16974,6 +17088,27 @@ export interface components {
              * @description A `\t` (TAB) separated list of column __contents__. You must specify a value for each of the columns of the data table.
              */
             values: string;
+        };
+        /** ToolReportForDataset */
+        ToolReportForDataset: {
+            /**
+             * Content
+             * @description Raw text contents of the last page revision (type dependent on content_format).
+             * @default
+             */
+            content: string | null;
+            /**
+             * Galaxy Version
+             * @description The version of Galaxy this object was generated with.
+             */
+            generate_time?: string | null;
+            /**
+             * Galaxy Version
+             * @description The version of Galaxy this object was generated with.
+             */
+            generate_version?: string | null;
+        } & {
+            [key: string]: unknown;
         };
         /** ToolStep */
         ToolStep: {
@@ -17689,7 +17824,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "aws_s3" | "azure_blob" | "boto3" | "disk" | "generic_s3" | "onedata";
+            type: "aws_s3" | "azure_blob" | "boto3" | "disk" | "generic_s3" | "onedata" | "rucio" | "irods";
             /**
              * Uuid
              * Format: uuid4
@@ -17775,7 +17910,8 @@ export interface components {
                 | "googledrive"
                 | "elabftw"
                 | "inveniordm"
-                | "zenodo";
+                | "zenodo"
+                | "rspace";
             /** Uri Root */
             uri_root: string;
             /**
@@ -18929,7 +19065,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string;
+                    "application/json": components["schemas"]["ChatResponse"];
                 };
             };
             /** @description Request Error */
@@ -20248,7 +20384,10 @@ export interface operations {
     };
     get_content_as_text_api_datasets__dataset_id__get_content_as_text_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description If non-null, get the specified filename from the extra files for this dataset. */
+                filename?: string | null;
+            };
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
                 "run-as"?: string | null;
@@ -20559,6 +20698,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetAssociationRoles"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    report_api_datasets__dataset_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The ID of the History Dataset. */
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolReportForDataset"];
                 };
             };
             /** @description Request Error */
@@ -31373,6 +31556,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SharingStatus"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    proxy_api_proxy_get: {
+        parameters: {
+            query: {
+                /** @description The URL of the remote file */
+                url: string;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    proxy_api_proxy_head: {
+        parameters: {
+            query: {
+                /** @description The URL of the remote file */
+                url: string;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Request Error */

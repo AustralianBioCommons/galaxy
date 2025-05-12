@@ -41,17 +41,21 @@ from galaxy.model import (
     HistoryDatasetCollectionAssociation,
     LibraryDatasetDatasetAssociation,
 )
-from galaxy.model.dataset_collections import builder
+from galaxy.model.dataset_collections import (
+    builder,
+    query,
+)
 from galaxy.schema.fetch_data import FilesPayload
 from galaxy.tool_util.parameters.factory import get_color_value
 from galaxy.tool_util.parser import get_input_source as ensure_input_source
-from galaxy.tool_util.parser.interface import DrillDownOptionsDict
 from galaxy.tool_util.parser.util import (
     boolean_is_checked,
     boolean_true_and_false_values,
+    multiple_select_value_split,
     ParameterParseException,
     text_input_is_optional,
 )
+from galaxy.tool_util_models.tool_source import DrillDownOptionsDict
 from galaxy.tools.parameters.options import ParameterOption
 from galaxy.tools.parameters.workflow_utils import (
     NO_REPLACEMENT,
@@ -69,7 +73,6 @@ from galaxy.util.hash_util import HASH_NAMES
 from galaxy.util.rules_dsl import RuleSet
 from . import (
     dynamic_options,
-    history_query,
     validation,
 )
 from .dataset_matcher import get_dataset_matcher_factory
@@ -1309,15 +1312,10 @@ class SelectTagParameter(SelectToolParameter):
         other_values = other_values or {}
         if self.multiple:
             tag_list = []
+
             # split on newline and ,
             if isinstance(value, list) or isinstance(value, str):
-                if not isinstance(value, list):
-                    value = value.split("\n")
-                for tag_str in value:
-                    for tag in str(tag_str).split(","):
-                        tag = tag.strip()
-                        if tag:
-                            tag_list.append(tag)
+                tag_list = multiple_select_value_split(value)
             if len(tag_list) == 0:
                 value = None
             else:
@@ -1446,14 +1444,7 @@ class ColumnListParameter(SelectToolParameter):
         if self.multiple:
             # split on newline and ,
             if isinstance(value, list) or isinstance(value, str):
-                column_list = []
-                if not isinstance(value, list):
-                    value = value.split("\n")
-                for column in value:
-                    for column2 in str(column).split(","):
-                        column2 = column2.strip()
-                        if column2:
-                            column_list.append(column2)
+                column_list = multiple_select_value_split(value)
                 if len(column_list) == 0:
                     value = None
                 else:
@@ -2444,7 +2435,7 @@ class DataToolParameter(BaseDataToolParameter):
         assert self.multiple
         dataset_collection_type_descriptions = trans.app.dataset_collection_manager.collection_type_descriptions
         # If multiple data parameter, treat like a list parameter.
-        return history_query.HistoryQuery.from_collection_type("list", dataset_collection_type_descriptions)
+        return query.HistoryQuery.from_collection_type("list", dataset_collection_type_descriptions)
 
 
 class DataCollectionToolParameter(BaseDataToolParameter):
@@ -2470,12 +2461,12 @@ class DataCollectionToolParameter(BaseDataToolParameter):
             )
 
     @property
-    def collection_types(self):
+    def collection_types(self) -> Optional[List[str]]:
         return self._collection_types
 
     def _history_query(self, trans):
         dataset_collection_type_descriptions = trans.app.dataset_collection_manager.collection_type_descriptions
-        return history_query.HistoryQuery.from_parameter(self, dataset_collection_type_descriptions)
+        return query.HistoryQuery.from_parameter(self, dataset_collection_type_descriptions)
 
     def match_collections(self, trans, history, dataset_collection_matcher):
         dataset_collections = trans.app.dataset_collection_manager.history_dataset_collections(

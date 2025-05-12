@@ -84,7 +84,6 @@ from galaxy.tool_util.parser import (
     ToolOutputCollectionPart,
 )
 from galaxy.tool_util.parser.interface import (
-    HelpContent,
     InputSource,
     PageSource,
     ToolSource,
@@ -113,6 +112,7 @@ from galaxy.tool_util.version import (
     LegacyVersion,
     parse_version,
 )
+from galaxy.tool_util_models.tool_source import HelpContent
 from galaxy.tools import expressions
 from galaxy.tools.actions import (
     DefaultToolAction,
@@ -654,6 +654,7 @@ class ToolBox(AbstractToolBox):
                 tools = self.get_tool(tool_id, tool_version=tool_version, get_all_versions=True)
             if tools:
                 tool = self.get_tool(tool_id, tool_version=tool_version, get_all_versions=False)
+                assert tool
                 if len(tools) > 1:
                     tool_version_select_field = self.__build_tool_version_select_field(tools, tool.id, set_selected)
                 break
@@ -703,7 +704,7 @@ class ToolBox(AbstractToolBox):
         """
         id = self.app.security.decode_id(workflow_id)
         session = self.app.model.context
-        stored = session.get(StoredWorkflow, id)
+        stored = session.get_one(StoredWorkflow, id)
         return stored.latest_workflow
 
     def __build_tool_version_select_field(self, tools, tool_id, set_selected):

@@ -28,6 +28,14 @@ from galaxy.tool_util.parser.util import (
     DEFAULT_PIN_LABELS,
     DEFAULT_SORT,
 )
+from galaxy.tool_util_models.parameter_validators import AnyValidatorModel
+from galaxy.tool_util_models.tool_source import (
+    Citation,
+    DrillDownOptionsDict,
+    HelpContent,
+    OutputCompareType,
+    XrefDict,
+)
 from galaxy.util import (
     Element,
     ElementTree,
@@ -40,13 +48,9 @@ from galaxy.util import (
 )
 from .interface import (
     AssertionList,
-    Citation,
     DrillDownDynamicOptions,
-    DrillDownOptionsDict,
     DynamicOptions,
-    HelpContent,
     InputSource,
-    OutputCompareType,
     PageSource,
     PagesSource,
     RequiredFiles,
@@ -63,7 +67,6 @@ from .interface import (
     ToolSourceTestOutputs,
     ToolSourceTests,
     XmlTestCollectionDefDict,
-    XrefDict,
 )
 from .output_actions import (
     ToolOutputActionApp,
@@ -77,10 +80,7 @@ from .output_objects import (
     ToolOutputCollection,
     ToolOutputCollectionStructure,
 )
-from .parameter_validators import (
-    AnyValidatorModel,
-    parse_xml_validators,
-)
+from .parameter_validators import parse_xml_validators
 from .stdio import (
     aggressive_error_checks,
     error_on_exit_code,
@@ -224,7 +224,7 @@ class XmlToolSource(ToolSource):
         if xrefs is None:
             return []
         return [
-            XrefDict(value=xref.text.strip(), reftype=str(xref.attrib["type"]))
+            XrefDict(value=xref.text.strip(), type=str(xref.attrib["type"]))
             for xref in xrefs.findall("xref")
             if xref.get("type") and xref.text
         ]
@@ -489,7 +489,7 @@ class XmlToolSource(ToolSource):
                 inherit_format = string_as_bool(collection_elem.get("inherit_format", None))
                 inherit_metadata = string_as_bool(collection_elem.get("inherit_metadata", None))
             default_format_source = collection_elem.get("format_source", None)
-            default_metadata_source = collection_elem.get("metadata_source", "")
+            default_metadata_source = collection_elem.get("metadata_source", None)
             filters = collection_elem.findall("filter")
 
             dataset_collector_descriptions = None
@@ -560,7 +560,7 @@ class XmlToolSource(ToolSource):
         app: Optional[ToolOutputActionApp] = None,
         default_format="data",
         default_format_source=None,
-        default_metadata_source="",
+        default_metadata_source=None,
         expression_type=None,
     ):
         from_expression = data_elem.get("from")

@@ -4,6 +4,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Sequence,
     Type,
     TYPE_CHECKING,
     Union,
@@ -11,6 +12,16 @@ from typing import (
 
 from typing_extensions import TypedDict
 
+from galaxy.tool_util_models.tool_outputs import (
+    ToolOutputBoolean as ToolOutputBooleanModel,
+    ToolOutputCollection as ToolOutputCollectionModel,
+    ToolOutputCollectionStructure as ToolOutputCollectionStructureModel,
+    ToolOutputDataset as ToolOutputDataModel,
+    ToolOutputFloat as ToolOutputFloatModel,
+    ToolOutputInteger as ToolOutputIntegerModel,
+    ToolOutputT as ToolOutputModel,
+    ToolOutputText as ToolOutputTextModel,
+)
 from galaxy.util import Element
 from galaxy.util.dictifiable import Dictifiable
 from .output_actions import (
@@ -21,16 +32,9 @@ from .output_collection_def import (
     dataset_collector_descriptions_from_output_dict,
     DatasetCollectionDescription,
 )
-from .output_models import (
-    ToolOutputBoolean as ToolOutputBooleanModel,
-    ToolOutputCollection as ToolOutputCollectionModel,
-    ToolOutputCollectionStructure as ToolOutputCollectionStructureModel,
-    ToolOutputDataset as ToolOutputDataModel,
-    ToolOutputFloat as ToolOutputFloatModel,
-    ToolOutputInteger as ToolOutputIntegerModel,
-    ToolOutputT as ToolOutputModel,
-    ToolOutputText as ToolOutputTextModel,
-)
+
+if TYPE_CHECKING:
+    from galaxy.tool_util.parser import ToolSource
 
 if TYPE_CHECKING:
     from typing_extensions import TypeIs  # Supported only under Python >=3.8
@@ -171,24 +175,25 @@ class ToolOutput(ToolOutputBase):
             hidden=self.hidden,
             format=self.format,
             format_source=self.format_source,
-            metadata_source=self.metadata_source or None,  # model is decorated as Optional
+            metadata_source=self.metadata_source,
             discover_datasets=[d.to_model() for d in self.dataset_collector_descriptions],
+            from_work_dir=self.from_work_dir,
         )
 
     @staticmethod
     def from_dict(name: str, output_dict: Dict[str, Any], app: Optional[ToolOutputActionApp] = None) -> "ToolOutput":
         output = ToolOutput(name)
-        output.format = output_dict.get("format", "data")
+        output.format = output_dict.get("format") or "data"
         output.change_format = []
-        output.format_source = output_dict.get("format_source", None)
-        output.default_identifier_source = output_dict.get("default_identifier_source", None)
-        output.metadata_source = output_dict.get("metadata_source", "")
-        output.parent = output_dict.get("parent", None)
-        output.label = output_dict.get("label", None)
+        output.format_source = output_dict.get("format_source")
+        output.default_identifier_source = output_dict.get("default_identifier_source")
+        output.metadata_source = output_dict.get("metadata_source")
+        output.parent = output_dict.get("parent")
+        output.label = output_dict.get("label")
         output.count = output_dict.get("count", 1)
         output.filters = []
-        output.from_work_dir = output_dict.get("from_work_dir", None)
-        output.hidden = output_dict.get("hidden", False)
+        output.from_work_dir = output_dict.get("from_work_dir")
+        output.hidden = output_dict.get("hidden") or False
         # TODO: implement tool output action group fixes
         if app is not None:
             output.actions = ToolOutputActionGroup(app, None)
@@ -521,3 +526,13 @@ class ToolOutputCollectionPart:
     def split_output_name(name):
         assert ToolOutputCollectionPart.is_named_collection_part_name(name)
         return name.split("|__part__|")
+
+
+def from_tool_source(tool_source: "ToolSource") -> Sequence[ToolOutputModel]:
+    tool_outputs, tool_output_collections = tool_source.parse_outputs(None)
+    outputs = []
+    for tool_output in tool_outputs.values():
+        outputs.append(tool_output.to_model())
+    # for tool_output_collection in tool_output_collections.values():
+    #    outputs.append(tool_output_collection.to_model())
+    return outputs

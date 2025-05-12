@@ -67,13 +67,15 @@ const validInput = computed(() => {
     return collectionName.value.length > 0;
 });
 
+const defaultWhatIsBeingCreated = "collection";
+
 /** Plain language for what is being created */
 const shortWhatIsBeingCreated = computed<string>(() => {
     const collectionType: string | undefined = props.collectionType;
-    if (collectionType in COLLECTION_TYPE_TO_LABEL) {
+    if (collectionType && collectionType in COLLECTION_TYPE_TO_LABEL) {
         return COLLECTION_TYPE_TO_LABEL[collectionType] as string;
     } else {
-        return "collection";
+        return defaultWhatIsBeingCreated;
     }
 });
 
@@ -139,7 +141,10 @@ watch(
             </div>
         </span>
         <BTabs v-else v-model="currentTab" fill justified>
-            <BTab class="collection-creator" :title="localize('Create Collection')">
+            <BTab
+                class="collection-creator"
+                :title="localize('Create Collection')"
+                :title-link-attributes="{ 'data-description': 'collection create tab build' }">
                 <div v-if="props.noItems">
                     <CollectionCreatorNoItemsMessage @click-upload="currentTab = Tabs.upload" />
                 </div>
@@ -175,7 +180,7 @@ watch(
                     </div>
                 </div>
             </BTab>
-            <BTab>
+            <BTab :title-link-attributes="{ 'data-description': 'collection create tab upload' }">
                 <template v-slot:title>
                     <FontAwesomeIcon :icon="faUpload" fixed-width />
                     <span>{{ localize("Upload Files to Add to Collection") }}</span>
@@ -374,11 +379,13 @@ $fa-font-path: "../../../../node_modules/@fortawesome/fontawesome-free/webfonts/
                     list-style: circle;
                     margin-left: 16px;
                 }
+                /* This is not referenced anywhere I think.
                 .scss-help {
                     display: inline-block;
                     width: 100%;
                     text-align: right;
                 }
+                */
             }
             .more-help {
                 //display: inline-block;

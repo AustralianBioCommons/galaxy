@@ -380,7 +380,6 @@ class DetailedUserModel(BaseUserModel, AnonUserModel):
     quota_bytes: Optional[int] = Field(
         default=None, title="Quota in bytes", description="Quota applicable to the user in bytes."
     )
-    tags_used: List[str] = Field(default=..., title="Tags used", description="Tags used by the user")
 
 
 class UserUpdatePayload(Model):
@@ -3777,6 +3776,24 @@ class ChatPayload(Model):
     )
 
 
+class ChatResponse(BaseModel):
+    response: str = Field(
+        ...,
+        title="Response",
+        description="The response to the chat query.",
+    )
+    error_code: Optional[int] = Field(
+        ...,
+        title="Error Code",
+        description="The error code, if any, for the chat query.",
+    )
+    error_message: Optional[str] = Field(
+        ...,
+        title="Error Message",
+        description="The error message, if any, for the chat query.",
+    )
+
+
 class CreatePagePayload(PageSummaryBase):
     content_format: PageContentFormat = ContentFormatField
     content: Optional[str] = ContentField
@@ -3922,6 +3939,13 @@ class OAuth2State(BaseModel):
 class PageDetails(PageSummary):
     annotation: Optional[str] = AnnotationField
     content_format: PageContentFormat = ContentFormatField
+    content: Optional[str] = ContentField
+    generate_version: Optional[str] = GenerateVersionField
+    generate_time: Optional[str] = GenerateTimeField
+    model_config = ConfigDict(extra="allow")
+
+
+class ToolReportForDataset(BaseModel):
     content: Optional[str] = ContentField
     generate_version: Optional[str] = GenerateVersionField
     generate_time: Optional[str] = GenerateTimeField

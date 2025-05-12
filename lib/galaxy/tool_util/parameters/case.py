@@ -20,9 +20,8 @@ from galaxy.tool_util.parser.interface import (
     xml_data_input_to_json,
     XmlTestCollectionDefDict,
 )
-from galaxy.util import asbool
-from .factory import input_models_for_tool_source
-from .models import (
+from galaxy.tool_util.parser.util import multiple_select_value_split
+from galaxy.tool_util_models.parameters import (
     BooleanParameterModel,
     ConditionalParameterModel,
     ConditionalWhen,
@@ -30,11 +29,15 @@ from .models import (
     DataColumnParameterModel,
     DataParameterModel,
     FloatParameterModel,
+    GenomeBuildParameterModel,
+    GroupTagParameterModel,
     IntegerParameterModel,
     RepeatParameterModel,
     SectionParameterModel,
     ToolParameterT,
 )
+from galaxy.util import asbool
+from .factory import input_models_for_tool_source
 from .state import TestCaseToolState
 from .visitor import (
     flat_state_path,
@@ -110,6 +113,12 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
                 warnings.append(
                     "Likely using deprected truevalue/falsevalue in tool parameter - switch to 'true' or 'false'"
                 )
+        elif isinstance(parameter, (GroupTagParameterModel,)):
+            if parameter.multiple:
+                result_value = multiple_select_value_split(value)
+        elif isinstance(parameter, (GenomeBuildParameterModel,)):
+            if parameter.multiple:
+                result_value = multiple_select_value_split(value)
         elif isinstance(parameter, (DataColumnParameterModel,)):
             if parameter.multiple:
                 integers_match = INTEGER_STR_PATTERN.match(value)
@@ -238,6 +247,9 @@ def _merge_into_state(
             state_at_level[input_name] = repeat_state_array
 
         repeat_instance_inputs = repeat_inputs_to_array(state_path, _inputs_as_dict(inputs))
+        if tool_input.min is not None:
+            while len(repeat_instance_inputs) < tool_input.min:
+                repeat_instance_inputs.append({})
         for i, _ in enumerate(repeat_instance_inputs):
             while len(repeat_state_array) <= i:
                 repeat_state_array.append({})

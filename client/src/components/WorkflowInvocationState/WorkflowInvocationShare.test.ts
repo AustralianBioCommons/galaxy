@@ -1,6 +1,6 @@
 import { createTestingPinia } from "@pinia/testing";
 import { getFakeRegisteredUser } from "@tests/test-data";
-import { shallowMount, type Wrapper } from "@vue/test-utils";
+import { mount, type Wrapper } from "@vue/test-utils";
 import flushPromises from "flush-promises";
 import { getLocalVue } from "tests/jest/helpers";
 
@@ -8,6 +8,7 @@ import { useServerMock } from "@/api/client/__mocks__/index";
 import { useUserStore } from "@/stores/userStore";
 
 import WorkflowInvocationShare from "./WorkflowInvocationShare.vue";
+import GModal from "@/components/BaseComponents/GModal.vue";
 
 // Constants
 const WORKFLOW_OWNER = "test-user";
@@ -39,9 +40,8 @@ const SHARE_SUCCESS_MSG = "Workflow and history are now shareable.";
 const CLIPBOARD_MSG = "The link to the invocation has been copied to your clipboard.";
 
 const SELECTORS = {
-    SHARE_ICON_BUTTON: "[data-description='share invocation icon button']",
-    MODAL: "[data-description='share invocation modal']",
-};
+    SHARE_ICON_BUTTON: "[data-button-share]",
+} as const;
 
 // Mock the toast composable to track the messages
 const MSG = 0;
@@ -86,6 +86,27 @@ jest.mock("@/stores/workflowStore", () => {
     };
 });
 
+// Mock the history store to return the sample history
+jest.mock("@/stores/historyStore", () => {
+    const originalModule = jest.requireActual("@/stores/historyStore");
+    return {
+        ...originalModule,
+        useHistoryStore: () => ({
+            ...originalModule.useHistoryStore(),
+            getHistoryById: jest.fn().mockImplementation((historyId: string) => {
+                return {
+                    ...TEST_HISTORY,
+                    id: historyId,
+                    importable: historyId === `${TEST_HISTORY.id}-importable`,
+                };
+            }),
+            getHistoryNameById: jest.fn().mockImplementation(() => {
+                return TEST_HISTORY.name;
+            }),
+        }),
+    };
+});
+
 const { server, http } = useServerMock();
 
 const localVue = getLocalVue();
@@ -98,13 +119,6 @@ const localVue = getLocalVue();
  */
 async function mountWorkflowInvocationShare(ownsWorkflow = true, bothShareable = false) {
     server.use(
-        http.get("/api/histories/{history_id}", ({ response }) => {
-            return response(200).json({
-                ...TEST_HISTORY,
-                importable: bothShareable,
-            });
-        }),
-
         http.put("/api/workflows/{workflow_id}/enable_link_access", ({ response }) => {
             return response(200).json({
                 ...TEST_WORKFLOW,
@@ -117,11 +131,15 @@ async function mountWorkflowInvocationShare(ownsWorkflow = true, bothShareable =
         })
     );
 
-    const wrapper = shallowMount(WorkflowInvocationShare as object, {
+    const wrapper = mount(WorkflowInvocationShare as object, {
         propsData: {
             invocationId: "invocation-id",
             workflowId: bothShareable ? SHARED_WORKFLOW_ID : TEST_WORKFLOW.id,
-            historyId: TEST_HISTORY.id,
+            historyId: bothShareable ? `${TEST_HISTORY.id}-importable` : TEST_HISTORY.id,
+        },
+        stubs: {
+            FontAwesomeIcon: true,
+            BModal: true,
         },
         localVue,
         pinia: createTestingPinia(),
@@ -150,12 +168,12 @@ describe("WorkflowInvocationShare", () => {
         const { wrapper } = await mountWorkflowInvocationShare();
 
         // Initially, the modal is not visible and opens when the button is clicked
-        expect(wrapper.find(SELECTORS.MODAL).attributes("visible")).toBeUndefined();
+        expect(wrapper.findComponent(GModal).props("show")).toBeFalsy();
         await openShareModal(wrapper);
-        expect(wrapper.find(SELECTORS.MODAL).attributes("visible")).toBe("true");
+        expect(wrapper.findComponent(GModal).props("show")).toBeTruthy();
 
-        expect(wrapper.find(SELECTORS.MODAL).text()).toContain(TEST_WORKFLOW.name);
-        expect(wrapper.find(SELECTORS.MODAL).text()).toContain(TEST_HISTORY.name);
+        expect(wrapper.findComponent(GModal).text()).toContain(TEST_WORKFLOW.name);
+        expect(wrapper.findComponent(GModal).text()).toContain(TEST_HISTORY.name);
     });
 
     it("shares the workflow and history when the share button is clicked, and copies link", async () => {
@@ -164,7 +182,7 @@ describe("WorkflowInvocationShare", () => {
         await openShareModal(wrapper);
 
         // Click the share button in the modal
-        wrapper.find(SELECTORS.MODAL).vm.$emit("ok");
+        wrapper.findComponent(GModal).vm.$emit("ok");
         await flushPromises();
 
         // We have 2 toasts
@@ -183,16 +201,16 @@ describe("WorkflowInvocationShare", () => {
     it("renders nothing when the user does not own the workflow", async () => {
         const { wrapper } = await mountWorkflowInvocationShare(false);
         expect(wrapper.find(SELECTORS.SHARE_ICON_BUTTON).exists()).toBe(false);
-        expect(wrapper.find(SELECTORS.MODAL).exists()).toBe(false);
+        expect(wrapper.findComponent(GModal).exists()).toBeFalsy();
     });
 
     it("just copies link and does not open modal if both workflow and history are already shareable", async () => {
         const { wrapper } = await mountWorkflowInvocationShare(true, true);
 
         // Initially, the modal is not visible and this time remains closed when the button is clicked
-        expect(wrapper.find(SELECTORS.MODAL).attributes("visible")).toBeUndefined();
+        expect(wrapper.findComponent(GModal).props("visible")).toBeFalsy();
         await openShareModal(wrapper);
-        expect(wrapper.find(SELECTORS.MODAL).attributes("visible")).toBeUndefined();
+        expect(wrapper.findComponent(GModal).props("visible")).toBeFalsy();
 
         // Instead we already have a singular toast with the link copied message
         const toasts = toastMock.mock.calls;

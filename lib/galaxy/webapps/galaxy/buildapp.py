@@ -246,8 +246,9 @@ def app_pair(global_conf, load_app_kwds=None, wsgi_preflight=True, **kwargs):
     webapp.add_client_route("/file_source_templates/{template_id}/new")
     webapp.add_client_route("/welcome/new")
     webapp.add_client_route("/visualizations")
-    webapp.add_client_route("/visualizations/edit")
+    webapp.add_client_route("/visualizations/create/{visualization}")
     webapp.add_client_route("/visualizations/display{path:.*?}")
+    webapp.add_client_route("/visualizations/edit")
     webapp.add_client_route("/visualizations/sharing")
     webapp.add_client_route("/visualizations/list_published")
     webapp.add_client_route("/visualizations/list")
@@ -280,6 +281,7 @@ def app_pair(global_conf, load_app_kwds=None, wsgi_preflight=True, **kwargs):
     webapp.add_client_route("/datasets/{dataset_id}/error")
     webapp.add_client_route("/datasets/{dataset_id}/details")
     webapp.add_client_route("/datasets/{dataset_id}/preview")
+    webapp.add_client_route("/datasets/{dataset_id}/report")
     webapp.add_client_route("/datasets/{dataset_id}/show_params")
     webapp.add_client_route("/collection/{collection_id}/edit")
     webapp.add_client_route("/jobs/submission/success")
@@ -290,6 +292,7 @@ def app_pair(global_conf, load_app_kwds=None, wsgi_preflight=True, **kwargs):
     webapp.add_client_route("/workflows/edit")
     webapp.add_client_route("/workflows/export")
     webapp.add_client_route("/workflows/create")
+    webapp.add_client_route("/workflows/rerun")
     webapp.add_client_route("/workflows/run")
     webapp.add_client_route("/workflows/import")
     webapp.add_client_route("/workflows/trs_import")
@@ -305,6 +308,7 @@ def app_pair(global_conf, load_app_kwds=None, wsgi_preflight=True, **kwargs):
     webapp.add_client_route("/interactivetool_entry_points/list")
     webapp.add_client_route("/libraries{path:.*?}")
     webapp.add_client_route("/storage{path:.*?}")
+    webapp.add_client_route("/import/zip")
 
     # ==== Done
     # Indicate that all configuration settings have been provided

@@ -10,8 +10,8 @@ import packaging.version
 
 from galaxy.tool_util.cwl.parser import tool_proxy
 from galaxy.tool_util.deps import requirements
+from galaxy.tool_util_models.tool_source import HelpContent
 from .interface import (
-    HelpContent,
     PageSource,
     PagesSource,
     ToolSource,
@@ -159,7 +159,7 @@ class CwlToolSource(ToolSource):
             output.format = "expression.json"
         output.change_format = []
         output.format_source = None
-        output.metadata_source = ""
+        output.metadata_source = None
         output.parent = None
         output.label = None
         output.count = None

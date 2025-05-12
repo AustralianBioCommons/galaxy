@@ -1,31 +1,51 @@
 <script setup lang="ts">
-import type { Placement } from "@popperjs/core";
-import { computed, ref } from "vue";
-import { RouterLink } from "vue-router";
+/**
+ * Button-like element that can be used for buttons, anchors, or router-links.
+ * Defaults to button behavior.
+ */
 
-import { useAccessibleHover } from "@/composables/accessibleHover";
+import type { Placement } from "@floating-ui/dom";
+import { computed, ref } from "vue";
+import { type RouterLink } from "vue-router";
+
+import { useClickableElement } from "@/components/BaseComponents/composables/clickableElement";
+import { useCurrentTitle } from "@/components/BaseComponents/composables/currentTitle";
 import { useResolveElement } from "@/composables/resolveElement";
-import { useUid } from "@/composables/utils/uid";
 
 import { type ComponentColor, type ComponentSize, type ComponentVariantClassList, prefix } from "./componentVariants";
 
 import GTooltip from "./GTooltip.vue";
 
 const props = defineProps<{
+    /** Href to set on the underlying 'a' element. Using this will turn the element into an anchor, not affecting the styling */
     href?: string;
+    /** Router link "to" prop. Using this will turn the element into a router-link, not affecting the styling  */
     to?: string;
+    /** Which color scheme to use for the component. Not setting this will make the button appear grey */
     color?: ComponentColor;
+    /** Outline variant of the button. Can be used together with the `pressed` state */
     outline?: boolean;
+    /** Disabled state. Changes appearance, and will no longer accept or forward clicks */
     disabled?: boolean;
+    /** Title attribute, or tooltip text */
     title?: string;
+    /** Alternative title to be displayed in a disabled state */
     disabledTitle?: string;
+    /** Displayed size of the component */
     size?: ComponentSize;
+    /** When set, uses a tooltip for the "title" prop, instead of the native title attribute */
     tooltip?: boolean;
+    /** Controls the positioning of the tooltip, if a tooltip is active */
     tooltipPlacement?: Placement;
+    /** Inline variant of the button. Affects buttons size, and positioning */
     inline?: boolean;
+    /** Small, icon-only variant of the button */
     iconOnly?: boolean;
+    /** Variant of the button without background or outline. Can be used together with the `pressed` state */
     transparent?: boolean;
+    /** Variant of the button with more rounded corners */
     pill?: boolean;
+    /** Pressed state allows for a toggle-like behavior of the button. For use with the outline and transparent variants */
     pressed?: boolean;
 }>();
 
@@ -62,56 +82,13 @@ const styleClasses = computed(() => {
     };
 });
 
-const baseComponent = computed(() => {
-    if (props.to) {
-        return RouterLink;
-    } else if (props.href) {
-        return "a" as const;
-    } else {
-        return "button" as const;
-    }
-});
+const baseComponent = useClickableElement(props);
+const currentTitle = useCurrentTitle(props);
 
-const currentTooltip = computed(() => {
-    if (props.disabled) {
-        return props.disabledTitle ?? props.title;
-    } else {
-        return props.title;
-    }
-});
-
-const currentTitle = computed(() => {
-    if (props.tooltip) {
-        return false;
-    } else {
-        return currentTooltip.value;
-    }
-});
-
-const tooltipId = useUid("g-tooltip");
-
-const describedBy = computed(() => {
-    if (props.tooltip) {
-        return tooltipId.value;
-    } else {
-        return false;
-    }
-});
+const showTooltip = computed(() => props.tooltip && currentTitle.value);
 
 const buttonRef = ref<HTMLElement | InstanceType<typeof RouterLink> | null>(null);
-const tooltipRef = ref<InstanceType<typeof GTooltip>>();
-
 const buttonElementRef = useResolveElement(buttonRef);
-
-useAccessibleHover(
-    buttonElementRef,
-    () => {
-        tooltipRef.value?.show();
-    },
-    () => {
-        tooltipRef.value?.hide();
-    }
-);
 </script>
 
 <template>
@@ -119,31 +96,30 @@ useAccessibleHover(
         :is="baseComponent"
         ref="buttonRef"
         class="g-button"
-        :data-title="currentTooltip"
-        :data-disabled="props.disabled"
+        :data-title="currentTitle"
         :class="{ ...variantClasses, ...styleClasses }"
-        :to="props.to"
-        :href="props.to ?? props.href"
-        :title="currentTitle"
-        :aria-describedby="describedBy"
+        :to="!props.disabled ? props.to : ''"
+        :href="!props.disabled ? props.to ?? props.href : ''"
+        :title="props.tooltip ? false : currentTitle"
+        :aria-disabled="props.disabled"
         v-bind="$attrs"
         @click="onClick">
         <slot></slot>
 
         <!-- TODO: make tooltip a sibling in Vue 3 -->
         <GTooltip
-            v-if="props.tooltip"
-            :id="tooltipId"
-            ref="tooltipRef"
+            v-if="showTooltip"
             :reference="buttonElementRef"
-            :text="currentTooltip"
+            :text="currentTitle"
             :placement="props.tooltipPlacement" />
     </component>
 </template>
 
 <style scoped lang="scss">
 .g-button {
-    display: inline-block;
+    display: inline-flex;
+    gap: var(--spacing-1);
+    align-items: center;
     margin: 0;
     border: 1px solid;
     border-radius: var(--spacing-1);
@@ -259,44 +235,28 @@ useAccessibleHover(
     }
 
     &.g-disabled {
-        background-color: var(--color-grey-100);
-        border-color: var(--color-grey-200);
-        color: var(--color-grey-500);
-
-        &:hover,
-        &:focus-visible {
-            background-color: var(--color-grey-100);
-            border-color: var(--color-grey-200);
-
-            &:active {
-                background-color: var(--color-grey-100);
-                border-color: var(--color-grey-200);
-                color: var(--color-grey-500);
-            }
-        }
+        background-color: var(--color-grey-100) !important;
+        border-color: var(--color-grey-200) !important;
+        color: var(--color-grey-500) !important;
 
         &:focus-visible {
-            border-color: var(--color-grey-500);
+            border-color: var(--color-grey-500) !important;
         }
 
         &.g-outline {
-            background-color: var(--background-color);
-            border-color: var(--color-grey-400);
-            color: var(--color-grey-400);
-
-            &:hover,
-            &:focus,
-            &:focus-visible {
-                background-color: var(--background-color);
-                border-color: var(--color-grey-400);
-                color: var(--color-grey-400);
-            }
+            background-color: var(--background-color) !important;
+            border-color: var(--color-grey-400) !important;
+            color: var(--color-grey-400) !important;
 
             &:focus-visible {
-                border-color: var(--color-grey-800);
-                background-color: var(--background-color);
-                color: var(--color-grey-500);
+                border-color: var(--color-grey-800) !important;
+                background-color: var(--background-color) !important;
+                color: var(--color-grey-500) !important;
             }
+        }
+
+        &.g-transparent {
+            background-color: rgb(100% 100% 100% / 0) !important;
         }
     }
 
@@ -312,7 +272,6 @@ useAccessibleHover(
     }
 
     &.g-icon-only {
-        aspect-ratio: 1;
         display: inline-flex;
         justify-content: center;
 
@@ -330,16 +289,22 @@ useAccessibleHover(
         }
     }
 
-    &.g-transparent {
-        border: none;
+    &.g-transparent:not(.g-pressed) {
+        border: 1px solid rgb(100% 100% 100% / 0) !important;
         background-color: rgb(100% 100% 100% / 0);
+
+        color: var(--color-grey-700);
+
+        &:hover,
+        &:focus-visible {
+            background-color: var(--color-grey-200);
+        }
 
         @each $color in "blue", "green", "red", "yellow", "orange" {
             &.g-#{$color} {
                 color: var(--color-#{$color}-600);
 
                 &:hover,
-                &:focus,
                 &:focus-visible {
                     background-color: var(--color-#{$color}-600);
                     color: var(--color-#{$color}-100);
