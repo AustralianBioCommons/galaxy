@@ -13,6 +13,7 @@ import { loadWebhookMenuItems } from "./_webhooks";
 import MastheadDropdown from "./MastheadDropdown";
 import MastheadItem from "./MastheadItem";
 import QuotaMeter from "./QuotaMeter";
+import axios from "axios";
 
 const { isAnonymous, currentUser } = storeToRefs(useUserStore());
 
@@ -71,6 +72,22 @@ function onWindowToggle() {
     props.windowTab.onclick();
 }
 
+
+async function submitOIDCLogin(idp) {
+  const loginUrl = withPrefix(`/authnz/${idp}/login`);
+  const urlParams = new URLSearchParams(window.location.search);
+  const redirectParam = urlParams.get("redirect");
+
+  const formData = new FormData();
+  formData.append("next", redirectParam || "");
+
+  const { data } = await axios.post(loginUrl, formData, { withCredentials: true });
+
+  if (data.redirect_uri) {
+    window.location = data.redirect_uri;
+  }
+}
+
 onMounted(() => {
     loadWebhookMenuItems(extensionTabs.value);
 });
@@ -119,26 +136,27 @@ onMounted(() => {
                 tooltip="Support, Contact, and Community"
                 @click="openUrl('/about')" />
             <QuotaMeter />
-            <MastheadItem
-                v-if="isAnonymous && config.allow_user_creation"
-                id="user"
-                class="loggedout-only"
-                title="Login or Register"
-                @click="openUrl('/login/start')" />
-            <MastheadItem
-                v-if="isAnonymous && !config.allow_user_creation"
-                id="user"
-                class="loggedout-only"
-                title="Login"
-                @click="openUrl('/login/start')" />
-            <MastheadDropdown
-                v-if="currentUser && !isAnonymous && !config.single_user"
-                id="user"
-                class="loggedin-only"
-                icon="fa-user"
-                :title="currentUser.username"
-                tooltip="User Preferences"
-                :menu="[
+          <MastheadItem
+              v-if="isAnonymous"
+              id="user"
+              class="loggedout-only"
+              title="Login"
+              @click="submitOIDCLogin('oidc')" />
+<!--          TODO: link to custom registration page here-->
+          <MastheadItem
+              v-if="isAnonymous"
+              id="user"
+              class="loggedout-only"
+              title="Register"
+              @click="submitOIDCLogin('oidc')" />
+          <MastheadDropdown
+              v-if="currentUser && !isAnonymous && !config.single_user"
+              id="user"
+              class="loggedin-only"
+              icon="fa-user"
+              :title="currentUser.username"
+              tooltip="User Preferences"
+              :menu="[
                     {
                         title: 'Preferences',
                         icon: 'fa-gear',
@@ -150,9 +168,9 @@ onMounted(() => {
                         handler: () => userLogout(),
                     },
                 ]"
-                @click="userLogout" />
+              @click="userLogout" />
         </BNavbarNav>
-        <Icon v-else icon="spinner" class="fa-spin mr-2 text-light" />
+      <Icon v-else icon="spinner" class="fa-spin mr-2 text-light" />
     </BNavbar>
 </template>
 
