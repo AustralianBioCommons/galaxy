@@ -78,6 +78,9 @@ AUTH_PIPELINE = (
     "galaxy.authnz.psa_authnz.verify",
     # Checks if the current social-account is already associated in the site.
     "social_core.pipeline.social_auth.social_user",
+    # Make up a username for this person, appends a random string at the end if
+    # there's any collision.
+    "social_core.pipeline.user.get_username",
     # Send a validation email to the user to verify its email address.
     # 'social_core.pipeline.mail.mail_validation',
     # Associates the current social details with another user account with
