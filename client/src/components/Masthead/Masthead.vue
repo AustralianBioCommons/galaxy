@@ -59,6 +59,10 @@ function openUrl(url, target = null) {
     }
 }
 
+function openExternalUrl(url) {
+  window.open(url)
+}
+
 function extensionTabClick(tab) {
     if (tab.url) {
         openUrl(tab.url, tab.target);
@@ -142,13 +146,12 @@ onMounted(() => {
               class="loggedout-only"
               title="Login"
               @click="submitOIDCLogin('oidc')" />
-<!--          TODO: link to custom registration page here-->
           <MastheadItem
               v-if="isAnonymous"
               id="user"
               class="loggedout-only"
               title="Register"
-              @click="submitOIDCLogin('oidc')" />
+              @click="openExternalUrl('https://aaiportal.test.biocommons.org.au/galaxy/register')" />
           <MastheadDropdown
               v-if="currentUser && !isAnonymous && !config.single_user"
               id="user"
