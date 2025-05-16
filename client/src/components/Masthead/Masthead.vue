@@ -148,7 +148,7 @@ onMounted(() => {
               @click="submitOIDCLogin('oidc')" />
           <MastheadItem
               v-if="isAnonymous"
-              id="user"
+              id="register"
               class="loggedout-only"
               title="Register"
               @click="openExternalUrl('https://aaiportal.test.biocommons.org.au/galaxy/register')" />
