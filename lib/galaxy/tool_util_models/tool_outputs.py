@@ -6,6 +6,7 @@ code where actual tool objects aren't created.
 """
 
 from typing import (
+    Generic,
     List,
     Optional,
     Union,
@@ -18,55 +19,23 @@ from pydantic import (
 from typing_extensions import (
     Annotated,
     Literal,
+    TypeVar,
 )
 
+AnyT = TypeVar("AnyT")
+NotRequired = Annotated[Optional[AnyT], Field(None)]
+IncomingNotRequiredBoolT = TypeVar("IncomingNotRequiredBoolT")
+IncomingNotRequiredStringT = TypeVar("IncomingNotRequiredStringT")
 
-class ToolOutputBaseModel(BaseModel):
-    name: str
-    label: Optional[str]
-    hidden: bool
-
-
-class ToolOutputDataset(ToolOutputBaseModel):
-    type: Literal["data"]
-    format: str
-    format_source: Optional[str]
-    metadata_source: Optional[str]
-    discover_datasets: Optional[List["DatasetCollectionDescriptionT"]]
-    from_work_dir: Optional[str] = None
+# Use IncomingNotRequired when concrete key: Optional[str] = None would be incorrect
 
 
-class ToolOutputCollectionStructure(BaseModel):
-    collection_type: Optional[str]
-    collection_type_source: Optional[str]
-    collection_type_from_rules: Optional[str]
-    structured_like: Optional[str]
-    discover_datasets: Optional[List["DatasetCollectionDescriptionT"]]
-
-
-class ToolOutputCollection(ToolOutputBaseModel):
-    type: Literal["collection"]
-    structure: ToolOutputCollectionStructure
-
-
-class ToolOutputSimple(ToolOutputBaseModel):
-    pass
-
-
-class ToolOutputText(ToolOutputSimple):
-    type: Literal["text"]
-
-
-class ToolOutputInteger(ToolOutputSimple):
-    type: Literal["integer"]
-
-
-class ToolOutputFloat(ToolOutputSimple):
-    type: Literal["float"]
-
-
-class ToolOutputBoolean(ToolOutputSimple):
-    type: Literal["boolean"]
+class GenericToolOutputBaseModel(BaseModel, Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT]):
+    name: Annotated[
+        IncomingNotRequiredStringT, Field(description="Parameter name. Used when referencing parameter in workflows.")
+    ]
+    label: Optional[Annotated[str, Field(description="Output label. Will be used as dataset name in history.")]] = None
+    hidden: IncomingNotRequiredBoolT
 
 
 DiscoverViaT = Literal["tool_provided_metadata", "pattern"]
@@ -98,6 +67,88 @@ class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):
 DatasetCollectionDescriptionT = Union[FilePatternDatasetCollectionDescription, ToolProvidedMetadataDatasetCollection]
 
 
+class GenericToolOutputDataset(
+    GenericToolOutputBaseModel[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+    Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+):
+    type: Literal["data"]
+    format: Annotated[IncomingNotRequiredStringT, Field(description="The short name for the output datatype.")]
+    format_source: Optional[str] = None
+    metadata_source: Optional[str] = None
+    discover_datasets: Optional[List[DatasetCollectionDescriptionT]] = None
+    from_work_dir: Optional[
+        Annotated[
+            str,
+            Field(
+                title="from_work_dir",
+                description="Relative path to a file produced by the tool in its working directory. Output’s contents are set to this file’s contents.",
+            ),
+        ]
+    ] = None
+
+
+class ToolOutputDataset(GenericToolOutputDataset[bool, str]): ...
+
+
+class IncomingToolOutputDataset(
+    GenericToolOutputDataset[
+        NotRequired[bool],
+        NotRequired[str],
+    ]
+): ...
+
+
+class ToolOutputCollectionStructure(BaseModel):
+    collection_type: Optional[str] = None
+    collection_type_source: Optional[str] = None
+    collection_type_from_rules: Optional[str] = None
+    structured_like: Optional[str] = None
+    discover_datasets: Optional[List[DatasetCollectionDescriptionT]] = None
+
+
+class GenericToolOutputCollection(
+    GenericToolOutputBaseModel[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+    Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+):
+    type: Literal["collection"]
+    structure: ToolOutputCollectionStructure
+
+
+class ToolOutputCollection(GenericToolOutputCollection[bool, str]): ...
+
+
+class IncomingToolOutputCollection(GenericToolOutputCollection[NotRequired[bool], NotRequired[str]]): ...
+
+
+class ToolOutputSimple(GenericToolOutputBaseModel):
+    pass
+
+
+class ToolOutputText(ToolOutputSimple):
+    type: Literal["text"]
+
+
+class ToolOutputInteger(ToolOutputSimple):
+    type: Literal["integer"]
+
+
+class ToolOutputFloat(ToolOutputSimple):
+    type: Literal["float"]
+
+
+class ToolOutputBoolean(ToolOutputSimple):
+    type: Literal["boolean"]
+
+
+IncomingToolOutputT = Union[
+    IncomingToolOutputDataset,
+    IncomingToolOutputCollection,
+    ToolOutputText,
+    ToolOutputInteger,
+    ToolOutputFloat,
+    ToolOutputBoolean,
+]
+IncomingToolOutput = Annotated[IncomingToolOutputT, Field(discriminator="type")]
 ToolOutputT = Union[
     ToolOutputDataset, ToolOutputCollection, ToolOutputText, ToolOutputInteger, ToolOutputFloat, ToolOutputBoolean
 ]

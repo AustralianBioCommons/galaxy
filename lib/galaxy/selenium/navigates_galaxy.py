@@ -605,6 +605,18 @@ class NavigatesGalaxy(HasDriver):
             raise self.prepend_timeout_message(e, message)
         return history_item_selector_state
 
+    def history_panel_wait_for_and_select(self, hids: List[int]):
+        """
+        Waits for uploads to pass through queued, running, ok. Not all the states are not guaranteed
+        depending on how fast the upload goes compared to the history polling updates, it might just
+        skip to the end for a really fast upload
+        """
+        for hid in hids:
+            self.history_panel_wait_for_hid_ok(hid)
+        self.history_panel_multi_operations_show()
+        for hid in hids:
+            self.history_panel_muli_operation_select_hid(hid)
+
     @retry_during_transitions
     def get_grid_entry_names(self, selector):
         self.sleep_for(self.wait_types.UX_RENDER)
@@ -932,13 +944,24 @@ class NavigatesGalaxy(HasDriver):
         if not hide_source_items:
             self.collection_builder_hide_originals()
 
-        self.ensure_collection_builder_filters_cleared()
         assert len(test_paths) == 2
-        self.collection_builder_click_paired_item("forward", 0)
-        self.collection_builder_click_paired_item("reverse", 1)
+        self.collection_builder_pair_rows(0, 1)
+
+        row0 = self.components.collection_builders.list_wizard.row._(index=0)
+        row0.link_button.assert_absent()
 
         self.collection_builder_set_name(name)
         self.collection_builder_create()
+
+    def collection_builder_pair_rows(self, row_forward: int, row_reverse: int):
+        row0 = self.components.collection_builders.list_wizard.row._(index=row_forward)
+        row1 = self.components.collection_builders.list_wizard.row._(index=row_reverse)
+
+        row0.unlink_button.assert_absent()
+        row1.unlink_button.assert_absent()
+
+        row0.link_button.wait_for_and_click()
+        row1.link_button.wait_for_and_click()
 
     def _collection_upload_start(self, test_paths, ext, genome, collection_type):
         # Perform upload of files and open the collection builder for specified
@@ -1835,7 +1858,7 @@ class NavigatesGalaxy(HasDriver):
         self.use_bootstrap_dropdown(option="export to file", menu="history options")
 
     def click_history_option_sharing(self):
-        self.use_bootstrap_dropdown(option="share or publish", menu="history options")
+        self.use_bootstrap_dropdown(option="share and manage access", menu="history options")
 
     def click_history_option(self, option_label_or_component):
         # Open menu
@@ -1964,15 +1987,38 @@ class NavigatesGalaxy(HasDriver):
         self.history_panel_wait_for_hid_state(1, "ok", multi_history_panel=True)
 
     def history_panel_item_edit(self, hid):
-        item = self.history_panel_item_component(hid=hid)
-        item.edit_button.wait_for_and_click()
+        self.display_dataset(hid)
+
+        # Find and click the Edit tab - using a more reliable selector
+        # BVue generates '.nav-item a' elements with a title attribute matching the tab title
+        edit_tab_button = self.wait_for_selector_clickable("a.nav-link[title='Edit']")
+        edit_tab_button.click()
+
+        # Wait for the edit attributes panel to be visible
         self.components.edit_dataset_attributes._.wait_for_visible()
 
-    def history_panel_item_view_dataset_details(self, hid):
+    def display_dataset(self, hid):
         item = self.history_panel_item_component(hid=hid)
-        item.dataset_operations.wait_for_visible()
-        item.info_button.wait_for_and_click()
+        item.display_button.wait_for_and_click()
+        # Wait for the DatasetView component to load
+        self.wait_for_selector_visible(".dataset-view")
+
+    def show_dataset_details(self, hid):
+        self.display_dataset(hid)
+        # Find and click the Details tab
+        details_tab_button = self.wait_for_selector_clickable("a.nav-link[title='Details']")
+        details_tab_button.click()
         self.components.dataset_details._.wait_for_visible()
+
+    def show_dataset_visualizations(self, hid):
+        self.display_dataset(hid)
+        # Find and click the Visualize tab
+        visualize_tab_button = self.wait_for_selector_clickable("a.nav-link[title='Visualize']")
+        visualize_tab_button.click()
+
+    def history_panel_item_view_dataset_details(self, hid):
+        self.display_dataset(hid)
+        self.show_dataset_details(hid)
 
     def history_panel_item_click_visualization_menu(self, hid):
         viz_button_selector = f"{self.history_panel_item_selector(hid)} .visualizations-dropdown"
@@ -2031,7 +2077,7 @@ class NavigatesGalaxy(HasDriver):
         button_component.wait_for_and_click()
 
     def hda_click_details(self, hid: int):
-        self.hda_click_primary_action_button(hid, "info")
+        self.history_panel_item_view_dataset_details(hid)
 
     def history_panel_click_item_title(self, hid, **kwds):
         item_component = self.history_panel_item_component(hid=hid)
@@ -2057,6 +2103,46 @@ class NavigatesGalaxy(HasDriver):
             return False
         return item_component.details.is_displayed
 
+    def history_panel_build_list_auto(self):
+        return self.use_bootstrap_dropdown(option="auto build list", menu="selected content menu")
+
+    def history_panel_build_list_advanced(self):
+        return self.use_bootstrap_dropdown(option="advanced build list", menu="selected content menu")
+
+    def history_panel_build_list_of_pairs(self):
+        self.history_panel_build_list_advanced_and_select_builder("list:paired")
+        list_wizard = self.components.collection_builders.list_wizard
+        list_wizard.auto_pairing.wait_for_visible()
+        list_wizard.wizard_next_button.wait_for_and_click()
+
+    def history_panel_build_list_of_paired_or_unpaireds(self):
+        self.history_panel_build_list_advanced_and_select_builder("list:paired_or_unpaired")
+        list_wizard = self.components.collection_builders.list_wizard
+        list_wizard.auto_pairing.wait_for_visible()
+        list_wizard.wizard_next_button.wait_for_and_click()
+
+    def history_panel_build_list_of_lists(self):
+        self.history_panel_build_list_advanced_and_select_builder("list:list")
+
+    def history_panel_build_list_advanced_and_select_builder(self, builder: str):
+        self.history_panel_build_list_advanced()
+        list_wizard = self.components.collection_builders.list_wizard
+        list_wizard.which_builder(builder=builder).wait_for_and_click()
+        list_wizard.wizard_next_button.wait_for_and_click()
+
+    def history_panel_build_rule_builder_for_selection(self):
+        self.history_panel_build_list_advanced()
+        list_wizard = self.components.collection_builders.list_wizard
+        list_wizard.which_builder(builder="rules").wait_for_and_click()
+        list_wizard.wizard_next_button.wait_for_and_click()
+
+    def list_wizard_click_cell_and_send_keys(self, column_identifier: str, row_index: int, text: str):
+        list_wizard = self.components.collection_builders.list_wizard
+        list_wizard.cell(row_index=row_index, column_identifier=column_identifier).wait_for_and_double_click()
+        input = list_wizard.cell_input(row_index=row_index, column_identifier=column_identifier)
+        input.wait_for_and_send_keys(text)
+        self.send_enter(input.wait_for_present())
+
     def collection_builder_set_name(self, name):
         # small sleep here seems to be needed in the case of the
         # collection builder even though we wait for the component
@@ -2074,13 +2160,12 @@ class NavigatesGalaxy(HasDriver):
         self.wait_for_and_click_selector('[data-description="hide original elements"]')
 
     def collection_builder_create(self):
-        self.wait_for_and_click_selector("button.create-collection")
-
-    def ensure_collection_builder_filters_cleared(self):
-        clear_filters = self.components.collection_builders.clear_filters
-        element = clear_filters.wait_for_present()
-        if "disabled" not in element.get_attribute("class").split(" "):
-            self.collection_builder_clear_filters()
+        list_wizard_create = self.components.collection_builders.list_wizard.create
+        modal_create = self.components.collection_builders.modals.create
+        if not list_wizard_create.is_absent:
+            list_wizard_create.wait_for_and_click()
+        else:
+            modal_create.wait_for_and_click()
 
     def collection_builder_clear_filters(self):
         clear_filters = self.components.collection_builders.clear_filters
@@ -2299,6 +2384,13 @@ class NavigatesGalaxy(HasDriver):
     def wait_for_and_click(self, selector_template):
         element = self.wait_for_clickable(selector_template)
         element.click()
+        return element
+
+    @retry_during_transitions
+    def wait_for_and_double_click(self, selector_template):
+        element = self.wait_for_clickable(selector_template)
+        action_chains = self.action_chains()
+        action_chains.move_to_element(element).double_click().perform()
         return element
 
     def set_history_annotation(self, annotation, clear_text=False):

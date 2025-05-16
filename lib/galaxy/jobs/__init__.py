@@ -97,6 +97,7 @@ from galaxy.tool_util.parser.stdio import StdioErrorLevel
 from galaxy.tools.evaluation import (
     PartialToolEvaluator,
     ToolEvaluator,
+    UserToolEvaluator,
 )
 from galaxy.tools.parameters import params_to_json_internal
 from galaxy.util import (
@@ -1415,7 +1416,12 @@ class MinimalJobWrapper(HasResourceParameters):
         return job
 
     def _get_tool_evaluator(self, job):
-        klass = PartialToolEvaluator if self.remote_command_line else ToolEvaluator
+        if self.remote_command_line:
+            klass = PartialToolEvaluator
+        elif self.tool.base_command or self.tool.shell_command:
+            klass = UserToolEvaluator
+        else:
+            klass = ToolEvaluator
         tool_evaluator = klass(
             app=self.app,
             job=job,
@@ -1961,8 +1967,9 @@ class MinimalJobWrapper(HasResourceParameters):
                 dataset.mark_unhidden()
         elif not purged:
             # If the tool was expected to set the extension, attempt to retrieve it
-            if dataset.ext == "auto":
-                dataset.extension = context.get("ext", "data")
+            context_ext = context.get("ext", "data")
+            if dataset.ext == "auto" or (dataset.ext == "data" and context_ext != "data"):
+                dataset.extension = context_ext
                 dataset.init_meta(copy_from=dataset)
             # if a dataset was copied, it won't appear in our dictionary:
             # either use the metadata from originating output dataset, or call set_meta on the copies
@@ -2747,7 +2754,7 @@ class MinimalJobWrapper(HasResourceParameters):
 
     def _report_error(self):
         job = self.get_job()
-        tool = self.app.toolbox.get_tool(job.tool_id, tool_version=job.tool_version) or None
+        tool = self.app.toolbox.tool_for_job(job)
         for dataset in job.output_datasets:
             self.app.error_reports.default_error_plugin.submit_report(dataset, job, tool, user_submission=False)
 
@@ -2770,7 +2777,7 @@ class JobWrapper(MinimalJobWrapper):
             job,
             app=app,
             use_persisted_destination=use_persisted_destination,
-            tool=app.toolbox.get_tool(job.tool_id, job.tool_version, exact=True),
+            tool=app.toolbox.tool_for_job(job, exact=True),
         )
         self.queue = queue
         self.job_runner_mapper = JobRunnerMapper(self, queue.dispatcher.url_to_destination, self.app.job_config)

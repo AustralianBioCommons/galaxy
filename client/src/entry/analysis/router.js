@@ -3,7 +3,7 @@ import CitationsList from "components/Citation/CitationsList";
 import ClientError from "components/ClientError";
 import CollectionEditView from "components/Collections/common/CollectionEditView";
 import DatasetList from "components/Dataset/DatasetList";
-import DatasetAttributes from "components/DatasetInformation/DatasetAttributes";
+import DatasetView from "components/Dataset/DatasetView";
 import DatasetDetails from "components/DatasetInformation/DatasetDetails";
 import DatasetError from "components/DatasetInformation/DatasetError";
 import FormGeneric from "components/Form/FormGeneric";
@@ -15,6 +15,7 @@ import HistoryView from "components/History/HistoryView";
 import HistoryMultipleView from "components/History/Multiple/MultipleView";
 import { HistoryExport } from "components/HistoryExport/index";
 import HistoryImport from "components/HistoryImport";
+import InteractiveToolFrame from "components/InteractiveTools/InteractiveToolFrame";
 import InteractiveTools from "components/InteractiveTools/InteractiveTools";
 import JobDetails from "components/JobInformation/JobDetails";
 import CarbonEmissionsCalculations from "components/JobMetrics/CarbonEmissions/CarbonEmissionsCalculations";
@@ -71,6 +72,8 @@ import { parseBool } from "@/utils/utils";
 import { patchRouterPush } from "./router-push";
 
 import AboutGalaxy from "@/components/AboutGalaxy.vue";
+import ListWizard from "@/components/Collections/ListWizard.vue";
+import RulesStandalone from "@/components/Collections/RulesStandalone.vue";
 import EditFileSourceInstance from "@/components/FileSources/Instances/EditInstance.vue";
 import ManageFileSourceIndex from "@/components/FileSources/Instances/ManageIndex.vue";
 import UpgradeFileSourceInstance from "@/components/FileSources/Instances/UpgradeInstance.vue";
@@ -78,6 +81,7 @@ import CreateUserFileSource from "@/components/FileSources/Templates/CreateUserF
 import GridInvocation from "@/components/Grid/GridInvocation.vue";
 import GridVisualization from "@/components/Grid/GridVisualization.vue";
 import HistoryArchiveWizard from "@/components/History/Archiving/HistoryArchiveWizard.vue";
+import HistoryAccessibility from "@/components/History/HistoryAccessibility.vue";
 import HistoryDatasetPermissions from "@/components/History/HistoryDatasetPermissions.vue";
 import ZipImportResults from "@/components/ImportData/zip/ZipImportResults.vue";
 import ZipImportWizard from "@/components/ImportData/zip/ZipImportWizard.vue";
@@ -87,6 +91,7 @@ import ManageObjectStoreIndex from "@/components/ObjectStore/Instances/ManageInd
 import UpgradeObjectStoreInstance from "@/components/ObjectStore/Instances/UpgradeInstance.vue";
 import CreateUserObjectStore from "@/components/ObjectStore/Templates/CreateUserObjectStore.vue";
 import Sharing from "@/components/Sharing/SharingPage.vue";
+import CustomToolEditor from "@/components/Tool/CustomToolEditor.vue";
 import HistoryStorageOverview from "@/components/User/DiskUsage/Visualizations/HistoryStorageOverview.vue";
 import UserDatasetPermissions from "@/components/User/UserDatasetPermissions.vue";
 import WorkflowPublished from "@/components/Workflow/Published/WorkflowPublished.vue";
@@ -214,24 +219,20 @@ export function getRouter(Galaxy) {
                         redirect: redirectAnon(),
                     },
                     {
+                        path: "collection/new_list",
+                        component: ListWizard,
+                        props: (route) => ({
+                            initialAdvanced: parseBool(route.query.advanced),
+                        }),
+                    },
+                    {
                         path: "collection/:collectionId/edit",
                         component: CollectionEditView,
                         props: true,
                     },
                     {
-                        path: "datasets/:datasetId/edit",
-                        component: DatasetAttributes,
-                        props: true,
-                    },
-                    {
                         path: "datasets/list",
                         component: DatasetList,
-                    },
-                    {
-                        path: "datasets/:datasetId/details",
-                        name: "DatasetDetails",
-                        component: DatasetDetails,
-                        props: true,
                     },
                     {
                         path: "datasets/:datasetId/preview",
@@ -256,6 +257,16 @@ export function getRouter(Galaxy) {
                         path: "datasets/:datasetId/error",
                         component: DatasetError,
                         props: true,
+                    },
+                    {
+                        // Consolidated route for dataset view with optional tab
+                        // Handles /datasets/{id}, /datasets/{id}/details, /datasets/{id}/visualize, etc.
+                        path: "datasets/:datasetId/:tab?",
+                        component: DatasetView,
+                        props: (route) => ({
+                            datasetId: route.params.datasetId,
+                            tab: route.params.tab,
+                        }),
                     },
                     {
                         path: "datatypes",
@@ -283,11 +294,9 @@ export function getRouter(Galaxy) {
                     },
                     {
                         path: "histories/sharing",
-                        component: Sharing,
+                        component: HistoryAccessibility,
                         props: (route) => ({
-                            id: route.query.id,
-                            pluralName: "Histories",
-                            modelClass: "History",
+                            historyId: route.query.id,
                         }),
                     },
                     {
@@ -362,6 +371,12 @@ export function getRouter(Galaxy) {
                     {
                         path: "interactivetool_entry_points/list",
                         component: InteractiveTools,
+                    },
+                    {
+                        path: "interactivetool_entry_points/:entryId/display",
+                        component: InteractiveToolFrame,
+                        props: true,
+                        name: "InteractiveToolDisplay",
                     },
                     {
                         path: "jobs/submission/success",
@@ -457,6 +472,17 @@ export function getRouter(Galaxy) {
                         }),
                     },
                     {
+                        path: "/tools/editor",
+                        component: CustomToolEditor,
+                        redirect: redirectAnon(),
+                    },
+                    {
+                        path: "/tools/editor/:toolUuid",
+                        component: CustomToolEditor,
+                        redirect: redirectAnon(),
+                        props: true,
+                    },
+                    {
                         path: "pages/sharing",
                         component: Sharing,
                         props: (route) => ({
@@ -499,6 +525,16 @@ export function getRouter(Galaxy) {
                         path: "tours/:tourId",
                         component: TourRunner,
                         props: true,
+                    },
+                    {
+                        path: "rules",
+                        component: RulesStandalone,
+                        props: (route) => {
+                            return {
+                                mode: "standalone",
+                                ...route.query,
+                            };
+                        },
                     },
                     {
                         path: "tools/list",
@@ -586,7 +622,6 @@ export function getRouter(Galaxy) {
                         component: VisualizationCreate,
                         name: "VisualizationsCreate",
                         props: true,
-                        redirect: redirectAnon(),
                     },
                     {
                         path: "visualizations/display",
@@ -622,7 +657,7 @@ export function getRouter(Galaxy) {
                         props: {
                             activeList: "my",
                         },
-                        redirect: redirectAnon(),
+                        redirect: redirectAnon("/visualizations/list_published"),
                     },
                     {
                         path: "visualizations/list_published",
@@ -630,6 +665,14 @@ export function getRouter(Galaxy) {
                         props: {
                             activeList: "published",
                         },
+                    },
+                    {
+                        path: "visualizations/list_shared",
+                        component: GridVisualization,
+                        props: {
+                            activeList: "shared",
+                        },
+                        redirect: redirectAnon(),
                     },
                     {
                         path: "workflows/create",
