@@ -117,9 +117,8 @@ class OIDC(JSAppLauncher):
                 " Error message: {}".format(provider, user, kwargs.get("error", "None"))
             )
             return trans.show_error_message(
-                f"Failed to handle authentication callback from {provider}. "
-                "Please try again, and if the problem persists, contact "
-                "the Galaxy instance admin"
+                "Please verify your email before logging in. "
+                "<a href='https://galaxy.test.biocommons.org.au/'>Return to Galaxy</a>."
             )
         try:
             success, message, (redirect_url, user) = trans.app.authnz_manager.callback(
