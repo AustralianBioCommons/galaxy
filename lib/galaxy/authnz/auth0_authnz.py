@@ -12,7 +12,7 @@ from galaxy.model.security import GalaxyRBACAgent
 
 log = logging.getLogger(__name__)
 
-ROLES_CLAIM = "biocommons.org.au/roles"
+ROLES_CLAIM = "https://biocommons.org.au/roles"
 ROLE_PREFIX = "galaxy/"
 
 # Set up a temp logger for debugging auth
