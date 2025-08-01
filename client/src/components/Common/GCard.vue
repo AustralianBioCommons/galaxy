@@ -323,8 +323,8 @@ function onKeyDown(event: KeyboardEvent) {
                 <div class="d-flex flex-column flex-gapy-1">
                     <div
                         :id="`g-card-${props.id}-header`"
-                        class="d-flex flex-gapy-1 flex-gapx-1 justify-content-between">
-                        <div class="d-flex flex-column">
+                        class="d-flex flex-wrap flex-gapy-1 flex-gapx-1 justify-content-between">
+                        <div class="d-flex flex-column flex-grow-1 g-card-title-section">
                             <div class="d-flex">
                                 <div v-if="selectable">
                                     <slot name="select">
@@ -416,7 +416,7 @@ function onKeyDown(event: KeyboardEvent) {
                             </div>
                         </div>
 
-                        <div class="align-items-start d-flex flex-row-reverse flex-wrap gap-1">
+                        <div class="align-items-start d-flex flex-row-reverse flex-wrap gap-1 flex-shrink-0">
                             <div>
                                 <slot v-if="props.showBookmark" name="bookmark">
                                     <BButton
@@ -731,6 +731,10 @@ function onKeyDown(event: KeyboardEvent) {
                 background-color: lighten($brand-light, 0.5);
             }
         }
+    }
+
+    .g-card-title-section {
+        min-width: 50%;
     }
 
     .g-card-rename {
