@@ -185,6 +185,7 @@ class AuthnzManager:
             rtv["username_key"] = config_xml.find("username_key").text
         if config_xml.find("end_user_registration_endpoint") is not None:
             rtv["end_user_registration_endpoint"] = config_xml.find("end_user_registration_endpoint").text
+
         # this is a EGI Check-in specific config
         if config_xml.find("checkin_env") is not None:
             rtv["checkin_env"] = config_xml.find("checkin_env").text
