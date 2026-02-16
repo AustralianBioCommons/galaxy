@@ -237,6 +237,7 @@ class AgentType:
     TOOL_RECOMMENDATION = "tool_recommendation"
     HISTORY = "history"
     GTN_TRAINING = "gtn_training"
+    PAGE_ASSISTANT = "page_assistant"
 
 
 # For API responses, use galaxy.schema.agents.AgentResponse
