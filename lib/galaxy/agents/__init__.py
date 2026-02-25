@@ -21,6 +21,7 @@ from .registry import (
 )
 from .router import QueryRouterAgent
 from .tools import ToolRecommendationAgent
+from .workflow_report import WorkflowReportAgent
 
 __all__ = [
     "AgentType",
@@ -36,4 +37,5 @@ __all__ = [
     "ToolRecommendationAgent",
     "HistoryAgent",
     "GTNTrainingAgent",
+    "WorkflowReportAgent",
 ]
