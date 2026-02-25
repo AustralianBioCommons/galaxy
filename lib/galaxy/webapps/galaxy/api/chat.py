@@ -33,7 +33,10 @@ from galaxy.managers.jobs import JobManager
 from galaxy.managers.markdown_util import ready_galaxy_markdown_for_export
 from galaxy.managers.workflows import WorkflowsManager
 from galaxy.model import User
-from galaxy.schema.agents import AgentResponse
+from galaxy.schema.agents import (
+    AgentResponse,
+    WorkflowReportResponse,
+)
 from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.schema import (
     ChatExchangeBatchDeletePayload,
@@ -409,7 +412,7 @@ class ChatAPI:
         instance: bool = Query(False, description="Whether the workflow_id is an instance ID"),
         trans: ProvidesUserContext = DependsOnTrans,
         user: User = DependsOnUser,
-    ) -> str | None:
+    ) -> WorkflowReportResponse:
         """Generate a report for the specified workflow."""
         if not HAS_AGENTS:
             raise ConfigurationError("AI agent system is not available.")
@@ -423,8 +426,13 @@ class ChatAPI:
 
         deps = self.agent_service.create_dependencies(trans, user)
         agent = WorkflowReportAgent(deps)
+
         response = await agent.generate_workflow_report(workflow)
-        return response.content
+        return WorkflowReportResponse(
+            report=response.content,
+            total_tokens=response.metadata.get("total_tokens"),
+            model=response.metadata.get("model"),
+        )
 
     @router.put("/api/chat/exchange/{exchange_id}/feedback", unstable=True)
     def set_exchange_feedback(
