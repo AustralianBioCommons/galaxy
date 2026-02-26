@@ -192,6 +192,9 @@ involucro
 # Claude Code local settings
 .claude/settings.local.json
 
+# GTN search database (downloaded on first use)
+lib/galaxy/agents/gtn/data/gtn_search.db
+
 # Misc
 *.orig
 .DS_Store
