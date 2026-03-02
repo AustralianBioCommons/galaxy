@@ -36,6 +36,7 @@ import { ref, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { GalaxyApi } from "@/api";
+import { fetchInvocationReport } from "@/api/invocations";
 import { FORM_LABELS } from "@/components/Page/constants";
 import pageTemplate from "@/components/PageDisplay/pageTemplate.yml";
 
@@ -64,19 +65,18 @@ const buttonText = props.mode === "edit" ? "Update" : "Create";
 
 async function fetchData() {
     if (props.mode === "create" && props.invocationId) {
-        loading.value = true;
-        const { data, error } = await GalaxyApi().GET("/api/invocations/{invocation_id}/report", {
-            params: { path: { invocation_id: props.invocationId } },
-        });
-        if (error) {
-            errorMessage.value = error.err_msg;
-        } else {
+        try {
+            loading.value = true;
+            const data = await fetchInvocationReport(props.invocationId);
             errorMessage.value = "";
             content.value = data.invocation_markdown || "";
             slug.value = `invocation-${data.id}`;
             title.value = data.title;
+        } catch (error) {
+            errorMessage.value = error as string;
+        } finally {
+            loading.value = false;
         }
-        loading.value = false;
     } else if (props.mode === "edit" && props.id) {
         loading.value = true;
         const { data, error } = await GalaxyApi().GET("/api/pages/{id}", {
