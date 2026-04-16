@@ -5,6 +5,7 @@ from collections.abc import Callable
 from concurrent.futures import TimeoutError
 from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
 from typing import (
     Any,
     Optional,
@@ -50,6 +51,10 @@ from galaxy.managers.tool_data import ToolDataImportManager
 from galaxy.managers.workflow_completion import WorkflowCompletionManager
 from galaxy.metadata.set_metadata import set_metadata_portable
 from galaxy.model import (
+    Dataset,
+    DatasetStorageOperationRun,
+    DatasetStorageOperationRunItem,
+    DatasetStorageOperationSnapshot,
     Job,
     User,
 )
@@ -305,6 +310,132 @@ def set_metadata(
     except Exception as e:
         log.info(f"Setting metadata failed on {model_class} {dataset_instance.id}: {str(e)}")
         dataset_instance.state = dataset_instance.states.FAILED_METADATA
+    sa_session.commit()
+
+
+@galaxy_task(action="execute bulk storage relocate run")
+def bulk_relocate_storage(
+    sa_session: galaxy_scoped_session,
+    dataset_manager: DatasetManager,
+    app: MinimalManagerApp,
+    run_db_id: int,
+    task_user_id: Optional[int] = None,
+):
+    run = sa_session.get(DatasetStorageOperationRun, run_db_id)
+    if run is None:
+        log.error(f"Bulk storage relocate run not found: {run_db_id}")
+        return
+
+    snapshot = sa_session.get(DatasetStorageOperationSnapshot, run.snapshot_id)
+    if snapshot is None:
+        run.state = "failed"
+        sa_session.add(run)
+        sa_session.commit()
+        log.error(f"Snapshot not found for run {run_db_id}")
+        return
+
+    if snapshot.expires_at <= now():
+        run.state = "failed"
+        sa_session.add(run)
+        sa_session.commit()
+        log.error(f"Snapshot expired for run {run_db_id}")
+        return
+
+    run.state = "running"
+    sa_session.add(run)
+    sa_session.commit()
+
+    user = sa_session.get(User, run.user_id) if run.user_id else None
+    trans = SimpleNamespace(user=user)
+
+    succeeded_count = 0
+    failed_count = 0
+    skipped_count = 0
+    resolved_dataset_ids = snapshot.resolved_dataset_ids
+
+    for dataset_id in resolved_dataset_ids:
+        dataset = sa_session.get(Dataset, dataset_id)
+        if dataset is None:
+            failed_count += 1
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset_id,
+                    state="failed",
+                    reason_code="dataset_not_found",
+                    message="Dataset was not found at execution time.",
+                )
+            )
+            continue
+
+        reason_code: Optional[str] = None
+        message: Optional[str] = None
+        device_source_map = app.object_store.get_device_source_map()
+        target_device_id = device_source_map.get_device_id(run.target_object_store_id)
+        source_object_store_id = dataset.object_store_id
+        source_device_id = device_source_map.get_device_id(source_object_store_id) if source_object_store_id else None
+
+        if target_device_id is None:
+            reason_code = "invalid_target_object_store"
+            message = f"Target object store '{run.target_object_store_id}' is invalid."
+        elif source_object_store_id is None:
+            reason_code = "missing_source_object_store"
+            message = "Dataset does not define a source object store."
+        elif source_object_store_id == run.target_object_store_id:
+            reason_code = "already_in_target"
+            message = "Dataset is already in the requested object store."
+        elif source_device_id != target_device_id:
+            reason_code = "cross_device_relocate_not_allowed"
+            message = "Cannot relocate to an object store that does not share the same device."
+        elif not app.security_agent.can_change_object_store_id(user, dataset):
+            reason_code = "insufficient_permissions"
+            message = "Dataset is not eligible for object store changes."
+
+        if reason_code is not None:
+            state = "skipped" if run.skip_ineligible else "failed"
+            if state == "skipped":
+                skipped_count += 1
+            else:
+                failed_count += 1
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset_id,
+                    state=state,
+                    reason_code=reason_code,
+                    message=message,
+                )
+            )
+            continue
+
+        try:
+            dataset_manager.update_object_store_id(trans, dataset, run.target_object_store_id)
+            succeeded_count += 1
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset_id,
+                    state="succeeded",
+                )
+            )
+        except Exception as exc:
+            failed_count += 1
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset_id,
+                    state="failed",
+                    reason_code="execution_error",
+                    message=str(exc),
+                )
+            )
+
+    run.state = "completed"
+    run.total_count = len(resolved_dataset_ids)
+    run.succeeded_count = succeeded_count
+    run.failed_count = failed_count
+    run.skipped_count = skipped_count
+    sa_session.add(run)
     sa_session.commit()
 
 

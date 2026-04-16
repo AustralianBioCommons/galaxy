@@ -52,6 +52,11 @@ from galaxy.schema.schema import (
     HistoryContentType,
     MaterializeDatasetInstanceAPIRequest,
     MaterializeDatasetInstanceRequest,
+    StorageOperationExecuteRequest,
+    StorageOperationExecuteResponse,
+    StorageOperationPreviewRequest,
+    StorageOperationPreviewResponse,
+    StorageOperationRunResponse,
     StoreExportPayload,
     UpdateHistoryContentsBatchPayload,
     UpdateHistoryContentsPayload,
@@ -800,6 +805,43 @@ class FastAPIHistoryContents:
         The items to be processed can be explicitly set or determined by a dynamic query.
         """
         return self.service.bulk_operation(trans, history_id, filter_query_params, payload)
+
+    @router.post(
+        "/api/histories/{history_id}/contents/bulk/storage/preview",
+        summary="Previews a storage bulk operation for selected history contents.",
+    )
+    def storage_operation_preview(
+        self,
+        history_id: HistoryIDPathParam,
+        trans: ProvidesHistoryContext = DependsOnTrans,
+        filter_query_params: ValueFilterQueryParams = Depends(get_value_filter_query_params),
+        payload: StorageOperationPreviewRequest = Body(...),
+    ) -> StorageOperationPreviewResponse:
+        return self.service.storage_operation_preview(trans, history_id, filter_query_params, payload)
+
+    @router.post(
+        "/api/histories/{history_id}/contents/bulk/storage/execute",
+        summary="Executes a previously previewed storage bulk operation snapshot.",
+    )
+    def storage_operation_execute(
+        self,
+        history_id: HistoryIDPathParam,
+        trans: ProvidesHistoryContext = DependsOnTrans,
+        payload: StorageOperationExecuteRequest = Body(...),
+    ) -> StorageOperationExecuteResponse:
+        return self.service.storage_operation_execute(trans, history_id, payload)
+
+    @router.get(
+        "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}",
+        summary="Returns run status and per-item details for a storage bulk operation.",
+    )
+    def storage_operation_run(
+        self,
+        history_id: HistoryIDPathParam,
+        run_id: DecodedDatabaseIdField,
+        trans: ProvidesHistoryContext = DependsOnTrans,
+    ) -> StorageOperationRunResponse:
+        return self.service.storage_operation_run(trans, history_id, run_id)
 
     @router.put(
         "/api/histories/{history_id}/contents/{id}/validate",

@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
+from datetime import timedelta
 from typing import (
     Any,
     cast,
@@ -10,19 +11,19 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
+from uuid import UUID
 
 from celery import chain
 from pydantic import (
     ConfigDict,
     Field,
 )
-from typing_extensions import (
-    Protocol,
-)
+from typing_extensions import Protocol
 
 from galaxy import exceptions
 from galaxy.celery.helpers import async_task_summary
 from galaxy.celery.tasks import (
+    bulk_relocate_storage,
     change_datatype,
     materialize as materialize_task,
     prepare_dataset_collection_download,
@@ -31,6 +32,7 @@ from galaxy.celery.tasks import (
     write_history_content_to,
 )
 from galaxy.managers import (
+    datasets,
     folders,
     hdas,
     hdcas,
@@ -57,12 +59,17 @@ from galaxy.managers.jobs import (
 )
 from galaxy.managers.library_datasets import LibraryDatasetsManager
 from galaxy.model import (
+    Dataset,
+    DatasetStorageOperationRun,
+    DatasetStorageOperationRunItem,
+    DatasetStorageOperationSnapshot,
     History,
     HistoryDatasetAssociation,
     HistoryDatasetCollectionAssociation,
     LibraryDataset,
     User,
 )
+from galaxy.model.orm.now import now
 from galaxy.model.security import GalaxyRBACAgent
 from galaxy.objectstore import BaseObjectStore
 from galaxy.schema import (
@@ -100,6 +107,21 @@ from galaxy.schema.schema import (
     JobSourceType,
     MaterializeDatasetInstanceRequest,
     Model,
+    StorageOperationEligibilityState,
+    StorageOperationEligibilitySummary,
+    StorageOperationEstimateSummary,
+    StorageOperationExecuteRequest,
+    StorageOperationExecuteResponse,
+    StorageOperationMode,
+    StorageOperationPreviewItemResult,
+    StorageOperationPreviewRequest,
+    StorageOperationPreviewResponse,
+    StorageOperationRunItemState,
+    StorageOperationRunItemStatus,
+    StorageOperationRunResponse,
+    StorageOperationRunState,
+    StorageOperationRunSummary,
+    StorageOperationSelectionCounts,
     StoreContentSource,
     StoreExportPayload,
     TagOperationParams,
@@ -259,12 +281,15 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
     and pydantic models to declare its parameters and return types.
     """
 
+    _storage_snapshot_ttl = timedelta(hours=24)
+
     def __init__(
         self,
         security: IdEncodingHelper,
         object_store: BaseObjectStore,
         history_manager: histories.HistoryManager,
         history_contents_manager: HistoryContentsManager,
+        dataset_manager: datasets.DatasetManager,
         hda_manager: hdas.HDAManager,
         hdca_manager: hdcas.HDCAManager,
         dataset_collection_manager: DatasetCollectionManager,
@@ -280,6 +305,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         super().__init__(security)
         self.history_manager = history_manager
         self.history_contents_manager = history_contents_manager
+        self.dataset_manager = dataset_manager
         self.hda_manager = hda_manager
         self.hdca_manager = hdca_manager
         self.dataset_collection_manager = dataset_collection_manager
@@ -733,6 +759,269 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         trans.sa_session.commit()
         success_count = len(contents) - len(errors)
         return HistoryContentBulkOperationResult(success_count=success_count, errors=errors)
+
+    def storage_operation_preview(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        filter_query_params: ValueFilterQueryParams,
+        payload: StorageOperationPreviewRequest,
+    ) -> StorageOperationPreviewResponse:
+        if payload.mode != StorageOperationMode.relocate:
+            raise exceptions.RequestParameterInvalidException("Only 'relocate' mode is supported in phase 1.")
+
+        user = self.get_authenticated_user(trans)
+        history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
+        filters = self.history_contents_filters.parse_query_filters(filter_query_params)
+        if payload.items:
+            contents = self._get_contents_by_item_list(trans, history, payload.items)
+        else:
+            contents = self.history_contents_manager.contents(history, filters)
+
+        selected_items_count = len(contents)
+        unique_datasets, expanded_leaf_count = self._resolve_unique_datasets_from_contents(contents)
+
+        eligible_dataset_ids: list[int] = []
+        eligibility_items: list[StorageOperationPreviewItemResult] = []
+        eligible_count = 0
+        ineligible_count = 0
+        quota_delta_by_source: dict[str, int] = {}
+        quota_source_map = self.object_store.get_quota_source_map()
+
+        for dataset_id, dataset in unique_datasets.items():
+            reason = self._validate_relocate_dataset(trans, dataset, payload.target_object_store_id)
+            item = EncodedHistoryContentItem(
+                id=self.encode_id(dataset_id),
+                history_content_type=HistoryContentType.dataset,
+            )
+            if reason is None:
+                eligible_count += 1
+                eligible_dataset_ids.append(dataset_id)
+                eligibility_items.append(
+                    StorageOperationPreviewItemResult(item=item, state=StorageOperationEligibilityState.eligible)
+                )
+                if quota_source_map:
+                    old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
+                    new_label = quota_source_map.get_quota_source_label(payload.target_object_store_id) or "default"
+                    if old_label != new_label:
+                        key = f"{old_label}->{new_label}"
+                        dataset_size = int(dataset.get_total_size() or 0)
+                        quota_delta_by_source[key] = quota_delta_by_source.get(key, 0) + dataset_size
+            else:
+                ineligible_count += 1
+                reason_code, message = reason
+                eligibility_items.append(
+                    StorageOperationPreviewItemResult(
+                        item=item,
+                        state=StorageOperationEligibilityState.ineligible,
+                        reason_code=reason_code,
+                        message=message,
+                    )
+                )
+
+        expires_at = now() + self._storage_snapshot_ttl
+        snapshot = DatasetStorageOperationSnapshot(
+            history_id=history.id,
+            user_id=user.id,
+            mode=payload.mode.value,
+            target_object_store_id=payload.target_object_store_id,
+            resolved_dataset_ids=list(unique_datasets.keys()),
+            eligible_dataset_ids=eligible_dataset_ids,
+            expires_at=expires_at,
+        )
+        trans.sa_session.add(snapshot)
+        trans.sa_session.commit()
+
+        warnings: list[str] = []
+        if not payload.items:
+            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
+
+        return StorageOperationPreviewResponse(
+            snapshot_id=self.encode_id(snapshot.id),
+            selection_counts=StorageOperationSelectionCounts(
+                selected_items_count=selected_items_count,
+                expanded_leaf_count=expanded_leaf_count,
+                unique_dataset_count=len(unique_datasets),
+            ),
+            eligibility=StorageOperationEligibilitySummary(
+                eligible_count=eligible_count,
+                ineligible_count=ineligible_count,
+                items=eligibility_items,
+            ),
+            estimates=StorageOperationEstimateSummary(
+                bytes_to_transfer=0,
+                quota_delta_by_source=quota_delta_by_source,
+            ),
+            warnings=warnings,
+            expires_at=expires_at,
+        )
+
+    def storage_operation_execute(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        payload: StorageOperationExecuteRequest,
+    ) -> StorageOperationExecuteResponse:
+        user = self.get_authenticated_user(trans)
+        history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
+        snapshot = self._get_storage_snapshot(trans, payload.snapshot_id)
+        if snapshot.history_id != history.id:
+            raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the requested history.")
+        if snapshot.user_id != user.id:
+            raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the current user.")
+        if snapshot.mode != StorageOperationMode.relocate.value:
+            raise exceptions.RequestParameterInvalidException("Only 'relocate' mode is supported in phase 1.")
+
+        run = DatasetStorageOperationRun(
+            snapshot_id=snapshot.id,
+            history_id=history.id,
+            user_id=user.id,
+            mode=snapshot.mode,
+            target_object_store_id=snapshot.target_object_store_id,
+            state=StorageOperationRunState.pending.value,
+            skip_ineligible=payload.execution_policy.skip_ineligible,
+        )
+        trans.sa_session.add(run)
+        resolved_dataset_ids = snapshot.resolved_dataset_ids
+        run.total_count = len(resolved_dataset_ids)
+        trans.sa_session.add(run)
+        trans.sa_session.commit()
+
+        task_result = bulk_relocate_storage.delay(
+            run_db_id=run.id,
+            task_user_id=user.id,
+        )
+        run.task_id = UUID(task_result.id)
+        trans.sa_session.add(run)
+        trans.sa_session.commit()
+
+        run_summary = StorageOperationRunSummary(
+            run_id=self.encode_id(run.id),
+            state=StorageOperationRunState.pending,
+            mode=StorageOperationMode.relocate,
+            target_object_store_id=run.target_object_store_id,
+            total_count=len(resolved_dataset_ids),
+            succeeded_count=0,
+            failed_count=0,
+            skipped_count=0,
+            task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
+        )
+        return StorageOperationExecuteResponse(run=run_summary)
+
+    def storage_operation_run(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        run_id: DecodedDatabaseIdField,
+    ) -> StorageOperationRunResponse:
+        user = self.get_authenticated_user(trans)
+        history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
+        run = trans.sa_session.get(DatasetStorageOperationRun, run_id)
+        if run is None:
+            raise exceptions.ObjectNotFound("Storage operation run not found.")
+        if run.history_id != history.id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the requested history.")
+        if run.user_id != user.id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the current user.")
+
+        run_items = (
+            trans.sa_session.query(DatasetStorageOperationRunItem)
+            .filter(DatasetStorageOperationRunItem.run_id == run.id)
+            .order_by(DatasetStorageOperationRunItem.id.asc())
+            .all()
+        )
+
+        summary = StorageOperationRunSummary(
+            run_id=self.encode_id(run.id),
+            state=StorageOperationRunState(run.state),
+            mode=StorageOperationMode(run.mode),
+            target_object_store_id=run.target_object_store_id,
+            total_count=run.total_count,
+            succeeded_count=run.succeeded_count,
+            failed_count=run.failed_count,
+            skipped_count=run.skipped_count,
+            task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
+        )
+        items = [
+            StorageOperationRunItemStatus(
+                dataset_id=self.encode_id(run_item.dataset_id),
+                state=StorageOperationRunItemState(run_item.state),
+                reason_code=run_item.reason_code,
+                message=run_item.message,
+            )
+            for run_item in run_items
+        ]
+        return StorageOperationRunResponse(run=summary, items=items)
+
+    def _resolve_unique_datasets_from_contents(
+        self,
+        contents: list["HistoryItem"],
+    ) -> tuple[dict[int, Dataset], int]:
+        unique_datasets: dict[int, Dataset] = {}
+        expanded_leaf_count = 0
+
+        for content in contents:
+            if isinstance(content, HistoryDatasetAssociation):
+                hda_dataset = content.dataset
+                if hda_dataset is None:
+                    continue
+                expanded_leaf_count += 1
+                unique_datasets[hda_dataset.id] = hda_dataset
+            elif isinstance(content, HistoryDatasetCollectionAssociation):
+                hdas = self.hdca_manager.map_datasets(content, fn=lambda item, *parents: item)
+                for hda in hdas:
+                    if isinstance(hda, HistoryDatasetAssociation):
+                        hda_dataset = hda.dataset
+                        if hda_dataset is None:
+                            continue
+                        expanded_leaf_count += 1
+                        unique_datasets[hda_dataset.id] = hda_dataset
+
+        return unique_datasets, expanded_leaf_count
+
+    def _validate_relocate_dataset(
+        self,
+        trans: ProvidesHistoryContext,
+        dataset: Dataset,
+        target_object_store_id: str,
+    ) -> Optional[tuple[str, str]]:
+        device_source_map = self.object_store.get_device_source_map()
+        target_device_id = device_source_map.get_device_id(target_object_store_id)
+        if target_device_id is None:
+            return "invalid_target_object_store", f"Target object store '{target_object_store_id}' is invalid."
+
+        source_object_store_id = dataset.object_store_id
+        if source_object_store_id is None:
+            return "missing_source_object_store", "Dataset does not define a source object store."
+        source_device_id = device_source_map.get_device_id(source_object_store_id)
+        if source_object_store_id == target_object_store_id:
+            return "already_in_target", "Dataset is already in the requested object store."
+        if source_device_id != target_device_id:
+            return (
+                "cross_device_relocate_not_allowed",
+                "Cannot relocate to an object store that does not share the same device.",
+            )
+
+        if not trans.app.security_agent.can_change_object_store_id(trans.user, dataset):
+            return "insufficient_permissions", "Dataset is not eligible for object store changes."
+
+        ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
+        if callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
+            return "dataset_in_use", "Dataset is currently used by an active job."
+
+        return None
+
+    def _get_storage_snapshot(
+        self, trans: ProvidesHistoryContext, snapshot_id: DecodedDatabaseIdField
+    ) -> DatasetStorageOperationSnapshot:
+        snapshot = trans.sa_session.get(DatasetStorageOperationSnapshot, snapshot_id)
+        if snapshot is None:
+            raise exceptions.ObjectNotFound("Storage operation snapshot not found.")
+        if snapshot.expires_at <= now():
+            trans.sa_session.delete(snapshot)
+            trans.sa_session.commit()
+            raise exceptions.RequestParameterInvalidException("Storage operation snapshot has expired.")
+        return snapshot
 
     def validate(self, trans, history_id: DecodedDatabaseIdField, history_content_id: DecodedDatabaseIdField):
         """

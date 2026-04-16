@@ -1406,6 +1406,109 @@ class HistoryContentBulkOperationResult(Model):
     errors: list[BulkOperationItemError]
 
 
+class StorageOperationMode(str, Enum):
+    relocate = "relocate"
+    copy = "copy"
+    move = "move"
+
+
+class StorageOperationEligibilityState(str, Enum):
+    eligible = "eligible"
+    ineligible = "ineligible"
+
+
+class StorageOperationRunState(str, Enum):
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+
+
+class StorageOperationRunItemState(str, Enum):
+    pending = "pending"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class StorageOperationPreviewRequest(Model):
+    mode: StorageOperationMode
+    target_object_store_id: str
+    items: Optional[list[HistoryContentItem]] = None
+
+
+class StorageOperationPreviewItemResult(Model):
+    item: EncodedHistoryContentItem
+    state: StorageOperationEligibilityState
+    reason_code: Optional[str] = None
+    message: Optional[str] = None
+
+
+class StorageOperationSelectionCounts(Model):
+    selected_items_count: int
+    expanded_leaf_count: int
+    unique_dataset_count: int
+
+
+class StorageOperationEligibilitySummary(Model):
+    eligible_count: int
+    ineligible_count: int
+    items: list[StorageOperationPreviewItemResult]
+
+
+class StorageOperationEstimateSummary(Model):
+    bytes_to_transfer: int = 0
+    quota_delta_by_source: dict[str, int] = Field(default_factory=dict)
+
+
+class StorageOperationPreviewResponse(Model):
+    snapshot_id: EncodedDatabaseIdField
+    selection_counts: StorageOperationSelectionCounts
+    eligibility: StorageOperationEligibilitySummary
+    estimates: StorageOperationEstimateSummary
+    warnings: list[str] = Field(default_factory=list)
+    expires_at: datetime
+
+
+class StorageOperationExecutePolicy(Model):
+    skip_ineligible: bool = True
+    max_retries: Optional[int] = None
+
+
+class StorageOperationExecuteRequest(Model):
+    snapshot_id: DecodedDatabaseIdField
+    execution_policy: StorageOperationExecutePolicy = Field(default_factory=StorageOperationExecutePolicy)
+
+
+class StorageOperationRunSummary(Model):
+    run_id: EncodedDatabaseIdField
+    state: StorageOperationRunState
+    mode: StorageOperationMode
+    target_object_store_id: str
+    total_count: int
+    succeeded_count: int
+    failed_count: int
+    skipped_count: int
+    task_id: Optional[UUID4] = None
+
+
+class StorageOperationRunItemStatus(Model):
+    dataset_id: EncodedDatabaseIdField
+    state: StorageOperationRunItemState
+    reason_code: Optional[str] = None
+    message: Optional[str] = None
+
+
+class StorageOperationExecuteResponse(Model):
+    run: StorageOperationRunSummary
+
+
+class StorageOperationRunResponse(Model):
+    run: StorageOperationRunSummary
+    items: list[StorageOperationRunItemStatus]
+
+
 class UpdateHistoryContentsPayload(Model):
     """Can contain arbitrary/dynamic fields that will be updated for a particular history item."""
 
