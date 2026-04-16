@@ -52,6 +52,11 @@ export type PublishedHistory = SharedHistory & {
 export type AnyHistoryEntry = MyHistory | SharedHistory | PublishedHistory | ArchivedHistorySummary;
 
 /**
+ * Represents a reference to a history, containing only the fields necessary for identifying a history in API calls.
+ */
+export type HistoryReference = Pick<HistorySummary, "id" | "model_class">;
+
+/**
  * Represents the options for fetching histories.
  */
 export interface GetHistoriesOptions {
@@ -299,6 +304,29 @@ export async function getHistoryCounts(historyId: string): Promise<HistoryCounts
     }
 
     return data as HistoryCounts;
+}
+
+export type StorageOperationMode = components["schemas"]["StorageOperationMode"];
+export type StorageOperationExecutePolicy = components["schemas"]["StorageOperationExecutePolicy"];
+export type StorageOperationPreviewResponse = components["schemas"]["StorageOperationPreviewResponse"];
+export type StorageOperationExecuteResponse = components["schemas"]["StorageOperationExecuteResponse"];
+export type StorageOperationRunResponse = components["schemas"]["StorageOperationRunResponse"];
+
+export async function getStorageOperationRunStatus(
+    history: HistoryReference,
+    runId: string,
+): Promise<StorageOperationRunResponse | undefined> {
+    const { data, error } = await GalaxyApi().GET("/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}", {
+        params: {
+            path: { history_id: history.id, run_id: runId },
+        },
+    });
+
+    if (error) {
+        rethrowSimple(error);
+    }
+
+    return data;
 }
 
 /**
