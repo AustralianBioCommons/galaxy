@@ -1439,7 +1439,7 @@ class StorageOperationPreviewRequest(Model):
 
 
 class StorageOperationPreviewItemResult(Model):
-    item: EncodedHistoryContentItem
+    dataset_id: EncodedDatabaseIdField
     state: StorageOperationEligibilityState
     reason_code: Optional[str] = None
     message: Optional[str] = None
@@ -1486,6 +1486,8 @@ class StorageOperationRunSummary(Model):
     state: StorageOperationRunState
     mode: StorageOperationMode
     target_object_store_id: str
+    create_time: datetime = CreateTimeField
+    update_time: datetime = UpdateTimeField
     total_count: int
     succeeded_count: int
     failed_count: int
@@ -1498,6 +1500,10 @@ class StorageOperationRunItemStatus(Model):
     state: StorageOperationRunItemState
     reason_code: Optional[str] = None
     message: Optional[str] = None
+    attempt_count: int
+    bytes_processed: int
+    create_time: datetime = CreateTimeField
+    update_time: datetime = UpdateTimeField
 
 
 class StorageOperationExecuteResponse(Model):

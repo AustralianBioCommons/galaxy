@@ -799,15 +799,14 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
 
         for dataset_id, dataset in unique_datasets.items():
             reason = self._validate_relocate_dataset(trans, dataset, payload.target_object_store_id)
-            item = EncodedHistoryContentItem(
-                id=self.encode_id(dataset_id),
-                history_content_type=HistoryContentType.dataset,
-            )
             if reason is None:
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
                 eligibility_items.append(
-                    StorageOperationPreviewItemResult(item=item, state=StorageOperationEligibilityState.eligible)
+                    StorageOperationPreviewItemResult(
+                        dataset_id=dataset_id,
+                        state=StorageOperationEligibilityState.eligible,
+                    )
                 )
                 if quota_source_map:
                     old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
@@ -821,7 +820,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
                 reason_code, message = reason
                 eligibility_items.append(
                     StorageOperationPreviewItemResult(
-                        item=item,
+                        dataset_id=dataset_id,
                         state=StorageOperationEligibilityState.ineligible,
                         reason_code=reason_code,
                         message=message,
@@ -832,7 +831,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         snapshot = DatasetStorageOperationSnapshot(
             history_id=history.id,
             user_id=user.id,
-            mode=payload.mode.value,
+            mode=payload.mode,
             target_object_store_id=payload.target_object_store_id,
             resolved_dataset_ids=list(unique_datasets.keys()),
             eligible_dataset_ids=eligible_dataset_ids,
@@ -846,7 +845,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
 
         return StorageOperationPreviewResponse(
-            snapshot_id=self.encode_id(snapshot.id),
+            snapshot_id=snapshot.id,
             selection_counts=StorageOperationSelectionCounts(
                 selected_items_count=selected_items_count,
                 expanded_leaf_count=expanded_leaf_count,
@@ -995,10 +994,14 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         )
         items = [
             StorageOperationRunItemStatus(
-                dataset_id=self.encode_id(run_item.dataset_id),
+                dataset_id=run_item.dataset_id,
                 state=StorageOperationRunItemState(run_item.state),
                 reason_code=run_item.reason_code,
                 message=run_item.message,
+                attempt_count=run_item.attempt_count,
+                bytes_processed=run_item.bytes_processed,
+                create_time=run_item.create_time,
+                update_time=run_item.update_time,
             )
             for run_item in run_items
         ]
