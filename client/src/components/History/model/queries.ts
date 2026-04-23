@@ -13,6 +13,7 @@ import { getStorageOperationRunStatus } from "@/api/histories";
 import { rethrowSimple } from "@/utils/simple-error";
 
 type BulkOperation = components["schemas"]["HistoryContentItemOperation"];
+type HistoryContentItem = components["schemas"]["HistoryContentItem"];
 type QueryFilters = Record<string, unknown>;
 
 export function filtersToQueryValues(filters: QueryFilters) {
@@ -70,7 +71,7 @@ export async function bulkUpdate(
     history: HistoryReference,
     operation: BulkOperation,
     filters: QueryFilters,
-    items = [],
+    items: HistoryContentItem[] = [],
     params = null,
 ) {
     const { data, error } = await GalaxyApi().PUT("/api/histories/{history_id}/contents/bulk", {
@@ -110,7 +111,7 @@ export async function bulkStoragePreview(
     mode: StorageOperationMode,
     targetObjectStoreId: string,
     filters: QueryFilters,
-    items = [],
+    items: HistoryContentItem[] = [],
 ): Promise<StorageOperationPreviewResponse | undefined> {
     const { data, error } = await GalaxyApi().POST("/api/histories/{history_id}/contents/bulk/storage/preview", {
         params: {
@@ -134,7 +135,7 @@ export async function bulkStorageExecute(
     history: HistoryReference,
     snapshotId: string,
     executionPolicy: StorageOperationExecutePolicy = { skip_ineligible: true },
-): Promise<StorageOperationExecuteResponse | undefined> {
+): Promise<StorageOperationExecuteResponse> {
     const { data, error } = await GalaxyApi().POST("/api/histories/{history_id}/contents/bulk/storage/execute", {
         params: {
             path: { history_id: history.id },
@@ -154,6 +155,6 @@ export async function bulkStorageExecute(
 export async function bulkStorageRunStatus(
     history: HistoryReference,
     runId: string,
-): Promise<StorageOperationRunResponse | undefined> {
+): Promise<StorageOperationRunResponse> {
     return getStorageOperationRunStatus(history, runId);
 }
