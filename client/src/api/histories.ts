@@ -315,7 +315,7 @@ export type StorageOperationRunResponse = components["schemas"]["StorageOperatio
 export async function getStorageOperationRunStatus(
     history: HistoryReference,
     runId: string,
-): Promise<StorageOperationRunResponse | undefined> {
+): Promise<StorageOperationRunResponse> {
     const { data, error } = await GalaxyApi().GET("/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}", {
         params: {
             path: { history_id: history.id, run_id: runId },
