@@ -50,6 +50,8 @@ import HistoryList from "@/components/History/HistoryList.vue";
 import HistoryPublished from "@/components/History/HistoryPublished.vue";
 import HistoryView from "@/components/History/HistoryView.vue";
 import HistoryMultipleView from "@/components/History/Multiple/MultipleView.vue";
+import StorageOperationHistoryView from "@/components/History/StorageOperations/StorageOperationHistoryView.vue";
+import StorageOperationRunView from "@/components/History/StorageOperations/StorageOperationRunView.vue";
 import WorkflowExtractionForm from "@/components/History/WorkflowExtractionForm.vue";
 import HistoryImport from "@/components/HistoryImport.vue";
 import ZipImportResults from "@/components/ImportData/zip/ZipImportResults.vue";
@@ -423,6 +425,18 @@ export function getRouter(Galaxy) {
                         path: "histories/:historyId/invocations",
                         component: HistoryInvocations,
                         props: true,
+                    },
+                    {
+                        path: "histories/:historyId/storage/operations",
+                        component: StorageOperationHistoryView,
+                        props: true,
+                        redirect: redirectAnon(),
+                    },
+                    {
+                        path: "histories/:historyId/storage/runs/:runId",
+                        component: StorageOperationRunView,
+                        props: true,
+                        redirect: redirectAnon(),
                     },
                     {
                         path: "histories/:historyId/extract_workflow",
