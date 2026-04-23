@@ -3980,7 +3980,6 @@ class EntityReference(Model):
     )
     extension: Optional[str] = Field(default=None, title="Extension")
     state: Optional[str] = Field(default=None, title="State")
-    file_size: Optional[int] = Field(default=None, title="File Size")
     hid: Optional[int] = Field(default=None, title="HID")
 
 

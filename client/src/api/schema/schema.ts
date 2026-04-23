@@ -12372,8 +12372,6 @@ export interface components {
         EntityReference: {
             /** Extension */
             extension?: string | null;
-            /** File Size */
-            file_size?: number | null;
             /** HID */
             hid?: number | null;
             /**
