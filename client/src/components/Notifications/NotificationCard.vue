@@ -61,6 +61,8 @@ function handleMessageClick(event: MouseEvent) {
 const title = computed(() => {
     if (props.notification.category === "new_shared_item") {
         return `${sharedItemType.value} shared with you by ${props.notification.content.owner_name}`;
+    } else if (props.notification.category === "storage_operation") {
+        return props.notification.content.subject;
     } else {
         return props.notification.content.subject;
     }
@@ -68,7 +70,12 @@ const title = computed(() => {
 
 const titleIcon = computed(() => {
     return {
-        icon: props.notification.category === "new_shared_item" ? faRetweet : faInbox,
+        icon:
+            props.notification.category === "new_shared_item"
+                ? faRetweet
+                : props.notification.category === "storage_operation"
+                  ? faHourglassHalf
+                  : faInbox,
         class: `text-${notificationVariant.value}`,
     };
 });
@@ -142,6 +149,15 @@ const primaryActions = computed(() => {
 function markNotificationAsSeen() {
     notificationsStore.updateNotification(props.notification, { seen: true });
 }
+
+function openStorageRun(event: MouseEvent) {
+    event.preventDefault();
+    if (props.notification.category !== "storage_operation") {
+        return;
+    }
+    markNotificationAsSeen();
+    router.push(props.notification.content.run_url);
+}
 </script>
 
 <template>
@@ -175,6 +191,28 @@ function markNotificationAsSeen() {
                 </BLink>
                 <em>{{ props.notification.content.item_type }}</em
                 >{{ " " }}<span> with you.</span>
+            </template>
+            <template v-else-if="props.notification.category === 'storage_operation'">
+                <p>
+                    {{ props.notification.content.message }}
+                </p>
+                <p class="mb-1">
+                    <strong>Mode:</strong> {{ props.notification.content.mode }}
+                    <span class="mx-2">|</span>
+                    <strong>State:</strong> {{ props.notification.content.state }}
+                </p>
+                <p class="mb-1">
+                    <strong>Total:</strong> {{ props.notification.content.total_count }}
+                    <span class="mx-2">|</span>
+                    <strong>Succeeded:</strong> {{ props.notification.content.succeeded_count }}
+                    <span class="mx-2">|</span>
+                    <strong>Failed:</strong> {{ props.notification.content.failed_count }}
+                    <span class="mx-2">|</span>
+                    <strong>Skipped:</strong> {{ props.notification.content.skipped_count }}
+                </p>
+                <BLink class="text-primary" :href="absPath(props.notification.content.run_url)" @click="openStorageRun">
+                    Open storage operation run status
+                </BLink>
             </template>
             <template v-else>
                 <span
