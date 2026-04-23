@@ -62,7 +62,15 @@ from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.objectstore import BaseObjectStore
 from galaxy.objectstore.caching import check_caches
 from galaxy.queue_worker import GalaxyQueueWorker
-from galaxy.schema.notifications import NotificationCreateRequest
+from galaxy.schema.notifications import (
+    NotificationCreateData,
+    NotificationCreateRequest,
+    NotificationRecipients,
+    NotificationVariant,
+    PersonalNotificationCategory,
+    StorageOperationNotificationContent,
+    StorageOperationNotificationState,
+)
 from galaxy.schema.tasks import (
     ComputeDatasetHashTaskRequest,
     GenerateHistoryContentDownload,
@@ -317,6 +325,7 @@ def set_metadata(
 def bulk_relocate_storage(
     sa_session: galaxy_scoped_session,
     dataset_manager: DatasetManager,
+    notification_manager: NotificationManager,
     app: MinimalManagerApp,
     run_db_id: int,
     task_user_id: Optional[int] = None,
@@ -326,18 +335,78 @@ def bulk_relocate_storage(
         log.error(f"Bulk storage relocate run not found: {run_db_id}")
         return
 
+    user = sa_session.get(User, run.user_id) if run.user_id else None
+
+    def send_storage_notification(
+        *,
+        state: StorageOperationNotificationState,
+        variant: NotificationVariant,
+        message: str,
+    ):
+        if user is None:
+            return
+        encoded_history_id = app.security.encode_id(run.history_id)
+        encoded_run_id = app.security.encode_id(run.id)
+        relative_run_url = f"/histories/{encoded_history_id}/storage/runs/{encoded_run_id}"
+        galaxy_url = app.config.galaxy_infrastructure_url
+        run_url = f"{galaxy_url}{relative_run_url}" if galaxy_url else relative_run_url
+        try:
+            notification_request = NotificationCreateRequest(
+                recipients=NotificationRecipients.model_construct(user_ids=[user.id]),
+                notification=NotificationCreateData(
+                    source="galaxy",
+                    category=PersonalNotificationCategory.storage_operation,
+                    variant=variant,
+                    publication_time=None,
+                    expiration_time=None,
+                    content=StorageOperationNotificationContent(
+                        subject=(
+                            "Storage operation completed"
+                            if state == StorageOperationNotificationState.completed
+                            else "Storage operation failed"
+                        ),
+                        message=message,
+                        history_id=encoded_history_id,
+                        run_id=encoded_run_id,
+                        run_url=run_url,
+                        mode=run.mode,
+                        state=state,
+                        total_count=run.total_count,
+                        succeeded_count=run.succeeded_count,
+                        failed_count=run.failed_count,
+                        skipped_count=run.skipped_count,
+                    ),
+                ),
+                galaxy_url=galaxy_url,
+            )
+            notification_manager.send_notification_to_recipients(notification_request)
+        except Exception:
+            log.exception("Failed to send storage operation notification for run %s", run.id)
+
     snapshot = sa_session.get(DatasetStorageOperationSnapshot, run.snapshot_id)
     if snapshot is None:
         run.state = "failed"
+        run.failed_count = run.total_count if run.total_count else 0
         sa_session.add(run)
         sa_session.commit()
+        send_storage_notification(
+            state=StorageOperationNotificationState.failed,
+            variant=NotificationVariant.urgent,
+            message="Bulk relocate run failed because its preview snapshot could not be found.",
+        )
         log.error(f"Snapshot not found for run {run_db_id}")
         return
 
     if snapshot.expires_at <= now():
         run.state = "failed"
+        run.failed_count = run.total_count if run.total_count else 0
         sa_session.add(run)
         sa_session.commit()
+        send_storage_notification(
+            state=StorageOperationNotificationState.failed,
+            variant=NotificationVariant.urgent,
+            message="Bulk relocate run failed because its preview snapshot expired before execution.",
+        )
         log.error(f"Snapshot expired for run {run_db_id}")
         return
 
@@ -345,7 +414,6 @@ def bulk_relocate_storage(
     sa_session.add(run)
     sa_session.commit()
 
-    user = sa_session.get(User, run.user_id) if run.user_id else None
     trans = SimpleNamespace(user=user)
 
     succeeded_count = 0
@@ -437,6 +505,22 @@ def bulk_relocate_storage(
     run.skipped_count = skipped_count
     sa_session.add(run)
     sa_session.commit()
+
+    if failed_count > 0 or skipped_count > 0:
+        variant = NotificationVariant.warning
+        message = (
+            f"Bulk relocate run finished with partial success. "
+            f"Succeeded: {succeeded_count}, Failed: {failed_count}, Skipped: {skipped_count}."
+        )
+    else:
+        variant = NotificationVariant.info
+        message = f"Bulk relocate run completed successfully for {succeeded_count} dataset(s)."
+
+    send_storage_notification(
+        state=StorageOperationNotificationState.completed,
+        variant=variant,
+        message=message,
+    )
 
 
 def _get_dataset_manager(
