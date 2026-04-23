@@ -19358,6 +19358,7 @@ export interface components {
             content:
                 | components["schemas"]["MessageNotificationContent"]
                 | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"]
                 | components["schemas"]["BroadcastNotificationContent"];
             /**
              * Expiration time
@@ -19446,6 +19447,7 @@ export interface components {
             content:
                 | components["schemas"]["MessageNotificationContent"]
                 | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"]
                 | components["schemas"]["BroadcastNotificationContent"];
             /**
              * Create time
@@ -20533,7 +20535,7 @@ export interface components {
          *     displayed in the notification preferences.
          * @enum {string}
          */
-        PersonalNotificationCategory: "message" | "new_shared_item";
+        PersonalNotificationCategory: "message" | "new_shared_item" | "storage_operation";
         /** PluginAspectStatus */
         PluginAspectStatus: {
             /** Message */
@@ -22663,9 +22665,86 @@ export interface components {
          * @enum {string}
          */
         StorageOperationMode: "relocate" | "copy" | "move";
+        /** StorageOperationNotificationContent */
+        StorageOperationNotificationContent: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            category: "storage_operation";
+            /**
+             * Failed Count
+             * @description Failed datasets count.
+             * @default 0
+             */
+            failed_count: number;
+            /**
+             * History ID
+             * @description The encoded history ID.
+             * @example 0123456789ABCDEF
+             */
+            history_id: string;
+            /**
+             * Message
+             * @description The message of the notification (supports Markdown).
+             */
+            message: string;
+            /**
+             * Mode
+             * @description Storage operation mode.
+             */
+            mode: string;
+            /**
+             * Run ID
+             * @description The encoded storage operation run ID.
+             * @example 0123456789ABCDEF
+             */
+            run_id: string;
+            /**
+             * Run URL
+             * @description Absolute or relative URL to the storage operation run status view.
+             */
+            run_url: string;
+            /**
+             * Skipped Count
+             * @description Skipped datasets count.
+             * @default 0
+             */
+            skipped_count: number;
+            /**
+             * State
+             * @description The current state of the storage operation run when this notification was generated.
+             */
+            state: components["schemas"]["StorageOperationNotificationState"];
+            /**
+             * Subject
+             * @description The subject of the notification.
+             */
+            subject: string;
+            /**
+             * Succeeded Count
+             * @description Succeeded datasets count.
+             * @default 0
+             */
+            succeeded_count: number;
+            /**
+             * Total Count
+             * @description Total datasets in the run.
+             */
+            total_count: number;
+        };
+        /**
+         * StorageOperationNotificationState
+         * @enum {string}
+         */
+        StorageOperationNotificationState: "started" | "completed" | "failed";
         /** StorageOperationPreviewItemResult */
         StorageOperationPreviewItemResult: {
-            item: components["schemas"]["EncodedHistoryContentItem"];
+            /**
+             * Dataset Id
+             * @example 0123456789ABCDEF
+             */
+            dataset_id: string;
             /** Message */
             message?: string | null;
             /** Reason Code */
@@ -22705,6 +22784,16 @@ export interface components {
         StorageOperationRunItemState: "pending" | "running" | "succeeded" | "failed" | "skipped";
         /** StorageOperationRunItemStatus */
         StorageOperationRunItemStatus: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Bytes Processed */
+            bytes_processed: number;
+            /**
+             * Create Time
+             * Format: date-time
+             * @description The time and date this item was created.
+             */
+            create_time: string;
             /**
              * Dataset Id
              * @example 0123456789ABCDEF
@@ -22715,6 +22804,12 @@ export interface components {
             /** Reason Code */
             reason_code?: string | null;
             state: components["schemas"]["StorageOperationRunItemState"];
+            /**
+             * Update Time
+             * Format: date-time
+             * @description The last time and date this item was updated.
+             */
+            update_time: string;
         };
         /** StorageOperationRunResponse */
         StorageOperationRunResponse: {
@@ -22729,6 +22824,12 @@ export interface components {
         StorageOperationRunState: "pending" | "running" | "completed" | "failed";
         /** StorageOperationRunSummary */
         StorageOperationRunSummary: {
+            /**
+             * Create Time
+             * Format: date-time
+             * @description The time and date this item was created.
+             */
+            create_time: string;
             /** Failed Count */
             failed_count: number;
             mode: components["schemas"]["StorageOperationMode"];
@@ -22748,6 +22849,12 @@ export interface components {
             task_id?: string | null;
             /** Total Count */
             total_count: number;
+            /**
+             * Update Time
+             * Format: date-time
+             * @description The last time and date this item was updated.
+             */
+            update_time: string;
         };
         /** StorageOperationSelectionCounts */
         StorageOperationSelectionCounts: {
@@ -24783,6 +24890,13 @@ export interface components {
          *             "push": true
          *           },
          *           "enabled": true
+         *         },
+         *         "storage_operation": {
+         *           "channels": {
+         *             "email": true,
+         *             "push": true
+         *           },
+         *           "enabled": true
          *         }
          *       }
          *     }
@@ -25186,6 +25300,13 @@ export interface components {
          *             "push": true
          *           },
          *           "enabled": true
+         *         },
+         *         "storage_operation": {
+         *           "channels": {
+         *             "email": true,
+         *             "push": true
+         *           },
+         *           "enabled": true
          *         }
          *       }
          *     }
@@ -25215,7 +25336,8 @@ export interface components {
              */
             content:
                 | components["schemas"]["MessageNotificationContent"]
-                | components["schemas"]["NewSharedItemNotificationContent"];
+                | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"];
             /**
              * Create time
              * Format: date-time
