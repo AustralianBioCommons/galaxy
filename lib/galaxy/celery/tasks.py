@@ -511,10 +511,7 @@ def bulk_relocate_storage(
 
     if failed_count > 0 or skipped_count > 0:
         variant = NotificationVariant.warning
-        message = (
-            f"Bulk relocate run finished with partial success. "
-            f"Succeeded: {succeeded_count}, Failed: {failed_count}, Skipped: {skipped_count}."
-        )
+        message = "Bulk relocate run finished with partial success. Check the run details for more information."
     else:
         variant = NotificationVariant.info
         message = f"Bulk relocate run completed successfully for {succeeded_count} dataset(s)."

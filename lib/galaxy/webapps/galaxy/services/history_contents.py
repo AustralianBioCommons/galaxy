@@ -81,15 +81,6 @@ from galaxy.schema.fields import (
     DecodedDatabaseIdField,
     LibraryFolderDatabaseIdField,
 )
-from galaxy.schema.notifications import (
-    NotificationCreateData,
-    NotificationCreateRequest,
-    NotificationRecipients,
-    NotificationVariant,
-    PersonalNotificationCategory,
-    StorageOperationNotificationContent,
-    StorageOperationNotificationState,
-)
 from galaxy.schema.schema import (
     AnyBulkOperationParams,
     AnyHistoryContentItem,
@@ -917,43 +908,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             skipped_count=0,
             task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
         )
-
-        encoded_history_id = self.encode_id(history.id)
-        encoded_run_id = self.encode_id(run.id)
-        relative_run_url = f"/histories/{encoded_history_id}/storage/runs/{encoded_run_id}"
-        galaxy_url = trans.app.config.galaxy_infrastructure_url
-        run_url = f"{galaxy_url}{relative_run_url}" if galaxy_url else relative_run_url
-        try:
-            notification_request = NotificationCreateRequest(
-                recipients=NotificationRecipients.model_construct(user_ids=[user.id]),
-                notification=NotificationCreateData(
-                    source="galaxy",
-                    category=PersonalNotificationCategory.storage_operation,
-                    variant=NotificationVariant.info,
-                    publication_time=None,
-                    expiration_time=None,
-                    content=StorageOperationNotificationContent(
-                        subject="Storage operation started",
-                        message=(
-                            f"Bulk relocate run started for {len(resolved_dataset_ids)} dataset(s). "
-                            "You can monitor progress in real time."
-                        ),
-                        history_id=encoded_history_id,
-                        run_id=encoded_run_id,
-                        run_url=run_url,
-                        mode=run.mode,
-                        state=StorageOperationNotificationState.started,
-                        total_count=len(resolved_dataset_ids),
-                        succeeded_count=0,
-                        failed_count=0,
-                        skipped_count=0,
-                    ),
-                ),
-                galaxy_url=galaxy_url,
-            )
-            trans.app.notification_manager.send_notification_to_recipients(notification_request)
-        except Exception:
-            log.exception("Failed to send storage operation start notification for run %s", run.id)
 
         return StorageOperationExecuteResponse(run=run_summary)
 
