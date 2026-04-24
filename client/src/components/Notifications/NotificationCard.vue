@@ -149,15 +149,6 @@ const primaryActions = computed(() => {
 function markNotificationAsSeen() {
     notificationsStore.updateNotification(props.notification, { seen: true });
 }
-
-function openStorageRun(event: MouseEvent) {
-    event.preventDefault();
-    if (props.notification.category !== "storage_operation") {
-        return;
-    }
-    markNotificationAsSeen();
-    router.push(props.notification.content.run_url);
-}
 </script>
 
 <template>
@@ -210,7 +201,10 @@ function openStorageRun(event: MouseEvent) {
                     <span class="mx-2">|</span>
                     <strong>Skipped:</strong> {{ props.notification.content.skipped_count }}
                 </p>
-                <BLink class="text-primary" :href="absPath(props.notification.content.run_url)" @click="openStorageRun">
+                <BLink
+                    class="text-primary"
+                    :href="props.notification.content.run_url"
+                    @click="markNotificationAsSeen()">
                     Open storage operation run status
                 </BLink>
             </template>
