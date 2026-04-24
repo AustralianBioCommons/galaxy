@@ -66,6 +66,7 @@ from galaxy.schema.notifications import (
     NotificationResponse,
     NotificationVariant,
     PersonalNotificationCategory,
+    StorageOperationNotificationContent,
     UpdateUserNotificationPreferencesRequest,
     UserNotificationPreferences,
     UserNotificationUpdateRequest,
@@ -810,11 +811,29 @@ class NewSharedItemEmailNotificationTemplateBuilder(EmailNotificationTemplateBui
         return f"[Galaxy] New {content.item_type} shared with you: {content.item_name}"
 
 
+class StorageOperationEmailNotificationTemplateBuilder(EmailNotificationTemplateBuilder):
+
+    markdown_to = {
+        TemplateFormats.HTML: to_html,
+        TemplateFormats.TXT: lambda x: x,
+    }
+
+    def get_content(self, template_format: TemplateFormats) -> AnyNotificationContent:
+        content = StorageOperationNotificationContent.model_construct(**self.notification.content)  # type: ignore[arg-type]
+        content.message = self.markdown_to[template_format](content.message)
+        return content
+
+    def get_subject(self) -> str:
+        content = cast(StorageOperationNotificationContent, self.get_content(TemplateFormats.TXT))
+        return f"[Galaxy] {content.subject}"
+
+
 class EmailNotificationChannelPlugin(NotificationChannelPlugin):
     # Register the supported email templates here
     email_templates_by_category: dict[PersonalNotificationCategory, type[EmailNotificationTemplateBuilder]] = {
         PersonalNotificationCategory.message: MessageEmailNotificationTemplateBuilder,
         PersonalNotificationCategory.new_shared_item: NewSharedItemEmailNotificationTemplateBuilder,
+        PersonalNotificationCategory.storage_operation: StorageOperationEmailNotificationTemplateBuilder,
     }
 
     def send(self, notification: Notification, user: User):
