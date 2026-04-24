@@ -45,6 +45,7 @@ const storagePreviewLoading = ref(false);
 const storageExecuting = ref(false);
 const previewError = ref<string | null>(null);
 const executionError = ref<string | null>(null);
+const notifyOnCompletion = ref(true);
 
 const wizard = useWizard({
     configure: {
@@ -169,6 +170,7 @@ function resetState() {
     storageExecuting.value = false;
     previewError.value = null;
     executionError.value = null;
+    notifyOnCompletion.value = true;
 }
 
 async function previewStorageOperation() {
@@ -214,10 +216,15 @@ async function executeStorageOperation() {
     executionError.value = null;
 
     try {
-        const executeResponse = await bulkStorageExecute(props.history, snapshotId);
+        const executeResponse = await bulkStorageExecute(
+            props.history,
+            snapshotId,
+            undefined,
+            notifyOnCompletion.value,
+        );
         storageOperationsStore.startRun(toTrackedStorageRun(props.history.id, executeResponse.run));
 
-        Toast.success("Storage operation submitted successfully.", "Storage Operation Started");
+        Toast.success("Storage operation submitted successfully.", "Storage Operation Submitted");
         emit("completed");
         showProxy.value = false;
         resetState();
@@ -286,6 +293,16 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                             {{ target.name || target.object_store_id }}
                         </option>
                     </select>
+                </div>
+
+                <div class="mb-2">
+                    <label class="d-flex align-items-center mb-0">
+                        <input v-model="notifyOnCompletion" type="checkbox" class="mr-2" />
+                        Notify me when the storage operation completes
+                    </label>
+                    <small class="text-muted d-block mt-1">
+                        When disabled, no completion notification will be sent for this run.
+                    </small>
                 </div>
             </div>
 

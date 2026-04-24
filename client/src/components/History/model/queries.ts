@@ -135,6 +135,7 @@ export async function bulkStorageExecute(
     history: HistoryReference,
     snapshotId: string,
     executionPolicy: StorageOperationExecutePolicy = { skip_ineligible: true },
+    notifyOnCompletion = true,
 ): Promise<StorageOperationExecuteResponse> {
     const { data, error } = await GalaxyApi().POST("/api/histories/{history_id}/contents/bulk/storage/execute", {
         params: {
@@ -143,6 +144,7 @@ export async function bulkStorageExecute(
         body: {
             snapshot_id: snapshotId,
             execution_policy: executionPolicy,
+            notify_on_completion: notifyOnCompletion,
         },
     });
 

@@ -898,6 +898,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         task_result = bulk_relocate_storage.delay(
             run_db_id=run.id,
             task_user_id=user.id,
+            notify_on_completion=payload.notify_on_completion,
         )
         run.task_id = UUID(task_result.id)
         trans.sa_session.add(run)

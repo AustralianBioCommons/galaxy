@@ -22651,6 +22651,11 @@ export interface components {
         StorageOperationExecuteRequest: {
             execution_policy?: components["schemas"]["StorageOperationExecutePolicy"];
             /**
+             * Notify On Completion
+             * @default true
+             */
+            notify_on_completion?: boolean;
+            /**
              * Snapshot Id
              * @example 0123456789ABCDEF
              */

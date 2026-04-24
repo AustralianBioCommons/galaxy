@@ -1479,6 +1479,7 @@ class StorageOperationExecutePolicy(Model):
 class StorageOperationExecuteRequest(Model):
     snapshot_id: DecodedDatabaseIdField
     execution_policy: StorageOperationExecutePolicy = Field(default_factory=StorageOperationExecutePolicy)
+    notify_on_completion: bool = True
 
 
 class StorageOperationRunSummary(Model):

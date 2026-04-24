@@ -329,6 +329,7 @@ def bulk_relocate_storage(
     app: MinimalManagerApp,
     run_db_id: int,
     task_user_id: Optional[int] = None,
+    notify_on_completion: bool = True,
 ):
     run = sa_session.get(DatasetStorageOperationRun, run_db_id)
     if run is None:
@@ -343,6 +344,8 @@ def bulk_relocate_storage(
         variant: NotificationVariant,
         message: str,
     ):
+        if not notify_on_completion:
+            return
         if user is None:
             return
         encoded_history_id = app.security.encode_id(run.history_id)
