@@ -18,6 +18,10 @@ from pydantic import (
     ConfigDict,
     Field,
 )
+from sqlalchemy import (
+    false,
+    or_,
+)
 from typing_extensions import Protocol
 
 from galaxy import exceptions
@@ -139,6 +143,7 @@ from galaxy.schema.tasks import (
 )
 from galaxy.security.idencoding import IdEncodingHelper
 from galaxy.short_term_storage import ShortTermStorageAllocator
+from galaxy.util.search import parse_filters_structured
 from galaxy.util.zipstream import ZipstreamWrapper
 from galaxy.webapps.galaxy.services.base import (
     ConsumesModelStores,
@@ -917,36 +922,87 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         history_id: DecodedDatabaseIdField,
         run_id: DecodedDatabaseIdField,
     ) -> StorageOperationRunResponse:
-        user = self.get_authenticated_user(trans)
-        history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
-        run = trans.sa_session.get(DatasetStorageOperationRun, run_id)
-        if run is None:
-            raise exceptions.ObjectNotFound("Storage operation run not found.")
-        if run.history_id != history.id:
-            raise exceptions.RequestParameterInvalidException("Run does not belong to the requested history.")
-        if run.user_id != user.id:
-            raise exceptions.RequestParameterInvalidException("Run does not belong to the current user.")
+        run = self._get_storage_operation_run(trans, history_id, run_id)
+        summary = self._to_storage_operation_run_summary(run)
+        return StorageOperationRunResponse(run=summary)
 
-        run_items = (
-            trans.sa_session.query(DatasetStorageOperationRunItem)
-            .filter(DatasetStorageOperationRunItem.run_id == run.id)
-            .order_by(DatasetStorageOperationRunItem.id.asc())
-            .all()
+    def storage_operation_run_items(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        run_id: DecodedDatabaseIdField,
+        offset: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+    ) -> tuple[list[StorageOperationRunItemStatus], int]:
+        run = self._get_storage_operation_run(trans, history_id, run_id)
+
+        run_items_query = trans.sa_session.query(DatasetStorageOperationRunItem).filter(
+            DatasetStorageOperationRunItem.run_id == run.id
         )
 
-        summary = StorageOperationRunSummary(
-            run_id=run.id,
-            state=StorageOperationRunState(run.state),
-            mode=StorageOperationMode(run.mode),
-            target_object_store_id=run.target_object_store_id,
-            create_time=run.create_time,
-            update_time=run.update_time,
-            total_count=run.total_count,
-            succeeded_count=run.succeeded_count,
-            failed_count=run.failed_count,
-            skipped_count=run.skipped_count,
-            task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
-        )
+        if search and search.strip():
+            parsed_search = parse_filters_structured(
+                search.strip(),
+                {
+                    "state": "state",
+                    "reason": "reason_code",
+                    "reason_code": "reason_code",
+                    "message": "message",
+                    "dataset": "dataset_id",
+                    "dataset_id": "dataset_id",
+                },
+            )
+
+            for filter_name in ("state", "reason_code", "message", "dataset_id"):
+                filter_terms = [term for term in parsed_search.filter_terms if term.filter == filter_name]
+                if not filter_terms:
+                    continue
+
+                if filter_name == "dataset_id":
+                    dataset_ids = self._decode_storage_run_item_dataset_ids([term.text for term in filter_terms])
+                    if not dataset_ids:
+                        run_items_query = run_items_query.filter(false())
+                        break
+                    run_items_query = run_items_query.filter(DatasetStorageOperationRunItem.dataset_id.in_(dataset_ids))
+                    continue
+
+                column = getattr(DatasetStorageOperationRunItem, filter_name)
+                filter_conditions = []
+                for term in filter_terms:
+                    if term.quoted:
+                        filter_conditions.append(column == term.text)
+                    else:
+                        filter_conditions.append(column.ilike(f"%{term.text}%"))
+                run_items_query = run_items_query.filter(or_(*filter_conditions))
+
+            for text_term in parsed_search.text_terms:
+                text = text_term.text
+                if not text:
+                    continue
+
+                if text_term.quoted:
+                    free_text_conditions: list[Any] = [
+                        DatasetStorageOperationRunItem.state == text,
+                        DatasetStorageOperationRunItem.reason_code == text,
+                        DatasetStorageOperationRunItem.message == text,
+                    ]
+                else:
+                    free_text_conditions = [
+                        DatasetStorageOperationRunItem.state.ilike(f"%{text}%"),
+                        DatasetStorageOperationRunItem.reason_code.ilike(f"%{text}%"),
+                        DatasetStorageOperationRunItem.message.ilike(f"%{text}%"),
+                    ]
+
+                dataset_ids = self._decode_storage_run_item_dataset_ids([text])
+                if dataset_ids:
+                    free_text_conditions.append(DatasetStorageOperationRunItem.dataset_id.in_(dataset_ids))
+
+                run_items_query = run_items_query.filter(or_(*free_text_conditions))
+
+        total_matches = run_items_query.count()
+        run_items = run_items_query.order_by(DatasetStorageOperationRunItem.id.asc()).offset(offset).limit(limit).all()
+
         items = [
             StorageOperationRunItemStatus(
                 dataset_id=run_item.dataset_id,
@@ -960,7 +1016,53 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             )
             for run_item in run_items
         ]
-        return StorageOperationRunResponse(run=summary, items=items)
+        return items, total_matches
+
+    def _decode_storage_run_item_dataset_ids(self, encoded_or_raw_ids: list[str]) -> list[int]:
+        dataset_ids: list[int] = []
+        for value in encoded_or_raw_ids:
+            if not value:
+                continue
+            if value.isdigit():
+                dataset_ids.append(int(value))
+                continue
+            try:
+                dataset_ids.append(self.decode_id(value))
+            except Exception:
+                continue
+        return dataset_ids
+
+    def _get_storage_operation_run(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        run_id: DecodedDatabaseIdField,
+    ) -> DatasetStorageOperationRun:
+        user = self.get_authenticated_user(trans)
+        history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
+        run = trans.sa_session.get(DatasetStorageOperationRun, run_id)
+        if run is None:
+            raise exceptions.ObjectNotFound("Storage operation run not found.")
+        if run.history_id != history.id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the requested history.")
+        if run.user_id != user.id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the current user.")
+        return run
+
+    def _to_storage_operation_run_summary(self, run: DatasetStorageOperationRun) -> StorageOperationRunSummary:
+        return StorageOperationRunSummary(
+            run_id=run.id,
+            state=StorageOperationRunState(run.state),
+            mode=StorageOperationMode(run.mode),
+            target_object_store_id=run.target_object_store_id,
+            create_time=run.create_time,
+            update_time=run.update_time,
+            total_count=run.total_count,
+            succeeded_count=run.succeeded_count,
+            failed_count=run.failed_count,
+            skipped_count=run.skipped_count,
+            task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
+        )
 
     def _resolve_unique_datasets_from_contents(
         self,

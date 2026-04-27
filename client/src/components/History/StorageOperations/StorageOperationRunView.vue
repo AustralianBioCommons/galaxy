@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { BAlert, BBadge, BFormInput, BPagination } from "bootstrap-vue";
+import { BAlert, BBadge, BPagination } from "bootstrap-vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-import type { HistoryReference } from "@/api/histories";
+import {
+    getStorageOperationRunItemsWithTotal,
+    type HistoryReference,
+    type StorageOperationRunItemStatus,
+} from "@/api/histories";
 import type { TableField } from "@/components/Common/GTable.types";
 import { useStorageRunWatcher } from "@/composables/useStorageRunWatcher";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
+import Filtering, { contains } from "@/utils/filtering";
 import localize from "@/utils/localization";
 import { toTrackedStorageRun } from "@/utils/storageOperations";
 
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
 import DatasetPopoverLink from "@/components/Common/DatasetPopoverLink.vue";
+import FilterMenu from "@/components/Common/FilterMenu.vue";
 import GTable from "@/components/Common/GTable.vue";
 import Heading from "@/components/Common/Heading.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
@@ -31,12 +37,39 @@ const storageOperationsStore = useStorageOperationsStore();
 const objectStoreStore = useObjectStoreStore();
 
 const run = computed(() => runStatus.value?.run);
-const items = computed(() => runStatus.value?.items ?? []);
-const sortBy = ref("dataset_id");
-const sortDesc = ref(false);
+const pageItems = ref<StorageOperationRunItemStatus[]>([]);
+const isLoadingItems = ref(false);
+const itemsTotalMatches = ref(0);
 const filterText = ref("");
+const showAdvanced = ref(false);
 const currentPage = ref(1);
 const perPage = 50;
+
+const runItemFilterClass = new Filtering(
+    {
+        dataset_id: {
+            placeholder: "dataset id",
+            type: String,
+            handler: contains("dataset_id"),
+            menuItem: true,
+        },
+        reason_code: {
+            placeholder: "reason code",
+            type: String,
+            handler: contains("reason_code"),
+            menuItem: true,
+        },
+        message: {
+            placeholder: "message",
+            type: String,
+            handler: contains("message"),
+            menuItem: true,
+        },
+    },
+    undefined,
+    true,
+    false,
+);
 
 const breadcrumbItems = computed(() => [
     { title: "History Storage Operations", to: `/histories/${props.historyId}/storage/operations` },
@@ -44,9 +77,9 @@ const breadcrumbItems = computed(() => [
 ]);
 
 const tableFields: TableField[] = [
-    { key: "dataset_id", label: localize("Dataset"), sortable: true, width: "260px" },
-    { key: "state", label: localize("State"), sortable: true, width: "120px" },
-    { key: "reason_code", label: localize("Reason code"), sortable: true, width: "180px" },
+    { key: "dataset_id", label: localize("Dataset"), width: "260px" },
+    { key: "state", label: localize("State"), width: "120px" },
+    { key: "reason_code", label: localize("Reason code"), width: "180px" },
     { key: "message", label: localize("Message"), sortable: true, class: "run-item-message" },
 ];
 
@@ -64,39 +97,8 @@ const stateVariant = computed(() => {
     return "info";
 });
 
-const failedOrSkippedItems = computed(() => {
-    return items.value.filter((item) => item.state === "failed" || item.state === "skipped");
-});
-
-const filteredItems = computed(() => {
-    const filter = filterText.value.trim().toLowerCase();
-    if (!filter) {
-        return failedOrSkippedItems.value;
-    }
-
-    return failedOrSkippedItems.value.filter((item) => {
-        return [item.dataset_id, item.state, item.reason_code ?? "", item.message ?? ""]
-            .join(" ")
-            .toLowerCase()
-            .includes(filter);
-    });
-});
-
-const displayItems = computed(() => {
-    return [...filteredItems.value].sort((a, b) => {
-        const aValue = getSortableValue(a, sortBy.value);
-        const bValue = getSortableValue(b, sortBy.value);
-
-        let comparison = 0;
-        if (typeof aValue === "number" && typeof bValue === "number") {
-            comparison = aValue - bValue;
-        } else {
-            comparison = String(aValue).localeCompare(String(bValue));
-        }
-
-        return sortDesc.value ? -comparison : comparison;
-    });
-});
+const failedOrSkippedCount = computed(() => (run.value?.failed_count ?? 0) + (run.value?.skipped_count ?? 0));
+const displayItems = computed(() => pageItems.value);
 
 const succeededPercent = computed(() => {
     const total = run.value?.total_count ?? 0;
@@ -121,7 +123,7 @@ const failedItemsEmptyStateMessage = computed(() => {
 });
 
 const maxPage = computed(() => {
-    return Math.max(1, Math.ceil(displayItems.value.length / perPage));
+    return Math.max(1, Math.ceil(itemsTotalMatches.value / perPage));
 });
 
 const targetStoreDisplayName = computed(() => {
@@ -132,17 +134,36 @@ const targetStoreDisplayName = computed(() => {
     );
 });
 
-function onSortChanged(newSortBy: string, newSortDesc: boolean) {
-    sortBy.value = newSortBy;
-    sortDesc.value = newSortDesc;
-}
-
 function onPageChange(page: number) {
     currentPage.value = page;
 }
 
-function getSortableValue(item: Record<string, string | number | null | undefined>, key: string) {
-    return item[key] ?? "";
+function buildItemsSearchQuery(filterText: string) {
+    const filter = filterText.trim();
+    return filter ? `state:failed state:skipped ${filter}` : "state:failed state:skipped";
+}
+
+async function loadFailedOrSkippedPage() {
+    if (!run.value || failedOrSkippedCount.value === 0) {
+        pageItems.value = [];
+        itemsTotalMatches.value = 0;
+        return;
+    }
+
+    isLoadingItems.value = true;
+    try {
+        const offset = (currentPage.value - 1) * perPage;
+        const search = buildItemsSearchQuery(filterText.value);
+        const result = await getStorageOperationRunItemsWithTotal(history, props.runId, {
+            offset,
+            limit: perPage,
+            search,
+        });
+        pageItems.value = result.data;
+        itemsTotalMatches.value = result.totalMatches ?? failedOrSkippedCount.value;
+    } finally {
+        isLoadingItems.value = false;
+    }
 }
 
 function getItemStateVariant(state: string) {
@@ -157,13 +178,22 @@ function getItemStateVariant(state: string) {
 
 watch(filterText, () => {
     currentPage.value = 1;
+    void loadFailedOrSkippedPage();
 });
 
-watch(displayItems, () => {
+watch(maxPage, () => {
     if (currentPage.value > maxPage.value) {
         currentPage.value = maxPage.value;
     }
 });
+
+watch(
+    [currentPage, failedOrSkippedCount],
+    () => {
+        void loadFailedOrSkippedPage();
+    },
+    { immediate: true },
+);
 
 watch(
     run,
@@ -241,10 +271,17 @@ onBeforeUnmount(() => {
             <div class="mt-3">
                 <Heading h3 size="sm">{{ localize("Failed or Skipped Items") }}</Heading>
 
-                <BFormInput
-                    v-model="filterText"
+                <FilterMenu
                     class="run-item-filter mb-2"
-                    :placeholder="localize('Filter by dataset, state, reason code, or message')" />
+                    name="Storage Run Items"
+                    view="compact"
+                    placeholder="search failed/skipped items"
+                    :filter-class="runItemFilterClass"
+                    :filter-text.sync="filterText"
+                    :loading="isLoadingItems"
+                    :show-advanced.sync="showAdvanced" />
+
+                <LoadingSpan v-if="isLoadingItems" class="mb-2" :message="localize('Loading failed/skipped items')" />
 
                 <GTable
                     id="storage-operation-run-items-table"
@@ -254,14 +291,11 @@ onBeforeUnmount(() => {
                     show-empty
                     :fields="tableFields"
                     :items="displayItems"
-                    :current-page="currentPage"
-                    :per-page="perPage"
-                    :sort-by="sortBy"
-                    :sort-desc="sortDesc"
+                    :current-page="1"
+                    :per-page="0"
                     :local-sorting="false"
                     :local-filtering="false"
-                    :empty-state="{ message: failedItemsEmptyStateMessage }"
-                    @sort-changed="onSortChanged">
+                    :empty-state="{ message: failedItemsEmptyStateMessage }">
                     <template v-slot:cell(dataset_id)="slot">
                         <DatasetPopoverLink :dataset-id="slot.item.dataset_id" />
                     </template>
@@ -279,10 +313,10 @@ onBeforeUnmount(() => {
                     </template>
                 </GTable>
 
-                <div v-if="displayItems.length > perPage" class="d-flex justify-content-end mt-2">
+                <div v-if="itemsTotalMatches > perPage" class="d-flex justify-content-end mt-2">
                     <BPagination
                         :value="currentPage"
-                        :total-rows="displayItems.length"
+                        :total-rows="itemsTotalMatches"
                         :per-page="perPage"
                         align="right"
                         size="sm"

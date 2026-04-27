@@ -1513,7 +1513,7 @@ class StorageOperationExecuteResponse(Model):
 
 class StorageOperationRunResponse(Model):
     run: StorageOperationRunSummary
-    items: list[StorageOperationRunItemStatus]
+    items: list[StorageOperationRunItemStatus] = Field(default_factory=list)
 
 
 class UpdateHistoryContentsPayload(Model):

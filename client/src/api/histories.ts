@@ -311,6 +311,18 @@ export type StorageOperationExecutePolicy = components["schemas"]["StorageOperat
 export type StorageOperationPreviewResponse = components["schemas"]["StorageOperationPreviewResponse"];
 export type StorageOperationExecuteResponse = components["schemas"]["StorageOperationExecuteResponse"];
 export type StorageOperationRunResponse = components["schemas"]["StorageOperationRunResponse"];
+export type StorageOperationRunItemStatus = components["schemas"]["StorageOperationRunItemStatus"];
+
+export interface StorageOperationRunItemsOptions {
+    offset?: number;
+    limit?: number;
+    search?: string;
+}
+
+export interface StorageOperationRunItemsWithTotal {
+    data: StorageOperationRunItemStatus[];
+    totalMatches: number | null;
+}
 
 export async function getStorageOperationRunStatus(
     history: HistoryReference,
@@ -327,6 +339,38 @@ export async function getStorageOperationRunStatus(
     }
 
     return data;
+}
+
+export async function getStorageOperationRunItemsWithTotal(
+    history: HistoryReference,
+    runId: string,
+    options: StorageOperationRunItemsOptions = {},
+): Promise<StorageOperationRunItemsWithTotal> {
+    const { offset = 0, limit = 50, search } = options;
+    const { response, data, error } = await GalaxyApi().GET(
+        "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items",
+        {
+            params: {
+                path: { history_id: history.id, run_id: runId },
+                query: {
+                    offset,
+                    limit,
+                    search,
+                },
+            },
+        },
+    );
+
+    if (error) {
+        rethrowSimple(error);
+    }
+
+    const totalMatchesHeader = response.headers.get("total_matches");
+    const totalMatches = totalMatchesHeader !== null ? parseInt(totalMatchesHeader, 10) : null;
+    return {
+        data,
+        totalMatches: Number.isNaN(totalMatches) ? null : totalMatches,
+    };
 }
 
 /**

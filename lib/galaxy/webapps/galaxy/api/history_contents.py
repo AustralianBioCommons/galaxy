@@ -56,6 +56,7 @@ from galaxy.schema.schema import (
     StorageOperationExecuteResponse,
     StorageOperationPreviewRequest,
     StorageOperationPreviewResponse,
+    StorageOperationRunItemStatus,
     StorageOperationRunResponse,
     StoreExportPayload,
     UpdateHistoryContentsBatchPayload,
@@ -69,7 +70,9 @@ from galaxy.schema.tasks import (
 from galaxy.webapps.galaxy.api import (
     depends,
     DependsOnTrans,
+    IndexQueryTag,
     Router,
+    search_query_param,
 )
 from galaxy.webapps.galaxy.api.common import (
     get_filter_query_params,
@@ -136,6 +139,34 @@ PurgeQueryParam = Query(
     title="Purge",
     description="Whether to remove from disk the target HDA or child HDAs of the target HDCA.",
     deprecated=True,
+)
+
+StorageRunOffsetQueryParam = Query(
+    default=0,
+    ge=0,
+    title="Offset",
+    description="The offset for paginated per-item run details.",
+)
+
+StorageRunLimitQueryParam = Query(
+    default=50,
+    ge=1,
+    le=200,
+    title="Limit",
+    description="The maximum number of per-item run details to return.",
+)
+
+StorageRunItemsSearchTags = [
+    IndexQueryTag("state", "Item state."),
+    IndexQueryTag("reason_code", "Item reason code.", alias="reason"),
+    IndexQueryTag("message", "Item message."),
+    IndexQueryTag("dataset_id", "Encoded dataset id.", alias="dataset"),
+]
+
+StorageRunSearchQueryParam: Optional[str] = search_query_param(
+    model_name="Storage operation run item",
+    tags=StorageRunItemsSearchTags,
+    free_text_fields=["state", "reason_code", "message", "dataset_id"],
 )
 
 RecursiveQueryParam = Query(
@@ -833,7 +864,7 @@ class FastAPIHistoryContents:
 
     @router.get(
         "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}",
-        summary="Returns run status and per-item details for a storage bulk operation.",
+        summary="Returns run status summary for a storage bulk operation.",
     )
     def storage_operation_run(
         self,
@@ -842,6 +873,31 @@ class FastAPIHistoryContents:
         trans: ProvidesHistoryContext = DependsOnTrans,
     ) -> StorageOperationRunResponse:
         return self.service.storage_operation_run(trans, history_id, run_id)
+
+    @router.get(
+        "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items",
+        summary="Returns paginated per-item details for a storage bulk operation run.",
+    )
+    def storage_operation_run_items(
+        self,
+        history_id: HistoryIDPathParam,
+        run_id: DecodedDatabaseIdField,
+        response: Response,
+        trans: ProvidesHistoryContext = DependsOnTrans,
+        offset: int = StorageRunOffsetQueryParam,
+        limit: int = StorageRunLimitQueryParam,
+        search: Optional[str] = StorageRunSearchQueryParam,
+    ) -> list[StorageOperationRunItemStatus]:
+        run_items, total_matches = self.service.storage_operation_run_items(
+            trans,
+            history_id,
+            run_id,
+            offset=offset,
+            limit=limit,
+            search=search,
+        )
+        response.headers["total_matches"] = str(total_matches)
+        return run_items
 
     @router.put(
         "/api/histories/{history_id}/contents/{id}/validate",

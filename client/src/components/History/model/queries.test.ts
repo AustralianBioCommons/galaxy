@@ -23,7 +23,7 @@ const PREVIEW_RESPONSE: StorageOperationPreviewResponse = {
     eligibility: {
         eligible_count: 1,
         ineligible_count: 0,
-        items: [{ item: { id: "ds1", history_content_type: "dataset" }, state: "eligible" }],
+        items: [{ dataset_id: "ds1", state: "eligible" }],
     },
     estimates: { bytes_to_transfer: 0, quota_delta_by_source: {} },
     warnings: [],
@@ -35,6 +35,8 @@ const EXECUTE_RESPONSE: StorageOperationExecuteResponse = {
         state: "pending",
         mode: "relocate",
         target_object_store_id: "other",
+        create_time: "2099-01-01T00:00:00",
+        update_time: "2099-01-01T00:00:00",
         total_count: 1,
         succeeded_count: 0,
         failed_count: 0,
@@ -53,7 +55,18 @@ const RUN_COMPLETED_RESPONSE: StorageOperationRunResponse = {
         state: "completed",
         succeeded_count: 1,
     },
-    items: [{ dataset_id: "ds1", state: "succeeded", reason_code: null, message: null }],
+    items: [
+        {
+            dataset_id: "ds1",
+            state: "succeeded",
+            reason_code: null,
+            message: null,
+            attempt_count: 1,
+            bytes_processed: 0,
+            create_time: "2099-01-01T00:00:00",
+            update_time: "2099-01-01T00:00:00",
+        },
+    ],
 };
 
 const RUN_FAILED_RESPONSE: StorageOperationRunResponse = {
@@ -62,7 +75,18 @@ const RUN_FAILED_RESPONSE: StorageOperationRunResponse = {
         state: "completed",
         failed_count: 1,
     },
-    items: [{ dataset_id: "ds1", state: "failed", reason_code: "already_in_target", message: "Already there" }],
+    items: [
+        {
+            dataset_id: "ds1",
+            state: "failed",
+            reason_code: "already_in_target",
+            message: "Already there",
+            attempt_count: 1,
+            bytes_processed: 0,
+            create_time: "2099-01-01T00:00:00",
+            update_time: "2099-01-01T00:00:00",
+        },
+    ],
 };
 
 const { server, http } = useServerMock();
@@ -120,7 +144,7 @@ describe("bulkStorageExecute", () => {
 });
 
 describe("bulkStorageRunStatus", () => {
-    it("fetches run status and per-item details including reason_code", async () => {
+    it("fetches run status summary", async () => {
         server.use(
             http.get("/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}", ({ response }) =>
                 response(200).json(RUN_FAILED_RESPONSE),
@@ -130,10 +154,6 @@ describe("bulkStorageRunStatus", () => {
         const result = await bulkStorageRunStatus(HISTORY, RUN_ID);
 
         expect(result!.run.failed_count).toBe(1);
-        expect(result!.items).toHaveLength(1);
-        const firstItem = result!.items[0];
-        expect(firstItem?.state).toBe("failed");
-        expect(firstItem?.reason_code).toBe("already_in_target");
     });
 });
 
@@ -188,7 +208,7 @@ describe("useStorageRunWatcher", () => {
         expect(isTerminal.value).toBe(true);
     });
 
-    it("exposes per-item results including reason_code after failure run", async () => {
+    it("tracks run state for failure runs", async () => {
         server.use(
             http.get("/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}", ({ response }) =>
                 response(200).json(RUN_FAILED_RESPONSE),
@@ -200,8 +220,7 @@ describe("useStorageRunWatcher", () => {
         startPolling();
         await flushPromises();
 
-        const failedItem = runStatus.value!.items.find((item) => item.state === "failed");
-        expect(failedItem).toBeDefined();
-        expect(failedItem!.reason_code).toBe("already_in_target");
+        expect(runStatus.value!.run.state).toBe("completed");
+        expect(runStatus.value!.run.failed_count).toBe(1);
     });
 });

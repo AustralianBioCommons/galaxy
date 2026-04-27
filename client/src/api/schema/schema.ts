@@ -2380,8 +2380,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Returns run status and per-item details for a storage bulk operation. */
+        /** Returns run status summary for a storage bulk operation. */
         get: operations["storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Returns paginated per-item details for a storage bulk operation run. */
+        get: operations["storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -22654,7 +22671,7 @@ export interface components {
              * Notify On Completion
              * @default true
              */
-            notify_on_completion?: boolean;
+            notify_on_completion: boolean;
             /**
              * Snapshot Id
              * @example 0123456789ABCDEF
@@ -22819,7 +22836,7 @@ export interface components {
         /** StorageOperationRunResponse */
         StorageOperationRunResponse: {
             /** Items */
-            items: components["schemas"]["StorageOperationRunItemStatus"][];
+            items?: components["schemas"]["StorageOperationRunItemStatus"][];
             run: components["schemas"]["StorageOperationRunSummary"];
         };
         /**
@@ -38216,6 +38233,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageOperationRunResponse"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get: {
+        parameters: {
+            query?: {
+                /** @description The offset for paginated per-item run details. */
+                offset?: number;
+                /** @description The maximum number of per-item run details to return. */
+                limit?: number;
+                /**
+                 * @description A mix of free text and GitHub-style tags used to filter the index operation.
+                 *
+                 *     ## Query Structure
+                 *
+                 *     GitHub-style filter tags (not be confused with Galaxy tags) are tags of the form
+                 *     `<tag_name>:<text_no_spaces>` or `<tag_name>:'<text with potential spaces>'`. The tag name
+                 *     *generally* (but not exclusively) corresponds to the name of an attribute on the model
+                 *     being indexed (i.e. a column in the database).
+                 *
+                 *     If the tag is quoted, the attribute will be filtered exactly. If the tag is unquoted,
+                 *     generally a partial match will be used to filter the query (i.e. in terms of the implementation
+                 *     this means the database operation `ILIKE` will typically be used).
+                 *
+                 *     Once the tagged filters are extracted from the search query, the remaining text is just
+                 *     used to search various documented attributes of the object.
+                 *
+                 *     ## GitHub-style Tags Available
+                 *
+                 *     `state`
+                 *     : Item state.
+                 *
+                 *     `reason_code`
+                 *     : Item reason code. (The tag `reason` can be used a short hand alias for this tag to filter on this attribute.)
+                 *
+                 *     `message`
+                 *     : Item message.
+                 *
+                 *     `dataset_id`
+                 *     : Encoded dataset id. (The tag `dataset` can be used a short hand alias for this tag to filter on this attribute.)
+                 *
+                 *     ## Free Text
+                 *
+                 *     Free text search terms will be searched against the following attributes of the
+                 *     Storage operation run items: `state`, `reason_code`, `message`, `dataset_id`.
+                 */
+                search?: string | null;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The encoded database identifier of the History. */
+                history_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOperationRunItemStatus"][];
                 };
             };
             /** @description Request Error */
