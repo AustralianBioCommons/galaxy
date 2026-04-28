@@ -11357,6 +11357,19 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /**
+         * DatasetStorageOperationFailureReasonCode
+         * @enum {string}
+         */
+        DatasetStorageOperationFailureReasonCode:
+            | "dataset_not_found"
+            | "invalid_target_object_store"
+            | "missing_source_object_store"
+            | "already_in_target"
+            | "cross_device_relocate_not_allowed"
+            | "insufficient_permissions"
+            | "dataset_in_use"
+            | "execution_error";
         /** DatasetTextContentDetails */
         DatasetTextContentDetails: {
             /**
@@ -22769,7 +22782,7 @@ export interface components {
             dataset_id: string;
             /** Message */
             message?: string | null;
-            reason_code?: components["schemas"]["StorageOperationReasonCode"] | null;
+            reason_code?: components["schemas"]["DatasetStorageOperationFailureReasonCode"] | null;
             state: components["schemas"]["StorageOperationEligibilityState"];
         };
         /** StorageOperationPreviewRequest */
@@ -22799,19 +22812,6 @@ export interface components {
             warnings?: string[];
         };
         /**
-         * StorageOperationReasonCode
-         * @enum {string}
-         */
-        StorageOperationReasonCode:
-            | "dataset_not_found"
-            | "invalid_target_object_store"
-            | "missing_source_object_store"
-            | "already_in_target"
-            | "cross_device_relocate_not_allowed"
-            | "insufficient_permissions"
-            | "dataset_in_use"
-            | "execution_error";
-        /**
          * StorageOperationRunItemState
          * @enum {string}
          */
@@ -22835,7 +22835,7 @@ export interface components {
             dataset_id: string;
             /** Message */
             message?: string | null;
-            reason_code?: components["schemas"]["StorageOperationReasonCode"] | null;
+            reason_code?: components["schemas"]["DatasetStorageOperationFailureReasonCode"] | null;
             state: components["schemas"]["StorageOperationRunItemState"];
             /**
              * Update Time

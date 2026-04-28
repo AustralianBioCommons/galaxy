@@ -2,7 +2,8 @@ import type { components } from "@/api/schema";
 
 export type StorageOperationRunState = components["schemas"]["StorageOperationRunState"];
 export type StorageOperationRunSummary = components["schemas"]["StorageOperationRunSummary"];
-export type StorageOperationReasonCode = components["schemas"]["StorageOperationReasonCode"];
+export type DatasetStorageOperationFailureReasonCode =
+    components["schemas"]["DatasetStorageOperationFailureReasonCode"];
 export type TrackedStorageRun = StorageOperationRunSummary & {
     historyId: string;
     runUrl: string;
@@ -15,9 +16,9 @@ export interface IneligibleReasonDescription {
 
 /**
  * Mapping of storage operation reason codes to user-friendly labels and descriptions.
- * These correspond to the StorageOperationReasonCode enum defined in the backend API schema.
+ * These correspond to the DatasetStorageOperationFailureReasonCode enum defined in the backend API schema.
  */
-const REASON_CODE_DESCRIPTIONS: Record<StorageOperationReasonCode, IneligibleReasonDescription> = {
+const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode, IneligibleReasonDescription> = {
     dataset_not_found: {
         label: "Dataset not found",
         description: "The dataset could not be found at the time of the operation.",
@@ -59,7 +60,7 @@ const REASON_CODE_DESCRIPTIONS: Record<StorageOperationReasonCode, IneligibleRea
  */
 export function getIneligibleReasonDescription(reasonCode: string): IneligibleReasonDescription {
     return (
-        REASON_CODE_DESCRIPTIONS[reasonCode as StorageOperationReasonCode] || {
+        REASON_CODE_DESCRIPTIONS[reasonCode as DatasetStorageOperationFailureReasonCode] || {
             label: "Unknown reason",
             description: `Reason code: ${reasonCode}`,
         }

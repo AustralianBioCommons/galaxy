@@ -97,6 +97,7 @@ from galaxy.schema.schema import (
     CollectionSourceType,
     CreateNewCollectionPayload,
     DatasetAssociationRoles,
+    DatasetStorageOperationFailureReasonCode,
     DeleteHistoryContentPayload,
     EncodedHistoryContentItem,
     HistoryContentBulkOperationPayload,
@@ -120,7 +121,6 @@ from galaxy.schema.schema import (
     StorageOperationPreviewItemResult,
     StorageOperationPreviewRequest,
     StorageOperationPreviewResponse,
-    StorageOperationReasonCode,
     StorageOperationRunItemState,
     StorageOperationRunItemStatus,
     StorageOperationRunResponse,
@@ -1008,7 +1008,9 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             StorageOperationRunItemStatus(
                 dataset_id=run_item.dataset_id,
                 state=StorageOperationRunItemState(run_item.state),
-                reason_code=StorageOperationReasonCode(run_item.reason_code) if run_item.reason_code else None,
+                reason_code=(
+                    DatasetStorageOperationFailureReasonCode(run_item.reason_code) if run_item.reason_code else None
+                ),
                 message=run_item.message,
                 attempt_count=run_item.attempt_count,
                 bytes_processed=run_item.bytes_processed,
@@ -1096,39 +1098,45 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         trans: ProvidesHistoryContext,
         dataset: Dataset,
         target_object_store_id: str,
-    ) -> Optional[tuple[StorageOperationReasonCode, str]]:
+    ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
         device_source_map = self.object_store.get_device_source_map()
         target_device_id = device_source_map.get_device_id(target_object_store_id)
         if target_device_id is None:
             return (
-                StorageOperationReasonCode.invalid_target_object_store,
+                DatasetStorageOperationFailureReasonCode.invalid_target_object_store,
                 f"Target object store '{target_object_store_id}' is invalid.",
             )
 
         source_object_store_id = dataset.object_store_id
         if source_object_store_id is None:
             return (
-                StorageOperationReasonCode.missing_source_object_store,
+                DatasetStorageOperationFailureReasonCode.missing_source_object_store,
                 "Dataset does not define a source object store.",
             )
         source_device_id = device_source_map.get_device_id(source_object_store_id)
         if source_object_store_id == target_object_store_id:
-            return StorageOperationReasonCode.already_in_target, "Dataset is already in the requested object store."
+            return (
+                DatasetStorageOperationFailureReasonCode.already_in_target,
+                "Dataset is already in the requested object store.",
+            )
         if source_device_id != target_device_id:
             return (
-                StorageOperationReasonCode.cross_device_relocate_not_allowed,
+                DatasetStorageOperationFailureReasonCode.cross_device_relocate_not_allowed,
                 "Cannot relocate to an object store that does not share the same device.",
             )
 
         if not trans.app.security_agent.can_change_object_store_id(trans.user, dataset):
             return (
-                StorageOperationReasonCode.insufficient_permissions,
+                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
                 "Dataset is not eligible for object store changes.",
             )
 
         ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
         if callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
-            return StorageOperationReasonCode.dataset_in_use, "Dataset is currently used by an active job."
+            return (
+                DatasetStorageOperationFailureReasonCode.dataset_in_use,
+                "Dataset is currently used by an active job.",
+            )
 
         return None
 
