@@ -22769,8 +22769,7 @@ export interface components {
             dataset_id: string;
             /** Message */
             message?: string | null;
-            /** Reason Code */
-            reason_code?: string | null;
+            reason_code?: components["schemas"]["StorageOperationReasonCode"] | null;
             state: components["schemas"]["StorageOperationEligibilityState"];
         };
         /** StorageOperationPreviewRequest */
@@ -22800,6 +22799,19 @@ export interface components {
             warnings?: string[];
         };
         /**
+         * StorageOperationReasonCode
+         * @enum {string}
+         */
+        StorageOperationReasonCode:
+            | "dataset_not_found"
+            | "invalid_target_object_store"
+            | "missing_source_object_store"
+            | "already_in_target"
+            | "cross_device_relocate_not_allowed"
+            | "insufficient_permissions"
+            | "dataset_in_use"
+            | "execution_error";
+        /**
          * StorageOperationRunItemState
          * @enum {string}
          */
@@ -22823,8 +22835,7 @@ export interface components {
             dataset_id: string;
             /** Message */
             message?: string | null;
-            /** Reason Code */
-            reason_code?: string | null;
+            reason_code?: components["schemas"]["StorageOperationReasonCode"] | null;
             state: components["schemas"]["StorageOperationRunItemState"];
             /**
              * Update Time

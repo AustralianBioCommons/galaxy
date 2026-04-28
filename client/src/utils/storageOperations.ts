@@ -2,19 +2,11 @@ import type { components } from "@/api/schema";
 
 export type StorageOperationRunState = components["schemas"]["StorageOperationRunState"];
 export type StorageOperationRunSummary = components["schemas"]["StorageOperationRunSummary"];
+export type StorageOperationReasonCode = components["schemas"]["StorageOperationReasonCode"];
 export type TrackedStorageRun = StorageOperationRunSummary & {
     historyId: string;
     runUrl: string;
 };
-
-export type IneligibleReasonCode =
-    | "dataset_not_found"
-    | "invalid_target_object_store"
-    | "missing_source_object_store"
-    | "already_in_target"
-    | "cross_device_relocate_not_allowed"
-    | "insufficient_permissions"
-    | "execution_error";
 
 export interface IneligibleReasonDescription {
     label: string;
@@ -22,10 +14,10 @@ export interface IneligibleReasonDescription {
 }
 
 /**
- * Mapping of ineligibility reason codes to user-friendly labels and descriptions.
- * These correspond to the reason codes defined in the backend (galaxy/celery/tasks.py).
+ * Mapping of storage operation reason codes to user-friendly labels and descriptions.
+ * These correspond to the StorageOperationReasonCode enum defined in the backend API schema.
  */
-const INELIGIBLE_REASON_DESCRIPTIONS: Record<IneligibleReasonCode, IneligibleReasonDescription> = {
+const REASON_CODE_DESCRIPTIONS: Record<StorageOperationReasonCode, IneligibleReasonDescription> = {
     dataset_not_found: {
         label: "Dataset not found",
         description: "The dataset could not be found at the time of the operation.",
@@ -50,6 +42,10 @@ const INELIGIBLE_REASON_DESCRIPTIONS: Record<IneligibleReasonCode, IneligibleRea
         label: "Insufficient permissions",
         description: "You do not have permission to move this dataset to a different storage location.",
     },
+    dataset_in_use: {
+        label: "Dataset in use",
+        description: "The dataset is currently being used by an active job and cannot be moved.",
+    },
     execution_error: {
         label: "Execution error",
         description: "An error occurred while attempting to move the dataset.",
@@ -57,13 +53,13 @@ const INELIGIBLE_REASON_DESCRIPTIONS: Record<IneligibleReasonCode, IneligibleRea
 };
 
 /**
- * Get a user-friendly description for an ineligibility reason code.
- * @param reasonCode - The technical reason code from the backend
+ * Get a user-friendly description for a storage operation reason code.
+ * @param reasonCode - The reason code from the backend
  * @returns An object with a human-readable label and description
  */
 export function getIneligibleReasonDescription(reasonCode: string): IneligibleReasonDescription {
     return (
-        INELIGIBLE_REASON_DESCRIPTIONS[reasonCode as IneligibleReasonCode] || {
+        REASON_CODE_DESCRIPTIONS[reasonCode as StorageOperationReasonCode] || {
             label: "Unknown reason",
             description: `Reason code: ${reasonCode}`,
         }

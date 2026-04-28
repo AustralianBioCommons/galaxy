@@ -71,6 +71,7 @@ from galaxy.schema.notifications import (
     StorageOperationNotificationContent,
     StorageOperationNotificationState,
 )
+from galaxy.schema.schema import StorageOperationReasonCode
 from galaxy.schema.tasks import (
     ComputeDatasetHashTaskRequest,
     GenerateHistoryContentDownload,
@@ -433,13 +434,13 @@ def bulk_relocate_storage(
                     run_id=run.id,
                     dataset_id=dataset_id,
                     state="failed",
-                    reason_code="dataset_not_found",
+                    reason_code=StorageOperationReasonCode.dataset_not_found,
                     message="Dataset was not found at execution time.",
                 )
             )
             continue
 
-        reason_code: Optional[str] = None
+        reason_code: Optional[StorageOperationReasonCode] = None
         message: Optional[str] = None
         device_source_map = app.object_store.get_device_source_map()
         target_device_id = device_source_map.get_device_id(run.target_object_store_id)
@@ -447,19 +448,19 @@ def bulk_relocate_storage(
         source_device_id = device_source_map.get_device_id(source_object_store_id) if source_object_store_id else None
 
         if target_device_id is None:
-            reason_code = "invalid_target_object_store"
+            reason_code = StorageOperationReasonCode.invalid_target_object_store
             message = f"Target object store '{run.target_object_store_id}' is invalid."
         elif source_object_store_id is None:
-            reason_code = "missing_source_object_store"
+            reason_code = StorageOperationReasonCode.missing_source_object_store
             message = "Dataset does not define a source object store."
         elif source_object_store_id == run.target_object_store_id:
-            reason_code = "already_in_target"
+            reason_code = StorageOperationReasonCode.already_in_target
             message = "Dataset is already in the requested object store."
         elif source_device_id != target_device_id:
-            reason_code = "cross_device_relocate_not_allowed"
+            reason_code = StorageOperationReasonCode.cross_device_relocate_not_allowed
             message = "Cannot relocate to an object store that does not share the same device."
         elif not app.security_agent.can_change_object_store_id(user, dataset):
-            reason_code = "insufficient_permissions"
+            reason_code = StorageOperationReasonCode.insufficient_permissions
             message = "Dataset is not eligible for object store changes."
 
         if reason_code is not None:
@@ -496,7 +497,7 @@ def bulk_relocate_storage(
                     run_id=run.id,
                     dataset_id=dataset_id,
                     state="failed",
-                    reason_code="execution_error",
+                    reason_code=StorageOperationReasonCode.execution_error,
                     message=str(exc),
                 )
             )

@@ -1432,6 +1432,17 @@ class StorageOperationRunItemState(str, Enum):
     skipped = "skipped"
 
 
+class StorageOperationReasonCode(str, Enum):
+    dataset_not_found = "dataset_not_found"
+    invalid_target_object_store = "invalid_target_object_store"
+    missing_source_object_store = "missing_source_object_store"
+    already_in_target = "already_in_target"
+    cross_device_relocate_not_allowed = "cross_device_relocate_not_allowed"
+    insufficient_permissions = "insufficient_permissions"
+    dataset_in_use = "dataset_in_use"
+    execution_error = "execution_error"
+
+
 class StorageOperationPreviewRequest(Model):
     mode: StorageOperationMode
     target_object_store_id: str
@@ -1441,7 +1452,7 @@ class StorageOperationPreviewRequest(Model):
 class StorageOperationPreviewItemResult(Model):
     dataset_id: EncodedDatabaseIdField
     state: StorageOperationEligibilityState
-    reason_code: Optional[str] = None
+    reason_code: Optional[StorageOperationReasonCode] = None
     message: Optional[str] = None
 
 
@@ -1499,7 +1510,7 @@ class StorageOperationRunSummary(Model):
 class StorageOperationRunItemStatus(Model):
     dataset_id: EncodedDatabaseIdField
     state: StorageOperationRunItemState
-    reason_code: Optional[str] = None
+    reason_code: Optional[StorageOperationReasonCode] = None
     message: Optional[str] = None
     attempt_count: int
     bytes_processed: int
