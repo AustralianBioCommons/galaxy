@@ -71,7 +71,10 @@ from galaxy.schema.notifications import (
     StorageOperationNotificationContent,
     StorageOperationNotificationState,
 )
-from galaxy.schema.schema import DatasetStorageOperationFailureReasonCode
+from galaxy.schema.schema import (
+    DatasetStorageOperationFailureReasonCode,
+    StorageOperationMode,
+)
 from galaxy.schema.tasks import (
     ComputeDatasetHashTaskRequest,
     GenerateHistoryContentDownload,
@@ -103,6 +106,10 @@ from galaxy.util import (
     now,
 )
 from galaxy.util.custom_logging import get_logger
+from galaxy.util.hash_util import (
+    HashFunctionNameEnum,
+    memory_bound_hexdigest,
+)
 from galaxy.workflow.completion_hooks import WorkflowCompletionHookRegistry
 
 log = get_logger(__name__)
@@ -322,6 +329,10 @@ def set_metadata(
     sa_session.commit()
 
 
+class ChecksumVerificationError(ValueError):
+    """Raised when post-copy checksum verification detects a mismatch."""
+
+
 @galaxy_task(action="execute bulk storage move run")
 def bulk_move_storage(
     sa_session: galaxy_scoped_session,
@@ -338,6 +349,117 @@ def bulk_move_storage(
         return
 
     user = sa_session.get(User, run.user_id) if run.user_id else None
+    run_mode = StorageOperationMode(run.mode)
+
+    def _dataset_proxy(dataset: Dataset, object_store_id: str) -> Any:
+        return SimpleNamespace(id=dataset.id, uuid=dataset.uuid, object_store_id=object_store_id)
+
+    def _copy_dataset_to_target_store(dataset: Dataset, target_object_store_id: str) -> int:
+        source_proxy = _dataset_proxy(dataset, str(dataset.object_store_id))
+        target_proxy = _dataset_proxy(dataset, target_object_store_id)
+
+        source_filename = app.object_store.get_filename(source_proxy)
+        app.object_store.update_from_file(
+            target_proxy,
+            file_name=source_filename,
+            create=True,
+            preserve_symlinks=False,
+        )
+
+        extra_files_path_name = dataset.extra_files_path_name
+        if extra_files_path_name and app.object_store.exists(
+            source_proxy, dir_only=True, extra_dir=extra_files_path_name
+        ):
+            src_extra_dir = Path(
+                app.object_store.get_filename(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
+            )
+            for file_path in src_extra_dir.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                relative_parent = file_path.parent.relative_to(src_extra_dir)
+                extra_dir = extra_files_path_name
+                if str(relative_parent) != ".":
+                    extra_dir = f"{extra_files_path_name}/{relative_parent.as_posix()}"
+                app.object_store.update_from_file(
+                    target_proxy,
+                    extra_dir=extra_dir,
+                    alt_name=file_path.name,
+                    file_name=str(file_path),
+                    create=True,
+                    preserve_symlinks=False,
+                )
+
+        return int(dataset.get_total_size() or 0)
+
+    def _verify_copied_dataset_integrity(dataset: Dataset, target_object_store_id: str):
+        source_proxy = _dataset_proxy(dataset, str(dataset.object_store_id))
+        target_proxy = _dataset_proxy(dataset, target_object_store_id)
+
+        source_filename = app.object_store.get_filename(source_proxy)
+        target_filename = app.object_store.get_filename(target_proxy)
+        source_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=source_filename)
+        target_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=target_filename)
+        if source_hash != target_hash:
+            raise ChecksumVerificationError(
+                f"Checksum verification failed for dataset {dataset.id}: source hash {source_hash} != target hash {target_hash}."
+            )
+
+        extra_files_path_name = dataset.extra_files_path_name
+        if not extra_files_path_name:
+            return
+
+        source_has_extra = app.object_store.exists(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
+        target_has_extra = app.object_store.exists(target_proxy, dir_only=True, extra_dir=extra_files_path_name)
+        if source_has_extra != target_has_extra:
+            raise ChecksumVerificationError(
+                f"Checksum verification failed for dataset {dataset.id}: extra files presence differs between source and target."
+            )
+        if not source_has_extra:
+            return
+
+        src_extra_dir = Path(
+            app.object_store.get_filename(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
+        )
+        tgt_extra_dir = Path(
+            app.object_store.get_filename(target_proxy, dir_only=True, extra_dir=extra_files_path_name)
+        )
+
+        source_rel_paths = {
+            file_path.relative_to(src_extra_dir).as_posix()
+            for file_path in src_extra_dir.rglob("*")
+            if file_path.is_file()
+        }
+        target_rel_paths = {
+            file_path.relative_to(tgt_extra_dir).as_posix()
+            for file_path in tgt_extra_dir.rglob("*")
+            if file_path.is_file()
+        }
+        if source_rel_paths != target_rel_paths:
+            raise ChecksumVerificationError(
+                f"Checksum verification failed for dataset {dataset.id}: extra files layout differs between source and target."
+            )
+
+        for relative_path in sorted(source_rel_paths):
+            source_file = src_extra_dir / relative_path
+            target_file = tgt_extra_dir / relative_path
+            source_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=str(source_file))
+            target_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=str(target_file))
+            if source_hash != target_hash:
+                raise ChecksumVerificationError(
+                    f"Checksum verification failed for dataset {dataset.id} extra file '{relative_path}': "
+                    f"source hash {source_hash} != target hash {target_hash}."
+                )
+
+    def _finalize_cross_device_move(dataset: Dataset, target_object_store_id: str):
+        old_object_store_id = dataset.object_store_id
+        quota_source_map = app.object_store.get_quota_source_map()
+        if quota_source_map:
+            old_label = quota_source_map.get_quota_source_label(old_object_store_id)
+            new_label = quota_source_map.get_quota_source_label(target_object_store_id)
+            if old_label != new_label and user is not None:
+                app.quota_agent.relabel_quota_for_dataset(dataset, old_label, new_label)
+        dataset.object_store_id = target_object_store_id
+        sa_session.add(dataset)
 
     def send_storage_notification(
         *,
@@ -396,7 +518,7 @@ def bulk_move_storage(
         send_storage_notification(
             state=StorageOperationNotificationState.failed,
             variant=NotificationVariant.urgent,
-            message="Bulk move run failed because its preview snapshot could not be found.",
+            message="Bulk storage run failed because its preview snapshot could not be found.",
         )
         log.error(f"Snapshot not found for run {run_db_id}")
         return
@@ -409,7 +531,7 @@ def bulk_move_storage(
         send_storage_notification(
             state=StorageOperationNotificationState.failed,
             variant=NotificationVariant.urgent,
-            message="Bulk move run failed because its preview snapshot expired before execution.",
+            message="Bulk storage run failed because its preview snapshot expired before execution.",
         )
         log.error(f"Snapshot expired for run {run_db_id}")
         return
@@ -424,6 +546,19 @@ def bulk_move_storage(
     failed_count = 0
     skipped_count = 0
     resolved_dataset_ids = snapshot.resolved_dataset_ids
+    quota_source_map = app.object_store.get_quota_source_map()
+    target_quota_source_label = quota_source_map.get_quota_source_label(run.target_object_store_id)
+    target_quota: Optional[int] = None
+    target_usage: int = 0
+    additional_target_usage: int = 0
+
+    if user is not None:
+        target_quota = app.quota_agent.get_quota(user, quota_source_label=target_quota_source_label)
+        if target_quota_source_label is None:
+            target_usage = int(user.total_disk_usage or 0)
+        else:
+            quota_source_usage = user.quota_source_usage_for(target_quota_source_label)
+            target_usage = int(quota_source_usage.disk_usage or 0) if quota_source_usage else 0
 
     for dataset_id in resolved_dataset_ids:
         dataset = sa_session.get(Dataset, dataset_id)
@@ -446,6 +581,15 @@ def bulk_move_storage(
         target_device_id = device_source_map.get_device_id(run.target_object_store_id)
         source_object_store_id = dataset.object_store_id
         source_device_id = device_source_map.get_device_id(source_object_store_id) if source_object_store_id else None
+        source_quota_label = quota_source_map.get_quota_source_label(source_object_store_id)
+        ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
+        dataset_size = int(dataset.get_total_size() or 0)
+        quota_delta = _target_quota_delta_for_mode(
+            run_mode,
+            dataset_size,
+            source_quota_label,
+            target_quota_source_label,
+        )
 
         if target_device_id is None:
             reason_code = DatasetStorageOperationFailureReasonCode.invalid_target_object_store
@@ -456,12 +600,20 @@ def bulk_move_storage(
         elif source_object_store_id == run.target_object_store_id:
             reason_code = DatasetStorageOperationFailureReasonCode.already_in_target
             message = "Dataset is already in the requested object store."
-        elif source_device_id != target_device_id:
-            reason_code = DatasetStorageOperationFailureReasonCode.cross_device_move_not_allowed
-            message = "Cannot move to an object store that does not share the same device."
         elif not app.security_agent.can_change_object_store_id(user, dataset):
             reason_code = DatasetStorageOperationFailureReasonCode.insufficient_permissions
             message = "Dataset is not eligible for object store changes."
+        elif callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
+            reason_code = DatasetStorageOperationFailureReasonCode.dataset_in_use
+            message = "Dataset is currently used by an active job."
+        elif target_quota is not None:
+            projected_usage = target_usage + additional_target_usage + quota_delta
+            if projected_usage > target_quota:
+                reason_code = DatasetStorageOperationFailureReasonCode.target_quota_exceeded
+                message = (
+                    "Operation would exceed target quota at execution time "
+                    f"(projected {projected_usage} bytes > quota {target_quota} bytes)."
+                )
 
         if reason_code is not None:
             state = "skipped" if run.skip_ineligible else "failed"
@@ -481,13 +633,36 @@ def bulk_move_storage(
             continue
 
         try:
-            dataset_manager.update_object_store_id(trans, dataset, run.target_object_store_id)
+            bytes_processed = 0
+            if run_mode == StorageOperationMode.move:
+                if source_device_id == target_device_id:
+                    dataset_manager.update_object_store_id(trans, dataset, run.target_object_store_id)
+                else:
+                    bytes_processed = _copy_dataset_to_target_store(dataset, run.target_object_store_id)
+                    _verify_copied_dataset_integrity(dataset, run.target_object_store_id)
+                    _finalize_cross_device_move(dataset, run.target_object_store_id)
+            else:
+                bytes_processed = _copy_dataset_to_target_store(dataset, run.target_object_store_id)
+                _verify_copied_dataset_integrity(dataset, run.target_object_store_id)
+            additional_target_usage += quota_delta
             succeeded_count += 1
             sa_session.add(
                 DatasetStorageOperationRunItem(
                     run_id=run.id,
                     dataset_id=dataset_id,
                     state="succeeded",
+                    bytes_processed=bytes_processed,
+                )
+            )
+        except ChecksumVerificationError as exc:
+            failed_count += 1
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset_id,
+                    state="failed",
+                    reason_code=DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
+                    message=str(exc),
                 )
             )
         except Exception as exc:
@@ -512,16 +687,31 @@ def bulk_move_storage(
 
     if failed_count > 0 or skipped_count > 0:
         variant = NotificationVariant.warning
-        message = "Bulk move run finished with partial success. Check the run details for more information."
+        message = "Bulk storage run finished with partial success. Check the run details for more information."
     else:
         variant = NotificationVariant.info
-        message = f"Bulk move run completed successfully for {succeeded_count} dataset(s)."
+        message = f"Bulk {run.mode} run completed successfully for {succeeded_count} dataset(s)."
 
     send_storage_notification(
         state=StorageOperationNotificationState.completed,
         variant=variant,
         message=message,
     )
+
+
+def _target_quota_delta_for_mode(
+    mode: StorageOperationMode,
+    dataset_size: int,
+    source_quota_label: Optional[str],
+    target_quota_label: Optional[str],
+) -> int:
+    if mode == StorageOperationMode.copy:
+        return dataset_size
+    if target_quota_label is None:
+        return 0
+    if source_quota_label == target_quota_label:
+        return 0
+    return dataset_size
 
 
 def _get_dataset_manager(

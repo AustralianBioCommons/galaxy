@@ -1436,9 +1436,10 @@ class DatasetStorageOperationFailureReasonCode(str, Enum):
     invalid_target_object_store = "invalid_target_object_store"
     missing_source_object_store = "missing_source_object_store"
     already_in_target = "already_in_target"
-    cross_device_move_not_allowed = "cross_device_move_not_allowed"
+    target_quota_exceeded = "target_quota_exceeded"
     insufficient_permissions = "insufficient_permissions"
     dataset_in_use = "dataset_in_use"
+    checksum_verification_failed = "checksum_verification_failed"
     execution_error = "execution_error"
 
 

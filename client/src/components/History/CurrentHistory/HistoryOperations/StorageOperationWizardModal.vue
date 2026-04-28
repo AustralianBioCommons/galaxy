@@ -273,8 +273,9 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
             <div v-if="wizard.isCurrent('configure')">
                 <div class="mb-2">
                     <label for="storage-operation-mode" class="d-block mb-1">Mode</label>
-                    <select id="storage-operation-mode" v-model="storageOperationMode" class="form-control" disabled>
+                    <select id="storage-operation-mode" v-model="storageOperationMode" class="form-control">
                         <option value="move">Move</option>
+                        <option value="copy">Copy</option>
                     </select>
                 </div>
 
