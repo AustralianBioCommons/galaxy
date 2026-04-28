@@ -33,7 +33,7 @@ const EXECUTE_RESPONSE: StorageOperationExecuteResponse = {
     run: {
         run_id: RUN_ID,
         state: "pending",
-        mode: "relocate",
+        mode: "move",
         target_object_store_id: "other",
         create_time: "2099-01-01T00:00:00",
         update_time: "2099-01-01T00:00:00",
@@ -99,7 +99,7 @@ describe("bulkStoragePreview", () => {
             ),
         );
 
-        const result = await bulkStoragePreview(HISTORY, "relocate", "other", {}, []);
+        const result = await bulkStoragePreview(HISTORY, "move", "other", {}, []);
 
         expect(result).toBeDefined();
         expect(result!.snapshot_id).toBe(SNAPSHOT_ID);
@@ -114,7 +114,7 @@ describe("bulkStoragePreview", () => {
             ),
         );
 
-        await expect(bulkStoragePreview(HISTORY, "relocate", "other", {}, [])).rejects.toThrow();
+        await expect(bulkStoragePreview(HISTORY, "move", "other", {}, [])).rejects.toThrow();
     });
 });
 

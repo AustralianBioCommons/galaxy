@@ -6,7 +6,6 @@ import { createPinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useServerMock } from "@/api/client/__mocks__";
-import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
 
 import SelectionOperations from "./SelectionOperations.vue";
 
@@ -29,27 +28,6 @@ const { server, http } = useServerMock();
 const FAKE_HISTORY_ID = "fake_history_id";
 const FAKE_HISTORY = { id: FAKE_HISTORY_ID, update_time: new Date() };
 const BULK_SUCCESS_RESPONSE = { success_count: 1, errors: [] };
-const STORAGE_PREVIEW_RESPONSE = {
-    snapshot_id: "snapshot_1",
-    expires_at: "2099-01-01T00:00:00",
-    selection_counts: { selected_items_count: 1, expanded_leaf_count: 1, unique_dataset_count: 1 },
-    eligibility: { eligible_count: 1, ineligible_count: 0, items: [] },
-    estimates: { bytes_to_transfer: 0, quota_delta_by_source: {} },
-    warnings: [],
-};
-const STORAGE_EXECUTE_RESPONSE = {
-    run: {
-        run_id: "run_1",
-        state: "pending",
-        mode: "relocate",
-        target_object_store_id: "other",
-        total_count: 1,
-        succeeded_count: 0,
-        failed_count: 0,
-        skipped_count: 0,
-    },
-};
-
 const NO_TASKS_CONFIG = {
     enable_celery_tasks: false,
 };
@@ -354,27 +332,16 @@ describe("History Selection Operations", () => {
                 expect(errorEvent.result).toEqual(BULK_ERROR_RESPONSE);
             });
 
-            it("should track active storage run after execute", async () => {
-                server.use(
-                    http.post("/api/histories/{history_id}/contents/bulk/storage/preview", ({ response }) => {
-                        return response(200).json(STORAGE_PREVIEW_RESPONSE);
-                    }),
-                );
-                server.use(
-                    http.post("/api/histories/{history_id}/contents/bulk/storage/execute", ({ response }) => {
-                        return response(200).json(STORAGE_EXECUTE_RESPONSE);
-                    }),
-                );
+            it("should hide the selection when a storage operation completes", async () => {
+                const wizardModal = wrapper.findComponent({ name: "StorageOperationWizardModal" });
 
-                wrapper.vm.selectedTargetObjectStoreId = "other";
-                await wrapper.vm.previewStorageOperation();
-                await wrapper.vm.executeStorageOperation();
+                expect(wrapper.emitted("update:show-selection")).toBeFalsy();
+
+                wizardModal.vm.$emit("completed");
                 await flushPromises();
 
-                const storageOperationsStore = useStorageOperationsStore();
-                const activeRuns = storageOperationsStore.getRunsForHistory(FAKE_HISTORY_ID);
-                expect(activeRuns).toHaveLength(1);
-                expect(activeRuns[0].run_id).toBe("run_1");
+                expect(wrapper.emitted("update:show-selection")).toBeTruthy();
+                expect(wrapper.emitted("update:show-selection").at(-1)).toEqual([false]);
             });
         });
     });

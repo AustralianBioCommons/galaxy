@@ -35,8 +35,8 @@ const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode,
         label: "Already in target location",
         description: "The dataset is already stored in the selected location.",
     },
-    cross_device_relocate_not_allowed: {
-        label: "Cannot relocate to different device",
+    cross_device_move_not_allowed: {
+        label: "Cannot move to different device",
         description: "The dataset cannot be moved because the source and target locations are on different devices.",
     },
     insufficient_permissions: {

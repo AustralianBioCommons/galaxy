@@ -12,7 +12,7 @@ function createTestRun(runId: string, historyId: string, startedAt?: Date | stri
         runUrl: `/histories/${historyId}/storage/runs/${runId}`,
         run_id: runId,
         state: "pending" as const,
-        mode: "relocate" as const,
+        mode: "move" as const,
         target_object_store_id: "other",
         create_time: timestamp,
         update_time: timestamp,

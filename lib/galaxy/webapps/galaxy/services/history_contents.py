@@ -27,7 +27,7 @@ from typing_extensions import Protocol
 from galaxy import exceptions
 from galaxy.celery.helpers import async_task_summary
 from galaxy.celery.tasks import (
-    bulk_relocate_storage,
+    bulk_move_storage,
     change_datatype,
     materialize as materialize_task,
     prepare_dataset_collection_download,
@@ -773,8 +773,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         filter_query_params: ValueFilterQueryParams,
         payload: StorageOperationPreviewRequest,
     ) -> StorageOperationPreviewResponse:
-        if payload.mode != StorageOperationMode.relocate:
-            raise exceptions.RequestParameterInvalidException("Only 'relocate' mode is supported in phase 1.")
+        if payload.mode != StorageOperationMode.move:
+            raise exceptions.RequestParameterInvalidException("Only 'move' mode is supported in phase 1.")
 
         user = self.get_authenticated_user(trans)
         history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
@@ -795,7 +795,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         quota_source_map = self.object_store.get_quota_source_map()
 
         for dataset_id, dataset in unique_datasets.items():
-            reason = self._validate_relocate_dataset(trans, dataset, payload.target_object_store_id)
+            reason = self._validate_move_dataset(trans, dataset, payload.target_object_store_id)
             if reason is None:
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
@@ -874,8 +874,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the requested history.")
         if snapshot.user_id != user.id:
             raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the current user.")
-        if snapshot.mode != StorageOperationMode.relocate.value:
-            raise exceptions.RequestParameterInvalidException("Only 'relocate' mode is supported in phase 1.")
+        if snapshot.mode != StorageOperationMode.move.value:
+            raise exceptions.RequestParameterInvalidException("Only 'move' mode is supported in phase 1.")
 
         run = DatasetStorageOperationRun(
             snapshot_id=snapshot.id,
@@ -892,7 +892,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         trans.sa_session.add(run)
         trans.sa_session.commit()
 
-        task_result = bulk_relocate_storage.delay(
+        task_result = bulk_move_storage.delay(
             run_db_id=run.id,
             task_user_id=user.id,
             notify_on_completion=payload.notify_on_completion,
@@ -904,7 +904,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         run_summary = StorageOperationRunSummary(
             run_id=run.id,
             state=StorageOperationRunState.pending,
-            mode=StorageOperationMode.relocate,
+            mode=StorageOperationMode.move,
             target_object_store_id=run.target_object_store_id,
             create_time=run.create_time,
             update_time=run.update_time,
@@ -1093,7 +1093,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
 
         return unique_datasets, expanded_leaf_count
 
-    def _validate_relocate_dataset(
+    def _validate_move_dataset(
         self,
         trans: ProvidesHistoryContext,
         dataset: Dataset,
@@ -1121,8 +1121,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             )
         if source_device_id != target_device_id:
             return (
-                DatasetStorageOperationFailureReasonCode.cross_device_relocate_not_allowed,
-                "Cannot relocate to an object store that does not share the same device.",
+                DatasetStorageOperationFailureReasonCode.cross_device_move_not_allowed,
+                "Cannot move to an object store that does not share the same device.",
             )
 
         if not trans.app.security_agent.can_change_object_store_id(trans.user, dataset):

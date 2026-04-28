@@ -38,7 +38,7 @@ const emit = defineEmits<{
 const objectStoreStore = useObjectStoreStore();
 const storageOperationsStore = useStorageOperationsStore();
 
-const storageOperationMode = ref<StorageOperationMode>("relocate");
+const storageOperationMode = ref<StorageOperationMode>("move");
 const selectedTargetObjectStoreId = ref<string | null>(null);
 const storagePreview = ref<StorageOperationPreviewResponse | null>(null);
 const storagePreviewLoading = ref(false);
@@ -163,7 +163,7 @@ function onTargetStoreChanged() {
 
 function resetState() {
     wizard.goTo("configure");
-    storageOperationMode.value = "relocate";
+    storageOperationMode.value = "move";
     selectedTargetObjectStoreId.value = null;
     storagePreview.value = null;
     storagePreviewLoading.value = false;
@@ -274,7 +274,7 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                 <div class="mb-2">
                     <label for="storage-operation-mode" class="d-block mb-1">Mode</label>
                     <select id="storage-operation-mode" v-model="storageOperationMode" class="form-control" disabled>
-                        <option value="relocate">Relocate</option>
+                        <option value="move">Move</option>
                     </select>
                 </div>
 

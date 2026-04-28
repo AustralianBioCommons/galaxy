@@ -11366,7 +11366,7 @@ export interface components {
             | "invalid_target_object_store"
             | "missing_source_object_store"
             | "already_in_target"
-            | "cross_device_relocate_not_allowed"
+            | "cross_device_move_not_allowed"
             | "insufficient_permissions"
             | "dataset_in_use"
             | "execution_error";
@@ -22699,7 +22699,7 @@ export interface components {
          * StorageOperationMode
          * @enum {string}
          */
-        StorageOperationMode: "relocate" | "copy" | "move";
+        StorageOperationMode: "copy" | "move";
         /** StorageOperationNotificationContent */
         StorageOperationNotificationContent: {
             /**

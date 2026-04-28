@@ -1407,7 +1407,6 @@ class HistoryContentBulkOperationResult(Model):
 
 
 class StorageOperationMode(str, Enum):
-    relocate = "relocate"
     copy = "copy"
     move = "move"
 
@@ -1437,7 +1436,7 @@ class DatasetStorageOperationFailureReasonCode(str, Enum):
     invalid_target_object_store = "invalid_target_object_store"
     missing_source_object_store = "missing_source_object_store"
     already_in_target = "already_in_target"
-    cross_device_relocate_not_allowed = "cross_device_relocate_not_allowed"
+    cross_device_move_not_allowed = "cross_device_move_not_allowed"
     insufficient_permissions = "insufficient_permissions"
     dataset_in_use = "dataset_in_use"
     execution_error = "execution_error"

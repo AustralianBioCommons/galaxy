@@ -322,8 +322,8 @@ def set_metadata(
     sa_session.commit()
 
 
-@galaxy_task(action="execute bulk storage relocate run")
-def bulk_relocate_storage(
+@galaxy_task(action="execute bulk storage move run")
+def bulk_move_storage(
     sa_session: galaxy_scoped_session,
     dataset_manager: DatasetManager,
     notification_manager: NotificationManager,
@@ -334,7 +334,7 @@ def bulk_relocate_storage(
 ):
     run = sa_session.get(DatasetStorageOperationRun, run_db_id)
     if run is None:
-        log.error(f"Bulk storage relocate run not found: {run_db_id}")
+        log.error(f"Bulk storage move run not found: {run_db_id}")
         return
 
     user = sa_session.get(User, run.user_id) if run.user_id else None
@@ -396,7 +396,7 @@ def bulk_relocate_storage(
         send_storage_notification(
             state=StorageOperationNotificationState.failed,
             variant=NotificationVariant.urgent,
-            message="Bulk relocate run failed because its preview snapshot could not be found.",
+            message="Bulk move run failed because its preview snapshot could not be found.",
         )
         log.error(f"Snapshot not found for run {run_db_id}")
         return
@@ -409,7 +409,7 @@ def bulk_relocate_storage(
         send_storage_notification(
             state=StorageOperationNotificationState.failed,
             variant=NotificationVariant.urgent,
-            message="Bulk relocate run failed because its preview snapshot expired before execution.",
+            message="Bulk move run failed because its preview snapshot expired before execution.",
         )
         log.error(f"Snapshot expired for run {run_db_id}")
         return
@@ -457,8 +457,8 @@ def bulk_relocate_storage(
             reason_code = DatasetStorageOperationFailureReasonCode.already_in_target
             message = "Dataset is already in the requested object store."
         elif source_device_id != target_device_id:
-            reason_code = DatasetStorageOperationFailureReasonCode.cross_device_relocate_not_allowed
-            message = "Cannot relocate to an object store that does not share the same device."
+            reason_code = DatasetStorageOperationFailureReasonCode.cross_device_move_not_allowed
+            message = "Cannot move to an object store that does not share the same device."
         elif not app.security_agent.can_change_object_store_id(user, dataset):
             reason_code = DatasetStorageOperationFailureReasonCode.insufficient_permissions
             message = "Dataset is not eligible for object store changes."
@@ -512,10 +512,10 @@ def bulk_relocate_storage(
 
     if failed_count > 0 or skipped_count > 0:
         variant = NotificationVariant.warning
-        message = "Bulk relocate run finished with partial success. Check the run details for more information."
+        message = "Bulk move run finished with partial success. Check the run details for more information."
     else:
         variant = NotificationVariant.info
-        message = f"Bulk relocate run completed successfully for {succeeded_count} dataset(s)."
+        message = f"Bulk move run completed successfully for {succeeded_count} dataset(s)."
 
     send_storage_notification(
         state=StorageOperationNotificationState.completed,
