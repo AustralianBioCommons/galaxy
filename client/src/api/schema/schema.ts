@@ -11366,9 +11366,10 @@ export interface components {
             | "invalid_target_object_store"
             | "missing_source_object_store"
             | "already_in_target"
-            | "cross_device_move_not_allowed"
+            | "target_quota_exceeded"
             | "insufficient_permissions"
             | "dataset_in_use"
+            | "checksum_verification_failed"
             | "execution_error";
         /** DatasetTextContentDetails */
         DatasetTextContentDetails: {

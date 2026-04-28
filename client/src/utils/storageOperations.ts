@@ -35,9 +35,9 @@ const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode,
         label: "Already in target location",
         description: "The dataset is already stored in the selected location.",
     },
-    cross_device_move_not_allowed: {
-        label: "Cannot move to different device",
-        description: "The dataset cannot be moved because the source and target locations are on different devices.",
+    target_quota_exceeded: {
+        label: "Target quota exceeded",
+        description: "The operation would exceed the target storage quota.",
     },
     insufficient_permissions: {
         label: "Insufficient permissions",
@@ -46,6 +46,11 @@ const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode,
     dataset_in_use: {
         label: "Dataset in use",
         description: "The dataset is currently being used by an active job and cannot be moved.",
+    },
+    checksum_verification_failed: {
+        label: "Checksum verification failed",
+        description:
+            "The data transfer could not be verified: the source and target checksums do not match. The original data is unchanged.",
     },
     execution_error: {
         label: "Execution error",
