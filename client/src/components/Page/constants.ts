@@ -122,6 +122,10 @@ export const PUBLISHED_LABELS = {
 export const FORM_LABELS = {
     createTitle: "Create a new Report",
     editTitle: "Edit Report",
+    slugHelp:
+        "A unique identifier that will be used for public links to this report. " +
+        "This field can only contain lowercase letters, numbers, and dashes (-).",
+    annotationHelp: "A description of the report. The annotation is shown alongside published reports.",
 } as const;
 
 /** Embed labels. */

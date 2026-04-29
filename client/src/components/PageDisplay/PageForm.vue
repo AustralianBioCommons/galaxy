@@ -10,14 +10,12 @@
                     </FormElementLabel>
                     <FormElementLabel
                         title="Identifier"
-                        help="A unique identifier that will be used for public links to this page. This field can only contain lowercase letters, numbers, and dashes (-)."
+                        :help="FORM_LABELS.slugHelp"
                         :required="true"
                         :condition="!!slug">
                         <FormInput id="page-slug" v-model="slug" />
                     </FormElementLabel>
-                    <FormElementLabel
-                        title="Annotation"
-                        help="A description of the page. The annotation is shown alongside published pages.">
+                    <FormElementLabel title="Annotation" :help="FORM_LABELS.annotationHelp">
                         <FormInput id="page-annotation" v-model="annotation" />
                     </FormElementLabel>
                 </template>
