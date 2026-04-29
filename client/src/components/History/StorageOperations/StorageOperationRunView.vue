@@ -72,7 +72,7 @@ const runItemFilterClass = new Filtering(
 );
 
 const breadcrumbItems = computed(() => [
-    { title: "History Storage Operations", to: `/histories/${props.historyId}/storage/operations` },
+    { title: "History Storage Operations", to: `/histories/${props.historyId}/storage/runs` },
     { title: "Storage Operation Run" },
 ]);
 

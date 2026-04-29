@@ -427,7 +427,7 @@ export function getRouter(Galaxy) {
                         props: true,
                     },
                     {
-                        path: "histories/:historyId/storage/operations",
+                        path: "histories/:historyId/storage/runs",
                         component: StorageOperationHistoryView,
                         props: true,
                         redirect: redirectAnon(),

@@ -20,7 +20,7 @@ const props = defineProps<Props>();
 const isStorageHelperVisible = ref(false);
 
 const hasActiveStorageRuns = computed(() => props.activeStorageRunCount > 0);
-const storageOperationsRoute = computed(() => `/histories/${props.historyId}/storage/operations`);
+const storageOperationsRoute = computed(() => `/histories/${props.historyId}/storage/runs`);
 const storageOperationsButtonId = computed(() => `history-storage-operations-${props.historyId}`);
 
 watch(
