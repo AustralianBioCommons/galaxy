@@ -175,6 +175,7 @@ class StorageOperationPreviewComputation:
     bytes_to_transfer: int
     target_quota_delta: int
     quota_delta_by_source: dict[str, int]
+    privacy_downgrade_count: int
 
 
 class HistoryContentsIndexParams(Model):
@@ -832,6 +833,12 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             preview = self._apply_storage_quota_preflight_failure(preview, quota_failure_message)
             warnings.append(quota_failure_message)
 
+        if preview.privacy_downgrade_count > 0:
+            warnings.append(
+                "Some selected datasets would move from private storage to non-private storage. "
+                "Review sharing implications before execution."
+            )
+
         return StorageOperationPreviewResponse(
             snapshot_id=snapshot.id,
             selection_counts=StorageOperationSelectionCounts(
@@ -913,12 +920,13 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
 
                 source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
                 target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
-                target_quota_delta += self.storage_operation_manager.target_quota_delta_for_mode(
-                    mode,
+                target_quota_delta += self.storage_operation_manager.target_quota_delta(
                     dataset_size,
                     source_quota_label,
                     target_quota_label,
                 )
+                if self.storage_operation_manager.is_privacy_downgrade_for_target(dataset, target_object_store_id):
+                    privacy_downgrade_count += 1
             else:
                 ineligible_count += 1
                 reason_code, message = reason
@@ -939,6 +947,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             bytes_to_transfer=bytes_to_transfer,
             target_quota_delta=target_quota_delta,
             quota_delta_by_source=quota_delta_by_source,
+            privacy_downgrade_count=privacy_downgrade_count,
         )
 
     def _apply_storage_quota_preflight_failure(
@@ -973,6 +982,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             bytes_to_transfer=preview.bytes_to_transfer,
             target_quota_delta=preview.target_quota_delta,
             quota_delta_by_source=preview.quota_delta_by_source,
+            privacy_downgrade_count=preview.privacy_downgrade_count,
         )
 
     def storage_operation_execute(
