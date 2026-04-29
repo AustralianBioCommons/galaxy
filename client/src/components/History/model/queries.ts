@@ -5,7 +5,6 @@ import type {
     HistoryReference,
     StorageOperationExecutePolicy,
     StorageOperationExecuteResponse,
-    StorageOperationMode,
     StorageOperationPreviewResponse,
     StorageOperationRunResponse,
 } from "@/api/histories";
@@ -108,7 +107,6 @@ export async function createDatasetCollection(history: HistoryReference, inputs 
 
 export async function bulkStoragePreview(
     history: HistoryReference,
-    mode: StorageOperationMode,
     targetObjectStoreId: string,
     filters: QueryFilters,
     items: HistoryContentItem[] = [],
@@ -119,7 +117,7 @@ export async function bulkStoragePreview(
             query: filtersToQueryValues(filters),
         },
         body: {
-            mode,
+            mode: "move",
             target_object_store_id: targetObjectStoreId,
             items,
         },

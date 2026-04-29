@@ -22700,7 +22700,7 @@ export interface components {
          * StorageOperationMode
          * @enum {string}
          */
-        StorageOperationMode: "copy" | "move";
+        StorageOperationMode: "move";
         /** StorageOperationNotificationContent */
         StorageOperationNotificationContent: {
             /**
@@ -22751,7 +22751,7 @@ export interface components {
              * State
              * @description The current state of the storage operation run when this notification was generated.
              */
-            state: components["schemas"]["StorageOperationNotificationState"];
+            state: components["schemas"]["StorageOperationRunState"];
             /**
              * Subject
              * @description The subject of the notification.
@@ -22769,11 +22769,6 @@ export interface components {
              */
             total_count: number;
         };
-        /**
-         * StorageOperationNotificationState
-         * @enum {string}
-         */
-        StorageOperationNotificationState: "started" | "completed" | "failed";
         /** StorageOperationPreviewItemResult */
         StorageOperationPreviewItemResult: {
             /**
@@ -22789,7 +22784,11 @@ export interface components {
         /** StorageOperationPreviewRequest */
         StorageOperationPreviewRequest: {
             /** Items */
-            items?: components["schemas"]["HistoryContentItem"][] | null;
+            items?:
+                | {
+                      [key: string]: unknown;
+                  }[]
+                | null;
             mode: components["schemas"]["StorageOperationMode"];
             /** Target Object Store Id */
             target_object_store_id: string;

@@ -3,7 +3,7 @@ import { BAlert, BButton } from "bootstrap-vue";
 import { computed, ref, watch } from "vue";
 
 import type { HistoryContentItemBase, UserConcreteObjectStoreModel } from "@/api";
-import type { HistoryReference, StorageOperationMode, StorageOperationPreviewResponse } from "@/api/histories";
+import type { HistoryReference, StorageOperationPreviewResponse } from "@/api/histories";
 import { useWizard } from "@/components/Common/Wizard/useWizard";
 import { HistoryFilters } from "@/components/History/HistoryFilters";
 import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/model/queries";
@@ -38,7 +38,6 @@ const emit = defineEmits<{
 const objectStoreStore = useObjectStoreStore();
 const storageOperationsStore = useStorageOperationsStore();
 
-const storageOperationMode = ref<StorageOperationMode>("move");
 const selectedTargetObjectStoreId = ref<string | null>(null);
 const storagePreview = ref<StorageOperationPreviewResponse | null>(null);
 const storagePreviewLoading = ref(false);
@@ -163,7 +162,6 @@ function onTargetStoreChanged() {
 
 function resetState() {
     wizard.goTo("configure");
-    storageOperationMode.value = "move";
     selectedTargetObjectStoreId.value = null;
     storagePreview.value = null;
     storagePreviewLoading.value = false;
@@ -187,7 +185,6 @@ async function previewStorageOperation() {
         const items = getExplicitlySelectedItems();
         const previewResponse = (await bulkStoragePreview(
             props.history,
-            storageOperationMode.value,
             selectedTargetObjectStoreId.value,
             filters,
             items,
@@ -271,14 +268,6 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
             </template>
 
             <div v-if="wizard.isCurrent('configure')">
-                <div class="mb-2">
-                    <label for="storage-operation-mode" class="d-block mb-1">Mode</label>
-                    <select id="storage-operation-mode" v-model="storageOperationMode" class="form-control">
-                        <option value="move">Move</option>
-                        <option value="copy">Copy</option>
-                    </select>
-                </div>
-
                 <div class="mb-2">
                     <label for="storage-operation-target" class="d-block mb-1">Target storage location</label>
                     <select

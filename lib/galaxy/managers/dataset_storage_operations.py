@@ -37,12 +37,11 @@ class DatasetStorageOperationManager:
     def __init__(self, object_store: BaseObjectStore):
         self.object_store = object_store
 
-    def validate_dataset_for_mode(
+    def validate_dataset_for_move(
         self,
         security_agent,
         user: Optional[User],
         dataset: Dataset,
-        mode: StorageOperationMode,
         target_object_store_id: str,
     ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
         target_device_id = self._device_id_for_store(target_object_store_id)
@@ -80,15 +79,12 @@ class DatasetStorageOperationManager:
 
         return None
 
-    def target_quota_delta_for_mode(
+    def target_quota_delta(
         self,
-        mode: StorageOperationMode,
         dataset_size: int,
         source_quota_label: Optional[str],
         target_quota_label: Optional[str],
     ) -> int:
-        if mode == StorageOperationMode.copy:
-            return dataset_size
         if target_quota_label is None:
             return 0
         if source_quota_label == target_quota_label:
@@ -130,12 +126,14 @@ class DatasetStorageOperationManager:
     def requires_data_transfer(
         self,
         dataset: Dataset,
-        mode: StorageOperationMode,
         target_object_store_id: str,
     ) -> bool:
-        if mode == StorageOperationMode.copy:
-            return True
         return self.is_cross_device_move(dataset, target_object_store_id)
+
+    def is_privacy_downgrade_for_target(self, dataset: Dataset, target_object_store_id: str) -> bool:
+        source_is_private = self._is_private_for_dataset(dataset)
+        target_is_private = self._is_private_for_object_store_id(target_object_store_id)
+        return source_is_private is True and target_is_private is False
 
     def is_cross_device_move(self, dataset: Dataset, target_object_store_id: str) -> bool:
         source_object_store_id = dataset.object_store_id
@@ -167,7 +165,7 @@ class DatasetStorageOperationManager:
         snapshot = DatasetStorageOperationSnapshot(
             history_id=history_id,
             user_id=user_id,
-            mode=mode,
+            mode=StorageOperationMode.move,
             target_object_store_id=target_object_store_id,
             resolved_dataset_ids=resolved_dataset_ids,
             eligible_dataset_ids=eligible_dataset_ids,
@@ -214,14 +212,12 @@ class StorageOperationRunExecutor:
         app: Any,
         run: DatasetStorageOperationRun,
         user: Optional[User],
-        run_mode: StorageOperationMode,
     ):
         self.sa_session = sa_session
         self.dataset_manager = dataset_manager
         self.app = app
         self.run = run
         self.user = user
-        self.run_mode = run_mode
         self.trans = SimpleNamespace(user=user)
         self.storage_operation_manager = DatasetStorageOperationManager(app.object_store)
         self.quota_source_map = app.object_store.get_quota_source_map()
@@ -294,8 +290,7 @@ class StorageOperationRunExecutor:
 
         source_quota_label = self.quota_source_map.get_quota_source_label(dataset.object_store_id)
         dataset_size = int(dataset.get_total_size() or 0)
-        quota_delta = self.storage_operation_manager.target_quota_delta_for_mode(
-            self.run_mode,
+        quota_delta = self.storage_operation_manager.target_quota_delta(
             dataset_size,
             source_quota_label,
             self.target_quota_source_label,
@@ -313,11 +308,10 @@ class StorageOperationRunExecutor:
         dataset: Dataset,
         quota_delta: int,
     ) -> tuple[Optional[DatasetStorageOperationFailureReasonCode], Optional[str]]:
-        reason = self.storage_operation_manager.validate_dataset_for_mode(
+        reason = self.storage_operation_manager.validate_dataset_for_move(
             self.app.security_agent,
             self.user,
             dataset,
-            self.run_mode,
             self.run.target_object_store_id,
         )
         if reason is not None:
@@ -357,16 +351,12 @@ class StorageOperationRunExecutor:
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
         try:
             bytes_processed = 0
-            if self.run_mode == StorageOperationMode.move:
-                if self.storage_operation_manager.is_cross_device_move(dataset, self.run.target_object_store_id):
-                    bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
-                    self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
-                    self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
-                else:
-                    self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
-            else:
+            if self.storage_operation_manager.is_cross_device_move(dataset, self.run.target_object_store_id):
                 bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
                 self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
+                self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
+            else:
+                self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
 
             self.additional_target_usage += quota_delta
             self.succeeded_count += 1

@@ -34,7 +34,6 @@ class Model(BaseModel):
 
 
 class StorageOperationMode(str, Enum):
-    copy = "copy"
     move = "move"
 
 

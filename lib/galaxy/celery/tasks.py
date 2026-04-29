@@ -61,7 +61,6 @@ from galaxy.objectstore import BaseObjectStore
 from galaxy.objectstore.caching import check_caches
 from galaxy.queue_worker import GalaxyQueueWorker
 from galaxy.schema.notifications import NotificationCreateRequest
-from galaxy.schema.storage_operations import StorageOperationMode
 from galaxy.schema.tasks import (
     ComputeDatasetHashTaskRequest,
     GenerateHistoryContentDownload,
@@ -335,7 +334,6 @@ def bulk_move_storage(
         app=app,
         run=run,
         user=user,
-        run_mode=StorageOperationMode(run.mode),
     )
     execution_result = executor.execute_run(snapshot)
 

@@ -99,7 +99,7 @@ describe("bulkStoragePreview", () => {
             ),
         );
 
-        const result = await bulkStoragePreview(HISTORY, "move", "other", {}, []);
+        const result = await bulkStoragePreview(HISTORY, "other", {}, []);
 
         expect(result).toBeDefined();
         expect(result!.snapshot_id).toBe(SNAPSHOT_ID);
@@ -114,7 +114,7 @@ describe("bulkStoragePreview", () => {
             ),
         );
 
-        await expect(bulkStoragePreview(HISTORY, "move", "other", {}, [])).rejects.toThrow();
+        await expect(bulkStoragePreview(HISTORY, "other", {}, [])).rejects.toThrow();
     });
 });
 

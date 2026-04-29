@@ -804,7 +804,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             trans=trans,
             user=user,
             unique_datasets=unique_datasets,
-            mode=payload.mode,
             target_object_store_id=payload.target_object_store_id,
         )
 
@@ -812,7 +811,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             sa_session=trans.sa_session,
             history_id=history.id,
             user_id=user.id,
-            mode=payload.mode,
             target_object_store_id=payload.target_object_store_id,
             resolved_dataset_ids=list(unique_datasets.keys()),
             eligible_dataset_ids=preview.eligible_dataset_ids,
@@ -874,7 +872,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         trans: ProvidesHistoryContext,
         user: User,
         unique_datasets: dict[int, Dataset],
-        mode: StorageOperationMode,
         target_object_store_id: str,
     ) -> StorageOperationPreviewComputation:
         eligible_dataset_ids: list[int] = []
@@ -884,21 +881,21 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         bytes_to_transfer = 0
         target_quota_delta = 0
         quota_delta_by_source: dict[str, int] = {}
+        privacy_downgrade_count = 0
         quota_source_map = self.object_store.get_quota_source_map()
 
         for dataset_id, dataset in unique_datasets.items():
-            reason = self.storage_operation_manager.validate_dataset_for_mode(
+            reason = self.storage_operation_manager.validate_dataset_for_move(
                 trans.app.security_agent,
                 user,
                 dataset,
-                mode,
                 target_object_store_id,
             )
             if reason is None:
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
                 dataset_size = int(dataset.get_total_size() or 0)
-                if self.storage_operation_manager.requires_data_transfer(dataset, mode, target_object_store_id):
+                if self.storage_operation_manager.requires_data_transfer(dataset, target_object_store_id):
                     bytes_to_transfer += dataset_size
 
                 eligibility_items.append(
