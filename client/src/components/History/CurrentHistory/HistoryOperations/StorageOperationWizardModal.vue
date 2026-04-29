@@ -10,15 +10,15 @@ import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/mod
 import { Toast } from "@/composables/toast";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
-import { getIneligibleReasonDescription, toTrackedStorageRun } from "@/utils/storageOperations";
-import { bytesToString } from "@/utils/utils";
+import { toTrackedStorageRun } from "@/utils/storageOperations";
 
 import GModal from "@/components/BaseComponents/GModal.vue";
 import GenericWizard from "@/components/Common/Wizard/GenericWizard.vue";
+import StorageOperationPreviewReport from "@/components/History/CurrentHistory/HistoryOperations/StorageOperationPreviewReport.vue";
 
 interface StorageTargetOption {
     object_store_id: string;
-    name: string;
+    label: string;
 }
 
 const props = defineProps<{
@@ -48,14 +48,14 @@ const notifyOnCompletion = ref(true);
 
 const wizard = useWizard({
     configure: {
-        label: "Configure",
-        instructions: computed(() => `Select the target storage location for ${props.numSelected} selected item(s).`),
+        label: "Destination",
+        instructions: computed(() => `Choose the storage location to move ${props.numSelected} selected item(s) to.`),
         isValid: () => Boolean(selectedTargetObjectStoreId.value),
         isSkippable: () => false,
     },
     preview: {
         label: "Preview",
-        instructions: "Review the estimated impact before running the operation.",
+        instructions: "Review what will be moved and the estimated impact before starting.",
         isValid: () => Boolean(storagePreview.value?.snapshot_id) && !storageExecuting.value,
         isSkippable: () => false,
     },
@@ -76,52 +76,8 @@ const storageTargetOptions = computed<StorageTargetOption[]>(() => {
         )
         .map((store) => ({
             object_store_id: store.object_store_id,
-            name: store.name ?? store.object_store_id,
+            label: objectStoreStore.getObjectStoreNameById(store.object_store_id) ?? "Unknown storage location",
         }));
-});
-
-const ineligibleReasonBreakdown = computed(() => {
-    const items = storagePreview.value?.eligibility?.items ?? [];
-    const byReason = new Map<string, number>();
-
-    for (const item of items) {
-        if (item.state !== "ineligible") {
-            continue;
-        }
-        const reason = item.reason_code ?? "unknown";
-        byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
-    }
-
-    return Array.from(byReason.entries())
-        .map(([code, count]) => ({ code, count }))
-        .sort((a, b) => b.count - a.count);
-});
-
-const sourceQuotaDeltaEntries = computed(() => {
-    const deltas = storagePreview.value?.estimates?.quota_delta_by_source ?? {};
-    return Object.entries(deltas)
-        .map(([source, delta]) => ({ source, delta }))
-        .sort((a, b) => a.source.localeCompare(b.source));
-});
-
-const transferEstimate = computed(() => {
-    const bytes = storagePreview.value?.estimates?.bytes_to_transfer;
-    if (bytes == null) {
-        return "Not available";
-    }
-    return bytesToString(bytes);
-});
-
-const hasWarnings = computed(() => Boolean(storagePreview.value?.warnings?.length));
-
-const selectedTargetStoreName = computed(() => {
-    if (!selectedTargetObjectStoreId.value) {
-        return "";
-    }
-    const store = storageTargetOptions.value.find(
-        (option) => option.object_store_id === selectedTargetObjectStoreId.value,
-    );
-    return store?.name || selectedTargetObjectStoreId.value;
 });
 
 // Trigger preview fetch when wizard navigates to the preview step.
@@ -145,10 +101,6 @@ watch(
         }
     },
 );
-
-function formatBytes(size: number) {
-    return bytesToString(size);
-}
 
 function onCancel() {
     showProxy.value = false;
@@ -248,7 +200,7 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
 </script>
 
 <template>
-    <GModal :show.sync="showProxy" title="Manage Storage Location" size="medium" overflow-visible>
+    <GModal :show.sync="showProxy" title="Move Datasets to New Storage Location" size="medium" overflow-visible>
         <BAlert v-if="previewError" show variant="danger" dismissible class="mb-2" @dismissed="previewError = null">
             {{ previewError }}
         </BAlert>
@@ -280,7 +232,7 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                             v-for="target in storageTargetOptions"
                             :key="target.object_store_id"
                             :value="target.object_store_id">
-                            {{ target.name || target.object_store_id }}
+                            {{ target.label }}
                         </option>
                     </select>
                 </div>
@@ -299,55 +251,10 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
             <div v-else-if="wizard.isCurrent('preview')">
                 <div v-if="storagePreviewLoading" class="text-center text-muted py-3">Loading preview...</div>
 
-                <div v-else-if="storagePreview">
-                    <p class="mb-1"><strong>Target storage location:</strong> {{ selectedTargetStoreName }}</p>
-                    <p class="mb-1">
-                        <strong>Selected items:</strong> {{ storagePreview.selection_counts.selected_items_count }}
-                        <span class="mx-2">|</span>
-                        <strong>Expanded leaves:</strong> {{ storagePreview.selection_counts.expanded_leaf_count }}
-                        <span class="mx-2">|</span>
-                        <strong>Total datasets:</strong> {{ storagePreview.selection_counts.unique_dataset_count }}
-                    </p>
-                    <p class="mb-1">
-                        <strong>Eligible:</strong> {{ storagePreview.eligibility.eligible_count }}
-                        <span class="mx-2">|</span>
-                        <strong>Ineligible:</strong> {{ storagePreview.eligibility.ineligible_count }}
-                    </p>
-                    <p class="mb-1"><strong>Estimated transfer:</strong> {{ transferEstimate }}</p>
-
-                    <div v-if="sourceQuotaDeltaEntries.length" class="mb-2">
-                        <strong>Storage space change by source:</strong>
-                        <ul class="mb-0 mt-1">
-                            <li v-for="entry in sourceQuotaDeltaEntries" :key="entry.source">
-                                {{ entry.source }}: {{ formatBytes(entry.delta) }}
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div v-if="ineligibleReasonBreakdown.length" class="mb-2">
-                        <strong>Reasons for ineligibility:</strong>
-                        <ul class="mb-0 mt-1">
-                            <li v-for="reason in ineligibleReasonBreakdown" :key="reason.code" class="mb-1">
-                                <strong>{{ getIneligibleReasonDescription(reason.code).label }}:</strong>
-                                {{ reason.count }}
-                                <span
-                                    v-if="getIneligibleReasonDescription(reason.code).description"
-                                    class="text-muted small d-block">
-                                    {{ getIneligibleReasonDescription(reason.code).description }}
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div v-if="hasWarnings" class="mb-2">
-                        <strong>Warnings:</strong>
-                        <ul class="mb-0 mt-1">
-                            <li v-for="(warning, index) in storagePreview.warnings" :key="index">
-                                {{ warning }}
-                            </li>
-                        </ul>
-                    </div>
-                </div>
+                <StorageOperationPreviewReport
+                    v-else-if="storagePreview"
+                    :preview="storagePreview"
+                    :target-store-id="selectedTargetObjectStoreId || ''" />
             </div>
         </GenericWizard>
     </GModal>
