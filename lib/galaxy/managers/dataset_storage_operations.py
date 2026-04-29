@@ -512,8 +512,8 @@ class DatasetStorageOperationPreviewBuilder:
             warnings.append(quota_failure_message)
         if preview.privacy_downgrade_count > 0:
             warnings.append(
-                "Some selected datasets would move from private storage to non-private storage. "
-                "Review sharing implications before execution."
+                "Some selected datasets would move from private storage to shareable storage. "
+                "After the operation, you will be able to share these datasets with other users."
             )
 
         return StorageOperationPreviewResponse(
