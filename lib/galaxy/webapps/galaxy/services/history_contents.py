@@ -2,7 +2,6 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import timedelta
 from typing import (
     Any,
@@ -18,10 +17,6 @@ from celery import chain
 from pydantic import (
     ConfigDict,
     Field,
-)
-from sqlalchemy import (
-    false,
-    or_,
 )
 from typing_extensions import Protocol
 
@@ -65,17 +60,12 @@ from galaxy.managers.jobs import (
 )
 from galaxy.managers.library_datasets import LibraryDatasetsManager
 from galaxy.model import (
-    Dataset,
-    DatasetStorageOperationRun,
-    DatasetStorageOperationRunItem,
-    DatasetStorageOperationSnapshot,
     History,
     HistoryDatasetAssociation,
     HistoryDatasetCollectionAssociation,
     LibraryDataset,
     User,
 )
-from galaxy.model.orm.now import now
 from galaxy.model.security import GalaxyRBACAgent
 from galaxy.objectstore import BaseObjectStore
 from galaxy.schema import (
@@ -121,22 +111,12 @@ from galaxy.schema.schema import (
     WriteStoreToPayload,
 )
 from galaxy.schema.storage_operations import (
-    DatasetStorageOperationFailureReasonCode,
-    StorageOperationEligibilityState,
-    StorageOperationEligibilitySummary,
-    StorageOperationEstimateSummary,
     StorageOperationExecuteRequest,
     StorageOperationExecuteResponse,
-    StorageOperationMode,
-    StorageOperationPreviewItemResult,
     StorageOperationPreviewRequest,
     StorageOperationPreviewResponse,
-    StorageOperationRunItemState,
     StorageOperationRunItemStatus,
     StorageOperationRunResponse,
-    StorageOperationRunState,
-    StorageOperationRunSummary,
-    StorageOperationSelectionCounts,
 )
 from galaxy.schema.tasks import (
     CopyDatasetsPayload,
@@ -148,7 +128,6 @@ from galaxy.schema.tasks import (
 )
 from galaxy.security.idencoding import IdEncodingHelper
 from galaxy.short_term_storage import ShortTermStorageAllocator
-from galaxy.util.search import parse_filters_structured
 from galaxy.util.zipstream import ZipstreamWrapper
 from galaxy.webapps.galaxy.services.base import (
     ConsumesModelStores,
@@ -164,18 +143,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 DatasetDetailsType = Union[set[DecodedDatabaseIdField], Literal["all"]]
-
-
-@dataclass
-class StorageOperationPreviewComputation:
-    eligible_dataset_ids: list[int]
-    eligibility_items: list[StorageOperationPreviewItemResult]
-    eligible_count: int
-    ineligible_count: int
-    bytes_to_transfer: int
-    target_quota_delta: int
-    quota_delta_by_source: dict[str, int]
-    privacy_downgrade_count: int
 
 
 class HistoryContentsIndexParams(Model):
@@ -341,7 +308,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         self.short_term_storage_allocator = short_term_storage_allocator
         self.genomes_manager = genomes_manager
         self.object_store = object_store
-        self.storage_operation_manager = DatasetStorageOperationManager(object_store)
+        self.storage_operation_manager = DatasetStorageOperationManager(object_store, hdca_manager=self.hdca_manager)
 
     def index(
         self,
@@ -799,190 +766,16 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         else:
             contents = self.history_contents_manager.contents(history, filters)
 
-        selected_items_count = len(contents)
-        unique_datasets, expanded_leaf_count = self._resolve_unique_datasets_from_contents(contents)
-        preview = self._compute_storage_operation_preview(
-            trans=trans,
-            user=user,
-            unique_datasets=unique_datasets,
-            target_object_store_id=payload.target_object_store_id,
-        )
-
-        snapshot = self.storage_operation_manager.create_operation_snapshot(
+        return self.storage_operation_manager.build_preview_response(
             sa_session=trans.sa_session,
+            security_agent=trans.app.security_agent,
+            quota_agent=trans.app.quota_agent,
             history_id=history.id,
-            user_id=user.id,
+            user=user,
+            contents=contents,
             target_object_store_id=payload.target_object_store_id,
-            resolved_dataset_ids=list(unique_datasets.keys()),
-            eligible_dataset_ids=preview.eligible_dataset_ids,
             snapshot_ttl=self._storage_snapshot_ttl,
-        )
-        expires_at = snapshot.expires_at
-
-        warnings: list[str] = []
-        if not payload.items:
-            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
-
-        quota_failure_message = self._validate_target_quota_preflight(
-            trans,
-            user,
-            payload.target_object_store_id,
-            preview.target_quota_delta,
-        )
-        if quota_failure_message:
-            preview = self._apply_storage_quota_preflight_failure(preview, quota_failure_message)
-            warnings.append(quota_failure_message)
-
-        if preview.privacy_downgrade_count > 0:
-            warnings.append(
-                "Some selected datasets would move from private storage to non-private storage. "
-                "Review sharing implications before execution."
-            )
-
-        return StorageOperationPreviewResponse(
-            snapshot_id=snapshot.id,
-            selection_counts=StorageOperationSelectionCounts(
-                selected_items_count=selected_items_count,
-                expanded_leaf_count=expanded_leaf_count,
-                unique_dataset_count=len(unique_datasets),
-            ),
-            eligibility=StorageOperationEligibilitySummary(
-                eligible_count=preview.eligible_count,
-                ineligible_count=preview.ineligible_count,
-                items=preview.eligibility_items,
-            ),
-            estimates=StorageOperationEstimateSummary(
-                bytes_to_transfer=preview.bytes_to_transfer,
-                quota_delta_by_source=preview.quota_delta_by_source,
-            ),
-            warnings=warnings,
-            expires_at=expires_at,
-        )
-
-    def _validate_target_quota_preflight(
-        self,
-        trans: ProvidesHistoryContext,
-        user: User,
-        target_object_store_id: str,
-        target_quota_delta: int,
-    ) -> Optional[str]:
-        return self.storage_operation_manager.validate_target_quota_projection(
-            trans.app.quota_agent,
-            user,
-            target_object_store_id,
-            target_quota_delta,
-            phase_label="before execution",
-        )
-
-    def _compute_storage_operation_preview(
-        self,
-        trans: ProvidesHistoryContext,
-        user: User,
-        unique_datasets: dict[int, Dataset],
-        target_object_store_id: str,
-    ) -> StorageOperationPreviewComputation:
-        eligible_dataset_ids: list[int] = []
-        eligibility_items: list[StorageOperationPreviewItemResult] = []
-        eligible_count = 0
-        ineligible_count = 0
-        bytes_to_transfer = 0
-        target_quota_delta = 0
-        quota_delta_by_source: dict[str, int] = {}
-        privacy_downgrade_count = 0
-        quota_source_map = self.object_store.get_quota_source_map()
-
-        for dataset_id, dataset in unique_datasets.items():
-            reason = self.storage_operation_manager.validate_dataset_for_move(
-                trans.app.security_agent,
-                user,
-                dataset,
-                target_object_store_id,
-            )
-            if reason is None:
-                eligible_count += 1
-                eligible_dataset_ids.append(dataset_id)
-                dataset_size = int(dataset.get_total_size() or 0)
-                if self.storage_operation_manager.requires_data_transfer(dataset, target_object_store_id):
-                    bytes_to_transfer += dataset_size
-
-                eligibility_items.append(
-                    StorageOperationPreviewItemResult(
-                        dataset_id=dataset_id,
-                        state=StorageOperationEligibilityState.eligible,
-                    )
-                )
-
-                old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
-                new_label = quota_source_map.get_quota_source_label(target_object_store_id) or "default"
-                if old_label != new_label:
-                    key = f"{old_label}->{new_label}"
-                    quota_delta_by_source[key] = quota_delta_by_source.get(key, 0) + dataset_size
-
-                source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
-                target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
-                target_quota_delta += self.storage_operation_manager.target_quota_delta(
-                    dataset_size,
-                    source_quota_label,
-                    target_quota_label,
-                )
-                if self.storage_operation_manager.is_privacy_downgrade_for_target(dataset, target_object_store_id):
-                    privacy_downgrade_count += 1
-            else:
-                ineligible_count += 1
-                reason_code, message = reason
-                eligibility_items.append(
-                    StorageOperationPreviewItemResult(
-                        dataset_id=dataset_id,
-                        state=StorageOperationEligibilityState.ineligible,
-                        reason_code=reason_code,
-                        message=message,
-                    )
-                )
-
-        return StorageOperationPreviewComputation(
-            eligible_dataset_ids=eligible_dataset_ids,
-            eligibility_items=eligibility_items,
-            eligible_count=eligible_count,
-            ineligible_count=ineligible_count,
-            bytes_to_transfer=bytes_to_transfer,
-            target_quota_delta=target_quota_delta,
-            quota_delta_by_source=quota_delta_by_source,
-            privacy_downgrade_count=privacy_downgrade_count,
-        )
-
-    def _apply_storage_quota_preflight_failure(
-        self,
-        preview: StorageOperationPreviewComputation,
-        quota_failure_message: str,
-    ) -> StorageOperationPreviewComputation:
-        remapped_items = [
-            StorageOperationPreviewItemResult(
-                dataset_id=item.dataset_id,
-                state=(
-                    StorageOperationEligibilityState.ineligible
-                    if item.state == StorageOperationEligibilityState.eligible
-                    else item.state
-                ),
-                reason_code=(
-                    DatasetStorageOperationFailureReasonCode.target_quota_exceeded
-                    if item.state == StorageOperationEligibilityState.eligible
-                    else item.reason_code
-                ),
-                message=(
-                    quota_failure_message if item.state == StorageOperationEligibilityState.eligible else item.message
-                ),
-            )
-            for item in preview.eligibility_items
-        ]
-        return StorageOperationPreviewComputation(
-            eligible_dataset_ids=preview.eligible_dataset_ids,
-            eligibility_items=remapped_items,
-            eligible_count=0,
-            ineligible_count=len(remapped_items),
-            bytes_to_transfer=preview.bytes_to_transfer,
-            target_quota_delta=preview.target_quota_delta,
-            quota_delta_by_source=preview.quota_delta_by_source,
-            privacy_downgrade_count=preview.privacy_downgrade_count,
+            query_based_selection=not payload.items,
         )
 
     def storage_operation_execute(

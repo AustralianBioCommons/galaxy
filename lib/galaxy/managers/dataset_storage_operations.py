@@ -307,11 +307,492 @@ class DatasetStorageOperationManager:
             state=StorageOperationRunState.pending.value,
             skip_ineligible=skip_ineligible,
         )
-        sa_session.add(run)
         run.total_count = len(snapshot.resolved_dataset_ids)
         sa_session.add(run)
         sa_session.commit()
         return run
+
+    def build_preview_response(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        security_agent: RBACAgent,
+        quota_agent: QuotaAgent,
+        history_id: int,
+        user: User,
+        contents: list[StorageOperationContent],
+        target_object_store_id: str,
+        snapshot_ttl: timedelta,
+        query_based_selection: bool,
+    ) -> StorageOperationPreviewResponse:
+        preview_builder = self._require_preview_builder()
+        return preview_builder.build_preview_response(
+            sa_session=sa_session,
+            security_agent=security_agent,
+            quota_agent=quota_agent,
+            history_id=history_id,
+            user=user,
+            contents=contents,
+            target_object_store_id=target_object_store_id,
+            snapshot_ttl=snapshot_ttl,
+            query_based_selection=query_based_selection,
+        )
+
+    def get_snapshot(self, sa_session: galaxy_scoped_session, snapshot_id: int) -> DatasetStorageOperationSnapshot:
+        return self._run_manager.get_snapshot(sa_session, snapshot_id)
+
+    def validate_snapshot_for_history(
+        self,
+        snapshot: DatasetStorageOperationSnapshot,
+        *,
+        history_id: int,
+        user_id: int,
+    ) -> None:
+        self._run_manager.validate_snapshot_for_history(snapshot, history_id=history_id, user_id=user_id)
+
+    def create_run_and_summary(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        snapshot: DatasetStorageOperationSnapshot,
+        skip_ineligible: bool,
+    ) -> tuple[DatasetStorageOperationRun, StorageOperationRunSummary]:
+        return self._run_manager.create_run_and_summary(
+            sa_session=sa_session,
+            snapshot=snapshot,
+            skip_ineligible=skip_ineligible,
+        )
+
+    def get_run(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        run_id: int,
+        history_id: int,
+        user_id: int,
+    ) -> DatasetStorageOperationRun:
+        return self._run_manager.get_run(
+            sa_session=sa_session,
+            run_id=run_id,
+            history_id=history_id,
+            user_id=user_id,
+        )
+
+    def to_run_summary(self, run: DatasetStorageOperationRun) -> StorageOperationRunSummary:
+        return self._run_manager.to_run_summary(run)
+
+    def get_run_items(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        run: DatasetStorageOperationRun,
+        decode_id: Callable[[str], int],
+        offset: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+    ) -> tuple[list[StorageOperationRunItemStatus], int]:
+        return self._run_manager.get_run_items(
+            sa_session=sa_session,
+            run=run,
+            decode_id=decode_id,
+            offset=offset,
+            limit=limit,
+            search=search,
+        )
+
+    def create_run_executor(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        dataset_manager: datasets.DatasetManager,
+        app: "MinimalManagerApp",
+        run: DatasetStorageOperationRun,
+        user: Optional[User],
+    ) -> "StorageOperationRunExecutor":
+        return StorageOperationRunExecutor(
+            sa_session=sa_session,
+            dataset_manager=dataset_manager,
+            app=app,
+            run=run,
+            user=user,
+            storage_operation_manager=self,
+        )
+
+    def _require_preview_builder(self) -> "DatasetStorageOperationPreviewBuilder":
+        if self._preview_builder is None:
+            raise RuntimeError("Preview operations require an HDCA manager.")
+        return self._preview_builder
+
+
+class DatasetStorageOperationPreviewBuilder:
+    """Builds storage operation previews from resolved history contents."""
+
+    def __init__(self, storage_operation_manager: DatasetStorageOperationManager, hdca_manager: "HDCAManager"):
+        self.storage_operation_manager = storage_operation_manager
+        self.hdca_manager = hdca_manager
+        self.object_store = storage_operation_manager.object_store
+
+    def build_preview_response(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        security_agent: RBACAgent,
+        quota_agent: QuotaAgent,
+        history_id: int,
+        user: User,
+        contents: list[StorageOperationContent],
+        target_object_store_id: str,
+        snapshot_ttl: timedelta,
+        query_based_selection: bool,
+    ) -> StorageOperationPreviewResponse:
+        selected_items_count = len(contents)
+        unique_datasets, expanded_leaf_count = self.resolve_unique_datasets_from_contents(contents)
+        preview = self.compute_preview(
+            security_agent=security_agent,
+            user=user,
+            unique_datasets=unique_datasets,
+            target_object_store_id=target_object_store_id,
+        )
+
+        quota_failure_message = self.storage_operation_manager.validate_target_quota_projection(
+            quota_agent,
+            user,
+            target_object_store_id,
+            preview.target_quota_delta,
+            phase_label="before execution",
+        )
+        if quota_failure_message:
+            preview = preview.with_quota_failure(quota_failure_message)
+
+        snapshot = self.storage_operation_manager.create_operation_snapshot(
+            sa_session=sa_session,
+            history_id=history_id,
+            user_id=user.id,
+            target_object_store_id=target_object_store_id,
+            resolved_dataset_ids=list(unique_datasets.keys()),
+            eligible_dataset_ids=preview.eligible_dataset_ids,
+            snapshot_ttl=snapshot_ttl,
+        )
+
+        warnings: list[str] = []
+        if query_based_selection:
+            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
+        if quota_failure_message:
+            warnings.append(quota_failure_message)
+        if preview.privacy_downgrade_count > 0:
+            warnings.append(
+                "Some selected datasets would move from private storage to non-private storage. "
+                "Review sharing implications before execution."
+            )
+
+        return StorageOperationPreviewResponse(
+            snapshot_id=_as_encoded_database_id(snapshot.id),
+            selection_counts=StorageOperationSelectionCounts(
+                selected_items_count=selected_items_count,
+                expanded_leaf_count=expanded_leaf_count,
+                unique_dataset_count=len(unique_datasets),
+            ),
+            eligibility=StorageOperationEligibilitySummary(
+                eligible_count=preview.eligible_count,
+                ineligible_count=preview.ineligible_count,
+                items=preview.eligibility_items,
+            ),
+            estimates=StorageOperationEstimateSummary(
+                bytes_to_transfer=preview.bytes_to_transfer,
+                quota_delta_by_source=preview.quota_delta_by_source,
+            ),
+            warnings=warnings,
+            expires_at=snapshot.expires_at,
+        )
+
+    def compute_preview(
+        self,
+        *,
+        security_agent: RBACAgent,
+        user: User,
+        unique_datasets: dict[int, Dataset],
+        target_object_store_id: str,
+    ) -> StorageOperationPreviewComputation:
+        eligible_dataset_ids: list[int] = []
+        eligibility_items: list[StorageOperationPreviewItemResult] = []
+        eligible_count = 0
+        ineligible_count = 0
+        bytes_to_transfer = 0
+        target_quota_delta = 0
+        quota_delta_by_source: dict[str, int] = {}
+        privacy_downgrade_count = 0
+        quota_source_map = self.object_store.get_quota_source_map()
+
+        for dataset_id, dataset in unique_datasets.items():
+            reason = self.storage_operation_manager.validate_dataset_for_move(
+                security_agent,
+                user,
+                dataset,
+                target_object_store_id,
+            )
+            if reason is None:
+                eligible_count += 1
+                eligible_dataset_ids.append(dataset_id)
+                dataset_size = int(dataset.get_total_size() or 0)
+                if self.storage_operation_manager.requires_data_transfer(dataset, target_object_store_id):
+                    bytes_to_transfer += dataset_size
+
+                eligibility_items.append(
+                    StorageOperationPreviewItemResult(
+                        dataset_id=_as_encoded_database_id(dataset_id),
+                        state=StorageOperationEligibilityState.eligible,
+                    )
+                )
+
+                old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
+                new_label = quota_source_map.get_quota_source_label(target_object_store_id) or "default"
+                if old_label != new_label:
+                    key = f"{old_label}->{new_label}"
+                    quota_delta_by_source[key] = quota_delta_by_source.get(key, 0) + dataset_size
+
+                source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
+                target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
+                target_quota_delta += self.storage_operation_manager.target_quota_delta(
+                    dataset_size,
+                    source_quota_label,
+                    target_quota_label,
+                )
+                if self.storage_operation_manager.is_privacy_downgrade_for_target(dataset, target_object_store_id):
+                    privacy_downgrade_count += 1
+            else:
+                ineligible_count += 1
+                reason_code, message = reason
+                eligibility_items.append(
+                    StorageOperationPreviewItemResult(
+                        dataset_id=_as_encoded_database_id(dataset_id),
+                        state=StorageOperationEligibilityState.ineligible,
+                        reason_code=reason_code,
+                        message=message,
+                    )
+                )
+
+        return StorageOperationPreviewComputation(
+            eligible_dataset_ids=eligible_dataset_ids,
+            eligibility_items=eligibility_items,
+            eligible_count=eligible_count,
+            ineligible_count=ineligible_count,
+            bytes_to_transfer=bytes_to_transfer,
+            target_quota_delta=target_quota_delta,
+            quota_delta_by_source=quota_delta_by_source,
+            privacy_downgrade_count=privacy_downgrade_count,
+        )
+
+    def resolve_unique_datasets_from_contents(
+        self, contents: list[StorageOperationContent]
+    ) -> tuple[dict[int, Dataset], int]:
+        unique_datasets: dict[int, Dataset] = {}
+        expanded_leaf_count = 0
+
+        for content in contents:
+            if isinstance(content, HistoryDatasetAssociation):
+                dataset = content.dataset
+                if dataset is None:
+                    continue
+                expanded_leaf_count += 1
+                unique_datasets[dataset.id] = dataset
+            elif isinstance(content, HistoryDatasetCollectionAssociation):
+                hdas = self.hdca_manager.map_datasets(content, fn=lambda item, *parents: item)
+                for hda in hdas:
+                    dataset = hda.dataset
+                    if dataset is None:
+                        continue
+                    expanded_leaf_count += 1
+                    unique_datasets[dataset.id] = dataset
+
+        return unique_datasets, expanded_leaf_count
+
+
+class DatasetStorageOperationRunManager:
+    """Handles snapshot/run validation, summaries, and run-item queries."""
+
+    def __init__(self, storage_operation_manager: DatasetStorageOperationManager):
+        self.storage_operation_manager = storage_operation_manager
+
+    def get_snapshot(self, sa_session: galaxy_scoped_session, snapshot_id: int) -> DatasetStorageOperationSnapshot:
+        snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot_id)
+        if snapshot is None:
+            raise exceptions.ObjectNotFound("Storage operation snapshot not found.")
+        if snapshot.expires_at <= now():
+            sa_session.delete(snapshot)
+            sa_session.commit()
+            raise exceptions.RequestParameterInvalidException("Storage operation snapshot has expired.")
+        return snapshot
+
+    def validate_snapshot_for_history(
+        self,
+        snapshot: DatasetStorageOperationSnapshot,
+        *,
+        history_id: int,
+        user_id: int,
+    ) -> None:
+        if snapshot.history_id != history_id:
+            raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the requested history.")
+        if snapshot.user_id != user_id:
+            raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the current user.")
+
+    def create_run_and_summary(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        snapshot: DatasetStorageOperationSnapshot,
+        skip_ineligible: bool,
+    ) -> tuple[DatasetStorageOperationRun, StorageOperationRunSummary]:
+        run = self.storage_operation_manager.create_operation_run(
+            sa_session=sa_session,
+            snapshot=snapshot,
+            skip_ineligible=skip_ineligible,
+        )
+        return run, self.to_run_summary(run)
+
+    def get_run(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        run_id: int,
+        history_id: int,
+        user_id: int,
+    ) -> DatasetStorageOperationRun:
+        run = sa_session.get(DatasetStorageOperationRun, run_id)
+        if run is None:
+            raise exceptions.ObjectNotFound("Storage operation run not found.")
+        if run.history_id != history_id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the requested history.")
+        if run.user_id != user_id:
+            raise exceptions.RequestParameterInvalidException("Run does not belong to the current user.")
+        return run
+
+    def to_run_summary(self, run: DatasetStorageOperationRun) -> StorageOperationRunSummary:
+        return StorageOperationRunSummary(
+            run_id=_as_encoded_database_id(run.id),
+            state=StorageOperationRunState(run.state),
+            mode=StorageOperationMode(run.mode),
+            target_object_store_id=run.target_object_store_id,
+            create_time=run.create_time,
+            update_time=run.update_time,
+            total_count=run.total_count,
+            succeeded_count=run.succeeded_count,
+            failed_count=run.failed_count,
+            skipped_count=run.skipped_count,
+            task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
+        )
+
+    def get_run_items(
+        self,
+        *,
+        sa_session: galaxy_scoped_session,
+        run: DatasetStorageOperationRun,
+        decode_id: Callable[[str], int],
+        offset: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+    ) -> tuple[list[StorageOperationRunItemStatus], int]:
+        run_items_query = sa_session.query(DatasetStorageOperationRunItem).filter(
+            DatasetStorageOperationRunItem.run_id == run.id
+        )
+
+        if search and search.strip():
+            parsed_search = parse_filters_structured(
+                search.strip(),
+                {
+                    "state": "state",
+                    "reason": "reason_code",
+                    "reason_code": "reason_code",
+                    "message": "message",
+                    "dataset": "dataset_id",
+                    "dataset_id": "dataset_id",
+                },
+            )
+
+            for filter_name in ("state", "reason_code", "message", "dataset_id"):
+                filter_terms = [term for term in parsed_search.filter_terms if term.filter == filter_name]
+                if not filter_terms:
+                    continue
+
+                if filter_name == "dataset_id":
+                    dataset_ids = self._decode_storage_run_item_dataset_ids(
+                        [term.text for term in filter_terms], decode_id=decode_id
+                    )
+                    if not dataset_ids:
+                        run_items_query = run_items_query.filter(false())
+                        break
+                    run_items_query = run_items_query.filter(DatasetStorageOperationRunItem.dataset_id.in_(dataset_ids))
+                    continue
+
+                column = getattr(DatasetStorageOperationRunItem, filter_name)
+                filter_conditions = []
+                for term in filter_terms:
+                    if term.quoted:
+                        filter_conditions.append(column == term.text)
+                    else:
+                        filter_conditions.append(column.ilike(f"%{term.text}%"))
+                run_items_query = run_items_query.filter(or_(*filter_conditions))
+
+            for text_term in parsed_search.text_terms:
+                text = text_term.text
+                if not text:
+                    continue
+
+                if text_term.quoted:
+                    free_text_conditions: list[ColumnElement[bool]] = [
+                        DatasetStorageOperationRunItem.state == text,
+                        DatasetStorageOperationRunItem.reason_code == text,
+                        DatasetStorageOperationRunItem.message == text,
+                    ]
+                else:
+                    free_text_conditions = [
+                        DatasetStorageOperationRunItem.state.ilike(f"%{text}%"),
+                        DatasetStorageOperationRunItem.reason_code.ilike(f"%{text}%"),
+                        DatasetStorageOperationRunItem.message.ilike(f"%{text}%"),
+                    ]
+
+                dataset_ids = self._decode_storage_run_item_dataset_ids([text], decode_id=decode_id)
+                if dataset_ids:
+                    free_text_conditions.append(DatasetStorageOperationRunItem.dataset_id.in_(dataset_ids))
+
+                run_items_query = run_items_query.filter(or_(*free_text_conditions))
+
+        total_matches = run_items_query.count()
+        run_items = run_items_query.order_by(DatasetStorageOperationRunItem.id.asc()).offset(offset).limit(limit).all()
+        items = [
+            StorageOperationRunItemStatus(
+                dataset_id=_as_encoded_database_id(run_item.dataset_id),
+                state=StorageOperationRunItemState(run_item.state),
+                reason_code=(
+                    DatasetStorageOperationFailureReasonCode(run_item.reason_code) if run_item.reason_code else None
+                ),
+                message=run_item.message,
+                attempt_count=run_item.attempt_count,
+                bytes_processed=run_item.bytes_processed,
+                create_time=run_item.create_time,
+                update_time=run_item.update_time,
+            )
+            for run_item in run_items
+        ]
+        return items, total_matches
+
+    def _decode_storage_run_item_dataset_ids(
+        self,
+        encoded_or_raw_ids: list[str],
+        *,
+        decode_id: Callable[[str], int],
+    ) -> list[int]:
+        dataset_ids: list[int] = []
+        for value in encoded_or_raw_ids:
+            if not value:
+                continue
+            if value.isdigit():
+                dataset_ids.append(int(value))
+                continue
+            try:
+                dataset_ids.append(decode_id(value))
+            except Exception:
+                continue
+        return dataset_ids
 
 
 class ChecksumVerificationError(ValueError):
