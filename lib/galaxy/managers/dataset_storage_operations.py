@@ -802,14 +802,18 @@ class ChecksumVerificationError(ValueError):
 class StorageOperationRunExecutor:
     """Executes a storage operation run and returns notification outcome details to the caller."""
 
+    _CHECKSUM_FAILURE_MESSAGE = "Integrity verification failed after copying dataset data to the target store."
+    _EXECUTION_FAILURE_MESSAGE = "Storage operation failed due to an internal error."
+
     def __init__(
         self,
         *,
         sa_session: galaxy_scoped_session,
-        dataset_manager: Any,
-        app: Any,
+        dataset_manager: datasets.DatasetManager,
+        app: "MinimalManagerApp",
         run: DatasetStorageOperationRun,
         user: Optional[User],
+        storage_operation_manager: DatasetStorageOperationManager,
     ):
         self.sa_session = sa_session
         self.dataset_manager = dataset_manager
@@ -817,7 +821,7 @@ class StorageOperationRunExecutor:
         self.run = run
         self.user = user
         self.trans = SimpleNamespace(user=user)
-        self.storage_operation_manager = DatasetStorageOperationManager(app.object_store)
+        self.storage_operation_manager = storage_operation_manager
         self.quota_source_map = app.object_store.get_quota_source_map()
         self.target_quota_source_label = self.quota_source_map.get_quota_source_label(run.target_object_store_id)
         self.additional_target_usage = 0
@@ -828,24 +832,10 @@ class StorageOperationRunExecutor:
     def execute_run(self, snapshot: Optional[DatasetStorageOperationSnapshot]) -> StorageOperationExecutionResult:
         """Validate snapshot, drive state transitions, execute all datasets, and return execution outcome."""
         if snapshot is None:
-            self.run.state = "failed"
-            self.run.failed_count = self.run.total_count if self.run.total_count else 0
-            self.sa_session.add(self.run)
-            self.sa_session.commit()
-            return StorageOperationExecutionResult(
-                state=StorageOperationRunState.failed,
-                message="Bulk storage run failed because its preview snapshot could not be found.",
-            )
+            return self._fail_run("Bulk storage run failed because its preview snapshot could not be found.")
 
         if snapshot.expires_at <= now():
-            self.run.state = "failed"
-            self.run.failed_count = self.run.total_count if self.run.total_count else 0
-            self.sa_session.add(self.run)
-            self.sa_session.commit()
-            return StorageOperationExecutionResult(
-                state=StorageOperationRunState.failed,
-                message="Bulk storage run failed because its preview snapshot expired before execution.",
-            )
+            return self._fail_run("Bulk storage run failed because its preview snapshot expired before execution.")
 
         self.run.state = "running"
         self.sa_session.add(self.run)
@@ -868,6 +858,16 @@ class StorageOperationRunExecutor:
             message = f"Bulk {self.run.mode} run completed successfully for {succeeded_count} dataset(s)."
 
         return StorageOperationExecutionResult(state=StorageOperationRunState.completed, message=message)
+
+    def _fail_run(self, message: str) -> StorageOperationExecutionResult:
+        self.run.state = "failed"
+        self.run.failed_count = self.run.total_count if self.run.total_count else 0
+        self.sa_session.add(self.run)
+        self.sa_session.commit()
+        return StorageOperationExecutionResult(
+            state=StorageOperationRunState.failed,
+            message=message,
+        )
 
     def _execute(self, resolved_dataset_ids: list[int]) -> tuple[int, int, int]:
         for dataset_id in resolved_dataset_ids:
@@ -961,21 +961,33 @@ class StorageOperationRunExecutor:
             self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
             dataset.touch_collection_update_time()
         except ChecksumVerificationError as exc:
-            self.failed_count += 1
-            self._add_run_item(
-                dataset_id=dataset_id,
-                state="failed",
-                reason_code=DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
-                message=str(exc),
+            log.warning("Integrity verification failed for run %s dataset %s: %s", self.run.id, dataset.id, exc)
+            self._record_transfer_failure(
+                dataset_id,
+                DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
+                self._CHECKSUM_FAILURE_MESSAGE,
             )
-        except Exception as exc:
-            self.failed_count += 1
-            self._add_run_item(
-                dataset_id=dataset_id,
-                state="failed",
-                reason_code=DatasetStorageOperationFailureReasonCode.execution_error,
-                message=str(exc),
+        except Exception:
+            log.exception("Storage operation execution error for run %s dataset %s", self.run.id, dataset.id)
+            self._record_transfer_failure(
+                dataset_id,
+                DatasetStorageOperationFailureReasonCode.execution_error,
+                self._EXECUTION_FAILURE_MESSAGE,
             )
+
+    def _record_transfer_failure(
+        self,
+        dataset_id: int,
+        reason_code: DatasetStorageOperationFailureReasonCode,
+        message: str,
+    ) -> None:
+        self.failed_count += 1
+        self._add_run_item(
+            dataset_id=dataset_id,
+            state="failed",
+            reason_code=reason_code,
+            message=message,
+        )
 
     def _add_run_item(
         self,
@@ -1013,29 +1025,38 @@ class StorageOperationRunExecutor:
         )
 
         extra_files_path_name = dataset.extra_files_path_name
-        if extra_files_path_name and self.app.object_store.exists(
-            source_proxy, dir_only=True, extra_dir=extra_files_path_name
-        ):
-            src_extra_dir = Path(
-                self.app.object_store.get_filename(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
-            )
-            for file_path in src_extra_dir.rglob("*"):
-                if not file_path.is_file():
-                    continue
-                relative_parent = file_path.parent.relative_to(src_extra_dir)
-                extra_dir = extra_files_path_name
-                if str(relative_parent) != ".":
-                    extra_dir = f"{extra_files_path_name}/{relative_parent.as_posix()}"
-                self.app.object_store.update_from_file(
-                    target_proxy,
-                    extra_dir=extra_dir,
-                    alt_name=file_path.name,
-                    file_name=str(file_path),
-                    create=True,
-                    preserve_symlinks=False,
-                )
+        if extra_files_path_name:
+            self._copy_extra_files(source_proxy, target_proxy, extra_files_path_name)
 
         return int(dataset.get_total_size() or 0)
+
+    def _copy_extra_files(
+        self,
+        source_proxy: DatasetObjectStoreProxy,
+        target_proxy: DatasetObjectStoreProxy,
+        extra_files_path_name: str,
+    ) -> None:
+        if not self.app.object_store.exists(source_proxy, dir_only=True, extra_dir=extra_files_path_name):
+            return
+
+        src_extra_dir = Path(
+            self.app.object_store.get_filename(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
+        )
+        for file_path in src_extra_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+            relative_parent = file_path.parent.relative_to(src_extra_dir)
+            extra_dir = extra_files_path_name
+            if str(relative_parent) != ".":
+                extra_dir = f"{extra_files_path_name}/{relative_parent.as_posix()}"
+            self.app.object_store.update_from_file(
+                target_proxy,
+                extra_dir=extra_dir,
+                alt_name=file_path.name,
+                file_name=str(file_path),
+                create=True,
+                preserve_symlinks=False,
+            )
 
     def _verify_copied_dataset_integrity(self, dataset: Dataset, target_object_store_id: str):
         source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
@@ -1043,23 +1064,33 @@ class StorageOperationRunExecutor:
 
         source_filename = self.app.object_store.get_filename(source_proxy)
         target_filename = self.app.object_store.get_filename(target_proxy)
-        source_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=source_filename)
-        target_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=target_filename)
+        source_hash = self._sha256(source_filename)
+        target_hash = self._sha256(target_filename)
         if source_hash != target_hash:
-            raise ChecksumVerificationError(
-                f"Checksum verification failed for dataset {dataset.id}: source hash {source_hash} != target hash {target_hash}."
-            )
+            raise ChecksumVerificationError("Primary file checksum mismatch between source and target.")
 
         extra_files_path_name = dataset.extra_files_path_name
         if not extra_files_path_name:
             return
 
+        self._verify_extra_files_integrity(
+            source_proxy=source_proxy,
+            target_proxy=target_proxy,
+            extra_files_path_name=extra_files_path_name,
+        )
+
+    def _verify_extra_files_integrity(
+        self,
+        *,
+        source_proxy: DatasetObjectStoreProxy,
+        target_proxy: DatasetObjectStoreProxy,
+        extra_files_path_name: str,
+    ) -> None:
+
         source_has_extra = self.app.object_store.exists(source_proxy, dir_only=True, extra_dir=extra_files_path_name)
         target_has_extra = self.app.object_store.exists(target_proxy, dir_only=True, extra_dir=extra_files_path_name)
         if source_has_extra != target_has_extra:
-            raise ChecksumVerificationError(
-                f"Checksum verification failed for dataset {dataset.id}: extra files presence differs between source and target."
-            )
+            raise ChecksumVerificationError("Extra files presence differs between source and target.")
         if not source_has_extra:
             return
 
@@ -1081,20 +1112,18 @@ class StorageOperationRunExecutor:
             if file_path.is_file()
         }
         if source_rel_paths != target_rel_paths:
-            raise ChecksumVerificationError(
-                f"Checksum verification failed for dataset {dataset.id}: extra files layout differs between source and target."
-            )
+            raise ChecksumVerificationError("Extra files layout differs between source and target.")
 
         for relative_path in sorted(source_rel_paths):
             source_file = src_extra_dir / relative_path
             target_file = tgt_extra_dir / relative_path
-            source_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=str(source_file))
-            target_hash = memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=str(target_file))
+            source_hash = self._sha256(str(source_file))
+            target_hash = self._sha256(str(target_file))
             if source_hash != target_hash:
-                raise ChecksumVerificationError(
-                    f"Checksum verification failed for dataset {dataset.id} extra file '{relative_path}': "
-                    f"source hash {source_hash} != target hash {target_hash}."
-                )
+                raise ChecksumVerificationError("Extra file checksum mismatch between source and target.")
+
+    def _sha256(self, path: str) -> str:
+        return memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=path)
 
     def _finalize_cross_device_move(self, dataset: Dataset, target_object_store_id: str):
         old_object_store_id = dataset.object_store_id
