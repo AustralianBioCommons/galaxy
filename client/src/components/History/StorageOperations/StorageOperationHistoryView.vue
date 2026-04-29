@@ -180,7 +180,7 @@ function onFinishedPageChange(page: number) {
                 <BFormInput
                     v-model="filterText"
                     class="storage-run-filter"
-                    :placeholder="localize('Filter runs by status, mode, store location...')" />
+                    :placeholder="localize('Filter runs by target store location...')" />
             </div>
 
             <StorageOperationRunsTable
