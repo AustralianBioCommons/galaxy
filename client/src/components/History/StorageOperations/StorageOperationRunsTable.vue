@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { faExternalLinkAlt } from "@fortawesome/free-solid-svg-icons";
+import { faEye, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BBadge, BButton, BPagination } from "bootstrap-vue";
+import { BPagination } from "bootstrap-vue";
 import { computed } from "vue";
 
 import type { TableField } from "@/components/Common/GTable.types";
@@ -10,8 +10,12 @@ import type { StorageRun } from "@/stores/storageOperationsStore";
 import localize from "@/utils/localization";
 import { isTerminalRunState } from "@/utils/storageOperations";
 
+import GButton from "@/components/BaseComponents/GButton.vue";
+import GButtonGroup from "@/components/BaseComponents/GButtonGroup.vue";
 import GTable from "@/components/Common/GTable.vue";
 import Heading from "@/components/Common/Heading.vue";
+import StorageOperationOutcomeProgress from "@/components/History/StorageOperations/StorageOperationOutcomeProgress.vue";
+import StorageOperationRunStateBadge from "@/components/History/StorageOperations/StorageOperationRunStateBadge.vue";
 import UtcDate from "@/components/UtcDate.vue";
 
 type StorageOperationTableRow = StorageRun & {
@@ -44,14 +48,14 @@ const emit = defineEmits<{
 const objectStoreStore = useObjectStoreStore();
 
 const fields: TableField[] = [
-    { key: "state", label: localize("Status"), sortable: true, width: "130px" },
-    { key: "mode", label: localize("Mode"), sortable: true, width: "120px" },
+    { key: "state", label: localize("Status"), sortable: true, width: "20px", align: "center" },
+    { key: "mode", label: localize("Mode"), sortable: false, width: "80px" },
     { key: "target_object_store_id", label: localize("Target store"), sortable: true },
     { key: "total_count", label: localize("Datasets"), sortable: true, align: "center", width: "120px" },
     { key: "progressPercent", label: localize("Progress"), sortable: true, width: "220px" },
     { key: "create_time", label: localize("Started"), sortable: true, width: "180px" },
     { key: "update_time", label: localize("Completed"), sortable: true, width: "180px" },
-    { key: "actions", label: localize("Actions"), sortable: false, width: "180px" },
+    { key: "actions", label: localize("Actions"), sortable: false, width: "90px" },
 ];
 
 const showPagination = computed(() => props.rows.length > props.perPage);
@@ -66,32 +70,6 @@ function onPageChange(page: number) {
 
 function dismissStorageRun(runId: string) {
     emit("dismiss", runId);
-}
-
-function getStateVariant(state: string) {
-    if (state === "failed") {
-        return "danger";
-    }
-    if (state === "completed") {
-        return "warning";
-    }
-    if (state === "running") {
-        return "info";
-    }
-    return "secondary";
-}
-
-function getProgressBarClass(row: StorageOperationTableRow) {
-    if (row.state === "failed") {
-        return "bg-danger";
-    }
-    if (row.state === "completed" && (row.failed_count > 0 || row.skipped_count > 0)) {
-        return "bg-warning";
-    }
-    if (row.state === "completed") {
-        return "bg-success";
-    }
-    return "bg-info";
 }
 
 function getTargetStoreDisplayName(targetObjectStoreId: string) {
@@ -119,7 +97,10 @@ function getTargetStoreDisplayName(targetObjectStoreId: string) {
             :empty-state="{ message: props.emptyMessage }"
             @sort-changed="onSortChanged">
             <template v-slot:cell(state)="slot">
-                <BBadge :variant="getStateVariant(slot.item.state)">{{ slot.item.state }}</BBadge>
+                <StorageOperationRunStateBadge
+                    :state="slot.item.state"
+                    :failed-count="slot.item.failed_count"
+                    :skipped-count="slot.item.skipped_count" />
             </template>
 
             <template v-slot:cell(mode)="slot">
@@ -131,22 +112,11 @@ function getTargetStoreDisplayName(targetObjectStoreId: string) {
             </template>
 
             <template v-slot:cell(progressPercent)="slot">
-                <div>
-                    <div class="progress storage-progress">
-                        <div
-                            class="progress-bar"
-                            :class="getProgressBarClass(slot.item)"
-                            role="progressbar"
-                            :style="{ width: `${slot.item.progressPercent}%` }"
-                            :aria-valuenow="slot.item.progressPercent"
-                            aria-valuemin="0"
-                            aria-valuemax="100" />
-                    </div>
-                    <small class="text-muted">
-                        {{ slot.item.succeeded_count + slot.item.failed_count + slot.item.skipped_count }} /
-                        {{ slot.item.total_count }} ({{ slot.item.progressPercent }}%)
-                    </small>
-                </div>
+                <StorageOperationOutcomeProgress
+                    :total-count="slot.item.total_count"
+                    :succeeded-count="slot.item.succeeded_count"
+                    :failed-count="slot.item.failed_count"
+                    :skipped-count="slot.item.skipped_count" />
             </template>
 
             <template v-slot:cell(create_time)="slot">
@@ -161,15 +131,30 @@ function getTargetStoreDisplayName(targetObjectStoreId: string) {
             </template>
 
             <template v-slot:cell(actions)="slot">
-                <div class="d-flex align-items-center">
-                    <router-link class="btn btn-sm btn-outline-primary mr-2" :to="slot.item.runUrl">
-                        <FontAwesomeIcon :icon="faExternalLinkAlt" fixed-width class="mr-1" />
-                        {{ localize("Go to details") }}
-                    </router-link>
-                    <BButton size="sm" variant="link" class="p-0" @click.stop="dismissStorageRun(slot.item.run_id)">
-                        {{ localize("Dismiss") }}
-                    </BButton>
-                </div>
+                <GButtonGroup aria-label="Actions">
+                    <GButton
+                        tooltip
+                        tooltip-placement="bottom"
+                        size="small"
+                        color="blue"
+                        outline
+                        icon-only
+                        :title="localize('View details')"
+                        :to="slot.item.runUrl">
+                        <FontAwesomeIcon :icon="faEye" fixed-width />
+                    </GButton>
+                    <GButton
+                        tooltip
+                        tooltip-placement="bottom"
+                        size="small"
+                        color="red"
+                        outline
+                        icon-only
+                        :title="localize('Dismiss')"
+                        @click.stop="dismissStorageRun(slot.item.run_id)">
+                        <FontAwesomeIcon :icon="faTimes" fixed-width />
+                    </GButton>
+                </GButtonGroup>
             </template>
         </GTable>
 
@@ -186,9 +171,3 @@ function getTargetStoreDisplayName(targetObjectStoreId: string) {
         </div>
     </div>
 </template>
-
-<style scoped>
-.storage-progress {
-    height: 0.6rem;
-}
-</style>
