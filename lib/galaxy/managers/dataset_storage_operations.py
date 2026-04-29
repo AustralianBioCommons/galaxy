@@ -42,6 +42,7 @@ from galaxy.schema.storage_operations import (
     StorageOperationMode,
     StorageOperationPreviewItemResult,
     StorageOperationPreviewResponse,
+    StorageOperationQuotaDeltaTransfer,
     StorageOperationRunItemState,
     StorageOperationRunItemStatus,
     StorageOperationRunState,
@@ -85,7 +86,7 @@ class StorageOperationPreviewComputation:
     ineligible_count: int
     bytes_to_transfer: int
     target_quota_delta: int
-    quota_delta_by_source: dict[str, int]
+    quota_delta_transfers: list[StorageOperationQuotaDeltaTransfer]
     privacy_downgrade_count: int
 
     def with_quota_failure(self, quota_failure_message: str) -> "StorageOperationPreviewComputation":
@@ -115,7 +116,7 @@ class StorageOperationPreviewComputation:
             ineligible_count=len(remapped_items),
             bytes_to_transfer=self.bytes_to_transfer,
             target_quota_delta=self.target_quota_delta,
-            quota_delta_by_source=self.quota_delta_by_source,
+            quota_delta_transfers=self.quota_delta_transfers,
             privacy_downgrade_count=self.privacy_downgrade_count,
         )
 
@@ -529,7 +530,7 @@ class DatasetStorageOperationPreviewBuilder:
             ),
             estimates=StorageOperationEstimateSummary(
                 bytes_to_transfer=preview.bytes_to_transfer,
-                quota_delta_by_source=preview.quota_delta_by_source,
+                quota_delta_transfers=preview.quota_delta_transfers,
             ),
             warnings=warnings,
             expires_at=snapshot.expires_at,
@@ -549,7 +550,7 @@ class DatasetStorageOperationPreviewBuilder:
         ineligible_count = 0
         bytes_to_transfer = 0
         target_quota_delta = 0
-        quota_delta_by_source: dict[str, int] = {}
+        quota_delta_transfer_totals: dict[tuple[str, str], int] = {}
         privacy_downgrade_count = 0
         quota_source_map = self.object_store.get_quota_source_map()
 
@@ -577,8 +578,10 @@ class DatasetStorageOperationPreviewBuilder:
                 old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
                 new_label = quota_source_map.get_quota_source_label(target_object_store_id) or "default"
                 if old_label != new_label:
-                    key = f"{old_label}->{new_label}"
-                    quota_delta_by_source[key] = quota_delta_by_source.get(key, 0) + dataset_size
+                    source_object_store_id = dataset.object_store_id
+                    if source_object_store_id:
+                        key = (source_object_store_id, target_object_store_id)
+                        quota_delta_transfer_totals[key] = quota_delta_transfer_totals.get(key, 0) + dataset_size
 
                 source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
                 target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
@@ -601,6 +604,17 @@ class DatasetStorageOperationPreviewBuilder:
                     )
                 )
 
+        quota_delta_transfers = [
+            StorageOperationQuotaDeltaTransfer(
+                source_object_store_id=source_object_store_id,
+                target_object_store_id=target_object_store_id,
+                bytes=bytes_delta,
+            )
+            for (source_object_store_id, target_object_store_id), bytes_delta in sorted(
+                quota_delta_transfer_totals.items()
+            )
+        ]
+
         return StorageOperationPreviewComputation(
             eligible_dataset_ids=eligible_dataset_ids,
             eligibility_items=eligibility_items,
@@ -608,7 +622,7 @@ class DatasetStorageOperationPreviewBuilder:
             ineligible_count=ineligible_count,
             bytes_to_transfer=bytes_to_transfer,
             target_quota_delta=target_quota_delta,
-            quota_delta_by_source=quota_delta_by_source,
+            quota_delta_transfers=quota_delta_transfers,
             privacy_downgrade_count=privacy_downgrade_count,
         )
 

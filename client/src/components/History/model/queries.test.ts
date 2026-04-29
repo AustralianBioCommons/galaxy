@@ -25,7 +25,7 @@ const PREVIEW_RESPONSE: StorageOperationPreviewResponse = {
         ineligible_count: 0,
         items: [{ dataset_id: "ds1", state: "eligible" }],
     },
-    estimates: { bytes_to_transfer: 0, quota_delta_by_source: {} },
+    estimates: { bytes_to_transfer: 0, quota_delta_transfers: [] },
     warnings: [],
 };
 

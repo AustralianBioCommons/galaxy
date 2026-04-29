@@ -95,9 +95,15 @@ class StorageOperationEligibilitySummary(Model):
     items: list[StorageOperationPreviewItemResult]
 
 
+class StorageOperationQuotaDeltaTransfer(Model):
+    source_object_store_id: str
+    target_object_store_id: str
+    bytes: int = 0
+
+
 class StorageOperationEstimateSummary(Model):
     bytes_to_transfer: int = 0
-    quota_delta_by_source: dict[str, int] = Field(default_factory=dict)
+    quota_delta_transfers: list[StorageOperationQuotaDeltaTransfer] = Field(default_factory=list)
 
 
 class StorageOperationPreviewResponse(Model):

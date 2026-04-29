@@ -22664,10 +22664,8 @@ export interface components {
              * @default 0
              */
             bytes_to_transfer: number;
-            /** Quota Delta By Source */
-            quota_delta_by_source?: {
-                [key: string]: number;
-            };
+            /** Quota Delta Transfers */
+            quota_delta_transfers?: components["schemas"]["StorageOperationQuotaDeltaTransfer"][];
         };
         /** StorageOperationExecutePolicy */
         StorageOperationExecutePolicy: {
@@ -22811,6 +22809,18 @@ export interface components {
             snapshot_id: string;
             /** Warnings */
             warnings?: string[];
+        };
+        /** StorageOperationQuotaDeltaTransfer */
+        StorageOperationQuotaDeltaTransfer: {
+            /**
+             * Bytes
+             * @default 0
+             */
+            bytes: number;
+            /** Source Object Store Id */
+            source_object_store_id: string;
+            /** Target Object Store Id */
+            target_object_store_id: string;
         };
         /**
          * StorageOperationRunItemState
