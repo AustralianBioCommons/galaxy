@@ -233,7 +233,37 @@ class DatasetStorageOperationManager:
         dataset: Dataset,
         target_object_store_id: str,
     ) -> bool:
-        return self.is_cross_device_move(dataset, target_object_store_id)
+        source_object_store_id = dataset.object_store_id
+        if source_object_store_id is None:
+            return True
+        if source_object_store_id == target_object_store_id:
+            return False
+        if self.is_cross_device_move(dataset, target_object_store_id):
+            return True
+
+        source_proxy = DatasetObjectStoreProxy(
+            id=dataset.id,
+            uuid=dataset.uuid,
+            object_store_id=source_object_store_id,
+        )
+        target_proxy = DatasetObjectStoreProxy(
+            id=dataset.id,
+            uuid=dataset.uuid,
+            object_store_id=target_object_store_id,
+        )
+        try:
+            source_path = self.object_store.construct_path(source_proxy)
+            target_path = self.object_store.construct_path(target_proxy)
+        except Exception:
+            log.warning(
+                "Falling back to data transfer for dataset %s when comparing object store paths %s -> %s",
+                dataset.id,
+                source_object_store_id,
+                target_object_store_id,
+                exc_info=True,
+            )
+            return True
+        return source_path != target_path
 
     def is_privacy_downgrade_for_target(self, dataset: Dataset, target_object_store_id: str) -> bool:
         source_is_private = self._is_private_for_dataset(dataset)
