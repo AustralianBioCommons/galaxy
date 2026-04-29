@@ -2,12 +2,12 @@ import logging
 from datetime import datetime
 from enum import Enum
 from typing import (
-    Callable,
     cast,
     NamedTuple,
     Optional,
     Union,
 )
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 from pydantic import (

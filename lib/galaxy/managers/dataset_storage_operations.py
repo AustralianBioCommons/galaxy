@@ -3,12 +3,12 @@ from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import (
-    Callable,
     cast,
     Optional,
     TYPE_CHECKING,
     Union,
 )
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import (
