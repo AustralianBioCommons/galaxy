@@ -979,10 +979,12 @@ class StorageOperationRunExecutor:
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
         try:
             bytes_processed = 0
-            if self.storage_operation_manager.is_cross_device_move(dataset, self.run.target_object_store_id):
+            if self.storage_operation_manager.requires_data_transfer(dataset, self.run.target_object_store_id):
+                source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
                 bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
                 self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
                 self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
+                self._cleanup_source_dataset_data(source_proxy, dataset.extra_files_path_name)
             else:
                 self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
 
