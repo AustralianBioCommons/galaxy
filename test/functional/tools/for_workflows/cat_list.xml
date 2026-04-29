@@ -1,5 +1,5 @@
 <tool id="cat_list" name="Concatenate multiple datasets (for test workflows)" version="1.0.0">
-    <description></description>
+    <description>tail-to-head over a multi-file selection</description>
     <command><![CDATA[
 cat #for $q in $input1# '$q' #end for# > '$out_file1'
     ]]></command>

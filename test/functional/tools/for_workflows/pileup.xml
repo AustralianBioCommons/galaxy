@@ -1,4 +1,5 @@
 <tool id="pileup" name="Pileup" version="0.1.0">
+    <description>summarize aligned reads against a reference (test stub)</description>
     <command><![CDATA[
 printf 'Summary' > '$out_file1'
     ]]></command>
@@ -9,7 +10,7 @@ printf 'Summary' > '$out_file1'
         <param name="reference" type="data" format="fasta" label="Fasta Input"/>
     </inputs>
     <outputs>
-        <data name="out_file1" format="txt" />
+        <data name="out_file1" format="txt" label="Pileup summary on ${reference.name}"/>
     </outputs>
     <tests>
     </tests>

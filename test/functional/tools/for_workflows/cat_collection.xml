@@ -7,7 +7,7 @@ cat #for $q in $input1# '$q' #end for# >'$out_file1'
         <param name="input1" type="data_collection" collection_type="list,paired" label="Concatenate Dataset" />
     </inputs>
     <outputs>
-        <data name="out_file1" format="input" />
+        <data name="out_file1" format="input" label="Concatenated ${input1.name}"/>
     </outputs>
     <tests>
     </tests>

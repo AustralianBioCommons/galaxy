@@ -8,7 +8,7 @@ head -n $lineNum '$input' > '$out_file1'
         <param name="input" type="data" format="txt" label="from"/>
     </inputs>
     <outputs>
-        <data name="out_file1" format="input" metadata_source="input"/>
+        <data name="out_file1" format="input" metadata_source="input" label="First $lineNum lines of ${input.name}"/>
     </outputs>
     <tests>
     </tests>

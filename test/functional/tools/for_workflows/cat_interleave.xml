@@ -1,4 +1,5 @@
 <tool id="cat_interleave" name="Interleave two inputs (for test workflows)" version="1.0.0">
+    <description>emit input1+input2 and input2+input1 as two outputs</description>
     <command><![CDATA[
 cat '$input1' '$input2' > '$out_file1' &&
 cat '$input2' '$input1' > '$out_file2'
@@ -8,8 +9,8 @@ cat '$input2' '$input1' > '$out_file2'
         <param name="input2" type="data" label="Input 2"/>
     </inputs>
     <outputs>
-        <data name="out_file1" format="input" metadata_source="input1"/>
-        <data name="out_file2" format="input" metadata_source="input2"/>
+        <data name="out_file1" format="input" metadata_source="input1" label="${input1.name} + ${input2.name}"/>
+        <data name="out_file2" format="input" metadata_source="input2" label="${input2.name} + ${input1.name}"/>
     </outputs>
     <tests>
     </tests>
