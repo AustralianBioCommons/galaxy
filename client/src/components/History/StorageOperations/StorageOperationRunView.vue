@@ -20,6 +20,8 @@ import DatasetPopoverLink from "@/components/Common/DatasetPopoverLink.vue";
 import FilterMenu from "@/components/Common/FilterMenu.vue";
 import GTable from "@/components/Common/GTable.vue";
 import Heading from "@/components/Common/Heading.vue";
+import StorageOperationOutcomeProgress from "@/components/History/StorageOperations/StorageOperationOutcomeProgress.vue";
+import StorageOperationRunStateBadge from "@/components/History/StorageOperations/StorageOperationRunStateBadge.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 
 const props = defineProps<{
@@ -83,37 +85,8 @@ const tableFields: TableField[] = [
     { key: "message", label: localize("Message"), sortable: true, class: "run-item-message" },
 ];
 
-const stateVariant = computed(() => {
-    const state = run.value?.state;
-    if (state === "failed") {
-        return "danger";
-    }
-    if (state === "completed") {
-        if ((run.value?.failed_count ?? 0) > 0 || (run.value?.skipped_count ?? 0) > 0) {
-            return "warning";
-        }
-        return "success";
-    }
-    return "info";
-});
-
 const failedOrSkippedCount = computed(() => (run.value?.failed_count ?? 0) + (run.value?.skipped_count ?? 0));
 const displayItems = computed(() => pageItems.value);
-
-const succeededPercent = computed(() => {
-    const total = run.value?.total_count ?? 0;
-    return total > 0 ? Math.round(((run.value?.succeeded_count ?? 0) / total) * 100) : 0;
-});
-
-const failedPercent = computed(() => {
-    const total = run.value?.total_count ?? 0;
-    return total > 0 ? Math.round(((run.value?.failed_count ?? 0) / total) * 100) : 0;
-});
-
-const skippedPercent = computed(() => {
-    const total = run.value?.total_count ?? 0;
-    return total > 0 ? Math.round(((run.value?.skipped_count ?? 0) / total) * 100) : 0;
-});
 
 const failedItemsEmptyStateMessage = computed(() => {
     if (!isTerminal.value) {
@@ -223,10 +196,14 @@ onBeforeUnmount(() => {
         <LoadingSpan v-if="!run" :message="localize('Loading storage operation run status')" />
 
         <template v-else>
-            <BAlert show :variant="stateVariant">
+            <BAlert show variant="secondary">
                 <div class="d-flex align-items-center flex-wrap">
                     <strong class="mr-2">{{ localize("State:") }}</strong>
-                    <BBadge :variant="stateVariant" class="mr-3">{{ run.state }}</BBadge>
+                    <StorageOperationRunStateBadge
+                        class="mr-3"
+                        :state="run.state"
+                        :failed-count="run.failed_count"
+                        :skipped-count="run.skipped_count" />
                     <span class="mr-3">
                         <strong>{{ localize("Mode:") }}</strong> {{ run.mode }}
                     </span>
@@ -247,21 +224,12 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mb-3">
-                <div
-                    class="progress storage-run-summary-progress"
-                    role="progressbar"
-                    aria-valuemin="0"
-                    aria-valuemax="100">
-                    <div class="progress-bar bg-success" :style="{ width: `${succeededPercent}%` }">
-                        {{ succeededPercent > 7 ? `${succeededPercent}%` : "" }}
-                    </div>
-                    <div class="progress-bar bg-danger" :style="{ width: `${failedPercent}%` }">
-                        {{ failedPercent > 7 ? `${failedPercent}%` : "" }}
-                    </div>
-                    <div class="progress-bar bg-warning text-dark" :style="{ width: `${skippedPercent}%` }">
-                        {{ skippedPercent > 7 ? `${skippedPercent}%` : "" }}
-                    </div>
-                </div>
+                <StorageOperationOutcomeProgress
+                    :total-count="run.total_count"
+                    :succeeded-count="run.succeeded_count"
+                    :failed-count="run.failed_count"
+                    :skipped-count="run.skipped_count"
+                    height-class="storage-operation-progress-md" />
             </div>
 
             <BAlert v-if="!isTerminal" show variant="info">
@@ -333,10 +301,6 @@ onBeforeUnmount(() => {
 .run-item-filter {
     min-width: 280px;
     max-width: 520px;
-}
-
-.storage-run-summary-progress {
-    height: 1rem;
 }
 
 :deep(.run-item-message) {
