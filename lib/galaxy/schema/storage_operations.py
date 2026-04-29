@@ -63,6 +63,7 @@ class DatasetStorageOperationFailureReasonCode(str, Enum):
     missing_source_object_store = "missing_source_object_store"
     already_in_target = "already_in_target"
     target_quota_exceeded = "target_quota_exceeded"
+    shared_dataset = "shared_dataset"
     insufficient_permissions = "insufficient_permissions"
     dataset_in_use = "dataset_in_use"
     checksum_verification_failed = "checksum_verification_failed"

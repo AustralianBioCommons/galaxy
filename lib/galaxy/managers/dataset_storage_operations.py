@@ -63,11 +63,23 @@ class DatasetStorageOperationManager:
                 "Dataset is already in the requested object store.",
             )
 
-        can_change = bool(user) and security_agent.can_change_object_store_id(user, dataset)
-        if not can_change:
+        if dataset.library_associations:
+            return (
+                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
+                "Library datasets are not eligible for object store changes.",
+            )
+
+        if user is None:
             return (
                 DatasetStorageOperationFailureReasonCode.insufficient_permissions,
                 "Dataset is not eligible for object store changes.",
+            )
+
+        can_change = security_agent.can_change_object_store_id(user, dataset)
+        if not can_change:
+            return (
+                DatasetStorageOperationFailureReasonCode.shared_dataset,
+                "Dataset is referenced by histories you do not own and cannot be moved.",
             )
 
         ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
@@ -150,12 +162,24 @@ class DatasetStorageOperationManager:
             return None
         return self.object_store.get_device_source_map().get_device_id(object_store_id)
 
+    def _is_private_for_dataset(self, dataset: Dataset) -> Optional[bool]:
+        try:
+            return self.object_store.is_private(dataset)
+        except Exception:
+            return None
+
+    def _is_private_for_object_store_id(self, object_store_id: str) -> Optional[bool]:
+        try:
+            proxy = SimpleNamespace(object_store_id=object_store_id)
+            return self.object_store.is_private(proxy)
+        except Exception:
+            return None
+
     def create_operation_snapshot(
         self,
         sa_session: galaxy_scoped_session,
         history_id: int,
         user_id: int,
-        mode: StorageOperationMode,
         target_object_store_id: str,
         resolved_dataset_ids: list[int],
         eligible_dataset_ids: list[int],

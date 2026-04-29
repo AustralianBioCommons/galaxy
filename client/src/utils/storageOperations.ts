@@ -39,6 +39,10 @@ const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode,
         label: "Target quota exceeded",
         description: "The operation would exceed the target storage quota.",
     },
+    shared_dataset: {
+        label: "Shared dataset",
+        description: "This dataset is referenced by histories you do not own and cannot be moved.",
+    },
     insufficient_permissions: {
         label: "Insufficient permissions",
         description: "You do not have permission to move this dataset to a different storage location.",

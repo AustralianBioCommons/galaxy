@@ -11367,6 +11367,7 @@ export interface components {
             | "missing_source_object_store"
             | "already_in_target"
             | "target_quota_exceeded"
+            | "shared_dataset"
             | "insufficient_permissions"
             | "dataset_in_use"
             | "checksum_verification_failed"
