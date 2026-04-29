@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import (
     Any,
@@ -52,6 +53,7 @@ from galaxy.managers.context import (
     ProvidesHistoryContext,
     ProvidesUserContext,
 )
+from galaxy.managers.dataset_storage_operations import DatasetStorageOperationManager
 from galaxy.managers.genomes import GenomesManager
 from galaxy.managers.history_contents import (
     HistoryContentsFilters,
@@ -97,7 +99,6 @@ from galaxy.schema.schema import (
     CollectionSourceType,
     CreateNewCollectionPayload,
     DatasetAssociationRoles,
-    DatasetStorageOperationFailureReasonCode,
     DeleteHistoryContentPayload,
     EncodedHistoryContentItem,
     HistoryContentBulkOperationPayload,
@@ -112,6 +113,15 @@ from galaxy.schema.schema import (
     JobSourceType,
     MaterializeDatasetInstanceRequest,
     Model,
+    StoreContentSource,
+    StoreExportPayload,
+    TagOperationParams,
+    UpdateDatasetPermissionsPayload,
+    UpdateHistoryContentsBatchPayload,
+    WriteStoreToPayload,
+)
+from galaxy.schema.storage_operations import (
+    DatasetStorageOperationFailureReasonCode,
     StorageOperationEligibilityState,
     StorageOperationEligibilitySummary,
     StorageOperationEstimateSummary,
@@ -127,12 +137,6 @@ from galaxy.schema.schema import (
     StorageOperationRunState,
     StorageOperationRunSummary,
     StorageOperationSelectionCounts,
-    StoreContentSource,
-    StoreExportPayload,
-    TagOperationParams,
-    UpdateDatasetPermissionsPayload,
-    UpdateHistoryContentsBatchPayload,
-    WriteStoreToPayload,
 )
 from galaxy.schema.tasks import (
     CopyDatasetsPayload,
@@ -160,6 +164,17 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 DatasetDetailsType = Union[set[DecodedDatabaseIdField], Literal["all"]]
+
+
+@dataclass
+class StorageOperationPreviewComputation:
+    eligible_dataset_ids: list[int]
+    eligibility_items: list[StorageOperationPreviewItemResult]
+    eligible_count: int
+    ineligible_count: int
+    bytes_to_transfer: int
+    target_quota_delta: int
+    quota_delta_by_source: dict[str, int]
 
 
 class HistoryContentsIndexParams(Model):
@@ -325,6 +340,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         self.short_term_storage_allocator = short_term_storage_allocator
         self.genomes_manager = genomes_manager
         self.object_store = object_store
+        self.storage_operation_manager = DatasetStorageOperationManager(object_store)
 
     def index(
         self,
@@ -777,13 +793,90 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         history = self.history_manager.get_mutable(history_id, user, current_history=trans.history)
         filters = self.history_contents_filters.parse_query_filters(filter_query_params)
         if payload.items:
-            contents = self._get_contents_by_item_list(trans, history, payload.items)
+            parsed_items = [HistoryContentItem.model_validate(item) for item in payload.items]
+            contents = self._get_contents_by_item_list(trans, history, parsed_items)
         else:
             contents = self.history_contents_manager.contents(history, filters)
 
         selected_items_count = len(contents)
         unique_datasets, expanded_leaf_count = self._resolve_unique_datasets_from_contents(contents)
+        preview = self._compute_storage_operation_preview(
+            trans=trans,
+            user=user,
+            unique_datasets=unique_datasets,
+            mode=payload.mode,
+            target_object_store_id=payload.target_object_store_id,
+        )
 
+        snapshot = self.storage_operation_manager.create_operation_snapshot(
+            sa_session=trans.sa_session,
+            history_id=history.id,
+            user_id=user.id,
+            mode=payload.mode,
+            target_object_store_id=payload.target_object_store_id,
+            resolved_dataset_ids=list(unique_datasets.keys()),
+            eligible_dataset_ids=preview.eligible_dataset_ids,
+            snapshot_ttl=self._storage_snapshot_ttl,
+        )
+        expires_at = snapshot.expires_at
+
+        warnings: list[str] = []
+        if not payload.items:
+            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
+
+        quota_failure_message = self._validate_target_quota_preflight(
+            trans,
+            user,
+            payload.target_object_store_id,
+            preview.target_quota_delta,
+        )
+        if quota_failure_message:
+            preview = self._apply_storage_quota_preflight_failure(preview, quota_failure_message)
+            warnings.append(quota_failure_message)
+
+        return StorageOperationPreviewResponse(
+            snapshot_id=snapshot.id,
+            selection_counts=StorageOperationSelectionCounts(
+                selected_items_count=selected_items_count,
+                expanded_leaf_count=expanded_leaf_count,
+                unique_dataset_count=len(unique_datasets),
+            ),
+            eligibility=StorageOperationEligibilitySummary(
+                eligible_count=preview.eligible_count,
+                ineligible_count=preview.ineligible_count,
+                items=preview.eligibility_items,
+            ),
+            estimates=StorageOperationEstimateSummary(
+                bytes_to_transfer=preview.bytes_to_transfer,
+                quota_delta_by_source=preview.quota_delta_by_source,
+            ),
+            warnings=warnings,
+            expires_at=expires_at,
+        )
+
+    def _validate_target_quota_preflight(
+        self,
+        trans: ProvidesHistoryContext,
+        user: User,
+        target_object_store_id: str,
+        target_quota_delta: int,
+    ) -> Optional[str]:
+        return self.storage_operation_manager.validate_target_quota_projection(
+            trans.app.quota_agent,
+            user,
+            target_object_store_id,
+            target_quota_delta,
+            phase_label="before execution",
+        )
+
+    def _compute_storage_operation_preview(
+        self,
+        trans: ProvidesHistoryContext,
+        user: User,
+        unique_datasets: dict[int, Dataset],
+        mode: StorageOperationMode,
+        target_object_store_id: str,
+    ) -> StorageOperationPreviewComputation:
         eligible_dataset_ids: list[int] = []
         eligibility_items: list[StorageOperationPreviewItemResult] = []
         eligible_count = 0
@@ -792,39 +885,39 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         target_quota_delta = 0
         quota_delta_by_source: dict[str, int] = {}
         quota_source_map = self.object_store.get_quota_source_map()
-        device_source_map = self.object_store.get_device_source_map()
 
         for dataset_id, dataset in unique_datasets.items():
-            reason = self._validate_dataset_for_mode(trans, dataset, payload.mode, payload.target_object_store_id)
+            reason = self.storage_operation_manager.validate_dataset_for_mode(
+                trans.app.security_agent,
+                user,
+                dataset,
+                mode,
+                target_object_store_id,
+            )
             if reason is None:
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
                 dataset_size = int(dataset.get_total_size() or 0)
-                source_object_store_id = dataset.object_store_id
-                source_device_id = (
-                    device_source_map.get_device_id(source_object_store_id) if source_object_store_id else None
-                )
-                target_device_id = device_source_map.get_device_id(payload.target_object_store_id)
-                if payload.mode == StorageOperationMode.copy or (
-                    payload.mode == StorageOperationMode.move and source_device_id != target_device_id
-                ):
+                if self.storage_operation_manager.requires_data_transfer(dataset, mode, target_object_store_id):
                     bytes_to_transfer += dataset_size
+
                 eligibility_items.append(
                     StorageOperationPreviewItemResult(
                         dataset_id=dataset_id,
                         state=StorageOperationEligibilityState.eligible,
                     )
                 )
+
                 old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
-                new_label = quota_source_map.get_quota_source_label(payload.target_object_store_id) or "default"
+                new_label = quota_source_map.get_quota_source_label(target_object_store_id) or "default"
                 if old_label != new_label:
                     key = f"{old_label}->{new_label}"
                     quota_delta_by_source[key] = quota_delta_by_source.get(key, 0) + dataset_size
 
                 source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
-                target_quota_label = quota_source_map.get_quota_source_label(payload.target_object_store_id)
-                target_quota_delta += self._target_quota_delta_for_mode(
-                    payload.mode,
+                target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
+                target_quota_delta += self.storage_operation_manager.target_quota_delta_for_mode(
+                    mode,
                     dataset_size,
                     source_quota_label,
                     target_quota_label,
@@ -841,117 +934,49 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
                     )
                 )
 
-        expires_at = now() + self._storage_snapshot_ttl
-        snapshot = DatasetStorageOperationSnapshot(
-            history_id=history.id,
-            user_id=user.id,
-            mode=payload.mode,
-            target_object_store_id=payload.target_object_store_id,
-            resolved_dataset_ids=list(unique_datasets.keys()),
+        return StorageOperationPreviewComputation(
             eligible_dataset_ids=eligible_dataset_ids,
-            expires_at=expires_at,
-        )
-        trans.sa_session.add(snapshot)
-        trans.sa_session.commit()
-
-        warnings: list[str] = []
-        if not payload.items:
-            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
-
-        quota_failure_message = self._validate_target_quota_preflight(
-            trans,
-            user,
-            payload.target_object_store_id,
-            target_quota_delta,
-        )
-        if quota_failure_message:
-            eligibility_items = [
-                StorageOperationPreviewItemResult(
-                    dataset_id=item.dataset_id,
-                    state=(
-                        StorageOperationEligibilityState.ineligible
-                        if item.state == StorageOperationEligibilityState.eligible
-                        else item.state
-                    ),
-                    reason_code=(
-                        DatasetStorageOperationFailureReasonCode.target_quota_exceeded
-                        if item.state == StorageOperationEligibilityState.eligible
-                        else item.reason_code
-                    ),
-                    message=(
-                        quota_failure_message
-                        if item.state == StorageOperationEligibilityState.eligible
-                        else item.message
-                    ),
-                )
-                for item in eligibility_items
-            ]
-            warnings.append(quota_failure_message)
-            eligible_count = 0
-            ineligible_count = len(eligibility_items)
-
-        return StorageOperationPreviewResponse(
-            snapshot_id=snapshot.id,
-            selection_counts=StorageOperationSelectionCounts(
-                selected_items_count=selected_items_count,
-                expanded_leaf_count=expanded_leaf_count,
-                unique_dataset_count=len(unique_datasets),
-            ),
-            eligibility=StorageOperationEligibilitySummary(
-                eligible_count=eligible_count,
-                ineligible_count=ineligible_count,
-                items=eligibility_items,
-            ),
-            estimates=StorageOperationEstimateSummary(
-                bytes_to_transfer=bytes_to_transfer,
-                quota_delta_by_source=quota_delta_by_source,
-            ),
-            warnings=warnings,
-            expires_at=expires_at,
+            eligibility_items=eligibility_items,
+            eligible_count=eligible_count,
+            ineligible_count=ineligible_count,
+            bytes_to_transfer=bytes_to_transfer,
+            target_quota_delta=target_quota_delta,
+            quota_delta_by_source=quota_delta_by_source,
         )
 
-    def _target_quota_delta_for_mode(
+    def _apply_storage_quota_preflight_failure(
         self,
-        mode: StorageOperationMode,
-        dataset_size: int,
-        source_quota_label: Optional[str],
-        target_quota_label: Optional[str],
-    ) -> int:
-        if mode == StorageOperationMode.copy:
-            return dataset_size
-        if target_quota_label is None:
-            return 0
-        if source_quota_label == target_quota_label:
-            return 0
-        return dataset_size
-
-    def _validate_target_quota_preflight(
-        self,
-        trans: ProvidesHistoryContext,
-        user: User,
-        target_object_store_id: str,
-        target_quota_delta: int,
-    ) -> Optional[str]:
-        if target_quota_delta <= 0:
-            return None
-
-        quota_source_label = self.object_store.get_quota_source_map().get_quota_source_label(target_object_store_id)
-        quota = trans.app.quota_agent.get_quota(user, quota_source_label=quota_source_label)
-        if quota is None:
-            return None
-
-        if quota_source_label is None:
-            usage = int(user.total_disk_usage or 0)
-        else:
-            quota_source_usage = user.quota_source_usage_for(quota_source_label)
-            usage = int(quota_source_usage.disk_usage or 0) if quota_source_usage else 0
-        projected_usage = usage + target_quota_delta
-        if projected_usage > quota:
-            return (
-                "Operation would exceed target quota before execution "
-                f"(projected {projected_usage} bytes > quota {quota} bytes)."
+        preview: StorageOperationPreviewComputation,
+        quota_failure_message: str,
+    ) -> StorageOperationPreviewComputation:
+        remapped_items = [
+            StorageOperationPreviewItemResult(
+                dataset_id=item.dataset_id,
+                state=(
+                    StorageOperationEligibilityState.ineligible
+                    if item.state == StorageOperationEligibilityState.eligible
+                    else item.state
+                ),
+                reason_code=(
+                    DatasetStorageOperationFailureReasonCode.target_quota_exceeded
+                    if item.state == StorageOperationEligibilityState.eligible
+                    else item.reason_code
+                ),
+                message=(
+                    quota_failure_message if item.state == StorageOperationEligibilityState.eligible else item.message
+                ),
             )
-        return None
+            for item in preview.eligibility_items
+        ]
+        return StorageOperationPreviewComputation(
+            eligible_dataset_ids=preview.eligible_dataset_ids,
+            eligibility_items=remapped_items,
+            eligible_count=0,
+            ineligible_count=len(remapped_items),
+            bytes_to_transfer=preview.bytes_to_transfer,
+            target_quota_delta=preview.target_quota_delta,
+            quota_delta_by_source=preview.quota_delta_by_source,
+        )
 
     def storage_operation_execute(
         self,
@@ -967,20 +992,12 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         if snapshot.user_id != user.id:
             raise exceptions.RequestParameterInvalidException("Snapshot does not belong to the current user.")
 
-        run = DatasetStorageOperationRun(
-            snapshot_id=snapshot.id,
-            history_id=history.id,
-            user_id=user.id,
-            mode=snapshot.mode,
-            target_object_store_id=snapshot.target_object_store_id,
-            state=StorageOperationRunState.pending.value,
+        run = self.storage_operation_manager.create_operation_run(
+            sa_session=trans.sa_session,
+            snapshot=snapshot,
             skip_ineligible=payload.execution_policy.skip_ineligible,
         )
-        trans.sa_session.add(run)
         resolved_dataset_ids = snapshot.resolved_dataset_ids
-        run.total_count = len(resolved_dataset_ids)
-        trans.sa_session.add(run)
-        trans.sa_session.commit()
 
         task_result = bulk_move_storage.delay(
             run_db_id=run.id,
@@ -1182,99 +1199,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
                         unique_datasets[hda_dataset.id] = hda_dataset
 
         return unique_datasets, expanded_leaf_count
-
-    def _validate_dataset_for_mode(
-        self,
-        trans: ProvidesHistoryContext,
-        dataset: Dataset,
-        mode: StorageOperationMode,
-        target_object_store_id: str,
-    ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
-        if mode == StorageOperationMode.move:
-            return self._validate_move_dataset(trans, dataset, target_object_store_id)
-        return self._validate_copy_dataset(trans, dataset, target_object_store_id)
-
-    def _validate_move_dataset(
-        self,
-        trans: ProvidesHistoryContext,
-        dataset: Dataset,
-        target_object_store_id: str,
-    ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
-        device_source_map = self.object_store.get_device_source_map()
-        target_device_id = device_source_map.get_device_id(target_object_store_id)
-        if target_device_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.invalid_target_object_store,
-                f"Target object store '{target_object_store_id}' is invalid.",
-            )
-
-        source_object_store_id = dataset.object_store_id
-        if source_object_store_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.missing_source_object_store,
-                "Dataset does not define a source object store.",
-            )
-        if source_object_store_id == target_object_store_id:
-            return (
-                DatasetStorageOperationFailureReasonCode.already_in_target,
-                "Dataset is already in the requested object store.",
-            )
-
-        if not trans.app.security_agent.can_change_object_store_id(trans.user, dataset):
-            return (
-                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
-                "Dataset is not eligible for object store changes.",
-            )
-
-        ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
-        if callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
-            return (
-                DatasetStorageOperationFailureReasonCode.dataset_in_use,
-                "Dataset is currently used by an active job.",
-            )
-
-        return None
-
-    def _validate_copy_dataset(
-        self,
-        trans: ProvidesHistoryContext,
-        dataset: Dataset,
-        target_object_store_id: str,
-    ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
-        device_source_map = self.object_store.get_device_source_map()
-        target_device_id = device_source_map.get_device_id(target_object_store_id)
-        if target_device_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.invalid_target_object_store,
-                f"Target object store '{target_object_store_id}' is invalid.",
-            )
-
-        source_object_store_id = dataset.object_store_id
-        if source_object_store_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.missing_source_object_store,
-                "Dataset does not define a source object store.",
-            )
-        if source_object_store_id == target_object_store_id:
-            return (
-                DatasetStorageOperationFailureReasonCode.already_in_target,
-                "Dataset is already in the requested object store.",
-            )
-
-        if not trans.app.security_agent.can_change_object_store_id(trans.user, dataset):
-            return (
-                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
-                "Dataset is not eligible for object store changes.",
-            )
-
-        ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
-        if callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
-            return (
-                DatasetStorageOperationFailureReasonCode.dataset_in_use,
-                "Dataset is currently used by an active job.",
-            )
-
-        return None
 
     def _get_storage_snapshot(
         self, trans: ProvidesHistoryContext, snapshot_id: DecodedDatabaseIdField

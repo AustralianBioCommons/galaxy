@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from enum import Enum
 from typing import (
+    Callable,
     cast,
     NamedTuple,
     Optional,
@@ -41,6 +42,7 @@ from galaxy.exceptions import (
 from galaxy.managers.markdown_util import to_html
 from galaxy.managers.sse_dispatch import SSEEventDispatcher
 from galaxy.model import (
+    DatasetStorageOperationRun,
     GroupRoleAssociation,
     Notification,
     User,
@@ -72,6 +74,10 @@ from galaxy.schema.notifications import (
     UserNotificationUpdateRequest,
 )
 from galaxy.schema.schema import AsyncTaskResultSummary
+from galaxy.schema.storage_operations import (
+    StorageOperationExecutionResult,
+    StorageOperationRunState,
+)
 from galaxy.util import now
 
 log = logging.getLogger(__name__)
@@ -184,6 +190,57 @@ class NotificationManager:
         self._notify_users_via_sse(user_ids, notification)
 
         return notification, notifications_sent
+
+    def send_storage_operation_notification(
+        self,
+        user_id: int,
+        run: DatasetStorageOperationRun,
+        execution_result: StorageOperationExecutionResult,
+        encode_id: Callable[[int], str],
+    ) -> tuple[Optional[Notification], int]:
+        """Create and send a storage operation notification to a single user."""
+        encoded_history_id = encode_id(run.history_id)
+        encoded_run_id = encode_id(run.id)
+        relative_run_url = f"/histories/{encoded_history_id}/storage/runs/{encoded_run_id}"
+        galaxy_url = getattr(self.config, "galaxy_infrastructure_url", None)
+        run_url = f"{galaxy_url}{relative_run_url}" if galaxy_url else relative_run_url
+
+        if execution_result.state == StorageOperationRunState.failed:
+            variant = NotificationVariant.urgent
+        elif run.failed_count > 0 or run.skipped_count > 0:
+            variant = NotificationVariant.warning
+        else:
+            variant = NotificationVariant.info
+
+        notification_request = NotificationCreateRequest(
+            recipients=NotificationRecipients.model_construct(user_ids=[user_id]),
+            notification=NotificationCreateData(
+                source="galaxy",
+                category=PersonalNotificationCategory.storage_operation,
+                variant=variant,
+                publication_time=None,
+                expiration_time=None,
+                content=StorageOperationNotificationContent.model_construct(
+                    subject=(
+                        "Storage operation completed"
+                        if execution_result.state == StorageOperationRunState.completed
+                        else "Storage operation failed"
+                    ),
+                    message=execution_result.message,
+                    history_id=encoded_history_id,
+                    run_id=encoded_run_id,
+                    run_url=run_url,
+                    mode=run.mode,
+                    state=execution_result.state,
+                    total_count=run.total_count,
+                    succeeded_count=run.succeeded_count,
+                    failed_count=run.failed_count,
+                    skipped_count=run.skipped_count,
+                ),
+            ),
+            galaxy_url=galaxy_url,
+        )
+        return self.send_notification_to_recipients(notification_request)
 
     def send_notification_internal(
         self, request: NotificationCreateRequest, force_sync: bool = False

@@ -52,16 +52,18 @@ from galaxy.schema.schema import (
     HistoryContentType,
     MaterializeDatasetInstanceAPIRequest,
     MaterializeDatasetInstanceRequest,
+    StoreExportPayload,
+    UpdateHistoryContentsBatchPayload,
+    UpdateHistoryContentsPayload,
+    WriteStoreToPayload,
+)
+from galaxy.schema.storage_operations import (
     StorageOperationExecuteRequest,
     StorageOperationExecuteResponse,
     StorageOperationPreviewRequest,
     StorageOperationPreviewResponse,
     StorageOperationRunItemStatus,
     StorageOperationRunResponse,
-    StoreExportPayload,
-    UpdateHistoryContentsBatchPayload,
-    UpdateHistoryContentsPayload,
-    WriteStoreToPayload,
 )
 from galaxy.schema.tasks import (
     CopyDatasetsPayload,

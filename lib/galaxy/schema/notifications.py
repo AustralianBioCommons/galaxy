@@ -25,6 +25,7 @@ from galaxy.schema.generics import (
     PatchGenericPickle,
 )
 from galaxy.schema.schema import Model
+from galaxy.schema.storage_operations import StorageOperationRunState
 from galaxy.schema.types import (
     AbsoluteOrRelativeUrl,
     OffsetNaiveDatetime,
@@ -116,12 +117,6 @@ class NewSharedItemNotificationContent(Model):
     slug: str = Field(..., title="Slug", description="The slug of the shared item. Used for the link to the item.")
 
 
-class StorageOperationNotificationState(str, Enum):
-    started = "started"
-    completed = "completed"
-    failed = "failed"
-
-
 class StorageOperationNotificationContent(MessageNotificationContentBase):
     category: Literal[PersonalNotificationCategory.storage_operation] = PersonalNotificationCategory.storage_operation
     history_id: EncodedDatabaseIdField = Field(..., title="History ID", description="The encoded history ID.")
@@ -132,7 +127,7 @@ class StorageOperationNotificationContent(MessageNotificationContentBase):
         description="Absolute or relative URL to the storage operation run status view.",
     )
     mode: str = Field(..., title="Mode", description="Storage operation mode.")
-    state: StorageOperationNotificationState = Field(
+    state: StorageOperationRunState = Field(
         ...,
         title="State",
         description="The current state of the storage operation run when this notification was generated.",
