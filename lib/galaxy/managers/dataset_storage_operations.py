@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -8,7 +9,6 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import (
