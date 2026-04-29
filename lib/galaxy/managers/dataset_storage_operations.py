@@ -371,6 +371,7 @@ class StorageOperationRunExecutor:
             self.additional_target_usage += quota_delta
             self.succeeded_count += 1
             self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
+            dataset.touch_collection_update_time()
         except ChecksumVerificationError as exc:
             self.failed_count += 1
             self._add_run_item(
