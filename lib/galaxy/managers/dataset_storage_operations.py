@@ -991,7 +991,7 @@ class StorageOperationRunExecutor:
             self.additional_target_usage += quota_delta
             self.succeeded_count += 1
             self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
-            dataset.touch_collection_update_time()
+            self._notify_dataset_update(dataset)
         except ChecksumVerificationError as exc:
             log.warning("Integrity verification failed for run %s dataset %s: %s", self.run.id, dataset.id, exc)
             self._record_transfer_failure(
@@ -1006,6 +1006,10 @@ class StorageOperationRunExecutor:
                 DatasetStorageOperationFailureReasonCode.execution_error,
                 self._EXECUTION_FAILURE_MESSAGE,
             )
+
+    def _notify_dataset_update(self, dataset: Dataset):
+        # Touching the dataset update time will trigger a refresh in the UI
+        dataset.touch_collection_update_time()
 
     def _record_transfer_failure(
         self,
