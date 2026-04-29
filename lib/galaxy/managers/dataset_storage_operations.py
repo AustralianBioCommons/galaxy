@@ -1,49 +1,142 @@
+from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import (
-    Any,
+    Callable,
+    cast,
     Optional,
+    TYPE_CHECKING,
+    Union,
 )
+from uuid import UUID
 
+from sqlalchemy import (
+    false,
+    or_,
+)
+from sqlalchemy.sql.elements import ColumnElement
+
+from galaxy import exceptions
+from galaxy.managers import datasets
 from galaxy.model import (
     Dataset,
     DatasetStorageOperationRun,
     DatasetStorageOperationRunItem,
     DatasetStorageOperationSnapshot,
+    HistoryDatasetAssociation,
+    HistoryDatasetCollectionAssociation,
     User,
 )
 from galaxy.model.orm.now import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.objectstore import BaseObjectStore
+from galaxy.quota import QuotaAgent
+from galaxy.schema.fields import EncodedDatabaseIdField
 from galaxy.schema.storage_operations import (
     DatasetStorageOperationFailureReasonCode,
+    StorageOperationEligibilityState,
+    StorageOperationEligibilitySummary,
+    StorageOperationEstimateSummary,
     StorageOperationExecutionResult,
     StorageOperationMode,
+    StorageOperationPreviewItemResult,
+    StorageOperationPreviewResponse,
+    StorageOperationRunItemState,
+    StorageOperationRunItemStatus,
     StorageOperationRunState,
+    StorageOperationRunSummary,
+    StorageOperationSelectionCounts,
 )
+from galaxy.security import RBACAgent
 from galaxy.util.custom_logging import get_logger
 from galaxy.util.hash_util import (
     HashFunctionNameEnum,
     memory_bound_hexdigest,
 )
+from galaxy.util.search import parse_filters_structured
+
+if TYPE_CHECKING:
+    from galaxy.managers.hdcas import HDCAManager
+    from galaxy.structured_app import MinimalManagerApp
 
 log = get_logger(__name__)
+
+StorageOperationContent = Union[HistoryDatasetAssociation, HistoryDatasetCollectionAssociation]
+DatasetMoveValidationFailure = tuple[DatasetStorageOperationFailureReasonCode, str]
+
+
+@dataclass(frozen=True)
+class DatasetObjectStoreProxy:
+    id: int
+    uuid: UUID | str | None
+    object_store_id: str
+
+
+def _as_encoded_database_id(value: int) -> EncodedDatabaseIdField:
+    return cast(EncodedDatabaseIdField, value)
+
+
+@dataclass
+class StorageOperationPreviewComputation:
+    eligible_dataset_ids: list[int]
+    eligibility_items: list[StorageOperationPreviewItemResult]
+    eligible_count: int
+    ineligible_count: int
+    bytes_to_transfer: int
+    target_quota_delta: int
+    quota_delta_by_source: dict[str, int]
+    privacy_downgrade_count: int
+
+    def with_quota_failure(self, quota_failure_message: str) -> "StorageOperationPreviewComputation":
+        remapped_items = [
+            StorageOperationPreviewItemResult(
+                dataset_id=item.dataset_id,
+                state=(
+                    StorageOperationEligibilityState.ineligible
+                    if item.state == StorageOperationEligibilityState.eligible
+                    else item.state
+                ),
+                reason_code=(
+                    DatasetStorageOperationFailureReasonCode.target_quota_exceeded
+                    if item.state == StorageOperationEligibilityState.eligible
+                    else item.reason_code
+                ),
+                message=(
+                    quota_failure_message if item.state == StorageOperationEligibilityState.eligible else item.message
+                ),
+            )
+            for item in self.eligibility_items
+        ]
+        return StorageOperationPreviewComputation(
+            eligible_dataset_ids=self.eligible_dataset_ids,
+            eligibility_items=remapped_items,
+            eligible_count=0,
+            ineligible_count=len(remapped_items),
+            bytes_to_transfer=self.bytes_to_transfer,
+            target_quota_delta=self.target_quota_delta,
+            quota_delta_by_source=self.quota_delta_by_source,
+            privacy_downgrade_count=self.privacy_downgrade_count,
+        )
 
 
 class DatasetStorageOperationManager:
     """Shared policy checks used by storage operation preview and execution paths."""
 
-    def __init__(self, object_store: BaseObjectStore):
+    def __init__(self, object_store: BaseObjectStore, hdca_manager: Optional["HDCAManager"] = None):
         self.object_store = object_store
+        self._preview_builder = (
+            DatasetStorageOperationPreviewBuilder(self, hdca_manager) if hdca_manager is not None else None
+        )
+        self._run_manager = DatasetStorageOperationRunManager(self)
 
     def validate_dataset_for_move(
         self,
-        security_agent,
+        security_agent: RBACAgent,
         user: Optional[User],
         dataset: Dataset,
         target_object_store_id: str,
-    ) -> Optional[tuple[DatasetStorageOperationFailureReasonCode, str]]:
+    ) -> Optional[DatasetMoveValidationFailure]:
         target_device_id = self._device_id_for_store(target_object_store_id)
         if target_device_id is None:
             return (
@@ -105,7 +198,7 @@ class DatasetStorageOperationManager:
 
     def validate_target_quota_projection(
         self,
-        quota_agent,
+        quota_agent: QuotaAgent,
         user: Optional[User],
         target_object_store_id: str,
         target_quota_delta: int,
@@ -423,8 +516,8 @@ class StorageOperationRunExecutor:
             )
         )
 
-    def _dataset_proxy(self, dataset: Dataset, object_store_id: str) -> Any:
-        return SimpleNamespace(id=dataset.id, uuid=dataset.uuid, object_store_id=object_store_id)
+    def _dataset_proxy(self, dataset: Dataset, object_store_id: str) -> DatasetObjectStoreProxy:
+        return DatasetObjectStoreProxy(id=dataset.id, uuid=dataset.uuid, object_store_id=object_store_id)
 
     def _copy_dataset_to_target_store(self, dataset: Dataset, target_object_store_id: str) -> int:
         source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
