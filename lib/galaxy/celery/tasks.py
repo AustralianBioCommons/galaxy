@@ -34,7 +34,7 @@ from galaxy.datatypes.registry import Registry as DatatypesRegistry
 from galaxy.exceptions import ObjectNotFound
 from galaxy.jobs import MinimalJobWrapper
 from galaxy.managers.collections import DatasetCollectionManager
-from galaxy.managers.dataset_storage_operations import StorageOperationRunExecutor
+from galaxy.managers.dataset_storage_operations import DatasetStorageOperationManager
 from galaxy.managers.datasets import (
     DatasetAssociationManager,
     DatasetManager,
@@ -328,7 +328,8 @@ def bulk_move_storage(
 
     user = sa_session.get(User, run.user_id) if run.user_id else None
     snapshot = sa_session.get(DatasetStorageOperationSnapshot, run.snapshot_id)
-    executor = StorageOperationRunExecutor(
+    storage_operation_manager = DatasetStorageOperationManager(app.object_store)
+    executor = storage_operation_manager.create_run_executor(
         sa_session=sa_session,
         dataset_manager=dataset_manager,
         app=app,
