@@ -1155,6 +1155,40 @@ class StorageOperationRunExecutor:
     def _sha256(self, path: str) -> str:
         return memory_bound_hexdigest(hash_func_name=HashFunctionNameEnum.sha256, path=path)
 
+    def _cleanup_source_dataset_data(
+        self,
+        source_proxy: DatasetObjectStoreProxy,
+        extra_files_path_name: Optional[str],
+    ) -> None:
+        try:
+            self.app.object_store.delete(source_proxy)
+        except Exception:
+            log.warning(
+                "Failed to delete source dataset file after storage move for run %s dataset %s",
+                self.run.id,
+                source_proxy.id,
+                exc_info=True,
+            )
+
+        if not extra_files_path_name:
+            return
+
+        try:
+            if self.app.object_store.exists(source_proxy, dir_only=True, extra_dir=extra_files_path_name):
+                self.app.object_store.delete(
+                    source_proxy,
+                    entire_dir=True,
+                    extra_dir=extra_files_path_name,
+                    dir_only=True,
+                )
+        except Exception:
+            log.warning(
+                "Failed to delete source extra files after storage move for run %s dataset %s",
+                self.run.id,
+                source_proxy.id,
+                exc_info=True,
+            )
+
     def _finalize_cross_device_move(self, dataset: Dataset, target_object_store_id: str):
         old_object_store_id = dataset.object_store_id
         quota_source_map = self.app.object_store.get_quota_source_map()
