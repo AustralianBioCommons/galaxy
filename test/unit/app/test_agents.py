@@ -32,6 +32,7 @@ import pytest
 pydantic_ai = pytest.importorskip("pydantic_ai")
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
@@ -344,7 +345,7 @@ class TestAgentUnitMocked:
         assert "rephrase your question" in response.content.lower()
 
     def test_truncate_message_history_under_limit_returns_unchanged(self):
-        history = [
+        history: list[ModelMessage] = [
             ModelRequest(parts=[UserPromptPart(content="hello")]),
             ModelResponse(parts=[TextPart(content="hi")]),
         ]
@@ -352,7 +353,7 @@ class TestAgentUnitMocked:
         assert truncate_message_history(history, limit=40) is history
 
     def test_truncate_message_history_keeps_first_plus_last_n(self):
-        history = []
+        history: list[ModelMessage] = []
         for i in range(50):
             history.append(ModelRequest(parts=[UserPromptPart(content=f"q{i}")]))
             history.append(ModelResponse(parts=[TextPart(content=f"r{i}")]))
@@ -364,7 +365,7 @@ class TestAgentUnitMocked:
         assert truncated[-10:] == history[-10:]  # most recent preserved
 
     def test_truncate_message_history_at_exact_boundary(self):
-        history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(10)]
+        history: list[ModelMessage] = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(10)]
 
         # At-boundary: returned as-is, not truncated to first+last-10 (which would lose nothing here)
         assert truncate_message_history(history, limit=10) is history
@@ -375,7 +376,7 @@ class TestAgentUnitMocked:
         assert QueryRouterAgent._extract_message_history({"conversation_history": []}) is None
 
     def test_extract_message_history_truncates(self):
-        history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(50)]
+        history: list[ModelMessage] = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(50)]
 
         # Default limit is MAX_HISTORY_MESSAGES (40), so 50 -> 41 (first + last 40)
         result = QueryRouterAgent._extract_message_history({"conversation_history": history})
@@ -435,7 +436,7 @@ class TestAgentUnitMocked:
     async def test_router_passes_message_history_to_run(self):
         """Router should hand the structured history to ``agent.run`` via ``message_history``."""
         router = QueryRouterAgent(self.deps)
-        history = [
+        history: list[ModelMessage] = [
             ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
             ModelResponse(parts=[TextPart(content="You have 3.")]),
         ]
