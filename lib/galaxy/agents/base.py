@@ -302,6 +302,7 @@ class BaseGalaxyAgent(ABC):
 
     agent_type: str
     agent: Agent[GalaxyAgentDependencies, Any]
+    _INTERNAL_CONTEXT_KEYS = frozenset({"run_state"})
 
     def __init__(self, deps: GalaxyAgentDependencies):
         self.deps = deps
@@ -468,7 +469,9 @@ class BaseGalaxyAgent(ABC):
         prompt_parts = [query]
 
         if context:
-            context_str = "\n".join([f"{k}: {v}" for k, v in context.items() if v])
+            context_str = "\n".join(
+                [f"{k}: {v}" for k, v in context.items() if v and k not in self._INTERNAL_CONTEXT_KEYS]
+            )
             if context_str:
                 prompt_parts.insert(0, f"Context:\n{context_str}\n")
 

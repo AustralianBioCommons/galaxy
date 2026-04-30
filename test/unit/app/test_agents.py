@@ -45,6 +45,7 @@ from galaxy.agents import (
     CustomToolAgent,
     ErrorAnalysisAgent,
     GalaxyAgentDependencies,
+    HistoryAgent,
     QueryRouterAgent,
 )
 from galaxy.agents.base import truncate_message_history
@@ -799,6 +800,27 @@ class TestAgentUnitMocked:
         assert "Context from history analysis:" in prompt
         assert "select_first1" in prompt
         assert "AssertionError" in prompt
+
+    @pytest.mark.asyncio
+    async def test_internal_run_state_is_not_rendered_in_default_prompt(self):
+        agent = HistoryAgent(self.deps)
+        run_state = AgentRunState()
+        captured_prompts: list[str] = []
+
+        async def fake_run_with_retry(prompt, *args, **kwargs):
+            captured_prompts.append(prompt)
+            mock_result = mock.Mock()
+            mock_result.output = "History summary"
+            return mock_result
+
+        with mock.patch.object(agent, "_run_with_retry", side_effect=fake_run_with_retry):
+            await agent.process("Summarize my history", context={"run_state": run_state, "history_id": "abc123"})
+
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert "history_id: abc123" in prompt
+        assert "run_state" not in prompt
+        assert "AgentRunState" not in prompt
 
     def _orchestrator_agent(self):
         agent = WorkflowOrchestratorAgent(self.deps)
