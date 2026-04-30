@@ -3,7 +3,7 @@ import { faCheckSquare, faCompress } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 import type { HistorySummaryExtended } from "@/api";
-import type { ActiveStorageRun } from "@/stores/storageOperationsStore";
+import type { StorageRun } from "@/stores/storageOperationsStore";
 import localize from "@/utils/localization";
 
 import GButton from "@/components/BaseComponents/GButton.vue";
@@ -18,7 +18,7 @@ interface Props {
     expandedCount: number;
     showSelection: boolean;
     isMultiViewItem: boolean;
-    activeStorageRuns: ActiveStorageRun[];
+    activeStorageRuns: StorageRun[];
 }
 
 const props = defineProps<Props>();

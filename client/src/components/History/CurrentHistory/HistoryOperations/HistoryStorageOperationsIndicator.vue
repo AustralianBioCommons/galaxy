@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BPopover } from "bootstrap-vue";
+import { BLink, BPopover } from "bootstrap-vue";
+import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 
+import { useUserFlagsStore } from "@/stores/userFlagsStore";
 import localize from "@/utils/localization";
 
 import GButton from "@/components/BaseComponents/GButton.vue";
@@ -17,6 +19,9 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const userFlagsStore = useUserFlagsStore();
+const { showStorageOperationsHelperPopover } = storeToRefs(userFlagsStore);
+
 const isStorageHelperVisible = ref(false);
 
 const hasActiveStorageRuns = computed(() => props.activeStorageRunCount > 0);
@@ -26,10 +31,15 @@ const storageOperationsButtonId = computed(() => `history-storage-operations-${p
 watch(
     [hasActiveStorageRuns, () => props.showSelection],
     ([hasRuns, showSelection]) => {
-        isStorageHelperVisible.value = hasRuns && !showSelection;
+        isStorageHelperVisible.value = hasRuns && !showSelection && showStorageOperationsHelperPopover.value;
     },
     { immediate: true },
 );
+
+function onDoNotShowAgain() {
+    userFlagsStore.ignoreStorageOperationsHelperPopover();
+    isStorageHelperVisible.value = false;
+}
 </script>
 
 <template>
@@ -56,6 +66,7 @@ watch(
             boundary="window">
             <div class="d-flex flex-column flex-gapx-1">
                 <span>{{ localize("Background operations are running. Click this spinner to open status.") }}</span>
+                <BLink @click="onDoNotShowAgain">{{ localize("Do not show this again") }}</BLink>
             </div>
         </BPopover>
     </div>
