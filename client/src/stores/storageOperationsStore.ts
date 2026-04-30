@@ -19,21 +19,22 @@ export type RunStatusUpdate = {
 export const useStorageOperationsStore = defineStore("storageOperationsStore", () => {
     const runs = useUserLocalStorage<StorageRun[]>("storage-operations-active-runs", []);
 
+    function isExpired(run: StorageRun): boolean {
+        const startedAtRaw = run.create_time || run.update_time;
+        if (!startedAtRaw) {
+            return false;
+        }
+
+        const startedAt = Date.parse(startedAtRaw);
+        if (!Number.isFinite(startedAt)) {
+            return false;
+        }
+
+        return Date.now() - startedAt > ACTIVE_RUN_TTL_MS;
+    }
+
     function pruneExpiredRuns() {
-        const now = Date.now();
-        runs.value = runs.value.filter((run) => {
-            const startedAtRaw = run.create_time || run.update_time;
-            if (!startedAtRaw) {
-                return true;
-            }
-
-            const startedAt = Date.parse(startedAtRaw);
-            if (!Number.isFinite(startedAt)) {
-                return true;
-            }
-
-            return now - startedAt <= ACTIVE_RUN_TTL_MS;
-        });
+        runs.value = runs.value.filter((run) => !isExpired(run));
     }
 
     function startRun(run: StorageRun): void {
@@ -62,18 +63,19 @@ export const useStorageOperationsStore = defineStore("storageOperationsStore", (
     }
 
     function getRuns(historyId: string): StorageRun[] {
-        pruneExpiredRuns();
-        return runs.value.filter((run) => run.historyId === historyId);
+        return runs.value.filter((run) => run.historyId === historyId && !isExpired(run));
     }
 
     function getActiveRuns(historyId: string): StorageRun[] {
-        pruneExpiredRuns();
-        return runs.value.filter((run) => run.historyId === historyId && !isTerminalRunState(run.state));
+        return runs.value.filter(
+            (run) => run.historyId === historyId && !isTerminalRunState(run.state) && !isExpired(run),
+        );
     }
 
     function getCompletedRuns(historyId: string): StorageRun[] {
-        pruneExpiredRuns();
-        return runs.value.filter((run) => run.historyId === historyId && isTerminalRunState(run.state));
+        return runs.value.filter(
+            (run) => run.historyId === historyId && isTerminalRunState(run.state) && !isExpired(run),
+        );
     }
 
     function getActiveRunCount(historyId: string): number {
