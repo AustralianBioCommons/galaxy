@@ -1,25 +1,29 @@
 <script setup lang="ts">
 import { BAlert, BButton } from "bootstrap-vue";
+import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
+import Multiselect from "vue-multiselect";
 
 import type { HistoryContentItemBase, UserConcreteObjectStoreModel } from "@/api";
 import type { HistoryReference, StorageOperationPreviewResponse } from "@/api/histories";
 import { useWizard } from "@/components/Common/Wizard/useWizard";
 import { HistoryFilters } from "@/components/History/HistoryFilters";
 import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/model/queries";
+import { QuotaSourceUsageProvider } from "@/components/User/DiskUsage/Quota/QuotaUsageProvider.js";
 import { Toast } from "@/composables/toast";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
+import { errorMessageAsString } from "@/utils/simple-error";
 import { toTrackedStorageRun } from "@/utils/storageOperations";
 
 import GModal from "@/components/BaseComponents/GModal.vue";
 import GenericWizard from "@/components/Common/Wizard/GenericWizard.vue";
 import StorageOperationPreviewReport from "@/components/History/CurrentHistory/HistoryOperations/StorageOperationPreviewReport.vue";
+import LoadingSpan from "@/components/LoadingSpan.vue";
+import ObjectStoreBadges from "@/components/ObjectStore/ObjectStoreBadges.vue";
+import QuotaUsageBar from "@/components/User/DiskUsage/Quota/QuotaUsageBar.vue";
 
-interface StorageTargetOption {
-    object_store_id: string;
-    label: string;
-}
+type SelectableObjectStoreWithId = UserConcreteObjectStoreModel & { object_store_id: string };
 
 const props = defineProps<{
     show: boolean;
@@ -37,6 +41,7 @@ const emit = defineEmits<{
 
 const objectStoreStore = useObjectStoreStore();
 const storageOperationsStore = useStorageOperationsStore();
+const { loading: objectStoresLoading, loadErrorMessage } = storeToRefs(objectStoreStore);
 
 const selectedTargetObjectStoreId = ref<string | null>(null);
 const storagePreview = ref<StorageOperationPreviewResponse | null>(null);
@@ -68,16 +73,21 @@ const showProxy = computed({
     set: (value: boolean) => emit("update:show", value),
 });
 
-const storageTargetOptions = computed<StorageTargetOption[]>(() => {
-    const stores = (objectStoreStore.selectableObjectStores ?? []) as UserConcreteObjectStoreModel[];
+const storageTargetOptions = computed<SelectableObjectStoreWithId[]>(() => {
+    const stores = objectStoreStore.selectableObjectStores ?? [];
     return stores
-        .filter((store): store is UserConcreteObjectStoreModel & { object_store_id: string } =>
-            Boolean(store.object_store_id),
+        .filter(
+            (store): store is UserConcreteObjectStoreModel & { object_store_id: string } =>
+                Boolean(store.object_store_id) && !store.hidden,
         )
-        .map((store) => ({
-            object_store_id: store.object_store_id,
-            label: objectStoreStore.getObjectStoreNameById(store.object_store_id) ?? "Unknown storage location",
-        }));
+        .map((store) => store);
+});
+
+const selectedTargetObjectStore = computed<SelectableObjectStoreWithId | null>(() => {
+    if (!selectedTargetObjectStoreId.value) {
+        return null;
+    }
+    return storageTargetOptions.value.find((s) => s.object_store_id === selectedTargetObjectStoreId.value) ?? null;
 });
 
 // Trigger preview fetch when wizard navigates to the preview step.
@@ -112,6 +122,11 @@ function onTargetStoreChanged() {
     executionError.value = null;
 }
 
+function onTargetStoreSelected(target: SelectableObjectStoreWithId | null) {
+    selectedTargetObjectStoreId.value = target?.object_store_id ?? null;
+    onTargetStoreChanged();
+}
+
 function resetState() {
     wizard.goTo("configure");
     selectedTargetObjectStoreId.value = null;
@@ -135,19 +150,20 @@ async function previewStorageOperation() {
     try {
         const filters = HistoryFilters.getQueryDict(props.filterText);
         const items = getExplicitlySelectedItems();
-        const previewResponse = (await bulkStoragePreview(
+        const previewResponse = await bulkStoragePreview(
             props.history,
             selectedTargetObjectStoreId.value,
             filters,
             items,
-        )) as StorageOperationPreviewResponse | undefined;
+        );
         if (!previewResponse) {
             throw new Error("Failed to preview storage operation.");
         }
         storagePreview.value = previewResponse;
     } catch (error) {
         storagePreview.value = null;
-        previewError.value = error instanceof Error ? error.message : "Failed to preview storage operation.";
+        previewError.value =
+            errorMessageAsString(error) || "An unknown error occurred while previewing the storage operation.";
         Toast.error(previewError.value, "Storage Preview Failed");
         wizard.goTo("configure");
     } finally {
@@ -178,7 +194,8 @@ async function executeStorageOperation() {
         showProxy.value = false;
         resetState();
     } catch (error) {
-        executionError.value = error instanceof Error ? error.message : "Failed to execute storage operation.";
+        executionError.value =
+            errorMessageAsString(error) || "An unknown error occurred while executing the storage operation.";
         Toast.error(executionError.value, "Storage Operation Failed");
     } finally {
         storageExecuting.value = false;
@@ -220,21 +237,55 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
             </template>
 
             <div v-if="wizard.isCurrent('configure')">
-                <div class="mb-2">
-                    <label for="storage-operation-target" class="d-block mb-1">Target storage location</label>
-                    <select
-                        id="storage-operation-target"
-                        v-model="selectedTargetObjectStoreId"
-                        class="form-control"
-                        @change="onTargetStoreChanged">
-                        <option :value="null" disabled>Select target storage location</option>
-                        <option
-                            v-for="target in storageTargetOptions"
-                            :key="target.object_store_id"
-                            :value="target.object_store_id">
-                            {{ target.label }}
-                        </option>
-                    </select>
+                <div class="mb-3">
+                    <label class="d-block mb-1 font-weight-bold" for="storage-target-select">
+                        Target storage location
+                    </label>
+                    <LoadingSpan v-if="objectStoresLoading" message="Loading Galaxy storage information" />
+                    <BAlert v-else-if="loadErrorMessage" show variant="danger" class="mb-2">
+                        {{ loadErrorMessage }}
+                    </BAlert>
+                    <Multiselect
+                        v-else
+                        id="storage-target-select"
+                        :value="selectedTargetObjectStore"
+                        :options="storageTargetOptions"
+                        :allow-empty="false"
+                        :searchable="false"
+                        :show-labels="false"
+                        track-by="object_store_id"
+                        label="name"
+                        placeholder="Select target storage location"
+                        class="w-100 multiselect--soft-option-highlight"
+                        @input="onTargetStoreSelected">
+                        <template v-slot:singleLabel="{ option }">
+                            <span>{{ option.name ?? "Unknown storage location" }}</span>
+                        </template>
+                        <template v-slot:option="{ option }">
+                            <div class="w-100 text-wrap py-1">
+                                <div class="d-flex align-items-start justify-content-between">
+                                    <span class="font-weight-bold">{{
+                                        option.name ?? "Unknown storage location"
+                                    }}</span>
+                                    <ObjectStoreBadges :badges="option.badges" size="lg" class="ml-2 flex-shrink-0" />
+                                </div>
+                                <div v-if="option.description" class="small text-muted mt-1 text-break">
+                                    {{ option.description }}
+                                </div>
+                                <QuotaSourceUsageProvider
+                                    v-if="option.quota && option.quota.enabled"
+                                    v-slot="{ result: quotaUsage, loading: isLoadingUsage }"
+                                    :quota-source-label="option.quota.source">
+                                    <LoadingSpan v-if="isLoadingUsage" message="Loading quota" />
+                                    <QuotaUsageBar
+                                        v-else-if="quotaUsage"
+                                        :quota-usage="quotaUsage"
+                                        :embedded="true"
+                                        class="mt-1" />
+                                </QuotaSourceUsageProvider>
+                            </div>
+                        </template>
+                    </Multiselect>
                 </div>
 
                 <div class="mb-2">
