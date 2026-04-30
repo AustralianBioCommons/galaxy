@@ -76,6 +76,20 @@ class TestAgentUnitMocked:
             job_manager=None,
         )
 
+    @staticmethod
+    def _fast_path_tool(router: QueryRouterAgent, name: str) -> Any:
+        """Look up a registered fast-path tool by name.
+
+        ``router.agent.toolsets[0]`` is typed as ``AbstractToolset`` which
+        doesn't expose ``tools`` -- the concrete ``FunctionToolset`` does, but
+        only as an instance attribute. ``getattr`` keeps mypy quiet without
+        casting.
+        """
+        toolset = router.agent.toolsets[0]
+        tools = getattr(toolset, "tools", None)
+        assert tools is not None, "Router toolset is missing tools mapping"
+        return tools[name]
+
     def test_agent_config_fallback_chain(self):
         # Set up mock config with inference_services
         self.mock_config.inference_services = {
@@ -353,7 +367,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_list_histories(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["list_histories"]
+        tool_def = self._fast_path_tool(router, "list_histories")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.list_histories.return_value = {
@@ -370,7 +384,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_get_history_summary(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["get_history_summary"]
+        tool_def = self._fast_path_tool(router, "get_history_summary")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.get_history_details.return_value = {
@@ -387,7 +401,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_get_history_summary_invalid_id(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["get_history_summary"]
+        tool_def = self._fast_path_tool(router, "get_history_summary")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.get_history_details.side_effect = MalformedId("bad")
@@ -400,7 +414,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_list_workflows(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["list_workflows"]
+        tool_def = self._fast_path_tool(router, "list_workflows")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.list_workflows.return_value = {
@@ -420,7 +434,7 @@ class TestAgentUnitMocked:
         """Empty filter string should pass search=None to the operations manager."""
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["list_workflows"]
+        tool_def = self._fast_path_tool(router, "list_workflows")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.list_workflows.return_value = {
@@ -437,7 +451,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_get_user_info(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["get_user_info"]
+        tool_def = self._fast_path_tool(router, "get_user_info")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.get_user.return_value = {
@@ -459,7 +473,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_search_workflows(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["search_workflows"]
+        tool_def = self._fast_path_tool(router, "search_workflows")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.list_workflows.return_value = {
@@ -478,7 +492,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_search_tools(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["search_tools"]
+        tool_def = self._fast_path_tool(router, "search_tools")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.search_tools.return_value = {
@@ -500,7 +514,7 @@ class TestAgentUnitMocked:
         """The router tool slices oversized results because ops.search_tools has no limit param."""
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["search_tools"]
+        tool_def = self._fast_path_tool(router, "search_tools")
 
         many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(25)]
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
@@ -521,7 +535,7 @@ class TestAgentUnitMocked:
         """Zero/negative limits should fall back to the default, not slice from the tail."""
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["search_tools"]
+        tool_def = self._fast_path_tool(router, "search_tools")
 
         many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(25)]
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
@@ -542,7 +556,7 @@ class TestAgentUnitMocked:
         """Limits above the sanity cap (50) should be clamped down."""
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["search_tools"]
+        tool_def = self._fast_path_tool(router, "search_tools")
 
         many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(80)]
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
@@ -561,7 +575,7 @@ class TestAgentUnitMocked:
     async def test_router_fast_path_get_server_info(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
-        tool_def = router.agent.toolsets[0].tools["get_server_info"]
+        tool_def = self._fast_path_tool(router, "get_server_info")
 
         with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
             MockOps.return_value.get_server_info.return_value = {
