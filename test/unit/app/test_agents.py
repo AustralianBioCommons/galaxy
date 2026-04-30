@@ -405,6 +405,67 @@ class TestAgentUnitMocked:
         assert len(result) == 41
         assert result[0] is history[0]
 
+    def test_extract_message_history_converts_legacy_role_content_dicts(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            ModelResponse,
+            SystemPromptPart,
+            TextPart,
+            UserPromptPart,
+        )
+
+        result = QueryRouterAgent._extract_message_history(
+            {
+                "conversation_history": [
+                    {"role": "system", "content": "Follow Galaxy policy."},
+                    {"role": "user", "content": "What histories do I have?"},
+                    {"role": "assistant", "content": "You have 3 histories."},
+                ]
+            }
+        )
+
+        assert result is not None
+        assert isinstance(result[0], ModelRequest)
+        assert isinstance(result[0].parts[0], SystemPromptPart)
+        assert result[0].parts[0].content == "Follow Galaxy policy."
+        assert isinstance(result[1], ModelRequest)
+        assert isinstance(result[1].parts[0], UserPromptPart)
+        assert result[1].parts[0].content == "What histories do I have?"
+        assert isinstance(result[2], ModelResponse)
+        assert isinstance(result[2].parts[0], TextPart)
+        assert result[2].parts[0].content == "You have 3 histories."
+
+    def test_extract_message_history_ignores_unsupported_legacy_messages(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            UserPromptPart,
+        )
+
+        result = QueryRouterAgent._extract_message_history(
+            {
+                "conversation_history": [
+                    {"role": "tool", "content": "unsupported role"},
+                    {"role": "user", "content": "Keep this one"},
+                    {"role": "assistant"},
+                    object(),
+                ]
+            }
+        )
+
+        assert result is not None
+        assert len(result) == 1
+        assert isinstance(result[0], ModelRequest)
+        assert isinstance(result[0].parts[0], UserPromptPart)
+        assert result[0].parts[0].content == "Keep this one"
+
+    def test_extract_message_history_returns_none_for_unsupported_history_shape(self):
+        assert (
+            QueryRouterAgent._extract_message_history(
+                {"conversation_history": {"role": "user", "content": "Not a message list"}}
+            )
+            is None
+        )
+
     @pytest.mark.asyncio
     async def test_router_passes_message_history_to_run(self):
         """Router should hand the structured history to ``agent.run`` via ``message_history``."""

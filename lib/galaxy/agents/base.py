@@ -9,7 +9,10 @@ from abc import (
     ABC,
     abstractmethod,
 )
-from collections.abc import Callable
+from collections.abc import (
+    Callable,
+    Sequence,
+)
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -37,7 +40,14 @@ if TYPE_CHECKING:
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
@@ -117,6 +127,41 @@ def truncate_message_history(history: list[ModelMessage], limit: int = MAX_HISTO
         limit,
     )
     return [history[0]] + history[-limit:]
+
+
+def _coerce_message_history(history: Sequence[Any]) -> list[ModelMessage]:
+    """Normalize API-formatted and legacy role/content chat history."""
+    messages: list[ModelMessage] = []
+    skipped = 0
+
+    for item in history:
+        if isinstance(item, (ModelRequest, ModelResponse)):
+            messages.append(item)
+            continue
+
+        if not isinstance(item, dict):
+            skipped += 1
+            continue
+
+        role = str(item.get("role", "")).lower()
+        content = item.get("content")
+        if content is None:
+            skipped += 1
+            continue
+
+        if role == "assistant":
+            messages.append(ModelResponse(parts=[TextPart(content=str(content))]))
+        elif role == "user":
+            messages.append(ModelRequest(parts=[UserPromptPart(content=str(content))]))
+        elif role == "system":
+            messages.append(ModelRequest(parts=[SystemPromptPart(content=str(content))]))
+        else:
+            skipped += 1
+
+    if skipped:
+        log.warning("Ignored %d unsupported conversation_history message(s)", skipped)
+
+    return messages
 
 
 def extract_result_content(result: Any) -> str:
@@ -310,7 +355,7 @@ class BaseGalaxyAgent(ABC):
         context: Optional[dict[str, Any]],
         limit: int = MAX_HISTORY_MESSAGES,
     ) -> Optional[list[ModelMessage]]:
-        """Pull ``conversation_history`` out of context and truncate it.
+        """Pull ``conversation_history`` out of context, normalize it, and truncate it.
 
         Returns None when history is missing/empty so callers can pass it
         straight to ``agent.run(..., message_history=...)`` without branching.
@@ -320,7 +365,13 @@ class BaseGalaxyAgent(ABC):
         history = context.get("conversation_history")
         if not history:
             return None
-        return truncate_message_history(history, limit=limit)
+        if isinstance(history, (str, bytes)) or not isinstance(history, Sequence):
+            log.warning("Ignoring unsupported conversation_history value of type %s", type(history).__name__)
+            return None
+        messages = _coerce_message_history(history)
+        if not messages:
+            return None
+        return truncate_message_history(messages, limit=limit)
 
     @staticmethod
     def _strip_history_from_context(context: dict[str, Any]) -> dict[str, Any]:
