@@ -132,6 +132,38 @@ class QueryRouterAgent(BaseGalaxyAgent):
             return await anyio.to_thread.run_sync(partial(ops.list_workflows, search=search))
 
         @agent.tool
+        async def search_workflows(
+            ctx: RunContext[GalaxyAgentDependencies], query: str, limit: int = 10
+        ) -> dict[str, Any]:
+            """Search the user's local/shared Galaxy workflows by name or description.
+
+            Use this for availability questions like "do I have an RNA-seq
+            workflow?" or "find workflows for variant calling". Searches only
+            local/shared workflows, not the public IWC catalog. For
+            recommendations ("which workflow should I use?"), hand off to the
+            tool/recommendation specialist instead.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(partial(ops.list_workflows, search=query, limit=limit))
+
+        @agent.tool
+        async def search_tools(ctx: RunContext[GalaxyAgentDependencies], query: str, limit: int = 10) -> dict[str, Any]:
+            """Search the installed Galaxy toolbox by name/description for availability.
+
+            Use this for "is FastQC installed?", "do we have BWA?", or "show me
+            tools matching 'trim adapters'". Returns matching tools as id, name,
+            description, version. For recommendations ("what tool should I use
+            for my analysis?"), hand off to the tool_recommendation specialist
+            instead.
+            """
+            ops = _ops(ctx)
+            result = await anyio.to_thread.run_sync(partial(ops.search_tools, query))
+            tools = result.get("tools", [])
+            if limit and len(tools) > limit:
+                result = {**result, "tools": tools[:limit], "count": limit, "truncated": True}
+            return result
+
+        @agent.tool
         async def get_user_info(ctx: RunContext[GalaxyAgentDependencies]) -> dict[str, Any]:
             """Return the current authenticated user (id, email, username, admin flag).
 

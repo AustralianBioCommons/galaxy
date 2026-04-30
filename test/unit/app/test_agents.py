@@ -339,6 +339,8 @@ class TestAgentUnitMocked:
             "list_histories",
             "get_history_summary",
             "list_workflows",
+            "search_workflows",
+            "search_tools",
             "get_user_info",
             "get_server_info",
         }
@@ -453,6 +455,66 @@ class TestAgentUnitMocked:
         MockOps.return_value.get_user.assert_called_once_with()
         assert result["username"] == "test_user"
         assert result["email"] == "test@example.com"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_search_workflows(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["search_workflows"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.list_workflows.return_value = {
+                "workflows": [{"id": "wf1", "name": "RNA-seq variant calling"}],
+                "count": 1,
+                "total_count": 1,
+                "pagination": {"limit": 10, "offset": 0},
+            }
+            result = await tool_def.function(ctx, query="rnaseq", limit=10)
+
+        MockOps.return_value.list_workflows.assert_called_once_with(search="rnaseq", limit=10)
+        assert result["count"] == 1
+        assert result["workflows"][0]["name"] == "RNA-seq variant calling"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_search_tools(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["search_tools"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.search_tools.return_value = {
+                "query": "fastqc",
+                "tools": [
+                    {"id": "fastqc", "name": "FastQC", "description": "QC", "version": "0.74"},
+                ],
+                "count": 1,
+            }
+            result = await tool_def.function(ctx, query="fastqc")
+
+        MockOps.return_value.search_tools.assert_called_once_with("fastqc")
+        assert result["count"] == 1
+        assert result["tools"][0]["id"] == "fastqc"
+        assert "truncated" not in result
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_search_tools_truncates(self):
+        """The router tool slices oversized results because ops.search_tools has no limit param."""
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["search_tools"]
+
+        many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(25)]
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.search_tools.return_value = {
+                "query": "trim",
+                "tools": many_tools,
+                "count": 25,
+            }
+            result = await tool_def.function(ctx, query="trim", limit=10)
+
+        assert len(result["tools"]) == 10
+        assert result["count"] == 10
+        assert result["truncated"] is True
 
     @pytest.mark.asyncio
     async def test_router_fast_path_get_server_info(self):

@@ -42,6 +42,8 @@ above) for analysis, interpretation, or multi-step reasoning.
 - `list_histories(limit=10)` -- "What histories do I have?", "Show my recent histories"
 - `get_history_summary(history_id)` -- "Tell me about history abc123" (metadata only; for contents or interpretation, hand off to the history agent)
 - `list_workflows(filter="")` -- "What workflows do I have?", "List my workflows containing 'rnaseq'"
+- `search_workflows(query, limit=10)` -- "Do I have an RNA-seq workflow?", "Find workflows for variant calling" (local workflows only; for IWC catalog or recommendations, hand off to the tool_recommendation specialist)
+- `search_tools(query, limit=10)` -- "Is FastQC installed?", "Do we have BWA?", "What tools match 'trim adapters'?" (availability/inventory only; for "what should I use?" recommendations, hand off to tool_recommendation)
 - `get_user_info()` -- "Who am I?", "What's my username?"
 - `get_server_info()` -- "What version of Galaxy is this?", "What's the server URL?"
 
