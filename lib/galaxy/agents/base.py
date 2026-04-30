@@ -13,7 +13,10 @@ from collections.abc import (
     Callable,
     Sequence,
 )
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    field,
+)
 from typing import (
     Any,
     Literal,
@@ -96,6 +99,7 @@ __all__ = [
     "ActionSuggestion",
     "ActionType",
     "AgentResponse",
+    "AgentRunState",
     "AgentType",
     "BaseGalaxyAgent",
     "ConfidenceLevel",
@@ -256,6 +260,24 @@ class AgentResponse:
         self.suggestions = suggestions or []
         self.metadata = metadata or {}
         self.reasoning = reasoning
+
+
+@dataclass
+class AgentRunState:
+    """Per-invocation state shared across sequential multi-agent flows.
+
+    The orchestrator creates a fresh instance per user query and attaches it
+    to each agent's context. Sequential agents read prior agents' responses
+    from here instead of parsing them out of a text-concatenated prompt.
+    """
+
+    prior_responses: dict[str, "AgentResponse"] = field(default_factory=dict)
+
+    def get_prior(self, agent_type: str) -> Optional["AgentResponse"]:
+        return self.prior_responses.get(agent_type)
+
+    def record(self, agent_type: str, response: "AgentResponse") -> None:
+        self.prior_responses[agent_type] = response
 
 
 @dataclass

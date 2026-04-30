@@ -51,6 +51,11 @@ from galaxy.agents.base import truncate_message_history
 from galaxy.agents.registry import build_default_registry
 
 agent_registry = build_default_registry()
+from galaxy.agents.base import (
+    AgentResponse,
+    AgentRunState,
+    AgentType,
+)
 from galaxy.agents.error_analysis import ErrorAnalysisResult
 from galaxy.agents.orchestrator import (
     AgentPlan,
@@ -641,6 +646,159 @@ class TestAgentUnitMocked:
             # Should fall back gracefully
             assert response.agent_type == "orchestrator"
             assert "having trouble" in response.content
+
+    def test_agent_run_state_record_and_get_prior(self):
+        run_state = AgentRunState()
+        assert run_state.get_prior("history") is None
+
+        history_response = AgentResponse(
+            content="Found a failed job in the BRC history.",
+            confidence=ConfidenceLevel.HIGH,
+            agent_type="history",
+        )
+        run_state.record("history", history_response)
+
+        retrieved = run_state.get_prior("history")
+        assert retrieved is history_response
+        assert retrieved.content == "Found a failed job in the BRC history."
+        assert run_state.get_prior("error_analysis") is None
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_sequential_attaches_run_state_to_context(self):
+        agent = WorkflowOrchestratorAgent(self.deps)
+
+        captured_contexts: list[dict[str, Any]] = []
+
+        async def capture_history(query, context):
+            captured_contexts.append(dict(context))
+            return MagicMock(
+                content="History summary content",
+                agent_type="history",
+                confidence=ConfidenceLevel.HIGH,
+            )
+
+        async def capture_error(query, context):
+            captured_contexts.append(dict(context))
+            return MagicMock(
+                content="Error analysis content",
+                agent_type="error_analysis",
+                confidence=ConfidenceLevel.HIGH,
+            )
+
+        mock_history_agent = MagicMock()
+        mock_history_agent.process = AsyncMock(side_effect=capture_history)
+        mock_error_agent = MagicMock()
+        mock_error_agent.process = AsyncMock(side_effect=capture_error)
+
+        def get_agent_side_effect(agent_type, deps):
+            if agent_type == "history":
+                return mock_history_agent
+            if agent_type == "error_analysis":
+                return mock_error_agent
+            raise ValueError(f"Unexpected agent type: {agent_type}")
+
+        self.deps.get_agent = MagicMock(side_effect=get_agent_side_effect)
+
+        with patch.object(agent, "_get_agent_plan") as mock_get_plan:
+            mock_get_plan.return_value = AgentPlan(
+                agents=["history", "error_analysis"],
+                sequential=True,
+                reasoning="Find failed job, then diagnose it",
+            )
+
+            await agent.process("Why did my job fail?")
+
+        assert len(captured_contexts) == 2
+
+        first_run_state = captured_contexts[0].get("run_state")
+        second_run_state = captured_contexts[1].get("run_state")
+        assert isinstance(first_run_state, AgentRunState)
+        assert isinstance(second_run_state, AgentRunState)
+        # Same run_state instance is reused across the sequential flow
+        assert first_run_state is second_run_state
+
+        # First agent saw an empty run_state; second agent saw history recorded
+        assert second_run_state.get_prior("history") is not None
+        assert second_run_state.get_prior("history").content == "History summary content"
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_sequential_passes_original_query(self):
+        agent = WorkflowOrchestratorAgent(self.deps)
+        original_query = "Why did my job fail?"
+        captured_queries: list[str] = []
+
+        async def capture_query(query, context):
+            captured_queries.append(query)
+            return MagicMock(
+                content="some response",
+                agent_type="history",
+                confidence=ConfidenceLevel.HIGH,
+            )
+
+        mock_history_agent = MagicMock()
+        mock_history_agent.process = AsyncMock(side_effect=capture_query)
+        mock_error_agent = MagicMock()
+        mock_error_agent.process = AsyncMock(side_effect=capture_query)
+
+        def get_agent_side_effect(agent_type, deps):
+            if agent_type == "history":
+                return mock_history_agent
+            if agent_type == "error_analysis":
+                return mock_error_agent
+            raise ValueError(f"Unexpected agent type: {agent_type}")
+
+        self.deps.get_agent = MagicMock(side_effect=get_agent_side_effect)
+
+        with patch.object(agent, "_get_agent_plan") as mock_get_plan:
+            mock_get_plan.return_value = AgentPlan(
+                agents=["history", "error_analysis"],
+                sequential=True,
+                reasoning="Find failed job, then diagnose it",
+            )
+
+            await agent.process(original_query)
+
+        assert len(captured_queries) == 2
+        for q in captured_queries:
+            assert q == original_query
+            assert "Previous analysis from" not in q
+
+    @pytest.mark.asyncio
+    async def test_error_analysis_reads_history_from_run_state(self):
+        self.mock_config.ai_model = "gpt-4o"
+        agent = ErrorAnalysisAgent(self.deps)
+
+        run_state = AgentRunState()
+        history_response = AgentResponse(
+            content="Found failing job 'select_first1' in BRC history; stderr says 'AssertionError'.",
+            confidence=ConfidenceLevel.HIGH,
+            agent_type=AgentType.HISTORY,
+        )
+        run_state.record(AgentType.HISTORY, history_response)
+
+        captured_prompts: list[str] = []
+
+        async def fake_run_with_retry(prompt, *args, **kwargs):
+            captured_prompts.append(prompt)
+            mock_result = mock.Mock()
+            mock_result.output = ErrorAnalysisResult(
+                error_category="tool_failure",
+                error_severity="medium",
+                likely_cause="Bad input",
+                solution_steps=["Re-run"],
+                confidence="high",
+                requires_admin=False,
+            )
+            return mock_result
+
+        with mock.patch.object(agent, "_run_with_retry", side_effect=fake_run_with_retry):
+            await agent.process("Why did my job fail?", context={"run_state": run_state})
+
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert "Context from history analysis:" in prompt
+        assert "select_first1" in prompt
+        assert "AssertionError" in prompt
 
     def _orchestrator_agent(self):
         agent = WorkflowOrchestratorAgent(self.deps)
