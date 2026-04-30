@@ -42,7 +42,7 @@
                 <span v-localize>Change Database/Build</span>
             </b-dropdown-item>
             <b-dropdown-item
-                v-if="isConfigLoaded && config.enable_celery_tasks"
+                v-if="isCeleryEnabled"
                 data-description="change data type"
                 @click="showChangeDatatypeModal = true">
                 <span v-localize>Change data type</span>
@@ -54,7 +54,7 @@
                 <span v-localize>Remove tags</span>
             </b-dropdown-item>
             <b-dropdown-item
-                v-if="isConfigLoaded && config.enable_celery_tasks"
+                v-if="isCeleryEnabled && hasSelectableObjectStores"
                 data-description="storage operation"
                 @click="openStorageOperationModal">
                 <span v-localize>Manage Storage Location</span>
@@ -171,6 +171,7 @@ import { StatelessTags } from "@/components/Tags";
 import { useConfig } from "@/composables/config";
 import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useCollectionBuilderItemSelection } from "@/stores/collectionBuilderItemsStore";
+import { useObjectStoreStore } from "@/stores/objectStoreStore";
 
 import StorageOperationWizardModal from "./StorageOperationWizardModal.vue";
 import GModal from "@/components/BaseComponents/GModal.vue";
@@ -201,6 +202,7 @@ export default {
     setup() {
         const { config, isConfigLoaded } = useConfig(true);
         const { confirm } = useConfirmDialog();
+        const objectStoreStore = useObjectStoreStore();
 
         // Modals for selection operations
         const showChangeDbKeyModal = ref(false);
@@ -223,6 +225,7 @@ export default {
             config,
             confirm,
             isConfigLoaded,
+            objectStoreStore,
             showChangeDbKeyModal,
             showChangeDatatypeModal,
             showAddTagsModal,
@@ -289,6 +292,13 @@ export default {
         },
         noTagsSelected() {
             return this.selectedTags.length === 0;
+        },
+        isCeleryEnabled() {
+            return this.isConfigLoaded && this.config.enable_celery_tasks;
+        },
+        hasSelectableObjectStores() {
+            const stores = this.objectStoreStore.selectableObjectStores;
+            return stores != null && stores.some((s) => s.object_store_id && !s.hidden);
         },
         areAllSelectedPurged() {
             for (const item of this.contentSelection.values()) {
