@@ -23,8 +23,6 @@ import LoadingSpan from "@/components/LoadingSpan.vue";
 import ObjectStoreBadges from "@/components/ObjectStore/ObjectStoreBadges.vue";
 import QuotaUsageBar from "@/components/User/DiskUsage/Quota/QuotaUsageBar.vue";
 
-type SelectableObjectStoreWithId = UserConcreteObjectStoreModel & { object_store_id: string };
-
 const props = defineProps<{
     show: boolean;
     history: HistoryReference;
@@ -73,17 +71,15 @@ const showProxy = computed({
     set: (value: boolean) => emit("update:show", value),
 });
 
-const storageTargetOptions = computed<SelectableObjectStoreWithId[]>(() => {
+const storageTargetOptions = computed<UserConcreteObjectStoreModel[]>(() => {
     const stores = objectStoreStore.selectableObjectStores ?? [];
-    return stores
-        .filter(
-            (store): store is UserConcreteObjectStoreModel & { object_store_id: string } =>
-                Boolean(store.object_store_id) && !store.hidden,
-        )
-        .map((store) => store);
+    return stores.filter(
+        (store): store is UserConcreteObjectStoreModel & { object_store_id: string } =>
+            Boolean(store.object_store_id) && !store.hidden,
+    );
 });
 
-const selectedTargetObjectStore = computed<SelectableObjectStoreWithId | null>(() => {
+const selectedTargetObjectStore = computed<UserConcreteObjectStoreModel | null>(() => {
     if (!selectedTargetObjectStoreId.value) {
         return null;
     }
@@ -122,7 +118,7 @@ function onTargetStoreChanged() {
     executionError.value = null;
 }
 
-function onTargetStoreSelected(target: SelectableObjectStoreWithId | null) {
+function onTargetStoreSelected(target: UserConcreteObjectStoreModel | null) {
     selectedTargetObjectStoreId.value = target?.object_store_id ?? null;
     onTargetStoreChanged();
 }
