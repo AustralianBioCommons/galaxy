@@ -335,7 +335,13 @@ class TestAgentUnitMocked:
             if tools:
                 registered.update(tools.keys())
 
-        expected = {"list_histories", "get_history_summary", "list_workflows", "get_user_info"}
+        expected = {
+            "list_histories",
+            "get_history_summary",
+            "list_workflows",
+            "get_user_info",
+            "get_server_info",
+        }
         assert expected.issubset(registered), f"Missing fast-path tools: {expected - registered}"
         # Keep the surface small -- guardrail against drifting past the curation cap.
         assert len(expected) <= 8
@@ -447,6 +453,34 @@ class TestAgentUnitMocked:
         MockOps.return_value.get_user.assert_called_once_with()
         assert result["username"] == "test_user"
         assert result["email"] == "test@example.com"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_get_server_info(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["get_server_info"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.get_server_info.return_value = {
+                "server": {
+                    "version": "26.0",
+                    "version_minor": "",
+                    "brand": "Galaxy",
+                    "url": "http://localhost:8080",
+                },
+                "capabilities": {
+                    "allow_user_creation": True,
+                    "allow_user_dataset_purge": True,
+                    "enable_quotas": False,
+                    "support_url": "",
+                    "terms_url": "",
+                },
+            }
+            result = await tool_def.function(ctx)
+
+        MockOps.return_value.get_server_info.assert_called_once_with()
+        assert result["server"]["version"] == "26.0"
+        assert result["capabilities"]["enable_quotas"] is False
 
     @pytest.mark.asyncio
     async def test_router_rejects_prompt_injection_query(self):

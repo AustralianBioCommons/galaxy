@@ -141,6 +141,17 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ops = _ops(ctx)
             return await anyio.to_thread.run_sync(ops.get_user)
 
+        @agent.tool
+        async def get_server_info(ctx: RunContext[GalaxyAgentDependencies]) -> dict[str, Any]:
+            """Return Galaxy server metadata (version, brand, URL, capability flags).
+
+            Use this when the user asks "what version of Galaxy is this?",
+            "what's the server URL?", or about server-level capabilities like
+            quotas / user creation / dataset purging.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(ops.get_server_info)
+
     def get_system_prompt(self) -> str:
         prompt_path = Path(__file__).parent / "prompts" / "router.md"
         return prompt_path.read_text()

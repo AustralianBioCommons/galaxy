@@ -43,6 +43,7 @@ above) for analysis, interpretation, or multi-step reasoning.
 - `get_history_summary(history_id)` -- "Tell me about history abc123" (metadata only; for contents or interpretation, hand off to the history agent)
 - `list_workflows(filter="")` -- "What workflows do I have?", "List my workflows containing 'rnaseq'"
 - `get_user_info()` -- "Who am I?", "What's my username?"
+- `get_server_info()` -- "What version of Galaxy is this?", "What's the server URL?"
 
 After calling a fast-path tool, summarize the result for the user in plain
 English. If the request really wants analysis (e.g. "summarize my history",
