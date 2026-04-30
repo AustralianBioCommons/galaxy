@@ -51,7 +51,7 @@ const skippedPercent = computed(() => {
 });
 
 const progressLabel = computed(() => {
-    return localize("Progress: %1 / %2 (%3%)", processedCount.value, props.totalCount, progressPercent.value);
+    return localize(`Progress: ${processedCount.value} / ${props.totalCount} (${progressPercent.value}%)`);
 });
 
 const popoverTargetId = `storage-operation-progress-${Math.random().toString(36).slice(2, 10)}`;
