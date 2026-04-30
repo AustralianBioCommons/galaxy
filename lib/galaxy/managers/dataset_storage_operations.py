@@ -848,6 +848,7 @@ class StorageOperationRunExecutor:
 
     _CHECKSUM_FAILURE_MESSAGE = "Integrity verification failed after copying dataset data to the target store."
     _EXECUTION_FAILURE_MESSAGE = "Storage operation failed due to an internal error."
+    _SOURCE_DATA_MISSING_MESSAGE = "Dataset source data was not found in the object store at execution time."
 
     def __init__(
         self,
@@ -920,7 +921,7 @@ class StorageOperationRunExecutor:
 
     def _process_dataset(self, dataset_id: int):
         dataset = self.sa_session.get(Dataset, dataset_id)
-        if dataset is None:
+        if dataset is None or dataset.purged:
             self.failed_count += 1
             self._add_run_item(
                 dataset_id=dataset_id,
@@ -991,10 +992,18 @@ class StorageOperationRunExecutor:
         )
 
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
+        source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
+        if not self._source_dataset_exists(source_proxy):
+            self._record_transfer_failure(
+                dataset_id,
+                DatasetStorageOperationFailureReasonCode.dataset_not_found,
+                self._SOURCE_DATA_MISSING_MESSAGE,
+            )
+            return
+
         try:
             bytes_processed = 0
             if self.storage_operation_manager.requires_data_transfer(dataset, self.run.target_object_store_id):
-                source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
                 bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
                 self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
                 self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
@@ -1020,6 +1029,12 @@ class StorageOperationRunExecutor:
                 DatasetStorageOperationFailureReasonCode.execution_error,
                 self._EXECUTION_FAILURE_MESSAGE,
             )
+
+    def _source_dataset_exists(self, source_proxy: DatasetObjectStoreProxy) -> bool:
+        try:
+            return bool(self.app.object_store.exists(source_proxy))
+        except Exception:
+            return False
 
     def _notify_dataset_update(self, dataset: Dataset):
         # Touching the dataset update time will trigger a refresh in the UI
