@@ -719,8 +719,9 @@ class TestAgentUnitMocked:
         assert first_run_state is second_run_state
 
         # First agent saw an empty run_state; second agent saw history recorded
-        assert second_run_state.get_prior("history") is not None
-        assert second_run_state.get_prior("history").content == "History summary content"
+        history_prior = second_run_state.get_prior("history")
+        assert history_prior is not None
+        assert history_prior.content == "History summary content"
 
     @pytest.mark.asyncio
     async def test_orchestrator_sequential_passes_original_query(self):
