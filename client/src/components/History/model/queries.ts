@@ -110,7 +110,7 @@ export async function bulkStoragePreview(
     targetObjectStoreId: string,
     filters: QueryFilters,
     items: HistoryContentItem[] = [],
-): Promise<StorageOperationPreviewResponse | undefined> {
+): Promise<StorageOperationPreviewResponse> {
     const { data, error } = await GalaxyApi().POST("/api/histories/{history_id}/contents/bulk/storage/preview", {
         params: {
             path: { history_id: history.id },
