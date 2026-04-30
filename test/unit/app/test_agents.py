@@ -47,6 +47,7 @@ from galaxy.agents.orchestrator import (
     AgentPlan,
     WorkflowOrchestratorAgent,
 )
+from galaxy.exceptions import MalformedId
 from galaxy.schema.agents import ConfidenceLevel
 from galaxy.tool_util_models import UserToolSource
 from galaxy.util.unittest_utils import pytestmark_live_llm
@@ -384,8 +385,6 @@ class TestAgentUnitMocked:
 
     @pytest.mark.asyncio
     async def test_router_fast_path_get_history_summary_invalid_id(self):
-        from galaxy.exceptions import MalformedId
-
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
         tool_def = router.agent.toolsets[0].tools["get_history_summary"]
