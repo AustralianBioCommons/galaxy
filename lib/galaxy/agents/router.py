@@ -159,8 +159,14 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ops = _ops(ctx)
             result = await anyio.to_thread.run_sync(partial(ops.search_tools, query))
             tools = result.get("tools", [])
-            if limit and len(tools) > limit:
-                result = {**result, "tools": tools[:limit], "count": limit, "truncated": True}
+            effective_limit = max(1, min(limit, 50)) if limit and limit > 0 else 10
+            if len(tools) > effective_limit:
+                result = {
+                    **result,
+                    "tools": tools[:effective_limit],
+                    "count": effective_limit,
+                    "truncated": True,
+                }
             return result
 
         @agent.tool

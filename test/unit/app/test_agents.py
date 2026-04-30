@@ -517,6 +517,48 @@ class TestAgentUnitMocked:
         assert result["truncated"] is True
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_limit", [0, -1, -5])
+    async def test_router_fast_path_search_tools_clamps_bad_limits(self, bad_limit):
+        """Zero/negative limits should fall back to the default, not slice from the tail."""
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["search_tools"]
+
+        many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(25)]
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.search_tools.return_value = {
+                "query": "trim",
+                "tools": many_tools,
+                "count": 25,
+            }
+            result = await tool_def.function(ctx, query="trim", limit=bad_limit)
+
+        assert len(result["tools"]) == 10
+        assert result["count"] == 10
+        assert result["truncated"] is True
+        assert result["tools"][0]["id"] == "tool_0"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_search_tools_clamps_oversized_limit(self):
+        """Limits above the sanity cap (50) should be clamped down."""
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["search_tools"]
+
+        many_tools = [{"id": f"tool_{i}", "name": f"Tool {i}", "description": "", "version": "1.0"} for i in range(80)]
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.search_tools.return_value = {
+                "query": "trim",
+                "tools": many_tools,
+                "count": 80,
+            }
+            result = await tool_def.function(ctx, query="trim", limit=10000)
+
+        assert len(result["tools"]) == 50
+        assert result["count"] == 50
+        assert result["truncated"] is True
+
+    @pytest.mark.asyncio
     async def test_router_fast_path_get_server_info(self):
         router = QueryRouterAgent(self.deps)
         ctx = SimpleNamespace(deps=self.deps)
