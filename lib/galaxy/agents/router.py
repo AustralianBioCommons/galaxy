@@ -272,15 +272,13 @@ class QueryRouterAgent(BaseGalaxyAgent):
             return self._validation_error_response(validation_error)
 
         try:
-            if context and context.get("conversation_history"):
-                log.info(f"Router: Conversation has {len(context['conversation_history'])} messages")
+            message_history = self._extract_message_history(context)
+            if message_history:
+                log.info(f"Router: passing {len(message_history)} prior messages as message_history")
             else:
-                log.info("Router: Processing query with no conversation history")
+                log.info("Router: processing query with no conversation history")
 
-            full_query = self._build_query_with_context(query, context)
-            log.info(f"Router: Full query length={len(full_query)} (original={len(query)})")
-
-            result = await self._run_with_retry(full_query)
+            result = await self._run_with_retry(query, message_history=message_history)
             content = extract_result_content(result)
 
             try:
@@ -310,27 +308,6 @@ class QueryRouterAgent(BaseGalaxyAgent):
         except (OSError, ValueError) as e:
             log.warning(f"Router agent error, using fallback: {e}")
             return self._handle_fallback(query, context, str(e))
-
-    def _build_query_with_context(self, query: str, context: Optional[dict[str, Any]]) -> str:
-        if not context or "conversation_history" not in context:
-            return query
-
-        history = context["conversation_history"]
-        if not history:
-            return query
-
-        max_history = 6
-        if len(history) > max_history:
-            log.debug(f"Router: Truncating conversation history from {len(history)} to {max_history} messages")
-
-        history_text = "Previous conversation:\n"
-        for msg in history[-max_history:]:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            history_text += f"{role}: {content}\n"
-        history_text += f"\nCurrent query: {query}"
-
-        return history_text
 
     def _handle_fallback(self, query: str, context: Optional[dict[str, Any]], error_msg: str) -> AgentResponse:
         query_lower = query.lower()

@@ -178,10 +178,12 @@ class ChatAPI:
                 # Build context with conversation history
                 full_context: dict[str, Any] = query_context.copy() if query_context else {}
 
-                # If we have an exchange_id, ALWAYS load conversation history from database (source of truth)
+                # If we have an exchange_id, ALWAYS load conversation history from database (source of truth).
+                # Use structured pydantic-ai message format so the router can pass it through as
+                # ``message_history`` rather than flattening it into a text blob.
                 if exchange_id:
                     db_history = await anyio.to_thread.run_sync(
-                        partial(self.chat_manager.get_chat_history, trans, exchange_id, format_for_pydantic_ai=False)
+                        partial(self.chat_manager.get_chat_history, trans, exchange_id, format_for_pydantic_ai=True)
                     )
                     if db_history:
                         full_context["conversation_history"] = db_history

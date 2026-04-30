@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
@@ -66,6 +67,21 @@ log = logging.getLogger(__name__)
 # Literal inlines enum values in JSON schema, avoiding $defs that vLLM can't handle
 ConfidenceLiteral = Literal["low", "medium", "high"]
 
+MAX_HISTORY_MESSAGES = 40
+"""Cap on prior messages passed as pydantic-ai ``message_history``.
+
+~20 turn-pairs; tool-heavy turns produce 3-5 messages each. Bounds total token
+load while preserving enough recent context to keep multi-turn conversations
+coherent.
+"""
+
+TOOL_HELPER_HISTORY_MESSAGES = 8
+"""Tighter cap when a sub-agent is invoked from inside a `@agent.tool` call.
+
+Tool-context turns burn token budget faster (tool call + tool return +
+follow-up), so we hand the sub-agent a smaller window.
+"""
+
 __all__ = [
     "ActionSuggestion",
     "ActionType",
@@ -78,9 +94,29 @@ __all__ = [
     "extract_structured_output",
     "extract_usage_info",
     "GalaxyAgentDependencies",
+    "MAX_HISTORY_MESSAGES",
     "normalize_llm_text",
     "SimpleGalaxyAgent",
+    "TOOL_HELPER_HISTORY_MESSAGES",
+    "truncate_message_history",
 ]
+
+
+def truncate_message_history(history: list[ModelMessage], limit: int = MAX_HISTORY_MESSAGES) -> list[ModelMessage]:
+    """Cap conversation history at ``limit`` recent messages, preserving the first one.
+
+    Keeps ``history[0]`` -- typically the user's original request, which anchors
+    intent across long conversations -- and the most recent ``limit`` messages.
+    """
+    if len(history) <= limit:
+        return history
+    log.info(
+        "Truncating conversation history from %d to %d messages (first + last %d)",
+        len(history),
+        limit + 1,
+        limit,
+    )
+    return [history[0]] + history[-limit:]
 
 
 def extract_result_content(result: Any) -> str:
@@ -259,15 +295,50 @@ class BaseGalaxyAgent(ABC):
             return self._validation_error_response(validation_error)
 
         try:
-            full_prompt = self._prepare_prompt(query, context or {})
-            result = await self._run_with_retry(full_prompt)
-            return self._format_response(result, query, context or {})
+            ctx = context or {}
+            message_history = self._extract_message_history(ctx)
+            full_prompt = self._prepare_prompt(query, self._strip_history_from_context(ctx))
+            result = await self._run_with_retry(full_prompt, message_history=message_history)
+            return self._format_response(result, query, ctx)
 
         except (UnexpectedModelBehavior, OSError, ValueError) as e:
             log.warning(f"Error in {self.agent_type} agent: {e}")
             return self._get_fallback_response(query, str(e))
 
-    async def _run_with_retry(self, prompt: str, max_retries: int = 3, base_delay: float = 1.0):
+    @staticmethod
+    def _extract_message_history(
+        context: Optional[dict[str, Any]],
+        limit: int = MAX_HISTORY_MESSAGES,
+    ) -> Optional[list[ModelMessage]]:
+        """Pull ``conversation_history`` out of context and truncate it.
+
+        Returns None when history is missing/empty so callers can pass it
+        straight to ``agent.run(..., message_history=...)`` without branching.
+        """
+        if not context:
+            return None
+        history = context.get("conversation_history")
+        if not history:
+            return None
+        return truncate_message_history(history, limit=limit)
+
+    @staticmethod
+    def _strip_history_from_context(context: dict[str, Any]) -> dict[str, Any]:
+        """Drop ``conversation_history`` before rendering context as text.
+
+        ``_prepare_prompt`` stringifies whatever's in the context dict; the raw
+        ``ModelMessage`` repr is noise once we're passing the history through
+        the structured ``message_history`` channel.
+        """
+        return {k: v for k, v in context.items() if k != "conversation_history"}
+
+    async def _run_with_retry(
+        self,
+        prompt: str,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        message_history: Optional[list[ModelMessage]] = None,
+    ):
         """Run the agent with exponential backoff for retryable errors."""
         last_exception = None
 
@@ -278,7 +349,12 @@ class BaseGalaxyAgent(ABC):
 
         for attempt in range(max_retries + 1):
             try:
-                return await self.agent.run(prompt, deps=self.deps, model_settings=model_settings)
+                return await self.agent.run(
+                    prompt,
+                    deps=self.deps,
+                    model_settings=model_settings,
+                    message_history=message_history,
+                )
 
             except Exception as e:
                 last_exception = e
@@ -551,16 +627,7 @@ class BaseGalaxyAgent(ABC):
 
             target_agent = ctx.deps.get_agent(agent_type, ctx.deps)
 
-            full_query = query
-            if context and "conversation_history" in context:
-                history = context["conversation_history"]
-                if history and len(history) > 0:
-                    history_text = "Previous conversation:\n"
-                    for msg in history[-4:]:
-                        role = msg.get("role", "unknown")
-                        content = msg.get("content", "")[:200]
-                        history_text += f"{role}: {content}\n"
-                    full_query = f"{history_text}\nCurrent request: {query}"
+            message_history = self._extract_message_history(context, limit=TOOL_HELPER_HISTORY_MESSAGES)
 
             target_model_settings = {
                 "temperature": target_agent._get_temperature(),
@@ -568,10 +635,11 @@ class BaseGalaxyAgent(ABC):
             }
 
             result = await target_agent.agent.run(
-                full_query,
+                query,
                 deps=ctx.deps,
                 usage=usage or ctx.usage,
                 model_settings=target_model_settings,
+                message_history=message_history,
             )
 
             response_data = extract_result_content(result)

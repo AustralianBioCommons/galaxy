@@ -335,6 +335,123 @@ class TestAgentUnitMocked:
         assert response.confidence == ConfidenceLevel.LOW
         assert "rephrase your question" in response.content.lower()
 
+    def test_truncate_message_history_under_limit_returns_unchanged(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            ModelResponse,
+            TextPart,
+            UserPromptPart,
+        )
+
+        from galaxy.agents.base import truncate_message_history
+
+        history = [
+            ModelRequest(parts=[UserPromptPart(content="hello")]),
+            ModelResponse(parts=[TextPart(content="hi")]),
+        ]
+
+        assert truncate_message_history(history, limit=40) is history
+
+    def test_truncate_message_history_keeps_first_plus_last_n(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            ModelResponse,
+            TextPart,
+            UserPromptPart,
+        )
+
+        from galaxy.agents.base import truncate_message_history
+
+        history = []
+        for i in range(50):
+            history.append(ModelRequest(parts=[UserPromptPart(content=f"q{i}")]))
+            history.append(ModelResponse(parts=[TextPart(content=f"r{i}")]))
+
+        truncated = truncate_message_history(history, limit=10)
+
+        assert len(truncated) == 11  # first + last 10
+        assert truncated[0] is history[0]  # original intent preserved
+        assert truncated[-10:] == history[-10:]  # most recent preserved
+
+    def test_truncate_message_history_at_exact_boundary(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            UserPromptPart,
+        )
+
+        from galaxy.agents.base import truncate_message_history
+
+        history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(10)]
+
+        # At-boundary: returned as-is, not truncated to first+last-10 (which would lose nothing here)
+        assert truncate_message_history(history, limit=10) is history
+
+    def test_extract_message_history_returns_none_for_empty_context(self):
+        assert QueryRouterAgent._extract_message_history(None) is None
+        assert QueryRouterAgent._extract_message_history({}) is None
+        assert QueryRouterAgent._extract_message_history({"conversation_history": []}) is None
+
+    def test_extract_message_history_truncates(self):
+        from pydantic_ai.messages import (
+            ModelRequest,
+            UserPromptPart,
+        )
+
+        history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(50)]
+
+        # Default limit is MAX_HISTORY_MESSAGES (40), so 50 -> 41 (first + last 40)
+        result = QueryRouterAgent._extract_message_history({"conversation_history": history})
+        assert result is not None
+        assert len(result) == 41
+        assert result[0] is history[0]
+
+    @pytest.mark.asyncio
+    async def test_router_passes_message_history_to_run(self):
+        """Router should hand the structured history to ``agent.run`` via ``message_history``."""
+        from pydantic_ai.messages import (
+            ModelRequest,
+            ModelResponse,
+            TextPart,
+            UserPromptPart,
+        )
+
+        router = QueryRouterAgent(self.deps)
+        history = [
+            ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
+            ModelResponse(parts=[TextPart(content="You have 3.")]),
+        ]
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = "Following up: here is more detail."
+            mock_run.return_value = mock_result
+
+            await router.process(
+                "Tell me more about the second one",
+                context={"conversation_history": history},
+            )
+
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            assert kwargs["message_history"] == history
+            # The query itself should not have history pre-pended as a text blob
+            assert args[0] == "Tell me more about the second one"
+
+    @pytest.mark.asyncio
+    async def test_router_runs_without_history_for_fresh_conversation(self):
+        router = QueryRouterAgent(self.deps)
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = "Hi there."
+            mock_run.return_value = mock_result
+
+            await router.process("Hello")
+
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs["message_history"] is None
+
     @pytest.mark.asyncio
     async def test_custom_tool_rejects_prompt_injection_query(self):
         self.mock_config.ai_model = "gpt-4o"
