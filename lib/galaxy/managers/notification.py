@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
 from typing import (
@@ -7,7 +8,6 @@ from typing import (
     Optional,
     Union,
 )
-from collections.abc import Callable
 from urllib.parse import urlparse
 
 from pydantic import (
