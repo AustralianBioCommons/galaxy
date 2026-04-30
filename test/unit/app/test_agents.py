@@ -31,6 +31,13 @@ import pytest
 # Skip entire module if pydantic_ai is not installed
 pydantic_ai = pytest.importorskip("pydantic_ai")
 from pydantic_ai import Agent
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.test import TestModel
 
 from galaxy.agents import (
@@ -39,6 +46,7 @@ from galaxy.agents import (
     GalaxyAgentDependencies,
     QueryRouterAgent,
 )
+from galaxy.agents.base import truncate_message_history
 from galaxy.agents.registry import build_default_registry
 
 agent_registry = build_default_registry()
@@ -336,15 +344,6 @@ class TestAgentUnitMocked:
         assert "rephrase your question" in response.content.lower()
 
     def test_truncate_message_history_under_limit_returns_unchanged(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            ModelResponse,
-            TextPart,
-            UserPromptPart,
-        )
-
-        from galaxy.agents.base import truncate_message_history
-
         history = [
             ModelRequest(parts=[UserPromptPart(content="hello")]),
             ModelResponse(parts=[TextPart(content="hi")]),
@@ -353,15 +352,6 @@ class TestAgentUnitMocked:
         assert truncate_message_history(history, limit=40) is history
 
     def test_truncate_message_history_keeps_first_plus_last_n(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            ModelResponse,
-            TextPart,
-            UserPromptPart,
-        )
-
-        from galaxy.agents.base import truncate_message_history
-
         history = []
         for i in range(50):
             history.append(ModelRequest(parts=[UserPromptPart(content=f"q{i}")]))
@@ -374,13 +364,6 @@ class TestAgentUnitMocked:
         assert truncated[-10:] == history[-10:]  # most recent preserved
 
     def test_truncate_message_history_at_exact_boundary(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            UserPromptPart,
-        )
-
-        from galaxy.agents.base import truncate_message_history
-
         history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(10)]
 
         # At-boundary: returned as-is, not truncated to first+last-10 (which would lose nothing here)
@@ -392,11 +375,6 @@ class TestAgentUnitMocked:
         assert QueryRouterAgent._extract_message_history({"conversation_history": []}) is None
 
     def test_extract_message_history_truncates(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            UserPromptPart,
-        )
-
         history = [ModelRequest(parts=[UserPromptPart(content=f"m{i}")]) for i in range(50)]
 
         # Default limit is MAX_HISTORY_MESSAGES (40), so 50 -> 41 (first + last 40)
@@ -406,14 +384,6 @@ class TestAgentUnitMocked:
         assert result[0] is history[0]
 
     def test_extract_message_history_converts_legacy_role_content_dicts(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            ModelResponse,
-            SystemPromptPart,
-            TextPart,
-            UserPromptPart,
-        )
-
         result = QueryRouterAgent._extract_message_history(
             {
                 "conversation_history": [
@@ -436,11 +406,6 @@ class TestAgentUnitMocked:
         assert result[2].parts[0].content == "You have 3 histories."
 
     def test_extract_message_history_ignores_unsupported_legacy_messages(self):
-        from pydantic_ai.messages import (
-            ModelRequest,
-            UserPromptPart,
-        )
-
         result = QueryRouterAgent._extract_message_history(
             {
                 "conversation_history": [
@@ -469,13 +434,6 @@ class TestAgentUnitMocked:
     @pytest.mark.asyncio
     async def test_router_passes_message_history_to_run(self):
         """Router should hand the structured history to ``agent.run`` via ``message_history``."""
-        from pydantic_ai.messages import (
-            ModelRequest,
-            ModelResponse,
-            TextPart,
-            UserPromptPart,
-        )
-
         router = QueryRouterAgent(self.deps)
         history = [
             ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
