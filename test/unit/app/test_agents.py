@@ -325,6 +325,129 @@ class TestAgentUnitMocked:
         self.deps.get_agent.assert_called_once_with("history", self.deps)
         assert "History summary" in response
 
+    def test_router_registers_fast_path_tools(self):
+        """Router agent should expose the read-only fast-path tools for browsing queries."""
+        router = QueryRouterAgent(self.deps)
+
+        registered = set()
+        for toolset in router.agent.toolsets:
+            tools = getattr(toolset, "tools", None)
+            if tools:
+                registered.update(tools.keys())
+
+        expected = {"list_histories", "get_history_summary", "list_workflows", "get_user_info"}
+        assert expected.issubset(registered), f"Missing fast-path tools: {expected - registered}"
+        # Keep the surface small -- guardrail against drifting past the curation cap.
+        assert len(expected) <= 8
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_list_histories(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["list_histories"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.list_histories.return_value = {
+                "histories": [{"id": "abc", "name": "test history"}],
+                "count": 1,
+            }
+            result = await tool_def.function(ctx, limit=5)
+
+        MockOps.return_value.list_histories.assert_called_once_with(limit=5)
+        assert result["count"] == 1
+        assert result["histories"][0]["name"] == "test history"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_get_history_summary(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["get_history_summary"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.get_history_details.return_value = {
+                "history": {"name": "RNA-seq run"},
+                "history_id": "abc",
+            }
+            result = await tool_def.function(ctx, history_id="abc")
+
+        MockOps.return_value.get_history_details.assert_called_once_with("abc")
+        assert result["history_id"] == "abc"
+        assert result["history"]["name"] == "RNA-seq run"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_get_history_summary_invalid_id(self):
+        from galaxy.exceptions import MalformedId
+
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["get_history_summary"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.get_history_details.side_effect = MalformedId("bad")
+            result = await tool_def.function(ctx, history_id="not-a-real-id")
+
+        assert "error" in result
+        assert "Invalid history_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_list_workflows(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["list_workflows"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.list_workflows.return_value = {
+                "workflows": [{"id": "wf1", "name": "rnaseq"}],
+                "count": 1,
+                "total_count": 1,
+                "pagination": {"limit": 50, "offset": 0},
+            }
+            result = await tool_def.function(ctx, filter="rnaseq")
+
+        MockOps.return_value.list_workflows.assert_called_once_with(search="rnaseq")
+        assert result["count"] == 1
+        assert result["workflows"][0]["name"] == "rnaseq"
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_list_workflows_empty_filter(self):
+        """Empty filter string should pass search=None to the operations manager."""
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["list_workflows"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.list_workflows.return_value = {
+                "workflows": [],
+                "count": 0,
+                "total_count": 0,
+                "pagination": {"limit": 50, "offset": 0},
+            }
+            await tool_def.function(ctx, filter="")
+
+        MockOps.return_value.list_workflows.assert_called_once_with(search=None)
+
+    @pytest.mark.asyncio
+    async def test_router_fast_path_get_user_info(self):
+        router = QueryRouterAgent(self.deps)
+        ctx = SimpleNamespace(deps=self.deps)
+        tool_def = router.agent.toolsets[0].tools["get_user_info"]
+
+        with patch("galaxy.agents.router.AgentOperationsManager") as MockOps:
+            MockOps.return_value.get_user.return_value = {
+                "id": "user-1",
+                "email": "test@example.com",
+                "username": "test_user",
+                "is_admin": False,
+                "active": True,
+                "deleted": False,
+                "create_time": None,
+            }
+            result = await tool_def.function(ctx)
+
+        MockOps.return_value.get_user.assert_called_once_with()
+        assert result["username"] == "test_user"
+        assert result["email"] == "test@example.com"
+
     @pytest.mark.asyncio
     async def test_router_rejects_prompt_injection_query(self):
         router = QueryRouterAgent(self.deps)
