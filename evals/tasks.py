@@ -49,9 +49,13 @@ def make_deps(
             "max_tokens": max_tokens,
         }
     }
+    # MagicMock for trans/user so handoff targets that touch deps.trans.app
+    # (history, error_analysis, tools) don't crash before the model returns.
+    # Real-Galaxy operations still won't work, but routing-decision measurement
+    # survives the handoff chain.
     return GalaxyAgentDependencies(
-        trans=None,
-        user=None,
+        trans=MagicMock(),
+        user=MagicMock(),
         config=config,
         get_agent=_registry.get_agent,
     )
