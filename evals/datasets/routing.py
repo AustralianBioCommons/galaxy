@@ -114,6 +114,69 @@ ROUTING_CASES: list[Case[str, str, dict[str, Any]]] = [
         "Tool usage question",
         requires_galaxy=True,
     ),
+    # Edge cases: ambiguous, multi-intent, implicit, off-topic. The point of
+    # these is to expose router-prompt weaknesses, so some of the expected
+    # answers are debatable on purpose.
+    _case(
+        "edge_greeting_then_align",
+        "Hi! How do I align reads to a reference?",
+        "tool_recommendation",
+        "Greeting wrapper around a tool-discovery question",
+    ),
+    _case(
+        "edge_implicit_failure",
+        "My analysis broke last night, no idea what happened.",
+        "error_analysis",
+        "No 'error' / 'exit code' keywords but it is a failure question",
+    ),
+    _case(
+        "edge_align_intent",
+        "I need to align reads to a reference. What should I use?",
+        "tool_recommendation",
+        "Tool selection by analysis intent",
+    ),
+    _case(
+        "edge_qc_intent",
+        "What's a good tool for FASTQ quality check?",
+        "tool_recommendation",
+        "Tool selection by quality-check intent",
+    ),
+    _case(
+        "edge_wrap_explicit",
+        "Wrap fastp for me as a Galaxy tool.",
+        "custom_tool",
+        "Explicit wrap request -- custom_tool, not tool_recommendation",
+    ),
+    _case(
+        "edge_implicit_bwa_failure",
+        "My BWA run didn't finish.",
+        "error_analysis",
+        "Implicit failure -- no 'failed' / 'error' keyword",
+    ),
+    _case(
+        "edge_workflow_meta",
+        "Should I use a workflow or just run tools one at a time?",
+        "router",
+        "Meta question about Galaxy usage -- router answers directly",
+    ),
+    _case(
+        "edge_off_topic_python",
+        "What's the syntax for Python decorators?",
+        "router",
+        "Off-topic dev question -- router should decline",
+    ),
+    _case(
+        "edge_multi_intent",
+        "Make a samtools sort tool and explain how to use it.",
+        "custom_tool",
+        "Multi-intent: tool creation is the primary action",
+    ),
+    _case(
+        "edge_very_short",
+        "help",
+        "router",
+        "One-word query -- router asks for clarification",
+    ),
 ]
 
 
