@@ -201,3 +201,6 @@ lib/galaxy/agents/gtn/data/gtn_search.db
 .DS_Store
 *.rej
 *~
+
+# Agent eval runner: per-user model config (real keys live in env, but be safe)
+evals/models.yaml

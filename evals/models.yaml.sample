@@ -1,0 +1,12 @@
+# Per-model proxy/key overrides for evals/run_evals.py.
+#
+# Models not listed here use --proxy-url and --api-key (defaults: LiteLLM
+# proxy at http://localhost:4000/v1/ with the local master key).
+#
+# Copy to evals/models.yaml (gitignored) and fill in. api_key_env names the
+# env var to read at runtime; the key never lives in the file.
+
+# Example: Llama-4-Maverick lives on a TACC SambaNova endpoint, not LiteLLM.
+# Llama-4-Maverick-17B-128E-Instruct:
+#   proxy_url: https://ai.tejas.tacc.utexas.edu/v1/
+#   api_key_env: TACC_API_KEY
