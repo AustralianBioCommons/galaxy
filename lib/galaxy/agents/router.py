@@ -6,22 +6,30 @@ Uses pydantic-ai output functions to either:
 - Hand off to error_analysis for job debugging
 - Hand off to custom_tool for explicit tool creation requests
 - Hand off to tool_recommendation for tool discovery
+
+Also exposes a small set of @agent.tool fast-path tools for read-only browsing
+queries (list histories/workflows, get user info, get a history summary) so the
+router can answer those directly without round-tripping through a specialist.
 """
 
 import json
 import logging
+from functools import partial
 from pathlib import Path
 from typing import (
     Any,
     Optional,
 )
 
+import anyio
 from pydantic import ValidationError
 from pydantic_ai import (
     Agent,
     RunContext,
 )
 
+from galaxy.agents.operations import AgentOperationsManager
+from galaxy.exceptions import MalformedId
 from galaxy.schema.agents import ConfidenceLevel
 from .base import (
     AgentResponse,
@@ -56,7 +64,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
         next_step_handoff = self._create_next_step_advisor_handoff()
         orchestrator_handoff = self._create_orchestrator_handoff()
 
-        return Agent(
+        agent: Agent[GalaxyAgentDependencies, str] = Agent(
             self._get_model(),
             deps_type=GalaxyAgentDependencies,
             output_type=[
@@ -70,6 +78,117 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ],
             system_prompt=self.get_system_prompt(),
         )
+
+        self._register_fast_path_tools(agent)
+        return agent
+
+    def _register_fast_path_tools(self, agent: Agent[GalaxyAgentDependencies, str]) -> None:
+        """Register stateless read-only tools that the router can use directly.
+
+        These are only for low-cost browsing queries that map to a single
+        AgentOperationsManager call. Anything that needs domain reasoning,
+        multi-step context building, or structured output should still hand
+        off to the appropriate specialist.
+        """
+
+        def _ops(ctx: RunContext[GalaxyAgentDependencies]) -> AgentOperationsManager:
+            return AgentOperationsManager(app=ctx.deps.trans.app, trans=ctx.deps.trans)
+
+        @agent.tool
+        async def list_histories(ctx: RunContext[GalaxyAgentDependencies], limit: int = 10) -> dict[str, Any]:
+            """List the user's Galaxy histories (most recently updated first).
+
+            Use this for browsing questions like "what histories do I have?" or
+            "list my recent histories". Returns id, name, and summary metadata.
+            For deeper analysis of a specific history, hand off to the history
+            specialist instead.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(partial(ops.list_histories, limit=limit))
+
+        @agent.tool
+        async def get_history_summary(ctx: RunContext[GalaxyAgentDependencies], history_id: str) -> dict[str, Any]:
+            """Get summary metadata for a single history (name, annotation, tags, counts).
+
+            Use this for direct lookups when the user already has a history id.
+            For interpretation of contents, methods sections, or workflow
+            reconstruction, hand off to the history specialist.
+            """
+            ops = _ops(ctx)
+            try:
+                return await anyio.to_thread.run_sync(partial(ops.get_history_details, history_id))
+            except MalformedId:
+                return {"error": f"Invalid history_id '{history_id}'. Use list_histories to find a valid id."}
+
+        @agent.tool
+        async def list_workflows(ctx: RunContext[GalaxyAgentDependencies], filter: str = "") -> dict[str, Any]:
+            """List the user's stored workflows, optionally filtered by a search string.
+
+            Use this for "what workflows do I have?" style questions. The
+            ``filter`` argument is passed to the workflow index search.
+            """
+            ops = _ops(ctx)
+            search = filter or None
+            return await anyio.to_thread.run_sync(partial(ops.list_workflows, search=search))
+
+        @agent.tool
+        async def search_workflows(
+            ctx: RunContext[GalaxyAgentDependencies], query: str, limit: int = 10
+        ) -> dict[str, Any]:
+            """Search the user's local/shared Galaxy workflows by name or description.
+
+            Use this for availability questions like "do I have an RNA-seq
+            workflow?" or "find workflows for variant calling". Searches only
+            local/shared workflows, not the public IWC catalog. For
+            recommendations ("which workflow should I use?"), hand off to the
+            tool/recommendation specialist instead.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(partial(ops.list_workflows, search=query, limit=limit))
+
+        @agent.tool
+        async def search_tools(ctx: RunContext[GalaxyAgentDependencies], query: str, limit: int = 10) -> dict[str, Any]:
+            """Search the installed Galaxy toolbox by name/description for availability.
+
+            Use this for "is FastQC installed?", "do we have BWA?", or "show me
+            tools matching 'trim adapters'". Returns matching tools as id, name,
+            description, version. For recommendations ("what tool should I use
+            for my analysis?"), hand off to the tool_recommendation specialist
+            instead.
+            """
+            ops = _ops(ctx)
+            result = await anyio.to_thread.run_sync(partial(ops.search_tools, query))
+            tools = result.get("tools", [])
+            effective_limit = max(1, min(limit, 50)) if limit and limit > 0 else 10
+            if len(tools) > effective_limit:
+                result = {
+                    **result,
+                    "tools": tools[:effective_limit],
+                    "count": effective_limit,
+                    "truncated": True,
+                }
+            return result
+
+        @agent.tool
+        async def get_user_info(ctx: RunContext[GalaxyAgentDependencies]) -> dict[str, Any]:
+            """Return the current authenticated user (id, email, username, admin flag).
+
+            Use this when the user asks "who am I?", "what's my username?", or
+            similar account-identity questions.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(ops.get_user)
+
+        @agent.tool
+        async def get_server_info(ctx: RunContext[GalaxyAgentDependencies]) -> dict[str, Any]:
+            """Return Galaxy server metadata (version, brand, URL, capability flags).
+
+            Use this when the user asks "what version of Galaxy is this?",
+            "what's the server URL?", or about server-level capabilities like
+            quotas / user creation / dataset purging.
+            """
+            ops = _ops(ctx)
+            return await anyio.to_thread.run_sync(ops.get_server_info)
 
     def get_system_prompt(self) -> str:
         prompt_path = Path(__file__).parent / "prompts" / "router.md"
