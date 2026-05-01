@@ -392,13 +392,12 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         seed_scope: Optional[str] = None,
     ):
         history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
-        toolbox = getattr(trans.app, "toolbox", None)
         builder = HistoryGraphBuilder(
             sa_session=trans.sa_session,
             security=self.security,
             history_id=history.id,
             limit=limit,
-            toolbox=toolbox,
+            toolbox=trans.app.toolbox,
             include_deleted=include_deleted,
             seed=seed,
             direction=direction,
