@@ -1,4 +1,4 @@
-import { onScopeDispose, ref } from "vue";
+import { onScopeDispose, readonly, ref } from "vue";
 
 import { withPrefix } from "@/utils/redirect";
 
@@ -39,6 +39,10 @@ type Handler = (event: MessageEvent) => void;
 
 let sharedSource: EventSource | null = null;
 const sharedConnected = ref(false);
+// True once the SSE connection has succeeded at least once in this session.
+// Used by UI to distinguish "still connecting" from "was connected, dropped"
+// — only the latter should surface a connection-lost warning.
+const sseEverConnected = ref(false);
 const subscribers: Map<SSEEventType, Set<Handler>> = new Map();
 // Track the per-type dispatchers we registered so ``closeSource`` removes the
 // exact same listeners (``addEventListener`` matches by reference).
@@ -70,9 +74,15 @@ function openSourceIfNeeded() {
 
     sharedSource.onopen = () => {
         sharedConnected.value = true;
+        sseEverConnected.value = true;
         // Global readiness flag so Selenium tests can distinguish a working
         // SSE pipeline from the polling fallback.
         sseGlobals().__galaxy_sse_connected = true;
+        // Re-assert any viewer subscriptions the user accumulated. The server
+        // doesn't carry app-level subscription state across reconnects (it
+        // only knows the user from the cookie), so the client owns the source
+        // of truth and replays it on every successful open.
+        replayViewerSubscriptionsOnOpen();
     };
 
     sharedSource.onerror = () => {
@@ -189,3 +199,95 @@ export function useSSE(onEvent: Handler, eventTypes: readonly SSEEventType[] = S
  * @deprecated Use `useSSE` instead. This alias exists for backward compatibility.
  */
 export const useNotificationSSE = useSSE;
+
+/**
+ * Read-only handle on the shared SSE connection state. ``connected`` flips
+ * with the EventSource lifecycle; ``hasEverConnected`` latches true on the
+ * first successful open so callers can ignore the initial-connect window
+ * when surfacing a "connection lost" warning.
+ */
+export function useSSEConnectionStatus() {
+    return {
+        connected: readonly(sharedConnected),
+        hasEverConnected: readonly(sseEverConnected),
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Viewer subscriptions for non-owned histories
+//
+// Owner routing already covers history_update events for histories the
+// current user owns. Watching a non-owned history (e.g. a shared history
+// pinned in the multi-history view) requires the client to opt in by POSTing
+// the history id to ``/api/events/history-subscriptions``. The server keeps a
+// per-worker map and pushes the same history_update events to every viewer
+// in that map. The desired set is held module-level so reconnects can
+// replay it and so multiple components subscribed to the same id only emit
+// one HTTP call.
+// ---------------------------------------------------------------------------
+
+const viewerSubscriptions = new Map<string, number>();
+
+function postViewerSubscription(method: "POST" | "DELETE", historyIds: string[]): Promise<void> {
+    if (historyIds.length === 0) {
+        return Promise.resolve();
+    }
+    return fetch(withPrefix("/api/events/history-subscriptions"), {
+        method,
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ history_ids: historyIds }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(`history-subscriptions ${method} failed: ${response.status}`);
+        }
+    });
+}
+
+function replayViewerSubscriptionsOnOpen(): void {
+    const ids = [...viewerSubscriptions.keys()];
+    if (ids.length === 0) {
+        return;
+    }
+    postViewerSubscription("POST", ids).catch((err) =>
+        console.error("Failed to replay history viewer subscriptions on reconnect:", err),
+    );
+}
+
+/**
+ * Add a viewer subscription for a history this user does not own. Refcounted
+ * so two components watching the same history share one server-side
+ * subscription and the first to mount opens it, last to unmount closes it.
+ *
+ * Idempotent per call: re-subscribing an already-tracked id does not POST a
+ * duplicate.
+ */
+export function addHistoryViewerSubscription(historyId: string): void {
+    const previous = viewerSubscriptions.get(historyId) ?? 0;
+    viewerSubscriptions.set(historyId, previous + 1);
+    if (previous === 0) {
+        postViewerSubscription("POST", [historyId]).catch((err) =>
+            console.error(`Failed to subscribe to history ${historyId}:`, err),
+        );
+    }
+}
+
+export function removeHistoryViewerSubscription(historyId: string): void {
+    const previous = viewerSubscriptions.get(historyId);
+    if (!previous) {
+        return;
+    }
+    if (previous > 1) {
+        viewerSubscriptions.set(historyId, previous - 1);
+        return;
+    }
+    viewerSubscriptions.delete(historyId);
+    postViewerSubscription("DELETE", [historyId]).catch((err) =>
+        console.error(`Failed to unsubscribe from history ${historyId}:`, err),
+    );
+}
+
+/** Test-only: drain the desired set so per-test state doesn't leak. */
+export function _resetHistoryViewerSubscriptionsForTest(): void {
+    viewerSubscriptions.clear();
+}
