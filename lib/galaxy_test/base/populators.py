@@ -1842,6 +1842,14 @@ class BaseDatasetPopulator(BasePopulator):
         api_asserts.assert_status_code_is_ok(response)
         return response.json()
 
+    def get_history_graph(self, history_id: str, **params: Any) -> dict[str, Any]:
+        response = self.get_history_graph_raw(history_id, **params)
+        api_asserts.assert_status_code_is_ok(response)
+        return response.json()
+
+    def get_history_graph_raw(self, history_id: str, **params: Any) -> Response:
+        return self._get(f"histories/{history_id}/graph", data=params or None)
+
     def wait_on_task(self, async_task_response: Response):
         response_json = async_task_response.json()
         return self.wait_on_task_object(response_json)

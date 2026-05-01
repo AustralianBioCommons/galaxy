@@ -1266,9 +1266,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
 
     def test_empty_history_returns_empty_graph(self):
         history_id = self.dataset_populator.new_history()
-        response = self._get(f"histories/{history_id}/graph")
-        self._assert_status_code_is(response, 200)
-        body = response.json()
+        body = self.dataset_populator.get_history_graph(history_id)
         self._assert_has_keys(body, "nodes", "edges", "truncated")
         assert body["nodes"] == []
         assert body["edges"] == []
@@ -1279,9 +1277,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
         history_id = self.dataset_populator.new_history()
         self.dataset_populator.new_dataset(history_id, content="a", wait=True)
         self.dataset_populator.new_dataset(history_id, content="b", wait=True)
-        response = self._get(f"histories/{history_id}/graph")
-        self._assert_status_code_is(response, 200)
-        body = response.json()
+        body = self.dataset_populator.get_history_graph(history_id)
         assert len(body["nodes"]) == 2
         assert body["edges"] == []
         assert all(n["type"] == "dataset" for n in body["nodes"])
@@ -1290,9 +1286,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
         history_id = self.dataset_populator.new_history()
         for i in range(5):
             self.dataset_populator.new_dataset(history_id, content=f"row {i}", wait=True)
-        response = self._get(f"histories/{history_id}/graph", data={"limit": 3})
-        self._assert_status_code_is(response, 200)
-        body = response.json()
+        body = self.dataset_populator.get_history_graph(history_id, limit=3)
         assert len(body["nodes"]) == 3
         assert body["truncated"]["item_count_capped"] is True
 
@@ -1300,12 +1294,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
         history_id = self.dataset_populator.new_history()
         dataset = self.dataset_populator.new_dataset(history_id, content="seed", wait=True)
         seed_scope = f"d{dataset['id']}"
-        response = self._get(
-            f"histories/{history_id}/graph",
-            data={"seed_scope": seed_scope, "limit": 5},
-        )
-        self._assert_status_code_is(response, 200)
-        body = response.json()
+        body = self.dataset_populator.get_history_graph(history_id, seed_scope=seed_scope, limit=5)
         assert body["truncated"]["scope_type"] == "seed_centered"
         assert seed_scope in {n["id"] for n in body["nodes"]}
 
@@ -1323,7 +1312,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
     )
     def test_invalid_query_params_return_400(self, param, value):
         history_id = self.dataset_populator.new_history()
-        response = self._get(f"histories/{history_id}/graph", data={param: value})
+        response = self.dataset_populator.get_history_graph_raw(history_id, **{param: value})
         self._assert_status_code_is(response, 400)
 
     # ── manager-level validation (after API regex passes) ──
@@ -1332,10 +1321,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
         source_history = self.dataset_populator.new_history()
         dataset = self.dataset_populator.new_dataset(source_history, content="a", wait=True)
         target_history = self.dataset_populator.new_history()
-        response = self._get(
-            f"histories/{target_history}/graph",
-            data={"seed_scope": f"d{dataset['id']}"},
-        )
+        response = self.dataset_populator.get_history_graph_raw(target_history, seed_scope=f"d{dataset['id']}")
         assert 400 <= response.status_code < 500
 
     # ── auth ──
@@ -1343,9 +1329,9 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
     def test_other_users_history_is_forbidden(self):
         with self._different_user():
             other_history_id = self.dataset_populator.new_history()
-        response = self._get(f"histories/{other_history_id}/graph")
+        response = self.dataset_populator.get_history_graph_raw(other_history_id)
         self._assert_status_code_is(response, 403)
 
     def test_nonexistent_history_is_rejected(self):
-        response = self._get("histories/0000000000000000/graph")
+        response = self.dataset_populator.get_history_graph_raw("0000000000000000")
         assert 400 <= response.status_code < 500
