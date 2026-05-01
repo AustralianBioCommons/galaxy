@@ -21,7 +21,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import literal_column
 
-from galaxy.exceptions import RequestParameterInvalidException
+from galaxy.exceptions import (
+    MessageException,
+    RequestParameterInvalidException,
+)
 from galaxy.model import (
     Dataset,
     DatasetCollection,
@@ -40,6 +43,7 @@ from galaxy.schema.history_graph import (
     TruncationInfo,
 )
 from galaxy.security.idencoding import IdEncodingHelper
+from galaxy.tool_util.toolbox import AbstractToolBox
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +79,7 @@ class HistoryGraphBuilder:
         security: IdEncodingHelper,
         history_id: int,
         limit: int = 500,
-        toolbox=None,
+        toolbox: Optional[AbstractToolBox] = None,
         include_deleted: bool = False,
         seed: Optional[str] = None,
         direction: str = "both",
@@ -495,7 +499,7 @@ class HistoryGraphBuilder:
             for tr_id, tool_id in tr_map.items()
         ]
 
-    def _resolve_tool_names(self, nodes: list[GraphNode]):
+    def _resolve_tool_names(self, nodes: list[GraphNode]) -> None:
         toolbox = self.toolbox
         if toolbox is None:
             return
@@ -506,7 +510,7 @@ class HistoryGraphBuilder:
                 tool = toolbox.get_tool(tool_id)
                 if tool and tool.name:
                     name_map[tool_id] = tool.name
-            except Exception:
+            except MessageException:
                 pass
         for node in nodes:
             if node.type == "tool_request" and node.tool_id and node.tool_id in name_map:
