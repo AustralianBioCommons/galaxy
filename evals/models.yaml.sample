@@ -3,10 +3,17 @@
 # Models not listed here use --proxy-url and --api-key (defaults: LiteLLM
 # proxy at http://localhost:4000/v1/ with the local master key).
 #
-# Copy to evals/models.yaml (gitignored) and fill in. api_key_env names the
-# env var to read at runtime; the key never lives in the file.
+# Copy to evals/models.yaml (gitignored) and fill in. Two ways to supply
+# the key per entry:
+#   - api_key_env: <ENV_VAR_NAME>   (recommended -- key never lives in file)
+#   - api_key: <literal-key>         (only safe because models.yaml is gitignored)
 
 # Example: Llama-4-Maverick lives on a TACC SambaNova endpoint, not LiteLLM.
 # Llama-4-Maverick-17B-128E-Instruct:
 #   proxy_url: https://ai.tejas.tacc.utexas.edu/v1/
 #   api_key_env: TACC_API_KEY
+#
+# Or with a literal key:
+# Meta-Llama-3.3-70B-Instruct:
+#   proxy_url: https://ai.tejas.tacc.utexas.edu/v1/
+#   api_key: sk-...

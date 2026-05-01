@@ -214,11 +214,15 @@ def _resolve_model_endpoint(
     if not entry:
         return default_url, default_key
     proxy_url = entry.get("proxy_url", default_url)
+    if "api_key" in entry:
+        return proxy_url, entry["api_key"]
     api_key_env = entry.get("api_key_env")
-    api_key = os.environ.get(api_key_env) if api_key_env else None
-    if api_key_env and not api_key:
-        raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
-    return proxy_url, api_key or default_key
+    if api_key_env:
+        api_key = os.environ.get(api_key_env)
+        if not api_key:
+            raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
+        return proxy_url, api_key
+    return proxy_url, default_key
 
 
 async def amain() -> int:
