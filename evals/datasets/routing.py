@@ -43,8 +43,8 @@ ROUTING_CASES: list[Case[str, str, dict[str, Any]]] = [
     _case(
         "tool_discovery_rnaseq",
         "What tools are available for RNA-seq analysis?",
-        "router",
-        "Tool discovery -- router answers directly",
+        "tool_recommendation",
+        "Tool discovery -- hand off to tool_recommendation",
     ),
     _case("citation", "How do I cite Galaxy in my paper?", "router", "Citation request"),
     _case(
