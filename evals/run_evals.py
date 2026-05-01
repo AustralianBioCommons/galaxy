@@ -2,17 +2,16 @@
 
 Run from Galaxy root with the venv active:
 
-    python -m evals.run_evals --models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct
+    python -m evals.run_evals
 
-By default all models go through one proxy (`--proxy-url`/`--api-key` or env
-GALAXY_AGENT_EVALS_PROXY_URL / GALAXY_AGENT_EVALS_API_KEY -- defaults are
-LiteLLM at http://localhost:4000/v1/). For models that live on a different
-backend, pass `--model-config <yaml>` mapping model -> {proxy_url,
-api_key_env}. See evals/models.yaml.sample.
+Reads `evals/models.yaml` (falling back to `evals/models.yaml.sample`) for
+the full set of models to evaluate. `--models gpt-oss-120b,...` filters
+to a subset of those declared. Every model -- including the LLM judge --
+must appear in the YAML.
 
 Datasets default to all registered (routing, error_analysis). Restrict with
 `--datasets routing` or similar. Fuzzy quality scoring (LLM judge) uses
-`--judge-model` (default gpt-oss-120b on the local LiteLLM proxy).
+`--judge-model` (default gpt-oss-120b -- must also be in the YAML).
 
 Writes a markdown comparison table to stdout and to evals/results/.
 """
@@ -35,11 +34,10 @@ from pydantic_evals.reporting import EvaluationReport
 
 from .judge import build_judge_model
 from .specs import SPECS
-from .tasks import (
-    DEFAULT_PROXY_KEY,
-    DEFAULT_PROXY_URL,
-    make_deps,
-)
+from .tasks import make_deps
+
+DEFAULT_MODEL_CONFIG = "evals/models.yaml"
+FALLBACK_MODEL_CONFIG = "evals/models.yaml.sample"
 
 
 @dataclass
@@ -59,17 +57,17 @@ def _git_sha() -> str:
         return "unknown"
 
 
-def _resolve_model_endpoint(
-    model: str,
-    model_config: dict[str, Any],
-    default_url: str,
-    default_key: str,
-) -> tuple[str, str]:
-    """Return (proxy_url, api_key) for a model, falling back to defaults."""
+def _resolve_model_endpoint(model: str, model_config: dict[str, Any]) -> tuple[str, str]:
+    """Return (proxy_url, api_key) for a model declared in model_config."""
     entry = model_config.get(model)
     if not entry:
-        return default_url, default_key
-    proxy_url = entry.get("proxy_url", default_url)
+        raise SystemExit(
+            f"Model '{model}' is not declared in the model-config YAML. "
+            f"Known: {', '.join(model_config) or '(none)'}."
+        )
+    proxy_url = entry.get("proxy_url")
+    if not proxy_url:
+        raise SystemExit(f"Model '{model}' is missing proxy_url in the YAML.")
     if "api_key" in entry:
         return proxy_url, entry["api_key"]
     api_key_env = entry.get("api_key_env")
@@ -78,7 +76,30 @@ def _resolve_model_endpoint(
         if not api_key:
             raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
         return proxy_url, api_key
-    return proxy_url, default_key
+    raise SystemExit(f"Model '{model}' needs either api_key or api_key_env in the YAML.")
+
+
+def _load_model_config(path: Optional[str]) -> tuple[str, dict[str, Any]]:
+    """Resolve the model-config YAML path and load it. Falls back to .sample.
+
+    Returns (path_used, parsed_dict).
+    """
+    candidate = path or DEFAULT_MODEL_CONFIG
+    if not os.path.exists(candidate):
+        if path:
+            raise SystemExit(f"--model-config '{path}' does not exist.")
+        if os.path.exists(FALLBACK_MODEL_CONFIG):
+            candidate = FALLBACK_MODEL_CONFIG
+        else:
+            raise SystemExit(
+                f"No model config found at {DEFAULT_MODEL_CONFIG} or {FALLBACK_MODEL_CONFIG}. "
+                "Copy the sample and fill in your models."
+            )
+    with open(candidate) as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict) or not data:
+        raise SystemExit(f"Model config '{candidate}' is empty or invalid.")
+    return candidate, data
 
 
 def _score_pass_count(
@@ -246,8 +267,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--models",
-        help="Comma-separated model names to evaluate. If omitted, defaults to "
-        "every model declared in --model-config.",
+        help="Comma-separated subset of model names from --model-config to "
+        "evaluate. If omitted, every model in the YAML runs.",
     )
     parser.add_argument(
         "--datasets",
@@ -257,22 +278,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--judge-model",
         default="gpt-oss-120b",
-        help="Model to use as LLM-as-judge for fuzzy quality scoring (default gpt-oss-120b).",
-    )
-    parser.add_argument(
-        "--proxy-url",
-        default=os.environ.get("GALAXY_AGENT_EVALS_PROXY_URL", DEFAULT_PROXY_URL),
-        help=f"LiteLLM proxy URL (default {DEFAULT_PROXY_URL}).",
-    )
-    parser.add_argument(
-        "--api-key",
-        default=os.environ.get("GALAXY_AGENT_EVALS_API_KEY", DEFAULT_PROXY_KEY),
-        help="API key for the proxy.",
+        help="Model to use as LLM-as-judge for fuzzy quality scoring (default "
+        "gpt-oss-120b). Must also be declared in --model-config.",
     )
     parser.add_argument(
         "--model-config",
-        help="Path to YAML mapping model -> {proxy_url, api_key/api_key_env}. "
-        "Per-model overrides for models on a different backend than --proxy-url.",
+        help=(
+            f"Path to YAML mapping model -> {{proxy_url, api_key/api_key_env}}. "
+            f"Defaults to {DEFAULT_MODEL_CONFIG}, falling back to {FALLBACK_MODEL_CONFIG}."
+        ),
     )
     parser.add_argument(
         "--include-galaxy-required",
@@ -317,21 +331,20 @@ async def amain() -> int:
         if ds not in SPECS:
             raise SystemExit(f"Unknown dataset: {ds}. Known: {', '.join(SPECS)}.")
 
-    model_config: dict[str, Any] = {}
-    if args.model_config:
-        with open(args.model_config) as f:
-            model_config = yaml.safe_load(f) or {}
+    config_path, model_config = _load_model_config(args.model_config)
+    print(f"Using model config: {config_path}", file=sys.stderr)
 
     if args.models:
         models = [m.strip() for m in args.models.split(",") if m.strip()]
-    elif model_config:
-        models = list(model_config.keys())
+        unknown = [m for m in models if m not in model_config]
+        if unknown:
+            raise SystemExit(
+                f"--models entries not in {config_path}: {', '.join(unknown)}. Known: {', '.join(model_config)}."
+            )
     else:
-        raise SystemExit("Pass --models or --model-config (or both).")
+        models = list(model_config.keys())
 
-    judge_proxy_url, judge_api_key = _resolve_model_endpoint(
-        args.judge_model, model_config, args.proxy_url, args.api_key
-    )
+    judge_proxy_url, judge_api_key = _resolve_model_endpoint(args.judge_model, model_config)
     judge_model = build_judge_model(args.judge_model, judge_proxy_url, judge_api_key)
     print(f"Judge: {args.judge_model} (via {judge_proxy_url})", file=sys.stderr)
 
@@ -339,7 +352,7 @@ async def amain() -> int:
     for ds_name in datasets:
         spec_fn = SPECS[ds_name]
         for model in models:
-            proxy_url, api_key = _resolve_model_endpoint(model, model_config, args.proxy_url, args.api_key)
+            proxy_url, api_key = _resolve_model_endpoint(model, model_config)
             print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
             deps = make_deps(model=model, api_key=api_key, base_url=proxy_url)
             built = spec_fn(

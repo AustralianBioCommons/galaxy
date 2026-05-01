@@ -19,16 +19,13 @@ from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
 
-DEFAULT_PROXY_URL = "http://localhost:4000/v1/"
-DEFAULT_PROXY_KEY = "sk-local-test-master-key"
-
 _registry = build_default_registry()
 
 
 def make_deps(
     model: str,
-    api_key: str = DEFAULT_PROXY_KEY,
-    base_url: str = DEFAULT_PROXY_URL,
+    api_key: str,
+    base_url: str,
     temperature: float = 0.7,
     max_tokens: int = 2000,
 ) -> GalaxyAgentDependencies:
