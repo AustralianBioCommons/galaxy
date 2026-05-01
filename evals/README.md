@@ -51,9 +51,18 @@ stdout and to `evals/results/<date>-<datasets>-<sha>.md`.
 You can still pass `--models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct`
 to restrict to a subset.
 
-If you skip `--model-config` entirely, all models go through the global
-default proxy (`--proxy-url`/`--api-key` -- defaults are LiteLLM at
-`http://localhost:4000/v1/` with the local master key).
+### Diffing against a previous run
+
+```bash
+python -m evals.run_evals \
+    --baseline evals/results/2026-05-01-080419-routing+error_analysis-5693106ee00.md
+```
+
+`--baseline` looks for the JSON sidecar next to the markdown (each run writes
+both) and renders a "Changes vs baseline" section listing per-case
+regressions and improvements per (dataset, model). Useful when iterating
+on a prompt -- run before, change the prompt, run with `--baseline` pointing
+at the before file, see what moved.
 
 ### Useful flags
 
@@ -62,16 +71,14 @@ default proxy (`--proxy-url`/`--api-key` -- defaults are LiteLLM at
 - `--repeat 3` -- run each case N times to expose stochasticity. Per-case
   detail shows e.g. `2/3 [+1 ERR]` when one of three runs errored.
 - `--judge-model gpt-oss-120b` -- model for fuzzy LLM-as-judge scoring
-  (default gpt-oss-120b). Looked up in `--model-config` for proxy/key.
-- `--only oom_137,exit_127` -- restrict to specific case names (across all
-  datasets that contain them).
+  (default gpt-oss-120b). Must also be declared in `--model-config`.
+- `--only oom_137,exit_127` -- restrict to specific case names.
 - `--include-galaxy-required` -- include cases that need a live Galaxy
   session (the `history_analyzer` ones). Off by default.
 - `--max-concurrency 8` -- raise the per-model concurrency limit (default 4).
-- `--proxy-url`, `--api-key` -- override defaults; also picked up from
-  `GALAXY_AGENT_EVALS_PROXY_URL` / `GALAXY_AGENT_EVALS_API_KEY`.
-- `--model-config <yaml>` -- per-model proxy/key overrides (see above).
-- `--no-write` -- skip writing the results file.
+- `--model-config <yaml>` -- override default of `evals/models.yaml`.
+- `--baseline <md-or-json>` -- diff results against a previous run.
+- `--no-write` -- skip writing the report file.
 
 ## Adding cases
 

@@ -30,7 +30,10 @@ from typing import (
 )
 
 import yaml
-from pydantic_evals.reporting import EvaluationReport
+from pydantic_evals.reporting import (
+    EvaluationReport,
+    EvaluationReportAdapter,
+)
 
 from .judge import build_judge_model
 from .specs import SPECS
@@ -147,6 +150,53 @@ def _base_case_name(name: Optional[str]) -> Optional[str]:
     return re.sub(r"\s+\[\d+/\d+\]$", "", name)
 
 
+def _case_outcomes(
+    result: "DatasetResult",
+) -> dict[str, dict[str, Any]]:
+    """Reduce a DatasetResult's per-case rows to {case_name: {ok, errored, primary, judge}}."""
+    out: dict[str, dict[str, Any]] = {}
+    for case in result.report.cases:
+        base = _base_case_name(case.name)
+        if not base:
+            continue
+        scores = case.scores or {}
+        primary = scores.get(result.primary_score)
+        ok = primary is not None and float(primary.value) >= 1.0
+        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "judge": []})
+        if ok:
+            bucket["ok"] += 1
+        else:
+            bucket["wrong"] += 1
+        judge = scores.get("LLMJudge")
+        if judge is not None:
+            try:
+                bucket["judge"].append(float(judge.value))
+            except (TypeError, ValueError):
+                pass
+    for failure in result.report.failures:
+        base = _base_case_name(failure.name)
+        if not base:
+            continue
+        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "judge": []})
+        bucket["errored"] += 1
+    return out
+
+
+def _outcome_label(bucket: dict[str, Any]) -> str:
+    """Single-line summary of a case bucket: 'OK', 'WRONG', 'ERROR', or 'OK 2/3'."""
+    runs = bucket["ok"] + bucket["wrong"] + bucket["errored"]
+    if runs == 0:
+        return "?"
+    if runs == 1:
+        if bucket["errored"]:
+            return "ERROR"
+        return "OK" if bucket["ok"] else "WRONG"
+    parts = [f"OK {bucket['ok']}/{runs}"]
+    if bucket["errored"]:
+        parts.append(f"ERR {bucket['errored']}/{runs}")
+    return " ".join(parts)
+
+
 def _render_dataset_section(results: list[DatasetResult]) -> str:
     """Render one markdown section per (dataset, models...) tuple."""
     if not results:
@@ -246,7 +296,10 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
     return "\n".join(lines)
 
 
-def render_markdown(all_results: list[DatasetResult]) -> str:
+def render_markdown(
+    all_results: list["DatasetResult"],
+    baseline: Optional[list["DatasetResult"]] = None,
+) -> str:
     """Render a single markdown document covering every dataset evaluated."""
     by_dataset: dict[str, list[DatasetResult]] = {}
     for r in all_results:
@@ -258,9 +311,109 @@ def render_markdown(all_results: list[DatasetResult]) -> str:
         f"_Generated {datetime.now().isoformat(timespec='seconds')} from `{_git_sha()}`._",
         "",
     ]
+    if baseline:
+        lines.append(_render_diff_section(all_results, baseline))
     for results in by_dataset.values():
         lines.append(_render_dataset_section(results))
     return "\n".join(lines)
+
+
+def _render_diff_section(
+    new_results: list["DatasetResult"],
+    baseline: list["DatasetResult"],
+) -> str:
+    """Render regressions and improvements vs. the baseline run."""
+    new_index: dict[tuple[str, str], DatasetResult] = {(r.dataset, r.model): r for r in new_results}
+    base_index: dict[tuple[str, str], DatasetResult] = {(r.dataset, r.model): r for r in baseline}
+
+    lines = ["## Changes vs baseline", ""]
+    any_change = False
+
+    for key, new_result in new_index.items():
+        if key not in base_index:
+            continue
+        ds_name, model = key
+        new_outcomes = _case_outcomes(new_result)
+        base_outcomes = _case_outcomes(base_index[key])
+        regressions: list[tuple[str, str, str]] = []
+        improvements: list[tuple[str, str, str]] = []
+        for case_name in sorted(set(new_outcomes) & set(base_outcomes)):
+            new_b = new_outcomes[case_name]
+            base_b = base_outcomes[case_name]
+            new_pass = new_b["ok"] >= max(1, new_b["ok"] + new_b["wrong"] + new_b["errored"])
+            base_pass = base_b["ok"] >= max(1, base_b["ok"] + base_b["wrong"] + base_b["errored"])
+            if new_pass and not base_pass:
+                improvements.append((case_name, _outcome_label(base_b), _outcome_label(new_b)))
+            elif base_pass and not new_pass:
+                regressions.append((case_name, _outcome_label(base_b), _outcome_label(new_b)))
+
+        if not (regressions or improvements):
+            continue
+        any_change = True
+        lines.append(f"### {ds_name} | {model}")
+        if regressions:
+            lines.append("")
+            lines.append("**Regressions:**")
+            lines.append("")
+            lines.append("| case | baseline | now |")
+            lines.append("| --- | --- | --- |")
+            for case_name, base_state, new_state in regressions:
+                lines.append(f"| {case_name} | {base_state} | {new_state} |")
+        if improvements:
+            lines.append("")
+            lines.append("**Improvements:**")
+            lines.append("")
+            lines.append("| case | baseline | now |")
+            lines.append("| --- | --- | --- |")
+            for case_name, base_state, new_state in improvements:
+                lines.append(f"| {case_name} | {base_state} | {new_state} |")
+        lines.append("")
+
+    if not any_change:
+        lines.append("_No per-case changes vs baseline._")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _serialize_results(all_results: list["DatasetResult"]) -> str:
+    """Dump per-(dataset, model) reports as JSON for later diffing."""
+    payload = []
+    for r in all_results:
+        payload.append(
+            {
+                "dataset": r.dataset,
+                "model": r.model,
+                "primary_score": r.primary_score,
+                "report": EvaluationReportAdapter.dump_python(r.report, mode="json"),
+            }
+        )
+    import json
+
+    return json.dumps(payload, indent=2)
+
+
+def _load_baseline(path: str) -> list["DatasetResult"]:
+    """Load a previously-written results.json (or the .json sibling of a .md file)."""
+    import json
+
+    candidate = Path(path)
+    if candidate.suffix == ".md":
+        candidate = candidate.with_suffix(".json")
+    if not candidate.exists():
+        raise SystemExit(f"Baseline file not found: {candidate}")
+    payload = json.loads(candidate.read_text())
+    out: list[DatasetResult] = []
+    for entry in payload:
+        report = EvaluationReportAdapter.validate_python(entry["report"])
+        out.append(
+            DatasetResult(
+                dataset=entry["dataset"],
+                model=entry["model"],
+                primary_score=entry["primary_score"],
+                report=report,
+            )
+        )
+    return out
 
 
 def parse_args() -> argparse.Namespace:
@@ -318,6 +471,11 @@ def parse_args() -> argparse.Namespace:
         "--no-write",
         action="store_true",
         help="Skip writing the report file; print to stdout only.",
+    )
+    parser.add_argument(
+        "--baseline",
+        help="Path to a previous results .md or .json. The .json sibling is "
+        "loaded and used to flag regressions / improvements per case.",
     )
     return parser.parse_args()
 
@@ -377,7 +535,8 @@ async def amain() -> int:
                 )
             )
 
-    md = render_markdown(all_results)
+    baseline = _load_baseline(args.baseline) if args.baseline else None
+    md = render_markdown(all_results, baseline=baseline)
     print(md)
 
     if not args.no_write:
@@ -385,9 +544,12 @@ async def amain() -> int:
         results_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
         slug = "+".join(datasets)
-        out = results_dir / f"{stamp}-{slug}-{_git_sha()}.md"
-        out.write_text(md)
-        print(f"\nWrote {out}", file=sys.stderr)
+        out_md = results_dir / f"{stamp}-{slug}-{_git_sha()}.md"
+        out_json = out_md.with_suffix(".json")
+        out_md.write_text(md)
+        out_json.write_text(_serialize_results(all_results))
+        print(f"\nWrote {out_md}", file=sys.stderr)
+        print(f"Wrote {out_json}", file=sys.stderr)
 
     return 0
 
