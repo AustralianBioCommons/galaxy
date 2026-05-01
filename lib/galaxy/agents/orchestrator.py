@@ -17,6 +17,7 @@ from pydantic_ai import Agent
 from galaxy.schema.agents import ConfidenceLevel
 from .base import (
     AgentResponse,
+    AgentRunState,
     AgentType,
     BaseGalaxyAgent,
     extract_result_content,
@@ -190,25 +191,22 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
         self, agents: list[str], query: str, context: Optional[dict[str, Any]] = None
     ) -> dict[str, AgentResponse]:
         """Execute agents sequentially with timeout protection."""
-        responses = {}
-        current_query = query
+        responses: dict[str, AgentResponse] = {}
         timeout = self._get_agent_timeout()
+        run_state = AgentRunState()
+        ctx: dict[str, Any] = {**(context or {}), "run_state": run_state}
 
         log.info(f"Orchestrator: Running agents in SEQUENTIAL mode: {agents}")
         for agent_name in agents:
             try:
-                log.info(f"Orchestrator: Starting agent '{agent_name}' with query length {len(current_query)}")
+                log.info(f"Orchestrator: Starting agent '{agent_name}' with query length {len(query)}")
                 agent = self.deps.get_agent(agent_name, self.deps)
-                response = await asyncio.wait_for(agent.process(current_query, context or {}), timeout=timeout)
+                response = await asyncio.wait_for(agent.process(query, ctx), timeout=timeout)
                 responses[agent_name] = response
+                run_state.record(agent_name, response)
 
                 log.debug(f"Orchestrator: Agent '{agent_name}' completed. Response length: {len(response.content)}")
                 log.debug(f"Orchestrator: Agent '{agent_name}' response preview: {response.content[:500]}...")
-
-                # Cap previous response to avoid unbounded query growth
-                prev_content = response.content[:2000]
-                current_query = f"{query}\n\nPrevious analysis from {agent_name}: {prev_content}"
-                log.debug(f"Orchestrator: Updated query for next agent, total length: {len(current_query)}")
 
             except asyncio.TimeoutError:
                 log.error(f"Agent {agent_name} timed out after {timeout}s")

@@ -13,7 +13,10 @@ from collections.abc import (
     Callable,
     Sequence,
 )
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    field,
+)
 from typing import (
     Any,
     Literal,
@@ -96,6 +99,7 @@ __all__ = [
     "ActionSuggestion",
     "ActionType",
     "AgentResponse",
+    "AgentRunState",
     "AgentType",
     "BaseGalaxyAgent",
     "ConfidenceLevel",
@@ -259,6 +263,24 @@ class AgentResponse:
 
 
 @dataclass
+class AgentRunState:
+    """Per-invocation state shared across sequential multi-agent flows.
+
+    The orchestrator creates a fresh instance per user query and attaches it
+    to each agent's context. Sequential agents read prior agents' responses
+    from here instead of parsing them out of a text-concatenated prompt.
+    """
+
+    prior_responses: dict[str, "AgentResponse"] = field(default_factory=dict)
+
+    def get_prior(self, agent_type: str) -> Optional["AgentResponse"]:
+        return self.prior_responses.get(agent_type)
+
+    def record(self, agent_type: str, response: "AgentResponse") -> None:
+        self.prior_responses[agent_type] = response
+
+
+@dataclass
 class GalaxyAgentDependencies:
     """Dependencies passed to Galaxy agents via dependency injection."""
 
@@ -280,6 +302,7 @@ class BaseGalaxyAgent(ABC):
 
     agent_type: str
     agent: Agent[GalaxyAgentDependencies, Any]
+    _INTERNAL_CONTEXT_KEYS = frozenset({"run_state"})
 
     def __init__(self, deps: GalaxyAgentDependencies):
         self.deps = deps
@@ -446,7 +469,9 @@ class BaseGalaxyAgent(ABC):
         prompt_parts = [query]
 
         if context:
-            context_str = "\n".join([f"{k}: {v}" for k, v in context.items() if v])
+            context_str = "\n".join(
+                [f"{k}: {v}" for k, v in context.items() if v and k not in self._INTERNAL_CONTEXT_KEYS]
+            )
             if context_str:
                 prompt_parts.insert(0, f"Context:\n{context_str}\n")
 
