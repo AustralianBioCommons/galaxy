@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import literal_column
 
+from galaxy.exceptions import RequestParameterInvalidException
 from galaxy.model import (
     Dataset,
     DatasetCollection,
@@ -178,8 +179,6 @@ class HistoryGraphBuilder:
     # ── Item selection ──
 
     def _resolve_seed_scope(self, seed_scope: str):
-        from galaxy.exceptions import RequestParameterInvalidException
-
         prefix = seed_scope[0]
         try:
             db_id = self.security.decode_id(seed_scope[1:])
@@ -532,8 +531,6 @@ class HistoryGraphBuilder:
     def _seed_filter(
         self, seed: str, nodes: list[GraphNode], edges: list[GraphEdge]
     ) -> tuple[list[GraphNode], list[GraphEdge]]:
-        from galaxy.exceptions import RequestParameterInvalidException
-
         node_ids = {n.id for n in nodes}
         if seed not in node_ids:
             raise RequestParameterInvalidException(f"Seed {seed} not found in graph.")
