@@ -8,6 +8,7 @@ submission payload, one hop out from the seed.
 import json
 import logging
 from typing import (
+    Literal,
     Optional,
     Union,
 )
@@ -82,7 +83,7 @@ class HistoryGraphBuilder:
         toolbox: Optional[AbstractToolBox] = None,
         include_deleted: bool = False,
         seed: Optional[str] = None,
-        direction: str = "both",
+        direction: Literal["backward", "forward", "both"] = "both",
         depth: int = 5,
         seed_scope_hid: Optional[int] = None,
     ):

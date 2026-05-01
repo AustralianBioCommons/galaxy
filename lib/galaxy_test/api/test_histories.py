@@ -1322,7 +1322,7 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
         dataset = self.dataset_populator.new_dataset(source_history, content="a", wait=True)
         target_history = self.dataset_populator.new_history()
         response = self.dataset_populator.get_history_graph_raw(target_history, seed_scope=f"d{dataset['id']}")
-        assert 400 <= response.status_code < 500
+        self._assert_status_code_is(response, 404)
 
     # ── auth ──
 
@@ -1334,4 +1334,4 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
 
     def test_nonexistent_history_is_rejected(self):
         response = self.dataset_populator.get_history_graph_raw("0000000000000000")
-        assert 400 <= response.status_code < 500
+        self._assert_status_code_is(response, 404)

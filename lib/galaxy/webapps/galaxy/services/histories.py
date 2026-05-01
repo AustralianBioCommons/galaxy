@@ -54,6 +54,7 @@ from galaxy.schema import (
 )
 from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.history import HistoryIndexQueryPayload
+from galaxy.schema.history_graph import HistoryGraphResponse
 from galaxy.schema.schema import (
     AnyArchivedHistoryView,
     AnyHistoryView,
@@ -390,10 +391,10 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         limit: int = 500,
         include_deleted: bool = False,
         seed: Optional[str] = None,
-        direction: str = "both",
+        direction: Literal["backward", "forward", "both"] = "both",
         depth: int = 20,
         seed_scope: Optional[str] = None,
-    ):
+    ) -> HistoryGraphResponse:
         history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
         seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope else None
         builder = HistoryGraphBuilder(
