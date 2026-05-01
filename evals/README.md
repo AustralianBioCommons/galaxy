@@ -37,25 +37,23 @@ evals/
 
 ## Running
 
-Assumes a LiteLLM proxy at `http://localhost:4000/v1/` with both target
-models routed through it (see `~/work/tacc-inference/` for the TACC
-SambaNova path; gpt-oss-120b is reachable via Jetstream).
+Copy `evals/models.yaml.sample` to `evals/models.yaml` (gitignored), list
+each model you want to evaluate with its proxy URL and key, then:
 
 ```bash
 . .venv/bin/activate
-python -m evals.run_evals \
-    --models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct
+python -m evals.run_evals --model-config evals/models.yaml
 ```
 
-Output goes to stdout and to `evals/results/<date>-<dataset>-<sha>.md`.
+That runs every model in the YAML against every dataset. Output goes to
+stdout and to `evals/results/<date>-<datasets>-<sha>.md`.
 
-### Models on different backends
+You can still pass `--models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct`
+to restrict to a subset.
 
-Maverick (TACC SambaNova) doesn't sit on the LiteLLM proxy. For that case
-copy `evals/models.yaml.sample` to `evals/models.yaml` (gitignored), fill in
-the per-model proxy URL and the env var name your API key lives in, and
-pass `--model-config evals/models.yaml`. Models not listed in the file fall
-back to `--proxy-url`/`--api-key`.
+If you skip `--model-config` entirely, all models go through the global
+default proxy (`--proxy-url`/`--api-key` -- defaults are LiteLLM at
+`http://localhost:4000/v1/` with the local master key).
 
 ### Useful flags
 

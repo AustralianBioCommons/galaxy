@@ -246,8 +246,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--models",
-        required=True,
-        help="Comma-separated model names to evaluate against the LiteLLM proxy.",
+        help="Comma-separated model names to evaluate. If omitted, defaults to "
+        "every model declared in --model-config.",
     )
     parser.add_argument(
         "--datasets",
@@ -310,7 +310,6 @@ def parse_args() -> argparse.Namespace:
 
 async def amain() -> int:
     args = parse_args()
-    models = [m.strip() for m in args.models.split(",") if m.strip()]
     datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
     only = [n.strip() for n in args.only.split(",")] if args.only else None
 
@@ -322,6 +321,13 @@ async def amain() -> int:
     if args.model_config:
         with open(args.model_config) as f:
             model_config = yaml.safe_load(f) or {}
+
+    if args.models:
+        models = [m.strip() for m in args.models.split(",") if m.strip()]
+    elif model_config:
+        models = list(model_config.keys())
+    else:
+        raise SystemExit("Pass --models or --model-config (or both).")
 
     judge_proxy_url, judge_api_key = _resolve_model_endpoint(
         args.judge_model, model_config, args.proxy_url, args.api_key
