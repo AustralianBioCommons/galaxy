@@ -6,21 +6,33 @@ CI** -- real LLMs cost money, are slow, and are flaky.
 
 ## What it does
 
-Runs a curated dataset of (query, expected handoff target) pairs against the
-`QueryRouterAgent`, scores each model's routing decisions, and emits a
+Runs curated datasets against Galaxy agents, scores each model, and emits a
 markdown comparison table. The point is to weigh models against each other
 ("is gpt-oss-120b on Jetstream good enough as a free default? does
-Llama-4-Maverick win on tool generation?"), not to gate PRs.
+Llama-4-Maverick win on error analysis?") and to iterate on prompts with
+real measurement. Not run in CI.
+
+Current datasets:
+
+- **routing**: (query, expected handoff target) pairs against `QueryRouterAgent`.
+  Scored by `HandoffMatch` (deterministic).
+- **error_analysis**: prose failure descriptions against `ErrorAnalysisAgent`.
+  Scored two ways: `MustMention` (deterministic keyword check) and `LLMJudge`
+  (fuzzy "is the advice on-topic and actionable for this failure mode").
 
 ## Layout
 
 ```
 evals/
-  datasets/routing.py     # Cases: (query, expected_handoff_target)
-  evaluators.py           # HandoffMatch -- 1.0 if router picked the expected agent
-  tasks.py                # Wraps QueryRouterAgent as a pydantic-evals task callable
-  run_evals.py            # CLI
-  results/                # Markdown reports, checked in so we can diff over time
+  datasets/                # One module per dataset
+    routing.py
+    error_analysis.py
+  evaluators.py            # HandoffMatch, MustMention
+  judge.py                 # Builds an OpenAIChatModel for use as LLM judge
+  specs.py                 # DatasetSpec registry: dataset -> task + evaluators
+  tasks.py                 # Wraps agents as pydantic-evals task callables
+  run_evals.py             # CLI
+  results/                 # Markdown reports, checked in so we can diff over time
 ```
 
 ## Running
@@ -47,7 +59,12 @@ back to `--proxy-url`/`--api-key`.
 
 ### Useful flags
 
-- `--only greeting,oom_137` -- restrict to specific case names.
+- `--datasets routing,error_analysis` -- pick which datasets to run (default
+  is all registered).
+- `--judge-model gpt-oss-120b` -- model for fuzzy LLM-as-judge scoring
+  (default gpt-oss-120b). Looked up in `--model-config` for proxy/key.
+- `--only oom_137,exit_127` -- restrict to specific case names (across all
+  datasets that contain them).
 - `--include-galaxy-required` -- include cases that need a live Galaxy
   session (the `history_analyzer` ones). Off by default.
 - `--max-concurrency 8` -- raise the per-model concurrency limit (default 4).
@@ -58,15 +75,18 @@ back to `--proxy-url`/`--api-key`.
 
 ## Adding cases
 
-Edit `datasets/routing.py`. Each case is one query + the agent_type the
-router should hand off to (`router` for direct answers, `error_analysis`,
-`custom_tool`, `tool_recommendation`, `history_analyzer`, ...).
+Edit the relevant `datasets/<name>.py`. Each case is the input the agent
+sees plus whatever metadata the dataset's evaluators need (expected handoff
+target for routing, must_mention keywords + failure_mode for error_analysis).
 
 ## Adding datasets
 
-Mirror `datasets/routing.py` for new task shapes (CustomTool quality,
-error-analysis specificity, etc.). The CLI currently hard-codes routing;
-extend `run_evals.py` once you have a second dataset.
+1. Drop a new module under `datasets/` exporting a `<name>_dataset(...)`
+   function that returns a pydantic-evals `Dataset`.
+2. Add a `make_<name>_task` to `tasks.py`.
+3. Register a `build_<name>` in `specs.py`'s `SPECS` dict.
+
+The CLI auto-includes anything registered in `SPECS`.
 
 ## How this relates to other agent test infrastructure
 

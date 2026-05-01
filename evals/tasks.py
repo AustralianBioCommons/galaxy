@@ -15,6 +15,7 @@ from typing import (
 from unittest.mock import MagicMock
 
 from galaxy.agents.base import GalaxyAgentDependencies
+from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
 
@@ -73,3 +74,17 @@ def make_router_task(
         return response.agent_type
 
     return router_task
+
+
+def make_error_analysis_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+) -> Callable[[str], Awaitable[str]]:
+    """Build an async callable: query -> error-analysis response content."""
+
+    async def error_analysis_task(query: str) -> str:
+        agent = ErrorAnalysisAgent(deps)
+        response = await agent.process(query, context=context)
+        return response.content
+
+    return error_analysis_task

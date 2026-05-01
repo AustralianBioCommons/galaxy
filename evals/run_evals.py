@@ -10,6 +10,10 @@ LiteLLM at http://localhost:4000/v1/). For models that live on a different
 backend, pass `--model-config <yaml>` mapping model -> {proxy_url,
 api_key_env}. See evals/models.yaml.sample.
 
+Datasets default to all registered (routing, error_analysis). Restrict with
+`--datasets routing` or similar. Fuzzy quality scoring (LLM judge) uses
+`--judge-model` (default gpt-oss-120b on the local LiteLLM proxy).
+
 Writes a markdown comparison table to stdout and to evals/results/.
 """
 
@@ -29,19 +33,20 @@ from typing import (
 import yaml
 from pydantic_evals.reporting import EvaluationReport
 
-from .datasets import routing_dataset
-from .evaluators import HandoffMatch
+from .judge import build_judge_model
+from .specs import SPECS
 from .tasks import (
     DEFAULT_PROXY_KEY,
     DEFAULT_PROXY_URL,
     make_deps,
-    make_router_task,
 )
 
 
 @dataclass
-class ModelResult:
+class DatasetResult:
+    dataset: str
     model: str
+    primary_score: str
     report: EvaluationReport[str, str, dict[str, Any]]
 
 
@@ -54,71 +59,98 @@ def _git_sha() -> str:
         return "unknown"
 
 
-async def _run_model(
+def _resolve_model_endpoint(
     model: str,
-    api_key: str,
-    proxy_url: str,
-    include_galaxy_required: bool,
-    only: Optional[list[str]],
-    max_concurrency: Optional[int],
-) -> ModelResult:
-    deps = make_deps(model=model, api_key=api_key, base_url=proxy_url)
-    task = make_router_task(deps)
-    dataset = routing_dataset(include_galaxy_required=include_galaxy_required, only=only)
-    dataset.add_evaluator(HandoffMatch())
-    report = await dataset.evaluate(task, name=model, max_concurrency=max_concurrency)
-    return ModelResult(model=model, report=report)
+    model_config: dict[str, Any],
+    default_url: str,
+    default_key: str,
+) -> tuple[str, str]:
+    """Return (proxy_url, api_key) for a model, falling back to defaults."""
+    entry = model_config.get(model)
+    if not entry:
+        return default_url, default_key
+    proxy_url = entry.get("proxy_url", default_url)
+    if "api_key" in entry:
+        return proxy_url, entry["api_key"]
+    api_key_env = entry.get("api_key_env")
+    if api_key_env:
+        api_key = os.environ.get(api_key_env)
+        if not api_key:
+            raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
+        return proxy_url, api_key
+    return proxy_url, default_key
 
 
-def _accuracy(report: EvaluationReport[str, str, dict[str, Any]]) -> tuple[int, int]:
-    """Count cases that scored a perfect HandoffMatch. Failures count as wrong."""
+def _score_pass_count(
+    report: EvaluationReport[Any, Any, Any], score_name: str, threshold: float = 1.0
+) -> tuple[int, int]:
+    """Count cases where the named score met or exceeded threshold. Failures count as wrong."""
     passed = 0
     total = len(report.cases) + len(report.failures)
     for case in report.cases:
         scores = case.scores or {}
-        match = scores.get("HandoffMatch")
-        if match is not None and float(match.value) >= 1.0:
-            passed += 1
+        match = scores.get(score_name)
+        if match is not None:
+            try:
+                value = float(match.value)
+            except (TypeError, ValueError):
+                continue
+            if value >= threshold:
+                passed += 1
     return passed, total
 
 
-def _median_duration_s(
-    report: EvaluationReport[str, str, dict[str, Any]],
-) -> Optional[float]:
+def _median_duration_s(report: EvaluationReport[Any, Any, Any]) -> Optional[float]:
     durations = [c.task_duration for c in report.cases if c.task_duration is not None]
     return statistics.median(durations) if durations else None
 
 
-def render_markdown(results: list[ModelResult], dataset_name: str) -> str:
-    """Build a model-comparison markdown table from per-model reports."""
-    lines: list[str] = []
-    lines.append(f"# Galaxy agent evals -- {dataset_name}")
-    lines.append("")
-    lines.append(f"_Generated {datetime.now().isoformat(timespec='seconds')} from `{_git_sha()}`._")
-    lines.append("")
+def _all_score_names(reports: list[EvaluationReport[Any, Any, Any]]) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for r in reports:
+        for case in r.cases:
+            for score_name in (case.scores or {}).keys():
+                if score_name not in seen:
+                    seen.add(score_name)
+                    names.append(score_name)
+    return names
+
+
+def _render_dataset_section(results: list[DatasetResult]) -> str:
+    """Render one markdown section per (dataset, models...) tuple."""
+    if not results:
+        return ""
+    dataset_name = results[0].dataset
+    primary = results[0].primary_score
+    lines = [f"## {dataset_name}", ""]
 
     header = "| metric | " + " | ".join(r.model for r in results) + " |"
     sep = "| --- | " + " | ".join("---" for _ in results) + " |"
-    lines.append(header)
-    lines.append(sep)
+    lines += [header, sep]
 
-    accuracy_row = ["routing accuracy"]
+    score_names = _all_score_names([r.report for r in results])
+    if primary in score_names:
+        score_names = [primary] + [n for n in score_names if n != primary]
+
+    for score_name in score_names:
+        row = [score_name]
+        for r in results:
+            passed, total = _score_pass_count(r.report, score_name, threshold=1.0 if score_name != "LLMJudge" else 0.7)
+            row.append(f"{passed}/{total}" if total else "-")
+        lines.append("| " + " | ".join(row) + " |")
+
     latency_row = ["median latency (s)"]
     for r in results:
-        passed, total = _accuracy(r.report)
-        accuracy_row.append(f"{passed}/{total}" if total else "-")
         med = _median_duration_s(r.report)
         latency_row.append(f"{med:.2f}" if med is not None else "-")
-    lines.append("| " + " | ".join(accuracy_row) + " |")
     lines.append("| " + " | ".join(latency_row) + " |")
+    lines.append("")
 
-    lines.append("")
-    lines.append("## Per-case detail")
-    lines.append("")
-    case_header = "| case | expected | " + " | ".join(r.model for r in results) + " |"
-    case_sep = "| --- | --- | " + " | ".join("---" for _ in results) + " |"
-    lines.append(case_header)
-    lines.append(case_sep)
+    lines += ["### Per-case detail", ""]
+    case_header = "| case | " + " | ".join(r.model for r in results) + " |"
+    case_sep = "| --- | " + " | ".join("---" for _ in results) + " |"
+    lines += [case_header, case_sep]
 
     case_names: list[str] = []
     expected_by_name: dict[str, str] = {}
@@ -126,23 +158,36 @@ def render_markdown(results: list[ModelResult], dataset_name: str) -> str:
         for c in r.report.cases:
             if c.name and c.name not in expected_by_name:
                 case_names.append(c.name)
-                expected_by_name[c.name] = str(c.expected_output) if c.expected_output is not None else "-"
+                expected_by_name[c.name] = str(c.expected_output) if c.expected_output is not None else ""
         for f in r.report.failures:
             if f.name and f.name not in expected_by_name:
                 case_names.append(f.name)
-                expected_by_name[f.name] = str(f.expected_output) if f.expected_output is not None else "-"
+                expected_by_name[f.name] = str(f.expected_output) if f.expected_output is not None else ""
 
     for case_name in case_names:
-        row = [case_name, expected_by_name[case_name]]
+        row = [case_name]
         for r in results:
             case = next((c for c in r.report.cases if c.name == case_name), None)
             failure = next((f for f in r.report.failures if f.name == case_name), None)
             if case is not None:
                 scores = case.scores or {}
-                match = scores.get("HandoffMatch")
-                actual = case.output if case.output is not None else "?"
-                ok = match is not None and float(match.value) >= 1.0
-                row.append("OK" if ok else f"WRONG ({actual})")
+                primary_score = scores.get(r.primary_score)
+                ok = primary_score is not None and float(primary_score.value) >= 1.0
+                if ok:
+                    if "LLMJudge" in scores:
+                        try:
+                            judge_value = float(scores["LLMJudge"].value)
+                            row.append(f"OK (judge {judge_value:.2f})")
+                            continue
+                        except (TypeError, ValueError):
+                            pass
+                    row.append("OK")
+                else:
+                    if case.output is None:
+                        actual = "?"
+                    else:
+                        actual = " ".join(str(case.output).split())[:60]
+                    row.append(f"WRONG ({actual})")
             elif failure is not None:
                 row.append("ERROR")
             else:
@@ -153,12 +198,39 @@ def render_markdown(results: list[ModelResult], dataset_name: str) -> str:
     return "\n".join(lines)
 
 
+def render_markdown(all_results: list[DatasetResult]) -> str:
+    """Render a single markdown document covering every dataset evaluated."""
+    by_dataset: dict[str, list[DatasetResult]] = {}
+    for r in all_results:
+        by_dataset.setdefault(r.dataset, []).append(r)
+
+    lines = [
+        f"# Galaxy agent evals -- {datetime.now().strftime('%Y-%m-%d')}",
+        "",
+        f"_Generated {datetime.now().isoformat(timespec='seconds')} from `{_git_sha()}`._",
+        "",
+    ]
+    for results in by_dataset.values():
+        lines.append(_render_dataset_section(results))
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--models",
         required=True,
         help="Comma-separated model names to evaluate against the LiteLLM proxy.",
+    )
+    parser.add_argument(
+        "--datasets",
+        default=",".join(SPECS.keys()),
+        help=f"Comma-separated datasets to run (default: {','.join(SPECS.keys())}).",
+    )
+    parser.add_argument(
+        "--judge-model",
+        default="gpt-oss-120b",
+        help="Model to use as LLM-as-judge for fuzzy quality scoring (default gpt-oss-120b).",
     )
     parser.add_argument(
         "--proxy-url",
@@ -172,8 +244,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-config",
-        help="Path to YAML mapping model -> {proxy_url, api_key_env}. Per-model "
-        "overrides for models that live on a backend other than --proxy-url.",
+        help="Path to YAML mapping model -> {proxy_url, api_key/api_key_env}. "
+        "Per-model overrides for models on a different backend than --proxy-url.",
     )
     parser.add_argument(
         "--include-galaxy-required",
@@ -203,61 +275,64 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _resolve_model_endpoint(
-    model: str,
-    model_config: dict[str, Any],
-    default_url: str,
-    default_key: str,
-) -> tuple[str, str]:
-    """Return (proxy_url, api_key) for a model, falling back to defaults."""
-    entry = model_config.get(model)
-    if not entry:
-        return default_url, default_key
-    proxy_url = entry.get("proxy_url", default_url)
-    if "api_key" in entry:
-        return proxy_url, entry["api_key"]
-    api_key_env = entry.get("api_key_env")
-    if api_key_env:
-        api_key = os.environ.get(api_key_env)
-        if not api_key:
-            raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
-        return proxy_url, api_key
-    return proxy_url, default_key
-
-
 async def amain() -> int:
     args = parse_args()
     models = [m.strip() for m in args.models.split(",") if m.strip()]
+    datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
     only = [n.strip() for n in args.only.split(",")] if args.only else None
+
+    for ds in datasets:
+        if ds not in SPECS:
+            raise SystemExit(f"Unknown dataset: {ds}. Known: {', '.join(SPECS)}.")
 
     model_config: dict[str, Any] = {}
     if args.model_config:
         with open(args.model_config) as f:
             model_config = yaml.safe_load(f) or {}
 
-    results: list[ModelResult] = []
-    for model in models:
-        proxy_url, api_key = _resolve_model_endpoint(model, model_config, args.proxy_url, args.api_key)
-        print(f"\n=== Evaluating {model} (via {proxy_url}) ===", file=sys.stderr)
-        result = await _run_model(
-            model=model,
-            api_key=api_key,
-            proxy_url=proxy_url,
-            include_galaxy_required=args.include_galaxy_required,
-            only=only,
-            max_concurrency=args.max_concurrency,
-        )
-        results.append(result)
-        result.report.print(include_input=False, include_output=False)
+    judge_proxy_url, judge_api_key = _resolve_model_endpoint(
+        args.judge_model, model_config, args.proxy_url, args.api_key
+    )
+    judge_model = build_judge_model(args.judge_model, judge_proxy_url, judge_api_key)
+    print(f"Judge: {args.judge_model} (via {judge_proxy_url})", file=sys.stderr)
 
-    md = render_markdown(results, dataset_name="routing")
+    all_results: list[DatasetResult] = []
+    for ds_name in datasets:
+        spec_fn = SPECS[ds_name]
+        for model in models:
+            proxy_url, api_key = _resolve_model_endpoint(model, model_config, args.proxy_url, args.api_key)
+            print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
+            deps = make_deps(model=model, api_key=api_key, base_url=proxy_url)
+            built = spec_fn(
+                deps,
+                judge_model=judge_model,
+                only=only,
+                include_galaxy_required=args.include_galaxy_required,
+            )
+            report = await built.dataset.evaluate(
+                built.task,
+                name=f"{ds_name}/{model}",
+                max_concurrency=args.max_concurrency,
+            )
+            report.print(include_input=False, include_output=False)
+            all_results.append(
+                DatasetResult(
+                    dataset=ds_name,
+                    model=model,
+                    primary_score=built.primary_score,
+                    report=report,
+                )
+            )
+
+    md = render_markdown(all_results)
     print(md)
 
     if not args.no_write:
         results_dir = Path(args.results_dir)
         results_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        out = results_dir / f"{stamp}-routing-{_git_sha()}.md"
+        slug = "+".join(datasets)
+        out = results_dir / f"{stamp}-{slug}-{_git_sha()}.md"
         out.write_text(md)
         print(f"\nWrote {out}", file=sys.stderr)
 
