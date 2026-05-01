@@ -429,7 +429,7 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.get_user()
 
-    mcp_app = mcp.http_app()
+    mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 
     logger.info("MCP server initialized (Streamable HTTP)")
