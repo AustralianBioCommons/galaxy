@@ -1,13 +1,18 @@
 """Unit tests for Galaxy agent implementations.
 
-There are three classes here - they break into tests that require a live LLM
-and those that do not.
+Two classes here:
 
-1. Mocked tests - Deterministic tests with mocked LLM responses (always run) - TestAgentUnitMocked
-2. Live LLM tests - "Integration" tests requiring configured LLM (optional, marked with @pytest.mark.requires_llm)
-   TestAgentUnitLiveLLM, TestAgentConsistencyLiveLLM
+1. TestAgentUnitMocked -- deterministic tests with mocked LLM responses,
+   always run in CI.
+2. TestAgentUnitLiveLLM -- live tests for capability-detection paths
+   (CustomTool with scout vs deepseek). Optional, marked with
+   @pytest.mark.requires_llm.
 
-### Configuration for live API tests (TestAgentsApiLiveLLM):
+For routing behaviour and quality measurement against real LLMs, see the
+eval harness in evals/ -- it runs whole datasets across multiple models
+and emits comparison reports.
+
+### Configuration for live tests (TestAgentUnitLiveLLM):
     export GALAXY_TEST_AI_API_KEY="your-api-key"
     export GALAXY_TEST_AI_MODEL="llama-4-scout"
     export GALAXY_TEST_AI_API_BASE_URL="http://localhost:4000/v1/"
@@ -1158,75 +1163,3 @@ class TestAgentUnitLiveLLM:
         assert response.metadata["method"] == "simple_template"
         assert "tool_id" in response.metadata
         assert "tool_yaml" in response.metadata
-
-
-@pytestmark_live_llm
-class TestAgentConsistencyLiveLLM:
-    """Test agents with a consistent set of questions.
-
-    With the new router architecture using output functions, the router
-    handles queries directly or hands off to specialists. We test that
-    responses are appropriate for each query type.
-    """
-
-    TEST_QUERIES = [
-        # Tool creation queries - should trigger custom_tool handoff
-        ("Create a simple line counting tool", "tool_creation"),
-        ("Build a Galaxy tool that runs samtools sort", "tool_creation"),
-        ("I need a wrapper for BWA-MEM", "tool_creation"),
-        # Error analysis queries - should trigger error_analysis handoff
-        ("Why did my job fail with exit code 127?", "error_analysis"),
-        ("Help me debug this memory error", "error_analysis"),
-        ("What does 'command not found' mean?", "error_analysis"),
-        # General queries - should get direct response from router
-        ("Hello", "direct"),
-        ("Thank you", "direct"),
-        ("What can you do?", "direct"),
-        ("How do I run BWA in Galaxy?", "direct"),
-    ]
-
-    @pytest.fixture
-    def live_deps(self):
-        mock_config = mock.Mock()
-        mock_config.ai_api_key = os.environ.get("GALAXY_AI_API_KEY", "test-key")
-        mock_config.ai_model = os.environ.get("GALAXY_AI_MODEL", "llama-4-scout")
-        mock_config.ai_api_base_url = os.environ.get("GALAXY_AI_API_BASE_URL", "http://localhost:4000/v1/")
-
-        mock_user = mock.Mock()
-        mock_user.id = 1
-        mock_user.username = "test_user"
-
-        mock_trans = mock.Mock()
-        mock_trans.app.config = mock_config
-        mock_trans.user = mock_user
-
-        return GalaxyAgentDependencies(
-            trans=mock_trans,
-            user=mock_user,
-            config=mock_config,
-            get_agent=agent_registry.get_agent,
-            job_manager=None,
-        )
-
-    @pytest.mark.asyncio
-    async def test_response_consistency_live(self, live_deps):
-        router = QueryRouterAgent(live_deps)
-
-        for query, _query_type in self.TEST_QUERIES:
-            response = await router.process(query)
-
-            # All queries should return a response
-            assert response.content is not None, f"Query '{query}' should return content"
-            assert len(response.content) > 0, f"Query '{query}' should have non-empty content"
-            assert response.agent_type == "router"
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("query,query_type", TEST_QUERIES)
-    async def test_individual_query_response_live(self, live_deps, query, query_type):
-        router = QueryRouterAgent(live_deps)
-        response = await router.process(query)
-
-        # Verify we get a substantive response
-        assert response.content is not None
-        assert len(response.content) > 0
-        assert response.agent_type == "router"
