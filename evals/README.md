@@ -61,6 +61,8 @@ back to `--proxy-url`/`--api-key`.
 
 - `--datasets routing,error_analysis` -- pick which datasets to run (default
   is all registered).
+- `--repeat 3` -- run each case N times to expose stochasticity. Per-case
+  detail shows e.g. `2/3 [+1 ERR]` when one of three runs errored.
 - `--judge-model gpt-oss-120b` -- model for fuzzy LLM-as-judge scoring
   (default gpt-oss-120b). Looked up in `--model-config` for proxy/key.
 - `--only oom_137,exit_127` -- restrict to specific case names (across all

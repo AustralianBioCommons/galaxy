@@ -117,6 +117,15 @@ def _all_score_names(reports: list[EvaluationReport[Any, Any, Any]]) -> list[str
     return names
 
 
+def _base_case_name(name: Optional[str]) -> Optional[str]:
+    """Strip pydantic-evals' " [N/M]" repeat suffix from a case name."""
+    if not name:
+        return name
+    import re
+
+    return re.sub(r"\s+\[\d+/\d+\]$", "", name)
+
+
 def _render_dataset_section(results: list[DatasetResult]) -> str:
     """Render one markdown section per (dataset, models...) tuple."""
     if not results:
@@ -156,42 +165,60 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
     expected_by_name: dict[str, str] = {}
     for r in results:
         for c in r.report.cases:
-            if c.name and c.name not in expected_by_name:
-                case_names.append(c.name)
-                expected_by_name[c.name] = str(c.expected_output) if c.expected_output is not None else ""
+            base = _base_case_name(c.name)
+            if base and base not in expected_by_name:
+                case_names.append(base)
+                expected_by_name[base] = str(c.expected_output) if c.expected_output is not None else ""
         for f in r.report.failures:
-            if f.name and f.name not in expected_by_name:
-                case_names.append(f.name)
-                expected_by_name[f.name] = str(f.expected_output) if f.expected_output is not None else ""
+            base = _base_case_name(f.name)
+            if base and base not in expected_by_name:
+                case_names.append(base)
+                expected_by_name[base] = str(f.expected_output) if f.expected_output is not None else ""
 
     for case_name in case_names:
         row = [case_name]
         for r in results:
-            case = next((c for c in r.report.cases if c.name == case_name), None)
-            failure = next((f for f in r.report.failures if f.name == case_name), None)
-            if case is not None:
+            cases = [c for c in r.report.cases if _base_case_name(c.name) == case_name]
+            failures = [f for f in r.report.failures if _base_case_name(f.name) == case_name]
+            runs = len(cases) + len(failures)
+            if runs == 0:
+                row.append("-")
+                continue
+            ok_count = 0
+            judge_values: list[float] = []
+            wrong_sample: Optional[str] = None
+            for case in cases:
                 scores = case.scores or {}
                 primary_score = scores.get(r.primary_score)
                 ok = primary_score is not None and float(primary_score.value) >= 1.0
                 if ok:
-                    if "LLMJudge" in scores:
-                        try:
-                            judge_value = float(scores["LLMJudge"].value)
-                            row.append(f"OK (judge {judge_value:.2f})")
-                            continue
-                        except (TypeError, ValueError):
-                            pass
-                    row.append("OK")
-                else:
-                    if case.output is None:
-                        actual = "?"
+                    ok_count += 1
+                elif wrong_sample is None and case.output is not None:
+                    wrong_sample = " ".join(str(case.output).split())[:60]
+                judge = scores.get("LLMJudge")
+                if judge is not None:
+                    try:
+                        judge_values.append(float(judge.value))
+                    except (TypeError, ValueError):
+                        pass
+            if runs == 1:
+                if ok_count == 1:
+                    if judge_values:
+                        row.append(f"OK (judge {judge_values[0]:.2f})")
                     else:
-                        actual = " ".join(str(case.output).split())[:60]
-                    row.append(f"WRONG ({actual})")
-            elif failure is not None:
-                row.append("ERROR")
+                        row.append("OK")
+                elif failures:
+                    row.append("ERROR")
+                else:
+                    row.append(f"WRONG ({wrong_sample or '?'})")
             else:
-                row.append("-")
+                cell = f"{ok_count}/{runs}"
+                if judge_values:
+                    avg = sum(judge_values) / len(judge_values)
+                    cell += f" (judge {avg:.2f})"
+                if failures:
+                    cell += f" [+{len(failures)} ERR]"
+                row.append(cell)
         lines.append("| " + " | ".join(row) + " |")
 
     lines.append("")
@@ -263,6 +290,12 @@ def parse_args() -> argparse.Namespace:
         help="Per-model max concurrent agent calls (default 4).",
     )
     parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="Run each case N times (per model) for noise estimates (default 1).",
+    )
+    parser.add_argument(
         "--results-dir",
         default="evals/results",
         help="Directory to write the markdown report (default evals/results).",
@@ -313,6 +346,7 @@ async def amain() -> int:
                 built.task,
                 name=f"{ds_name}/{model}",
                 max_concurrency=args.max_concurrency,
+                repeat=args.repeat,
             )
             report.print(include_input=False, include_output=False)
             all_results.append(
