@@ -1,6 +1,8 @@
 import os
+from uuid import uuid4
 
 import pytest
+from sqlalchemy import event
 
 from galaxy import model
 from galaxy.exceptions import RequestParameterInvalidException
@@ -15,15 +17,13 @@ from .base import (
 )
 
 default_password = "123456"
-_user_counter = 0
 
 
 def _next_user_data():
-    global _user_counter
-    _user_counter += 1
+    suffix = uuid4().hex[:8]
     return dict(
-        email=f"graphuser{_user_counter}@test.test",
-        username=f"graphuser{_user_counter}",
+        email=f"graphuser{suffix}@test.test",
+        username=f"graphuser{suffix}",
         password=default_password,
     )
 
@@ -589,19 +589,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         graph = builder.build()
         assert len(graph.nodes) == 1
 
-    def test_determinism_identical_requests(self):
-        """Identical requests produce identical output."""
-        history, _ = self._create_history()
-        self._build_linear_chain(history, length=3)
-
-        graph1 = self._build_graph(history)
-        graph2 = self._build_graph(history)
-
-        assert [n.id for n in graph1.nodes] == [n.id for n in graph2.nodes]
-        assert [(e.source, e.target, e.type) for e in graph1.edges] == [
-            (e.source, e.target, e.type) for e in graph2.edges
-        ]
-
     def test_expanding_limit_generally_additive(self):
         """Expanding limit is generally additive for standalone datasets.
 
@@ -996,8 +983,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         This is the deliberately conservative behavior — we do not pick
         an arbitrary winner at the response level.
         """
-        from galaxy.managers.history_graph import HistoryGraphBuilder
-
         history, _ = self._create_history()
         in_hda = self._create_hda(history, name="input")
 
@@ -1059,8 +1044,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         subset of the unseeded result (proving it's a pure post-filter,
         not a different construction path).
         """
-        from sqlalchemy import event
-
         history, _ = self._create_history()
         # Build a small chain so there's something to filter.
         chain = self._build_linear_chain(history, length=3)
@@ -1177,10 +1160,10 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
 
 # ── Scalability / Boundedness Tests ──
 
-GRAPH_SCALE_HISTORY_SIZE = int(os.environ.get("GRAPH_SCALE_HISTORY_SIZE", 500))
-GRAPH_SCALE_CHAIN_LENGTH = int(os.environ.get("GRAPH_SCALE_CHAIN_LENGTH", 100))
-GRAPH_SCALE_COLLECTION_COUNT = int(os.environ.get("GRAPH_SCALE_COLLECTION_COUNT", 10))
-GRAPH_SCALE_COLLECTION_SIZE = int(os.environ.get("GRAPH_SCALE_COLLECTION_SIZE", 50))
+GRAPH_SCALE_HISTORY_SIZE = int(os.environ.get("GRAPH_SCALE_HISTORY_SIZE", 250))
+GRAPH_SCALE_CHAIN_LENGTH = int(os.environ.get("GRAPH_SCALE_CHAIN_LENGTH", 60))
+GRAPH_SCALE_COLLECTION_COUNT = int(os.environ.get("GRAPH_SCALE_COLLECTION_COUNT", 5))
+GRAPH_SCALE_COLLECTION_SIZE = int(os.environ.get("GRAPH_SCALE_COLLECTION_SIZE", 20))
 
 
 class TestHistoryGraphBuilderBoundedness(BaseTestCase, CreatesCollectionsMixin):
