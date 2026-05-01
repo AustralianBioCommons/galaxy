@@ -80,7 +80,7 @@ class HistoryGraphBuilder:
         seed: Optional[str] = None,
         direction: str = "both",
         depth: int = 5,
-        seed_scope: Optional[str] = None,
+        seed_scope_hid: Optional[int] = None,
     ):
         self.sa_session = sa_session
         self.security = security
@@ -91,16 +91,18 @@ class HistoryGraphBuilder:
         self.seed = seed
         self.direction = direction
         self.depth = depth
-        self.seed_scope = seed_scope
+        self.seed_scope_hid = seed_scope_hid
         self._older_than_hid: Optional[int] = None
         self._newer_than_hid: Optional[int] = None
         self._sort_keys: dict[str, tuple[int, int]] = {}
 
     def build(self) -> HistoryGraphResponse:
         truncation = TruncationInfo()
-        if self.seed_scope:
+        if self.seed_scope_hid is not None:
             truncation.scope_type = "seed_centered"
-            self._resolve_seed_scope(self.seed_scope)
+            half = self.limit // 2
+            self._older_than_hid = self.seed_scope_hid + half + (self.limit % 2)
+            self._newer_than_hid = self.seed_scope_hid - half - 1
 
         # 1. Select top-level items in scope.
         dataset_ids, collection_ids, item_capped = self._select_items()
@@ -177,22 +179,6 @@ class HistoryGraphBuilder:
         return HistoryGraphResponse(nodes=nodes, edges=edges, truncated=truncation)
 
     # ── Item selection ──
-
-    def _resolve_seed_scope(self, seed_scope: str):
-        prefix = seed_scope[0]
-        try:
-            db_id = self.security.decode_id(seed_scope[1:])
-        except Exception:
-            raise RequestParameterInvalidException(f"Invalid seed_scope encoding: {seed_scope!r}")
-        model = HistoryDatasetAssociation if prefix == "d" else HistoryDatasetCollectionAssociation
-        row = self.sa_session.execute(
-            select(model.hid).where(model.id == db_id, model.history_id == self.history_id)
-        ).first()
-        if row is None or row.hid is None:
-            raise RequestParameterInvalidException(f"seed_scope {seed_scope} not found in history.")
-        half = self.limit // 2
-        self._older_than_hid = row.hid + half + (self.limit % 2)
-        self._newer_than_hid = row.hid - half - 1
 
     def _select_items(self) -> tuple[set[int], set[int], bool]:
         hda_q: Select = select(

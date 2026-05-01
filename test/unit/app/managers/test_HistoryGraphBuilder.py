@@ -43,7 +43,7 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         direction="both",
         depth=20,
         limit=500,
-        seed_scope=None,
+        seed_scope_hid=None,
     ):
         builder = HistoryGraphBuilder(
             sa_session=self.trans.sa_session,
@@ -53,7 +53,7 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
             seed=seed,
             direction=direction,
             depth=depth,
-            seed_scope=seed_scope,
+            seed_scope_hid=seed_scope_hid,
         )
         return builder.build()
 
@@ -404,20 +404,19 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
             assert e.source != e.target, f"Self-loop: {e.source}"
 
     def test_seed_scope_centers_on_item(self):
-        """seed_scope centers the selection window on the specified item."""
+        """seed_scope_hid centers the selection window on the specified hid."""
         history, _ = self._create_history()
         # Create 10 standalone datasets
         hdas = [self._create_hda(history, name=f"dataset_{i}") for i in range(10)]
 
-        # Use seed_scope to center on the middle item (limit=4 → should get ~4 items around it)
+        # Center on the middle item (limit=4 → should get ~4 items around it)
         middle = hdas[5]
-        seed_scope = self._encode("d", middle.id)
-        graph = self._build_graph(history, seed_scope=seed_scope, limit=4)
+        graph = self._build_graph(history, seed_scope_hid=middle.hid, limit=4)
 
         assert len(graph.nodes) <= 4
         # The seed item must be in scope
         node_ids = {n.id for n in graph.nodes}
-        assert seed_scope in node_ids
+        assert self._encode("d", middle.id) in node_ids
         assert graph.truncated.scope_type == "seed_centered"
 
     def test_seed_in_scope_true(self):
@@ -435,20 +434,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         self._create_hda(history, name="dataset")
         graph = self._build_graph(history)
         assert graph.truncated.seed_in_scope is None
-
-    def test_seed_scope_not_found(self):
-        """seed_scope with nonexistent item returns 422."""
-        history, _ = self._create_history()
-        self._create_hda(history, name="dataset")
-        fake_scope = f"d{self.app.security.encode_id(99999)}"
-        with pytest.raises(RequestParameterInvalidException):
-            self._build_graph(history, seed_scope=fake_scope)
-
-    def test_seed_scope_invalid_prefix(self):
-        """seed_scope with invalid prefix returns 422."""
-        history, _ = self._create_history()
-        with pytest.raises(RequestParameterInvalidException):
-            self._build_graph(history, seed_scope="x_invalid")
 
     # ── Step 5: Validation tests ──
 
@@ -1139,7 +1124,7 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         # window holds just that one item and closure must complete the
         # tool_request from there.
         middle_hda = chain[2][0]
-        graph = self._build_graph(history, seed_scope=self._encode("d", middle_hda.id), limit=1)
+        graph = self._build_graph(history, seed_scope_hid=middle_hda.hid, limit=1)
 
         node_ids = {n.id for n in graph.nodes}
         tr_nodes = [n for n in graph.nodes if n.type == "tool_request"]
@@ -1465,13 +1450,12 @@ class TestHistoryGraphBuilderBoundedness(BaseTestCase, CreatesCollectionsMixin):
 
         # Pick an early item (10th from the beginning)
         early = hdas[9]
-        seed_scope = self._encode("d", early.id)
 
-        graph = self._build_graph(history, seed_scope=seed_scope, limit=limit)
+        graph = self._build_graph(history, seed_scope_hid=early.hid, limit=limit)
 
         # Seed item must be in scope
         node_ids = {nd.id for nd in graph.nodes}
-        assert seed_scope in node_ids
+        assert self._encode("d", early.id) in node_ids
 
         # Response bounded
         assert len(graph.nodes) <= limit

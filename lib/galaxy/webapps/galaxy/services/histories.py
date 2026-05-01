@@ -42,7 +42,10 @@ from galaxy.managers.histories import (
 )
 from galaxy.managers.history_graph import HistoryGraphBuilder
 from galaxy.managers.users import UserManager
-from galaxy.model import HistoryDatasetAssociation
+from galaxy.model import (
+    HistoryDatasetAssociation,
+    HistoryDatasetCollectionAssociation,
+)
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.model.store import payload_to_source_uri
 from galaxy.schema import (
@@ -392,6 +395,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         seed_scope: Optional[str] = None,
     ):
         history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
+        seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope else None
         builder = HistoryGraphBuilder(
             sa_session=trans.sa_session,
             security=self.security,
@@ -402,9 +406,19 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
             seed=seed,
             direction=direction,
             depth=depth,
-            seed_scope=seed_scope,
+            seed_scope_hid=seed_scope_hid,
         )
         return builder.build()
+
+    def _resolve_seed_scope_hid(self, trans: ProvidesHistoryContext, history_id: int, seed_scope: str) -> int:
+        db_id = self.security.decode_id(seed_scope[1:])
+        model_class = HistoryDatasetAssociation if seed_scope[0] == "d" else HistoryDatasetCollectionAssociation
+        row = trans.sa_session.execute(
+            select(model_class.hid).where(model_class.id == db_id, model_class.history_id == history_id)
+        ).first()
+        if row is None or row.hid is None:
+            raise glx_exceptions.ObjectNotFound(f"seed_scope {seed_scope} not found in history.")
+        return row.hid
 
     def prepare_download(
         self, trans: ProvidesHistoryContext, history_id: DecodedDatabaseIdField, payload: StoreExportPayload
