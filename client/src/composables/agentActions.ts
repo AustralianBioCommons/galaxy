@@ -22,6 +22,7 @@ export enum ActionType {
     REFINE_QUERY = "refine_query",
     APPLY_PAGE_EDIT = "apply_page_edit",
     INSERT_PAGE_SECTION = "insert_page_section",
+    WORKFLOW_IMPORT = "workflow_import",
 }
 /* eslint-enable no-unused-vars */
 
@@ -86,6 +87,10 @@ export function useAgentActions() {
 
                 case ActionType.DOCUMENTATION:
                     handleDocumentation(action);
+                    break;
+
+                case ActionType.WORKFLOW_IMPORT:
+                    await handleWorkflowImport(action);
                     break;
 
                 default:
@@ -189,6 +194,37 @@ export function useAgentActions() {
     }
 
     /**
+     * Handle WORKFLOW_IMPORT action - import an IWC workflow by trsID
+     */
+    async function handleWorkflowImport(action: ActionSuggestion) {
+        const trsId = action.parameters.trs_id;
+        const name = action.parameters.name || "IWC workflow";
+
+        if (!trsId) {
+            toast.error("No trs_id provided for workflow import action");
+            return;
+        }
+
+        const { data, error } = await GalaxyApi().POST("/api/workflows/from_iwc", {
+            body: { trs_id: trsId },
+        });
+
+        if (error) {
+            toast.error(`Failed to import ${name}: ${String(error)}`);
+            return;
+        }
+
+        if (data.missing_tools && data.missing_tools.length > 0) {
+            toast.warning(
+                `${data.name} imported, but ${data.missing_tools.length} tool(s) are not installed on this server.`,
+            );
+        } else {
+            toast.success(`Imported ${data.name} from IWC`);
+        }
+        router.push(`/workflows/edit?id=${data.id}`);
+    }
+
+    /**
      * Handle DOCUMENTATION action - open tool documentation
      */
     function handleDocumentation(action: ActionSuggestion) {
@@ -224,6 +260,7 @@ export function useAgentActions() {
             [ActionType.VIEW_EXTERNAL]: "🔗",
             [ActionType.APPLY_PAGE_EDIT]: "📝",
             [ActionType.INSERT_PAGE_SECTION]: "➕",
+            [ActionType.WORKFLOW_IMPORT]: "📥",
         };
         return icons[actionType] || "❓";
     }

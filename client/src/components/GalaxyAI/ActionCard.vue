@@ -22,6 +22,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
     faBook,
     faExternalLinkAlt,
+    faFileImport,
     faLifeRing,
     faPencilAlt,
     faPlay,
@@ -61,6 +62,7 @@ const iconMap: Record<ActionType, IconDefinition> = {
     [ActionType.VIEW_EXTERNAL]: faExternalLinkAlt,
     [ActionType.APPLY_PAGE_EDIT]: faPencilAlt,
     [ActionType.INSERT_PAGE_SECTION]: faPlay,
+    [ActionType.WORKFLOW_IMPORT]: faFileImport,
 };
 
 function getIcon(actionType: ActionType): IconDefinition {
