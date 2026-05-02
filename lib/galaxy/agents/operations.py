@@ -918,3 +918,12 @@ class AgentOperationsManager:
 
         self.dynamic_tools_manager.deactivate_unprivileged_tool(user, dynamic_tool)
         return {"uuid": uuid, "deactivated": True}
+
+    def run_user_tool(self, history_id: str, tool_uuid: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "history_id": history_id,
+            "tool_uuid": tool_uuid,
+            "inputs": inputs,
+        }
+        result = self.tools_service._create(self.trans, payload)
+        return self._encode_ids_in_response(result)

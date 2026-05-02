@@ -344,6 +344,7 @@ class TestMCPServerSmoke(IntegrationTestCase):
             "list_user_tools",
             "create_user_tool",
             "delete_user_tool",
+            "run_user_tool",
         }
         assert expected.issubset(tool_names), f"Missing tools: {expected - tool_names}"
 
@@ -474,3 +475,38 @@ class TestMCPServerSmoke(IntegrationTestCase):
         uuid, listed = self._run_async(_flow())
         uuids_after = {t["uuid"] for t in listed.data["tools"]}
         assert uuid not in uuids_after
+
+    def test_mcp_run_user_tool(self):
+        """run_user_tool() executes a UDT against an HDA input and produces an output."""
+        from fastmcp import Client
+        from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
+
+        mcp_server = self._get_mcp_server()
+        _, api_key = self._setup_udt_user("udt_run_user@test.com")
+
+        populator = DatasetPopulator(self.galaxy_interactor)
+        history_id = populator.new_history()
+        dataset = populator.new_dataset(history_id=history_id, content="abc")
+
+        async def _flow():
+            async with Client(mcp_server) as client:
+                create = await client.call_tool(
+                    "create_user_tool",
+                    {"api_key": api_key, "representation": TOOL_WITH_SHELL_COMMAND},
+                )
+                uuid = create.data["uuid"]
+                return await client.call_tool(
+                    "run_user_tool",
+                    {
+                        "api_key": api_key,
+                        "history_id": history_id,
+                        "tool_uuid": uuid,
+                        "inputs": {"input": {"src": "hda", "id": dataset["id"]}},
+                    },
+                )
+
+        result = self._run_async(_flow())
+        assert not result.is_error, result
+        populator.wait_for_history(history_id, assert_ok=True)
+        output = populator.get_history_dataset_content(history_id)
+        assert output == "abc\n"

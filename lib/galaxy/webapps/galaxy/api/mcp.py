@@ -522,6 +522,47 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.delete_user_tool(uuid)
 
+    @mcp.tool()
+    def run_user_tool(
+        history_id: str,
+        tool_uuid: str,
+        inputs: dict[str, Any],
+        api_key: str,
+        ctx: MCPContext,
+    ) -> dict[str, Any]:
+        """Run a user-defined tool by UUID, producing outputs in the given history.
+
+        Resolution happens through the tool service's standard run path,
+        which accepts tool_uuid in the payload and dispatches via the
+        toolbox's unprivileged-tool resolver -- so this is functionally a
+        UUID-keyed counterpart to run_tool().
+
+        Args:
+            history_id: Galaxy history ID where outputs will be placed.
+            tool_uuid: The UUID of the user-defined tool (from create_user_tool
+                or list_user_tools).
+            inputs: Tool input parameters keyed by input name.
+                - Dataset inputs: {"input_name": {"src": "hda", "id": "<dataset_id>"}}
+                - Collection inputs: {"input_name": {"src": "hdca", "id": "<collection_id>"}}
+                - Scalar parameters: {"param_name": value}
+
+        Returns:
+            Dict with job info (job_id, history_id, state) and output dataset IDs.
+
+        Example:
+            run_user_tool(
+                history_id="abc123",
+                tool_uuid="61d15277-a911-45ef-aa66-5385146578cc",
+                inputs={
+                    "scorer_output": {"src": "hda", "id": "59ace41fc068d3ad"},
+                    "top_tracks_per_variant": 5,
+                },
+            )
+        """
+        with _mcp_error_handler("run_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.run_user_tool(history_id, tool_uuid, inputs)
+
     mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 
