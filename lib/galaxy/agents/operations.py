@@ -906,3 +906,15 @@ class AgentOperationsManager:
         payload = DynamicUnprivilegedToolCreatePayload(src="representation", representation=representation)
         dynamic_tool = self.dynamic_tools_manager.create_unprivileged_tool(user, payload)
         return dynamic_tool.to_dict()
+
+    def delete_user_tool(self, uuid: str) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        dynamic_tool = self.dynamic_tools_manager.get_unprivileged_tool_by_uuid(user, uuid)
+        if dynamic_tool is None:
+            raise ValueError(f"User-defined tool {uuid!r} not found")
+
+        self.dynamic_tools_manager.deactivate_unprivileged_tool(user, dynamic_tool)
+        return {"uuid": uuid, "deactivated": True}

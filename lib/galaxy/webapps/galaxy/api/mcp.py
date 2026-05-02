@@ -505,6 +505,23 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.create_user_tool(representation)
 
+    @mcp.tool()
+    def delete_user_tool(uuid: str, api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """Deactivate a user-defined tool. Deactivated tools are not loaded into the toolbox.
+
+        Existing job history that referenced the tool is preserved; only
+        future runs are blocked.
+
+        Args:
+            uuid: The UUID of the tool to deactivate. Get this from list_user_tools().
+
+        Returns:
+            Dict confirming deactivation: {"uuid": ..., "deactivated": True}.
+        """
+        with _mcp_error_handler("delete_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.delete_user_tool(uuid)
+
     mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 
