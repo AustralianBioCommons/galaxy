@@ -40,8 +40,12 @@ from galaxy.managers.histories import (
     HistoryManager,
     HistorySerializer,
 )
+from galaxy.managers.history_graph import HistoryGraphManager
 from galaxy.managers.users import UserManager
-from galaxy.model import HistoryDatasetAssociation
+from galaxy.model import (
+    HistoryDatasetAssociation,
+    HistoryDatasetCollectionAssociation,
+)
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.model.store import payload_to_source_uri
 from galaxy.schema import (
@@ -50,6 +54,7 @@ from galaxy.schema import (
 )
 from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.history import HistoryIndexQueryPayload
+from galaxy.schema.history_graph import HistoryGraphResponse
 from galaxy.schema.schema import (
     AnyArchivedHistoryView,
     AnyHistoryView,
@@ -126,6 +131,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         deserializer: HistoryDeserializer,
         citations_manager: CitationsManager,
         history_export_manager: HistoryExportManager,
+        history_graph_manager: HistoryGraphManager,
         filters: HistoryFilters,
         short_term_storage_allocator: ShortTermStorageAllocator,
         notification_service: NotificationService,
@@ -137,6 +143,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         self.deserializer = deserializer
         self.citations_manager = citations_manager
         self.history_export_manager = history_export_manager
+        self.history_graph_manager = history_graph_manager
         self.filters = filters
         self.shareable_service = ShareableHistoryService(self.manager, self.serializer, notification_service)
         self.short_term_storage_allocator = short_term_storage_allocator
@@ -378,6 +385,40 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         else:
             history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
         return self._serialize_history(trans, history, serialization_params)
+
+    def graph(
+        self,
+        trans: ProvidesHistoryContext,
+        history_id: DecodedDatabaseIdField,
+        limit: int = 500,
+        include_deleted: bool = False,
+        seed: Optional[str] = None,
+        direction: Literal["backward", "forward", "both"] = "both",
+        depth: int = 20,
+        seed_scope: Optional[str] = None,
+    ) -> HistoryGraphResponse:
+        history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
+        seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope else None
+        return self.history_graph_manager.build(
+            sa_session=trans.sa_session,
+            history_id=history.id,
+            limit=limit,
+            include_deleted=include_deleted,
+            seed=seed,
+            direction=direction,
+            depth=depth,
+            seed_scope_hid=seed_scope_hid,
+        )
+
+    def _resolve_seed_scope_hid(self, trans: ProvidesHistoryContext, history_id: int, seed_scope: str) -> int:
+        db_id = self.security.decode_id(seed_scope[1:])
+        model_class = HistoryDatasetAssociation if seed_scope[0] == "d" else HistoryDatasetCollectionAssociation
+        row = trans.sa_session.execute(
+            select(model_class.hid).where(model_class.id == db_id, model_class.history_id == history_id)
+        ).first()
+        if row is None or row.hid is None:
+            raise glx_exceptions.ObjectNotFound(f"seed_scope {seed_scope} not found in history.")
+        return row.hid
 
     def prepare_download(
         self, trans: ProvidesHistoryContext, history_id: DecodedDatabaseIdField, payload: StoreExportPayload
