@@ -1334,4 +1334,4 @@ class TestHistoryGraphApi(ApiTestCase, BaseHistories):
 
     def test_nonexistent_history_is_rejected(self):
         response = self.dataset_populator.get_history_graph_raw("0000000000000000")
-        self._assert_status_code_is(response, 404)
+        self._assert_status_code_is(response, 400)
