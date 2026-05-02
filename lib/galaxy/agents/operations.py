@@ -61,6 +61,7 @@ class AgentOperationsManager:
         self._invocations_service: Optional[Any] = None
         self._hda_manager: Optional[HDAManager] = None
         self._dataset_collections_service: Optional[Any] = None
+        self._dynamic_tools_manager: Optional[Any] = None
 
     def _encode_id(self, value: int) -> str:
         return self.trans.security.encode_id(value)
@@ -147,6 +148,14 @@ class AgentOperationsManager:
 
             self._dataset_collections_service = self.app[DatasetCollectionsService]
         return self._dataset_collections_service
+
+    @property
+    def dynamic_tools_manager(self):
+        if self._dynamic_tools_manager is None:
+            from galaxy.managers.tools import DynamicToolManager
+
+            self._dynamic_tools_manager = self.app[DynamicToolManager]
+        return self._dynamic_tools_manager
 
     def connect(self) -> dict[str, Any]:
         config = self.app.config
@@ -872,4 +881,17 @@ class AgentOperationsManager:
             "active": user.active,
             "deleted": user.deleted,
             "create_time": user.create_time.isoformat() if user.create_time else None,
+        }
+
+    # ==================== User-Defined Tools (UDT) ====================
+
+    def list_user_tools(self, active: bool = True) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        tools = list(self.dynamic_tools_manager.list_unprivileged_tools(user, active=active))
+        return {
+            "tools": [t.to_dict() for t in tools],
+            "count": len(tools),
         }

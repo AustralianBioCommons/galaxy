@@ -282,6 +282,7 @@ class TestMCPServerSmoke(IntegrationTestCase):
     @classmethod
     def handle_galaxy_config_kwds(cls, config):
         config["enable_mcp_server"] = True
+        config["enable_beta_tool_formats"] = True
 
     def _get_mcp_server(self):
         from galaxy.webapps.galaxy.api.mcp import get_mcp_app
@@ -292,6 +293,13 @@ class TestMCPServerSmoke(IntegrationTestCase):
     def _get_api_key(self):
         _, api_key = self._setup_user_get_key("mcp_test_user@test.com")
         return api_key
+
+    def _setup_udt_user(self, email: str):
+        """Create a user, grant USER_TOOL_EXECUTE, return (user, api_key)."""
+        user, api_key = self._setup_user_get_key(email)
+        populator = DatasetPopulator(self.galaxy_interactor)
+        populator.create_role([user["id"]], role_type="user_tool_execute")
+        return user, api_key
 
     def _run_async(self, coro):
         import asyncio
@@ -333,6 +341,7 @@ class TestMCPServerSmoke(IntegrationTestCase):
             "upload_file_from_url",
             "invoke_workflow",
             "get_job_status",
+            "list_user_tools",
         }
         assert expected.issubset(tool_names), f"Missing tools: {expected - tool_names}"
 
@@ -402,3 +411,20 @@ class TestMCPServerSmoke(IntegrationTestCase):
         assert "query" in data
         assert "count" in data
         assert isinstance(data["tools"], list)
+
+    def test_mcp_list_user_tools_empty(self):
+        """list_user_tools() returns an empty list for a user with the role and no UDTs."""
+        from fastmcp import Client
+
+        mcp_server = self._get_mcp_server()
+        _, api_key = self._setup_udt_user("udt_list_user@test.com")
+
+        async def _list():
+            async with Client(mcp_server) as client:
+                return await client.call_tool("list_user_tools", {"api_key": api_key})
+
+        result = self._run_async(_list())
+        assert not result.is_error, result
+        data = result.data
+        assert data["tools"] == []
+        assert data["count"] == 0
