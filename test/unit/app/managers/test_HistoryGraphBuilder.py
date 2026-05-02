@@ -10,7 +10,7 @@ from galaxy.managers.collections import DatasetCollectionManager
 from galaxy.managers.datasets import DatasetManager
 from galaxy.managers.hdas import HDAManager
 from galaxy.managers.histories import HistoryManager
-from galaxy.managers.history_graph import HistoryGraphBuilder
+from galaxy.managers.history_graph import HistoryGraphManager
 from .base import (
     BaseTestCase,
     CreatesCollectionsMixin,
@@ -35,6 +35,8 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         self.hda_manager = self.app[HDAManager]
         self.history_manager = self.app[HistoryManager]
         self.collection_manager = self.app[DatasetCollectionManager]
+        self.app._toolbox = None  # type: ignore[assignment]
+        self.history_graph_manager = self.app[HistoryGraphManager]
 
     def _build_graph(
         self,
@@ -45,9 +47,8 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         limit=500,
         seed_scope_hid=None,
     ):
-        builder = HistoryGraphBuilder(
+        return self.history_graph_manager.build(
             sa_session=self.trans.sa_session,
-            security=self.app.security,
             history_id=history.id,
             limit=limit,
             seed=seed,
@@ -55,7 +56,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
             depth=depth,
             seed_scope_hid=seed_scope_hid,
         )
-        return builder.build()
 
     def _encode(self, prefix, db_id):
         return f"{prefix}{self.app.security.encode_id(db_id)}"
@@ -580,13 +580,11 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         assert len(graph.nodes) == 0
 
         # With include_deleted: included
-        builder = HistoryGraphBuilder(
+        graph = self.history_graph_manager.build(
             sa_session=self.trans.sa_session,
-            security=self.app.security,
             history_id=history.id,
             include_deleted=True,
         )
-        graph = builder.build()
         assert len(graph.nodes) == 1
 
     def test_expanding_limit_generally_additive(self):
@@ -1015,13 +1013,11 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         hdca.implicit_collection_jobs_id = icj.id  # implicit branch
         self.trans.sa_session.flush()
 
-        builder = HistoryGraphBuilder(
+        graph = self.history_graph_manager.build(
             sa_session=self.trans.sa_session,
-            security=self.app.security,
             history_id=history.id,
             limit=500,
         )
-        graph = builder.build()
 
         hdca_enc = self._encode("c", hdca.id)
         node_ids = {n.id for n in graph.nodes}
@@ -1181,15 +1177,15 @@ class TestHistoryGraphBuilderBoundedness(BaseTestCase, CreatesCollectionsMixin):
         self.hda_manager = self.app[HDAManager]
         self.history_manager = self.app[HistoryManager]
         self.collection_manager = self.app[DatasetCollectionManager]
+        self.app._toolbox = None  # type: ignore[assignment]
+        self.history_graph_manager = self.app[HistoryGraphManager]
 
     def _build_graph(self, history, **kwargs):
-        builder = HistoryGraphBuilder(
+        return self.history_graph_manager.build(
             sa_session=self.trans.sa_session,
-            security=self.app.security,
             history_id=history.id,
             **kwargs,
         )
-        return builder.build()
 
     def _encode(self, prefix, db_id):
         return f"{prefix}{self.app.security.encode_id(db_id)}"

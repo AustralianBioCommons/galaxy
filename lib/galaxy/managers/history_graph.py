@@ -44,6 +44,7 @@ from galaxy.schema.history_graph import (
     TruncationInfo,
 )
 from galaxy.security.idencoding import IdEncodingHelper
+from galaxy.structured_app import MinimalManagerApp
 from galaxy.tool_util.toolbox import AbstractToolBox
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,35 @@ TYPE_RANK = {"dataset": 0, "collection": 1, "tool_request": 2}
 EDGE_TYPE_RANK = {"dataset_input": 0, "dataset_output": 1, "collection_input": 2, "collection_output": 3}
 NODE_TYPE_PREFIX = {"dataset": "d", "collection": "c", "tool_request": "r"}
 MAX_LIMIT = 1000
+
+
+class HistoryGraphManager:
+    def __init__(self, app: MinimalManagerApp):
+        self.app = app
+
+    def build(
+        self,
+        sa_session: Session,
+        history_id: int,
+        limit: int = 500,
+        include_deleted: bool = False,
+        seed: Optional[str] = None,
+        direction: Literal["backward", "forward", "both"] = "both",
+        depth: int = 5,
+        seed_scope_hid: Optional[int] = None,
+    ) -> HistoryGraphResponse:
+        return HistoryGraphBuilder(
+            sa_session=sa_session,
+            security=self.app.security,
+            toolbox=self.app.toolbox,
+            history_id=history_id,
+            limit=limit,
+            include_deleted=include_deleted,
+            seed=seed,
+            direction=direction,
+            depth=depth,
+            seed_scope_hid=seed_scope_hid,
+        ).build()
 
 
 class HistoryGraphBuilder:

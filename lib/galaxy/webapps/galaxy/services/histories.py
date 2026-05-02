@@ -40,7 +40,7 @@ from galaxy.managers.histories import (
     HistoryManager,
     HistorySerializer,
 )
-from galaxy.managers.history_graph import HistoryGraphBuilder
+from galaxy.managers.history_graph import HistoryGraphManager
 from galaxy.managers.users import UserManager
 from galaxy.model import (
     HistoryDatasetAssociation,
@@ -131,6 +131,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         deserializer: HistoryDeserializer,
         citations_manager: CitationsManager,
         history_export_manager: HistoryExportManager,
+        history_graph_manager: HistoryGraphManager,
         filters: HistoryFilters,
         short_term_storage_allocator: ShortTermStorageAllocator,
         notification_service: NotificationService,
@@ -142,6 +143,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         self.deserializer = deserializer
         self.citations_manager = citations_manager
         self.history_export_manager = history_export_manager
+        self.history_graph_manager = history_graph_manager
         self.filters = filters
         self.shareable_service = ShareableHistoryService(self.manager, self.serializer, notification_service)
         self.short_term_storage_allocator = short_term_storage_allocator
@@ -397,19 +399,16 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
     ) -> HistoryGraphResponse:
         history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
         seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope else None
-        builder = HistoryGraphBuilder(
+        return self.history_graph_manager.build(
             sa_session=trans.sa_session,
-            security=self.security,
             history_id=history.id,
             limit=limit,
-            toolbox=trans.app.toolbox,
             include_deleted=include_deleted,
             seed=seed,
             direction=direction,
             depth=depth,
             seed_scope_hid=seed_scope_hid,
         )
-        return builder.build()
 
     def _resolve_seed_scope_hid(self, trans: ProvidesHistoryContext, history_id: int, seed_scope: str) -> int:
         db_id = self.security.decode_id(seed_scope[1:])
