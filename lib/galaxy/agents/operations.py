@@ -895,3 +895,14 @@ class AgentOperationsManager:
             "tools": [t.to_dict() for t in tools],
             "count": len(tools),
         }
+
+    def create_user_tool(self, representation: dict[str, Any]) -> dict[str, Any]:
+        from galaxy.tool_util_models.dynamic_tool_models import DynamicUnprivilegedToolCreatePayload
+
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        payload = DynamicUnprivilegedToolCreatePayload(src="representation", representation=representation)
+        dynamic_tool = self.dynamic_tools_manager.create_unprivileged_tool(user, payload)
+        return dynamic_tool.to_dict()

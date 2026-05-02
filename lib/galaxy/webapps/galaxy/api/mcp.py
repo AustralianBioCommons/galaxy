@@ -447,6 +447,64 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.list_user_tools(active)
 
+    @mcp.tool()
+    def create_user_tool(representation: dict[str, Any], api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """Create a user-defined tool in Galaxy from a YAML tool definition.
+
+        User-defined tools are lightweight, containerized tools that can be
+        created without admin privileges. They are stored in the database,
+        scoped to the creating user, and can be embedded in workflows
+        (importing the workflow automatically creates the tool for the
+        importing user).
+
+        Requires the USER_TOOL_EXECUTE role on the calling user and
+        enable_beta_tool_formats=true in the Galaxy config; both are enforced
+        by the underlying manager and surface as permission/config errors here.
+
+        Args:
+            representation: The tool definition as a dictionary matching the
+                GalaxyUserTool schema. Required fields:
+                - class: "GalaxyUserTool" (exactly this string)
+                - id: tool identifier (lowercase, no spaces, 3-255 chars)
+                - version: version string (e.g. "0.1.0")
+                - name: display name shown in Galaxy tool menu
+                - container: container image as a STRING (e.g. "python:3.12-slim"),
+                  NOT a dict -- this is a common mistake
+                - shell_command: the command to execute, with $(inputs.name.path)
+                  for data inputs and $(inputs.name) for parameter inputs
+                - inputs: list of input dicts, each with "name" and "type"
+                  (type can be: "data", "integer", "float", "text", "boolean")
+                - outputs: list of output dicts, each with "name", "type": "data",
+                  "format" (e.g. "tabular", "vcf", "bed"), and "from_work_dir"
+
+        Returns:
+            Dict with the created tool's id, uuid, tool_id, active status, and
+            the validated representation.
+
+        Example:
+            create_user_tool({
+                "class": "GalaxyUserTool",
+                "id": "my_filter",
+                "version": "0.1.0",
+                "name": "My Filter",
+                "container": "python:3.12-slim",
+                "shell_command": "python3 -c 'import sys; ...'",
+                "inputs": [{"name": "input1", "type": "data", "format": "tabular"}],
+                "outputs": [
+                    {"name": "output1", "type": "data",
+                     "format": "tabular", "from_work_dir": "out.tsv"}
+                ]
+            })
+
+        NEXT STEPS:
+        - Run the tool: run_user_tool(history_id, tool_uuid, inputs)
+        - List your tools: list_user_tools()
+        - Delete a tool: delete_user_tool(uuid)
+        """
+        with _mcp_error_handler("create_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.create_user_tool(representation)
+
     mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 
