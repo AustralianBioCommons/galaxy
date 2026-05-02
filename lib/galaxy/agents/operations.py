@@ -10,8 +10,12 @@ from typing import (
     Optional,
 )
 
+from sqlalchemy import select
+
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.managers.hdas import HDAManager
+from galaxy.managers.tools import DynamicToolManager
+from galaxy.model import UserDynamicToolAssociation
 from galaxy.schema import (
     FilterQueryParams,
     SerializationParams,
@@ -29,6 +33,9 @@ from galaxy.schema.schema import (
 )
 from galaxy.schema.workflows import InvokeWorkflowPayload
 from galaxy.structured_app import MinimalManagerApp
+from galaxy.tool_util_models.dynamic_tool_models import DynamicUnprivilegedToolCreatePayload
+from galaxy.webapps.galaxy.services.invocations import InvocationIndexPayload
+from galaxy.webapps.galaxy.services.workflows import WorkflowIndexPayload
 
 log = logging.getLogger(__name__)
 
@@ -152,8 +159,6 @@ class AgentOperationsManager:
     @property
     def dynamic_tools_manager(self):
         if self._dynamic_tools_manager is None:
-            from galaxy.managers.tools import DynamicToolManager
-
             self._dynamic_tools_manager = self.app[DynamicToolManager]
         return self._dynamic_tools_manager
 
@@ -438,8 +443,6 @@ class AgentOperationsManager:
         show_shared: bool = True,
         search: str | None = None,
     ) -> dict[str, Any]:
-        from galaxy.webapps.galaxy.services.workflows import WorkflowIndexPayload
-
         payload = WorkflowIndexPayload(
             limit=limit,
             offset=offset,
@@ -524,8 +527,6 @@ class AgentOperationsManager:
         decoded_history_id = None
         if history_id:
             decoded_history_id = self.trans.security.decode_id(history_id)
-
-        from galaxy.webapps.galaxy.services.invocations import InvocationIndexPayload
 
         payload = InvocationIndexPayload(
             workflow_id=decoded_workflow_id,
@@ -897,8 +898,6 @@ class AgentOperationsManager:
         }
 
     def create_user_tool(self, representation: dict[str, Any]) -> dict[str, Any]:
-        from galaxy.tool_util_models.dynamic_tool_models import DynamicUnprivilegedToolCreatePayload
-
         user = self.trans.user
         if not user:
             raise ValueError("User must be authenticated")
@@ -920,10 +919,6 @@ class AgentOperationsManager:
         return {"uuid": uuid, "deactivated": True}
 
     def run_user_tool(self, history_id: str, tool_uuid: str, inputs: dict[str, Any]) -> dict[str, Any]:
-        from sqlalchemy import select
-
-        from galaxy.model import UserDynamicToolAssociation
-
         user = self.trans.user
         if not user:
             raise ValueError("User must be authenticated")

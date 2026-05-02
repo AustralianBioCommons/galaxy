@@ -11,12 +11,24 @@ For deterministic tests without LLM, see test_static_agent_backend.py.
     pytest test/integration/test_agents.py -v
 """
 
+import asyncio
 import logging
 import os
 
+import pytest
+from fastmcp import (
+    Client,
+    FastMCP,
+)
+from fastmcp.exceptions import ToolError
+
+from galaxy.agents.operations import AgentOperationsManager
+from galaxy.managers.context import ProvidesUserContext
 from galaxy.util.unittest_utils import pytestmark_live_llm
+from galaxy.webapps.galaxy.api.mcp import get_mcp_app
 from galaxy_test.base.populators import (
     DatasetPopulator,
+    TOOL_WITH_SHELL_COMMAND,
     WorkflowPopulator,
 )
 from galaxy_test.driver.integration_util import IntegrationTestCase
@@ -180,9 +192,6 @@ class TestAgentOperationsManagerEncoding(AgentIntegrationTestCase):
     """
 
     def _make_ops(self):
-        from galaxy.agents.operations import AgentOperationsManager
-        from galaxy.managers.context import ProvidesUserContext
-
         class MinimalTrans(ProvidesUserContext):
             def __init__(self, app):
                 self._app = app
@@ -285,8 +294,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
         config["enable_beta_tool_formats"] = True
 
     def _get_mcp_server(self):
-        from galaxy.webapps.galaxy.api.mcp import get_mcp_app
-
         http_app = get_mcp_app(self._app)
         return http_app.state.mcp_server
 
@@ -302,8 +309,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
         return user, api_key
 
     def _run_async(self, coro):
-        import asyncio
-
         loop = asyncio.new_event_loop()
         try:
             return loop.run_until_complete(coro)
@@ -312,15 +317,11 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_server_initializes(self):
         """MCP server creates a FastMCP instance when enabled."""
-        from fastmcp import FastMCP
-
         mcp_server = self._get_mcp_server()
         assert isinstance(mcp_server, FastMCP)
 
     def test_mcp_tools_registered(self):
         """MCP server advertises all expected tools."""
-        from fastmcp import Client
-
         mcp_server = self._get_mcp_server()
 
         async def _list():
@@ -350,8 +351,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_connect_with_valid_key(self):
         """connect() succeeds with a valid API key and returns user + server info."""
-        from fastmcp import Client
-
         mcp_server = self._get_mcp_server()
         api_key = self._get_api_key()
 
@@ -367,10 +366,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_connect_with_invalid_key(self):
         """connect() rejects an invalid API key."""
-        import pytest
-        from fastmcp import Client
-        from fastmcp.exceptions import ToolError
-
         mcp_server = self._get_mcp_server()
 
         async def _connect():
@@ -382,8 +377,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_list_histories(self):
         """list_histories() returns a valid response."""
-        from fastmcp import Client
-
         mcp_server = self._get_mcp_server()
         api_key = self._get_api_key()
 
@@ -398,8 +391,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_search_tools(self):
         """search_tools() executes and returns a well-formed response."""
-        from fastmcp import Client
-
         mcp_server = self._get_mcp_server()
         api_key = self._get_api_key()
 
@@ -417,8 +408,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_list_user_tools_empty(self):
         """list_user_tools() returns an empty list for a user with the role and no UDTs."""
-        from fastmcp import Client
-
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_list_user@test.com")
 
@@ -434,10 +423,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_create_user_tool(self):
         """create_user_tool() persists a UDT and returns its uuid."""
-        from fastmcp import Client
-
-        from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
-
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_create_user@test.com")
 
@@ -456,10 +441,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_delete_user_tool(self):
         """delete_user_tool() deactivates a UDT so list_user_tools no longer returns it."""
-        from fastmcp import Client
-
-        from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
-
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_delete_user@test.com")
         populator = DatasetPopulator(self._get_interactor(api_key=api_key))
@@ -494,10 +475,6 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
     def test_mcp_run_user_tool(self):
         """run_user_tool() executes a UDT against an HDA input and produces an output."""
-        from fastmcp import Client
-
-        from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
-
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_run_user@test.com")
 
