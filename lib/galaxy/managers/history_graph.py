@@ -43,6 +43,7 @@ from galaxy.schema.history_graph import (
     HistoryGraphResponse,
     TruncationInfo,
 )
+from galaxy.schema.schema import DataItemSourceType
 from galaxy.security.idencoding import IdEncodingHelper
 from galaxy.structured_app import MinimalManagerApp
 from galaxy.tool_util.toolbox import AbstractToolBox
@@ -413,9 +414,9 @@ class HistoryGraphBuilder:
                     parent = parent[step]
                 if isinstance(parent, dict):
                     src = parent.get("src")
-                    if src == "hda":
+                    if src == DataItemSourceType.hda:
                         refs.add(("dataset", value))
-                    elif src == "hdca":
+                    elif src == DataItemSourceType.hdca:
                         refs.add(("collection", value))
             return key, value
 

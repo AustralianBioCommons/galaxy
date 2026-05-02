@@ -35,7 +35,7 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         self.hda_manager = self.app[HDAManager]
         self.history_manager = self.app[HistoryManager]
         self.collection_manager = self.app[DatasetCollectionManager]
-        self.app._toolbox = None  # type: ignore[assignment]
+        self.app._toolbox = None
         self.history_graph_manager = self.app[HistoryGraphManager]
 
     def _build_graph(
@@ -1177,7 +1177,7 @@ class TestHistoryGraphBuilderBoundedness(BaseTestCase, CreatesCollectionsMixin):
         self.hda_manager = self.app[HDAManager]
         self.history_manager = self.app[HistoryManager]
         self.collection_manager = self.app[DatasetCollectionManager]
-        self.app._toolbox = None  # type: ignore[assignment]
+        self.app._toolbox = None
         self.history_graph_manager = self.app[HistoryGraphManager]
 
     def _build_graph(self, history, **kwargs):
