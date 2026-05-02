@@ -435,6 +435,7 @@ class TestMCPServerSmoke(IntegrationTestCase):
     def test_mcp_create_user_tool(self):
         """create_user_tool() persists a UDT and returns its uuid."""
         from fastmcp import Client
+
         from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
 
         mcp_server = self._get_mcp_server()
@@ -456,10 +457,13 @@ class TestMCPServerSmoke(IntegrationTestCase):
     def test_mcp_delete_user_tool(self):
         """delete_user_tool() deactivates a UDT so list_user_tools no longer returns it."""
         from fastmcp import Client
+
         from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
 
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_delete_user@test.com")
+        populator = DatasetPopulator(self._get_interactor(api_key=api_key))
+        history_id = populator.new_history()
 
         async def _flow():
             async with Client(mcp_server) as client:
@@ -470,21 +474,34 @@ class TestMCPServerSmoke(IntegrationTestCase):
                 uuid = create.data["uuid"]
                 await client.call_tool("delete_user_tool", {"api_key": api_key, "uuid": uuid})
                 listed = await client.call_tool("list_user_tools", {"api_key": api_key})
-                return uuid, listed
+                deleted_run = await client.call_tool(
+                    "run_user_tool",
+                    {
+                        "api_key": api_key,
+                        "history_id": history_id,
+                        "tool_uuid": uuid,
+                        "inputs": {},
+                    },
+                    raise_on_error=False,
+                )
+                return uuid, listed, deleted_run
 
-        uuid, listed = self._run_async(_flow())
+        uuid, listed, deleted_run = self._run_async(_flow())
         uuids_after = {t["uuid"] for t in listed.data["tools"]}
         assert uuid not in uuids_after
+        assert deleted_run.is_error
+        assert "deactivated" in deleted_run.content[0].text
 
     def test_mcp_run_user_tool(self):
         """run_user_tool() executes a UDT against an HDA input and produces an output."""
         from fastmcp import Client
+
         from galaxy_test.base.populators import TOOL_WITH_SHELL_COMMAND
 
         mcp_server = self._get_mcp_server()
         _, api_key = self._setup_udt_user("udt_run_user@test.com")
 
-        populator = DatasetPopulator(self.galaxy_interactor)
+        populator = DatasetPopulator(self._get_interactor(api_key=api_key))
         history_id = populator.new_history()
         dataset = populator.new_dataset(history_id=history_id, content="abc")
 
@@ -507,6 +524,10 @@ class TestMCPServerSmoke(IntegrationTestCase):
 
         result = self._run_async(_flow())
         assert not result.is_error, result
+        data = result.data
+        assert data["jobs"][0]["tool_id"] == TOOL_WITH_SHELL_COMMAND["id"]
+        assert data["jobs"][0]["history_id"] == history_id
+        assert data["outputs"][0]["output_name"] == "output"
         populator.wait_for_history(history_id, assert_ok=True)
         output = populator.get_history_dataset_content(history_id)
         assert output == "abc\n"
