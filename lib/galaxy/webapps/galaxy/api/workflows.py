@@ -73,12 +73,14 @@ from galaxy.schema.schema import (
     AsyncTaskResultSummary,
     ClaimLandingPayload,
     CreateWorkflowLandingRequestPayload,
+    InvocationIndexPayload,
     InvocationSortByEnum,
     InvocationsStateCounts,
     SetSlugPayload,
     ShareWithPayload,
     ShareWithStatus,
     SharingStatus,
+    WorkflowIndexPayload,
     WorkflowJobMetric,
     WorkflowLandingRequest,
     WorkflowSortByEnum,
@@ -120,15 +122,11 @@ from galaxy.webapps.galaxy.services.base import (
     ServesExportStores,
 )
 from galaxy.webapps.galaxy.services.invocations import (
-    InvocationIndexPayload,
     InvocationsService,
     PrepareStoreDownloadPayload,
     WriteInvocationStoreToPayload,
 )
-from galaxy.webapps.galaxy.services.workflows import (
-    WorkflowIndexPayload,
-    WorkflowsService,
-)
+from galaxy.webapps.galaxy.services.workflows import WorkflowsService
 from galaxy.workflow.extract import extract_workflow
 from galaxy.workflow.modules import module_factory
 

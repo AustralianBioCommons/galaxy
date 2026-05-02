@@ -4,8 +4,6 @@ from typing import (
     Any,
 )
 
-from pydantic import Field
-
 from galaxy.celery.helpers import async_task_summary
 from galaxy.celery.tasks import (
     prepare_invocation_download,
@@ -51,7 +49,7 @@ from galaxy.schema.schema import (
     AsyncTaskResultSummary,
     BcoGenerationParametersMixin,
     ExportObjectType,
-    InvocationIndexQueryPayload,
+    InvocationIndexPayload,
     StoreExportPayload,
     WriteStoreToPayload,
 )
@@ -69,10 +67,6 @@ from galaxy.webapps.galaxy.services.base import (
 )
 
 log = logging.getLogger(__name__)
-
-
-class InvocationIndexPayload(InvocationIndexQueryPayload):
-    instance: bool = Field(default=False, description="Is provided workflow id for Workflow instead of StoredWorkflow?")
 
 
 class PrepareStoreDownloadPayload(StoreExportPayload, BcoGenerationParametersMixin):

@@ -30,12 +30,12 @@ from galaxy.schema.invocation import InvocationSerializationParams
 from galaxy.schema.schema import (
     CreateHistoryPayload,
     DatasetSourceType,
+    InvocationIndexPayload,
+    WorkflowIndexPayload,
 )
 from galaxy.schema.workflows import InvokeWorkflowPayload
 from galaxy.structured_app import MinimalManagerApp
 from galaxy.tool_util_models.dynamic_tool_models import DynamicUnprivilegedToolCreatePayload
-from galaxy.webapps.galaxy.services.invocations import InvocationIndexPayload
-from galaxy.webapps.galaxy.services.workflows import WorkflowIndexPayload
 
 log = logging.getLogger(__name__)
 

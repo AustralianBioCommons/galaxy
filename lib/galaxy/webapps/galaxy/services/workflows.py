@@ -29,7 +29,7 @@ from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.invocation import WorkflowInvocationResponse
 from galaxy.schema.schema import (
     InvocationsStateCounts,
-    WorkflowIndexQueryPayload,
+    WorkflowIndexPayload,
 )
 from galaxy.schema.workflows import (
     InvokeWorkflowPayload,
@@ -43,10 +43,6 @@ from galaxy.workflow.run import queue_invoke
 from galaxy.workflow.run_request import build_workflow_run_configs
 
 log = logging.getLogger(__name__)
-
-
-class WorkflowIndexPayload(WorkflowIndexQueryPayload):
-    missing_tools: bool = False
 
 
 class WorkflowsService(ServiceBase):
