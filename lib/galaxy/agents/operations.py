@@ -920,6 +920,31 @@ class AgentOperationsManager:
         return {"uuid": uuid, "deactivated": True}
 
     def run_user_tool(self, history_id: str, tool_uuid: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        from sqlalchemy import select
+
+        from galaxy.model import UserDynamicToolAssociation
+
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        dynamic_tool = self.dynamic_tools_manager.get_unprivileged_tool_by_uuid(user, tool_uuid)
+        if dynamic_tool is None:
+            raise ValueError(f"User-defined tool {tool_uuid!r} not found")
+        # UDT deactivation is per-user by design: deactivate_unprivileged_tool only
+        # flips the user-association, leaving DynamicTool.active intact so other
+        # users sharing the underlying tool aren't affected. The runtime check has
+        # to look at the association, not just dynamic_tool.active.
+        session = self.dynamic_tools_manager.session()
+        assoc_active = session.scalar(
+            select(UserDynamicToolAssociation.active).where(
+                UserDynamicToolAssociation.user_id == user.id,
+                UserDynamicToolAssociation.dynamic_tool_id == dynamic_tool.id,
+            )
+        )
+        if not dynamic_tool.active or not assoc_active:
+            raise ValueError(f"User-defined tool {tool_uuid!r} is deactivated")
+
         payload = {
             "history_id": history_id,
             "tool_uuid": tool_uuid,
