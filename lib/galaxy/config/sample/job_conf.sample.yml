@@ -1062,6 +1062,21 @@ execution:
       #htcondor_schedd: "schedd@collector.example.org"
       #htcondor_config: /etc/condor/condor_config
 
+      # Resource requests forwarded verbatim to the condor submit description:
+      #request_cpus: 4
+      #request_memory: 8192M
+      #request_gpus: 1
+
+      # Wall-clock time limit. Accepts seconds, HH:MM:SS, or D-HH:MM:SS.
+      # Injects periodic_hold = (JobDurationSeconds >= N) into the submit
+      # description. Galaxy reports the resulting hold as walltime_reached,
+      # enabling automatic resubmission to a longer-running destination.
+      #request_walltime: "24:00:00"
+
+      # Maximum distinct JOB_HELD events before the job is permanently failed
+      # (default 3, set to 0 to disable hold escalation entirely).
+      #max_held_count: 3
+
     # Job Re-submission
     # Jobs can be re-submitted for various reasons (to the same destination or others,
     # with or without a short delay). For instance, jobs that hit the walltime on one

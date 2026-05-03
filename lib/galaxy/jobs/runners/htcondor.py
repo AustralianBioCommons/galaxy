@@ -13,8 +13,8 @@ import sys
 import threading
 from collections import deque
 from typing import (
-    TYPE_CHECKING,
     NamedTuple,
+    TYPE_CHECKING,
 )
 
 from galaxy import model
@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 __all__ = ("HTCondorJobRunner",)
 
-HTCONDOR_DESTINATION_KEYS = ("htcondor_collector", "htcondor_schedd", "htcondor_config")
+HTCONDOR_DESTINATION_KEYS = ("htcondor_collector", "htcondor_schedd", "htcondor_config", "request_walltime")
 HTCONDOR_HELPER_MODULE = "galaxy.jobs.runners.htcondor_helper"
 HTCONDOR_HELPER_TIMEOUT = 30
 # Number of consecutive status-check errors before a job is failed.  A small
@@ -71,8 +71,7 @@ _WALLTIME_HOLD_MSG = (
     "Consider increasing the walltime or routing to a destination with a longer time limit."
 )
 _SIGKILL_MSG = (
-    "This job was killed because it used more memory than it was allocated. "
-    "Consider increasing request_memory."
+    "This job was killed because it used more memory than it was allocated. " "Consider increasing request_memory."
 )
 
 
@@ -82,7 +81,7 @@ class _EventLogSummary(NamedTuple):
     failure_event: int | None
     job_held: bool
     term_signal: int | None  # signal that killed the process (e.g. 9), None if normal exit
-    hold_reason_code: int    # HoldReasonCode from JOB_HELD ClassAd, 0 if absent
+    hold_reason_code: int  # HoldReasonCode from JOB_HELD ClassAd, 0 if absent
     log_missing: bool = False  # True when the event log file does not exist
 
 
@@ -108,6 +107,38 @@ def _parse_memory_mb(value: str) -> int | None:
         return int(float(value))
     except ValueError:
         return None
+
+
+def _parse_walltime_seconds(value: str) -> int | None:
+    """Parse a walltime string to a whole number of seconds.
+
+    Accepted formats (matching SLURM's --time convention):
+      seconds          "3600"
+      MM:SS            "90:00"
+      HH:MM:SS         "1:00:00"
+      D-HH:MM:SS       "1-0:00:00"
+
+    Returns None if the value cannot be parsed.
+    """
+    value = value.strip()
+    days = 0
+    if "-" in value:
+        day_part, value = value.split("-", 1)
+        try:
+            days = int(day_part)
+        except ValueError:
+            return None
+    parts = value.split(":")
+    try:
+        if len(parts) == 1:
+            return days * 86400 + int(parts[0])
+        if len(parts) == 2:
+            return days * 86400 + int(parts[0]) * 60 + int(parts[1])
+        if len(parts) == 3:
+            return days * 86400 + int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except ValueError:
+        pass
+    return None
 
 
 def _normalize_condor_config(condor_config: str | None) -> str | None:
@@ -460,6 +491,11 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     f'GALAXY_MEMORY_MB="{memory_mb}"; export GALAXY_MEMORY_MB; '
                     f'GALAXY_MEMORY_MB_PER_SLOT="{per_slot}"; export GALAXY_MEMORY_MB_PER_SLOT;'
                 )
+
+        if request_walltime := job_destination.params.get("request_walltime", None):
+            walltime_seconds = _parse_walltime_seconds(str(request_walltime))
+            if walltime_seconds is not None and "periodic_hold" not in query_params:
+                query_params["periodic_hold"] = f"(JobDurationSeconds >= {walltime_seconds})"
 
         cjs = HTCondorJobState(
             job_wrapper=job_wrapper,

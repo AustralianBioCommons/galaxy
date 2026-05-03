@@ -550,9 +550,7 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
                 if job.state in (model.Job.states.ERROR, model.Job.states.DELETED):
                     break
                 time.sleep(1)
-            assert job.state == model.Job.states.ERROR, (
-                f"Expected ERROR after external condor_rm, got {job.state}"
-            )
+            assert job.state == model.Job.states.ERROR, f"Expected ERROR after external condor_rm, got {job.state}"
 
 
 class FakeHTCondorIntegrationInstance(integration_util.IntegrationInstance):
@@ -1747,6 +1745,7 @@ def test_cleanup_job_always_at_submit_failure(fake_instance, fake_htcondor, runn
         # Intercept cjs.cleanup — we can't get the cjs before queue_job creates it,
         # so patch HTCondorJobState.cleanup on the class temporarily.
         from galaxy.jobs.runners import htcondor as htcondor_module
+
         original_cleanup = htcondor_module.HTCondorJobState.cleanup
 
         def tracking_cleanup(self_cjs):
@@ -1881,9 +1880,7 @@ def test_hold_reason_code_sets_runner_state(
 ):
     """JOB_HELD with a classified HoldReasonCode immediately fails with the correct runner_state."""
     runner = runner_factory()
-    job_wrapper = _job_wrapper(
-        fake_instance, 1, dict(htcondor_config=f"/tmp/condor-hold-code-{hold_reason_code}")
-    )
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config=f"/tmp/condor-hold-code-{hold_reason_code}"))
     cjs = _watch_job(runner, job_wrapper)
     _write_user_log(cjs)
 
@@ -2131,8 +2128,6 @@ def test_locate_schedd_with_collector_and_name(fake_htcondor):
 # ---------------------------------------------------------------------------
 
 
-
-
 # ---------------------------------------------------------------------------
 # #2  _htcondor_params destination-vs-runner precedence
 # ---------------------------------------------------------------------------
@@ -2191,9 +2186,7 @@ def test_htcondor_params_none_destination_uses_runner_defaults(fake_instance, fa
     assert condor_config is None
 
 
-def test_htcondor_params_empty_string_falls_through_to_runner_default(
-    fake_instance, fake_htcondor, runner_factory
-):
+def test_htcondor_params_empty_string_falls_through_to_runner_default(fake_instance, fake_htcondor, runner_factory):
     """An empty string in the destination is falsy and lets the runner default win."""
     runner = runner_factory()
     runner.runner_params.htcondor_collector = "runner_collector:9618"
@@ -2336,3 +2329,97 @@ def test_parse_memory_mb_unparseable_returns_none(value):
     assert _parse_memory_mb(value) is None
 
 
+# ---------------------------------------------------------------------------
+# Walltime injection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_seconds"),
+    [
+        pytest.param("3600", 3600, id="plain-seconds"),
+        pytest.param("90:00", 5400, id="MM:SS"),
+        pytest.param("1:00:00", 3600, id="HH:MM:SS"),
+        pytest.param("2:30:00", 9000, id="HH:MM:SS-nonzero-minutes"),
+        pytest.param("1-0:00:00", 86400, id="D-HH:MM:SS"),
+        pytest.param("1-12:00:00", 129600, id="D-HH:MM:SS-half-day"),
+    ],
+)
+def test_parse_walltime_seconds_valid(value, expected_seconds):
+    from galaxy.jobs.runners.htcondor import _parse_walltime_seconds
+
+    assert _parse_walltime_seconds(value) == expected_seconds
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param("garbage", id="garbage"),
+        pytest.param("1:xx:00", id="non-numeric-field"),
+        pytest.param("x-1:00:00", id="non-numeric-day"),
+    ],
+)
+def test_parse_walltime_seconds_invalid_returns_none(value):
+    from galaxy.jobs.runners.htcondor import _parse_walltime_seconds
+
+    assert _parse_walltime_seconds(value) is None
+
+
+def test_request_walltime_adds_periodic_hold(fake_instance, fake_htcondor, runner_factory):
+    """request_walltime injects periodic_hold into the submit description."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        1,
+        dict(htcondor_config="/tmp/condor-walltime", request_walltime="3600"),
+    )
+    runner.queue_job(job_wrapper)
+
+    records = _records(fake_instance, "submit")
+    assert len(records) == 1
+    assert "periodic_hold = (JobDurationSeconds >= 3600)" in records[0]["submit_description"]
+    assert "request_walltime" not in records[0]["submit_description"]
+
+
+def test_request_walltime_hhmmss_format(fake_instance, fake_htcondor, runner_factory):
+    """request_walltime accepts HH:MM:SS format."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        1,
+        dict(htcondor_config="/tmp/condor-walltime-hms", request_walltime="1:00:00"),
+    )
+    runner.queue_job(job_wrapper)
+
+    records = _records(fake_instance, "submit")
+    assert "periodic_hold = (JobDurationSeconds >= 3600)" in records[0]["submit_description"]
+
+
+def test_request_walltime_absent_no_periodic_hold(fake_instance, fake_htcondor, runner_factory):
+    """No periodic_hold is injected when request_walltime is not set."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-no-walltime"))
+    runner.queue_job(job_wrapper)
+
+    records = _records(fake_instance, "submit")
+    assert "periodic_hold" not in records[0]["submit_description"]
+
+
+def test_request_walltime_does_not_override_user_periodic_hold(fake_instance, fake_htcondor, runner_factory):
+    """A user-supplied periodic_hold expression takes precedence over request_walltime."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        1,
+        dict(
+            htcondor_config="/tmp/condor-walltime-override",
+            request_walltime="3600",
+            periodic_hold="(JobDurationSeconds >= 7200)",
+        ),
+    )
+    runner.queue_job(job_wrapper)
+
+    records = _records(fake_instance, "submit")
+    desc = records[0]["submit_description"]
+    assert "periodic_hold = (JobDurationSeconds >= 7200)" in desc
+    assert "periodic_hold = (JobDurationSeconds >= 3600)" not in desc

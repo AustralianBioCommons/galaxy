@@ -273,6 +273,7 @@ condor submit description. All others (e.g. `request_cpus`, `request_memory`,
 | `htcondor_collector` | Collector address (e.g. `collector.example.org:9618`). When set, the runner queries this collector for a schedd rather than using the default from `CONDOR_CONFIG`. |
 | `htcondor_schedd` | Name of a specific schedd to target (e.g. `schedd@submit.example.org`). When omitted, the first schedd returned by the collector is used. |
 | `htcondor_config` | Path to an alternative `condor_config` file. Triggers the subprocess client so Galaxy's own HTCondor environment is unaffected. Useful when submitting to multiple independent pools. |
+| `request_walltime` | Maximum wall-clock time for the job. Accepts plain seconds (`3600`), `HH:MM:SS` (`1:00:00`), `MM:SS`, or SLURM-compatible `D-HH:MM:SS` (`1-0:00:00`). The runner injects `periodic_hold = (JobDurationSeconds >= N)` into the submit description. When the limit is reached HTCondor holds the job with `HoldReasonCode=16`, which Galaxy reports as `walltime_reached` — enabling automatic resubmission to a longer-running destination. Ignored if the destination already sets a `periodic_hold` expression directly. |
 | `max_held_count` | Maximum number of distinct `JOB_HELD` events tolerated before the job is permanently failed (default: `3`). Each time HTCondor places a job on hold the counter increments by one; a job that stays held for days still counts as a single hold. Once the threshold is reached the job fails with `runner_state=UNKNOWN_ERROR`, which the resubmission framework can act on. Set to `1` to fail immediately on the first hold, raise the value for workflows that expect periodic holds and automatic releases, or set to `0` to disable hold escalation entirely. |
 
 #### Basic configuration
@@ -290,6 +291,8 @@ execution:
       runner: htcondor
       request_cpus: 1
       request_memory: 4096M
+      # Wall-clock time limit: seconds, HH:MM:SS, or D-HH:MM:SS.
+      request_walltime: "24:00:00"
       # Fail after this many distinct hold events (default 3). Raise if your
       # workflow expects periodic holds followed by automatic releases.
       max_held_count: 3
