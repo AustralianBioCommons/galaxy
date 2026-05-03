@@ -9,14 +9,17 @@
 
 import flushPromises from "flush-promises";
 import { http, HttpResponse } from "msw";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type EffectScope, effectScope } from "vue";
 
 import { useServerMock } from "@/api/client/__mocks__";
 
 import {
     _resetHistoryViewerSubscriptionsForTest,
+    _resetSSESharedSourceForTest,
     addHistoryViewerSubscription,
     removeHistoryViewerSubscription,
+    useSSE,
 } from "./useNotificationSSE";
 
 interface SubscriptionRequest {
@@ -96,5 +99,161 @@ describe("useNotificationSSE viewer subscriptions", () => {
         await flushPromises();
         const ids = requests.filter((r) => r.method === "POST").map((r) => r.history_ids[0]);
         expect(new Set(ids)).toEqual(new Set(["hist-A", "hist-B"]));
+    });
+});
+
+/**
+ * Reconnect-on-CLOSED tests.
+ *
+ * The browser's native ``EventSource`` retries while ``readyState ===
+ * CONNECTING`` but gives up once it flips to ``CLOSED`` — for example, when a
+ * 429/5xx response arrives without ``text/event-stream``. The composable must
+ * notice that flip and schedule a manual reopen with backoff so the client
+ * doesn't silently drop to polling-only updates for the rest of the session.
+ *
+ * We stub ``globalThis.EventSource`` with a fake whose lifecycle the test
+ * drives directly: this keeps the test off jsdom's ``EventSource`` (which
+ * doesn't actually open sockets) and gives us a deterministic handle on the
+ * instance count for the "a *new* EventSource was constructed after backoff"
+ * assertion.
+ */
+class FakeEventSource {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSED = 2;
+    static instances: FakeEventSource[] = [];
+
+    readonly url: string;
+    readyState: number = FakeEventSource.CONNECTING;
+    onopen: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onmessage: ((e: MessageEvent) => void) | null = null;
+    addEventListener = vi.fn();
+    removeEventListener = vi.fn();
+    close = vi.fn(() => {
+        this.readyState = FakeEventSource.CLOSED;
+    });
+
+    constructor(url: string) {
+        this.url = url;
+        FakeEventSource.instances.push(this);
+    }
+
+    static reset() {
+        FakeEventSource.instances = [];
+    }
+}
+
+describe("useNotificationSSE managed reconnect", () => {
+    let originalEventSource: typeof EventSource | undefined;
+    // ``useSSE`` registers an ``onScopeDispose`` cleanup; outside a Vue
+    // component setup that warns and ``vitest-fail-on-console`` upgrades the
+    // warning to a test failure. Wrap each test in an explicit scope so the
+    // disposal hook has somewhere to attach.
+    let scope: EffectScope;
+
+    beforeEach(() => {
+        FakeEventSource.reset();
+        originalEventSource = (globalThis as unknown as { EventSource?: typeof EventSource }).EventSource;
+        (globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
+        vi.useFakeTimers();
+        _resetSSESharedSourceForTest();
+        scope = effectScope();
+    });
+
+    afterEach(() => {
+        scope.stop();
+        vi.useRealTimers();
+        _resetSSESharedSourceForTest();
+        if (originalEventSource) {
+            (globalThis as unknown as { EventSource: typeof EventSource }).EventSource = originalEventSource;
+        } else {
+            delete (globalThis as unknown as { EventSource?: unknown }).EventSource;
+        }
+    });
+
+    it("schedules a reopen when onerror fires with readyState=CLOSED", () => {
+        scope.run(() => {
+            const { connect } = useSSE(() => {});
+            connect();
+        });
+        expect(FakeEventSource.instances).toHaveLength(1);
+
+        const first = FakeEventSource.instances[0]!;
+        // Simulate the browser giving up on the native retry.
+        first.readyState = FakeEventSource.CLOSED;
+        first.onerror?.();
+
+        // Until the backoff fires, no replacement EventSource exists yet.
+        expect(FakeEventSource.instances).toHaveLength(1);
+
+        // The first attempt's backoff is in [500ms, 1500ms); 2000ms is past
+        // the upper bound regardless of the jitter draw, so a fixed advance
+        // is deterministic without seeding ``Math.random``.
+        vi.advanceTimersByTime(2000);
+        expect(FakeEventSource.instances).toHaveLength(2);
+    });
+
+    it("does not reopen while readyState=CONNECTING (browser is still retrying natively)", () => {
+        scope.run(() => {
+            const { connect } = useSSE(() => {});
+            connect();
+        });
+        const first = FakeEventSource.instances[0]!;
+        first.readyState = FakeEventSource.CONNECTING;
+        first.onerror?.();
+
+        // No manual scheduling while the browser is still trying — would
+        // otherwise double-up reconnect work and accelerate the retry loop.
+        // A full minute past any backoff envelope without a second instance
+        // proves the managed path stayed dormant.
+        vi.advanceTimersByTime(60_000);
+        expect(FakeEventSource.instances).toHaveLength(1);
+    });
+
+    it("resets the backoff counter on a successful onopen", () => {
+        scope.run(() => {
+            const { connect } = useSSE(() => {});
+            connect();
+        });
+
+        // Stack five back-to-back failures so the unjittered base delay grows
+        // to the 30s cap. After this loop the next attempt's envelope is
+        // [15s, 45s) — well outside the [500ms, 1500ms) envelope a freshly
+        // reset counter would produce. ``45_001`` clears the worst-case jitter
+        // draw on each iteration so the timer always fires.
+        const STACKED = 5;
+        for (let i = 0; i < STACKED; i++) {
+            const current = FakeEventSource.instances.at(-1)!;
+            current.readyState = FakeEventSource.CLOSED;
+            current.onerror?.();
+            vi.advanceTimersByTime(45_001);
+        }
+        const beforeReset = FakeEventSource.instances.length;
+        expect(beforeReset).toBe(STACKED + 1);
+
+        // Trigger a sixth failure and verify the *capped* envelope: a 2s
+        // advance is below the 15s lower bound, so no new instance appears.
+        // Without this assertion the reset test below would pass even if the
+        // counter never reset, since both paths would fire on a 2s advance.
+        const stale = FakeEventSource.instances.at(-1)!;
+        stale.readyState = FakeEventSource.CLOSED;
+        stale.onerror?.();
+        vi.advanceTimersByTime(2000);
+        expect(FakeEventSource.instances).toHaveLength(beforeReset);
+
+        // Drain the in-flight capped timer so we have a fresh source whose
+        // ``onopen`` will reset the counter.
+        vi.advanceTimersByTime(45_001);
+        expect(FakeEventSource.instances).toHaveLength(beforeReset + 1);
+        const reopened = FakeEventSource.instances.at(-1)!;
+        reopened.onopen?.();
+
+        // Counter reset → next failure's delay drops back to [500, 1500); a
+        // 2s advance must fire it.
+        reopened.readyState = FakeEventSource.CLOSED;
+        reopened.onerror?.();
+        vi.advanceTimersByTime(2000);
+        expect(FakeEventSource.instances).toHaveLength(beforeReset + 2);
     });
 });
