@@ -1,22 +1,132 @@
-"""Job control via the HTCondor DRM using the htcondor2 Python API."""
+"""Job control via the HTCondor DRM using the htcondor2 Python API.
+
+Overview
+--------
+The ``HTCondorJobRunner`` submits Galaxy jobs to an HTCondor pool and monitors
+them through their full lifecycle: submit → execute → terminate (or fail/abort).
+It requires the ``htcondor2`` Python package (``pip install htcondor``).
+
+Architecture
+------------
+The runner uses two client implementations, chosen automatically:
+
+``_HTCondorInProcessClient``
+    Used when **no** ``htcondor_config`` destination parameter is set.  The
+    htcondor2 library talks directly to the schedd from within the Galaxy
+    process.  This is the common case when Galaxy runs on the same machine as
+    the HTCondor collector/schedd, or when ``CONDOR_CONFIG`` is already set in
+    the environment.
+
+``_HTCondorSubprocessClient``
+    Used when an ``htcondor_config`` destination parameter is provided.  A
+    dedicated helper subprocess is spawned with ``CONDOR_CONFIG`` pointing at
+    the supplied file, isolating it from the main Galaxy process.  Separate
+    subprocesses are created per unique config path, so jobs targeting
+    different pools stay isolated.  A single subprocess is shared across jobs
+    that use the same config (even if they specify different schedds), avoiding
+    unnecessary process proliferation.
+
+Destination parameters
+----------------------
+All parameters are optional and can be set at the destination or runner level.
+
+``htcondor_collector``
+    Address of the HTCondor collector (e.g. ``"collector.example.org:9618"``).
+    When set, the runner queries this collector for a schedd rather than relying
+    on the default configured in ``CONDOR_CONFIG``.  Passed as the *pool*
+    argument to ``htcondor2.Collector``.
+
+``htcondor_schedd``
+    Name of a specific schedd to target (e.g. ``"schedd@submit.example.org"``).
+    When omitted, the runner picks the first schedd returned by the collector.
+
+``htcondor_config``
+    Absolute path to an alternative ``condor_config`` file.  When supplied the
+    runner uses the subprocess client so Galaxy's own condor environment is not
+    affected.  Useful when submitting to multiple independent HTCondor pools.
+
+Any other destination parameter (e.g. ``request_cpus``, ``request_memory``,
+``universe``, ``docker_image``) is forwarded verbatim to the condor submit
+description.
+
+Example job configuration (``job_conf.yml``)::
+
+    runners:
+      htcondor:
+        load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+        workers: 4
+    execution:
+      default: htcondor_default
+      environments:
+        htcondor_default:
+          runner: htcondor
+          request_cpus: 1
+          request_memory: 4096M
+        htcondor_pool_b:
+          runner: htcondor
+          htcondor_collector: "collector-b.example.org:9618"
+          htcondor_config: "/etc/condor/pool_b_config"
+          request_memory: 8192M
+
+Testing
+-------
+The test suite lives in ``test/integration/test_htcondor_runner.py`` and has
+three tiers:
+
+**Unit-style tests (fake htcondor2 stub)**
+    A lightweight stub at ``test/integration/htcondor_fake/htcondor2.py``
+    mirrors the real htcondor2 API surface and records every submit/remove call
+    to a temporary directory.  These tests cover job lifecycle transitions,
+    helper-process isolation, crash-recovery, and cancellation without
+    requiring a real HTCondor installation.  Run with::
+
+        pytest test/integration/test_htcondor_runner.py -k "not Container"
+
+**End-to-end test with htcondor/mini Docker container**
+    ``TestHTCondorContainerJob`` spins up the ``htcondor/mini`` all-in-one
+    container (master + schedd + collector + negotiator + startd) and submits
+    real jobs through the runner.  This validates the full submit→monitor→finish
+    cycle and the cancellation path against the real htcondor2 library.
+
+    Prerequisites:
+      * Docker available on the test host.
+      * ``htcondor2`` installed in the test venv (``pip install htcondor``).
+      * Port ``HTCONDOR_MINI_PORT`` (default 19618) free on the host.
+
+    Run with::
+
+        pytest test/integration/test_htcondor_runner.py::TestHTCondorContainerJob
+
+    Relevant environment variables:
+
+    ``GALAXY_TEST_HTCONDOR_IMAGE``
+        Docker image to use (default: ``htcondor/mini:el9``).
+    ``GALAXY_TEST_HTCONDOR_MINI_PORT``
+        Host port mapped to the container's collector/schedd port 9618
+        (default: ``19618``).
+
+**Live-cluster tests**
+    Controlled by ``GALAXY_TEST_HTCONDOR=1`` and optional
+    ``GALAXY_TEST_HTCONDOR_COLLECTOR`` / ``GALAXY_TEST_HTCONDOR_SCHEDD`` /
+    ``GALAXY_TEST_HTCONDOR_CONFIG`` environment variables.  Skipped unless the
+    variable is set.  Intended for CI environments with a real HTCondor pool.
+"""
 
 import json
 import logging
 import os
+import shlex
 import subprocess
 import sys
 import threading
-from typing import (
-    Optional,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING
 
 from galaxy import model
 from galaxy.jobs.runners import (
     AsynchronousJobRunner,
     AsynchronousJobState,
 )
+from galaxy.jobs.runners.htcondor_helper import _locate_schedd
 from galaxy.jobs.runners.util.condor import (
     build_submit_description,
     submission_params,
@@ -36,43 +146,17 @@ HTCONDOR_HELPER_MODULE = "galaxy.jobs.runners.htcondor_helper"
 HTCONDOR_HELPER_TIMEOUT = 5
 
 
-def _normalize_condor_config(condor_config: Optional[str]) -> Optional[str]:
+def _normalize_condor_config(condor_config: str | None) -> str | None:
     if not condor_config:
         return None
     return os.path.realpath(os.path.expanduser(condor_config))
 
 
-def _locate_schedd(htcondor, schedd_cache, schedd_lock, collector: Optional[str], schedd_name: Optional[str]):
-    cache_key = (collector, schedd_name)
-    with schedd_lock:
-        cached = schedd_cache.get(cache_key)
-    if cached:
-        return cached
-
-    if not collector and not schedd_name:
-        schedd = htcondor.Schedd()
-    else:
-        collector_obj = htcondor.Collector(pool=collector) if collector else htcondor.Collector()
-        if schedd_name:
-            schedd_ad = collector_obj.locate(htcondor.DaemonType.Schedd, name=schedd_name)
-        else:
-            schedd_ads = collector_obj.locateAll(htcondor.DaemonType.Schedd)
-            schedd_ad = schedd_ads[0] if schedd_ads else None
-        if not schedd_ad:
-            location = f"collector={collector}" if collector else "local collector"
-            raise RuntimeError(f"Unable to locate schedd via {location} (schedd={schedd_name or 'first'})")
-        schedd = htcondor.Schedd(schedd_ad)
-
-    with schedd_lock:
-        schedd_cache[cache_key] = schedd
-    return schedd
-
-
 class _HTCondorClient:
-    def submit(self, submit_description: str, collector: Optional[str], schedd_name: Optional[str]) -> str:
+    def submit(self, submit_description: str, collector: str | None, schedd_name: str | None) -> str:
         raise NotImplementedError()
 
-    def remove(self, job_spec: Union[int, str], collector: Optional[str], schedd_name: Optional[str]) -> None:
+    def remove(self, job_spec: int | str, collector: str | None, schedd_name: str | None) -> None:
         raise NotImplementedError()
 
     def shutdown(self) -> None:
@@ -82,17 +166,17 @@ class _HTCondorClient:
 class _HTCondorInProcessClient(_HTCondorClient):
     def __init__(self, htcondor):
         self.htcondor = htcondor
-        self._schedd_cache = {}
+        self._schedd_cache: dict = {}
         self._schedd_lock = threading.Lock()
 
-    def _schedd(self, collector: Optional[str], schedd_name: Optional[str]):
+    def _schedd(self, collector: str | None, schedd_name: str | None):
         return _locate_schedd(self.htcondor, self._schedd_cache, self._schedd_lock, collector, schedd_name)
 
-    def submit(self, submit_description: str, collector: Optional[str], schedd_name: Optional[str]) -> str:
+    def submit(self, submit_description: str, collector: str | None, schedd_name: str | None) -> str:
         submit_result = self._schedd(collector, schedd_name).submit(self.htcondor.Submit(submit_description))
         return str(submit_result.cluster())
 
-    def remove(self, job_spec: Union[int, str], collector: Optional[str], schedd_name: Optional[str]) -> None:
+    def remove(self, job_spec: int | str, collector: str | None, schedd_name: str | None) -> None:
         self._schedd(collector, schedd_name).act(
             self.htcondor.JobAction.Remove, job_spec, reason="Galaxy job stop request"
         )
@@ -104,7 +188,7 @@ class _HTCondorSubprocessClient(_HTCondorClient):
         self._lock = threading.Lock()
         self._process: subprocess.Popen[str] | None = None
 
-    def submit(self, submit_description: str, collector: Optional[str], schedd_name: Optional[str]) -> str:
+    def submit(self, submit_description: str, collector: str | None, schedd_name: str | None) -> str:
         response = self._request(
             dict(
                 command="submit",
@@ -115,7 +199,7 @@ class _HTCondorSubprocessClient(_HTCondorClient):
         )
         return str(response["cluster"])
 
-    def remove(self, job_spec: Union[int, str], collector: Optional[str], schedd_name: Optional[str]) -> None:
+    def remove(self, job_spec: int | str, collector: str | None, schedd_name: str | None) -> None:
         self._request(
             dict(
                 command="remove",
@@ -192,7 +276,13 @@ class _HTCondorSubprocessClient(_HTCondorClient):
         env = os.environ.copy()
         env["CONDOR_CONFIG"] = self.condor_config
         env.setdefault("PYTHONUNBUFFERED", "1")
-        env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(path for path in sys.path if path))
+        # Build PYTHONPATH from sys.path, then append any entries from the existing
+        # PYTHONPATH that are not already present (e.g. paths added only via env var).
+        sys_paths = list(dict.fromkeys(path for path in sys.path if path))
+        for p in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+            if p and p not in sys_paths:
+                sys_paths.append(p)
+        env["PYTHONPATH"] = os.pathsep.join(sys_paths)
         self._process = subprocess.Popen(
             [sys.executable, "-m", HTCONDOR_HELPER_MODULE],
             stdin=subprocess.PIPE,
@@ -223,17 +313,13 @@ class HTCondorJobState(AsynchronousJobState):
         user_log: str,
         *,
         files_dir=None,
-        job_id: Union[str, None] = None,
+        job_id: str | None = None,
         job_file=None,
         output_file=None,
         error_file=None,
         exit_code_file=None,
         job_name=None,
     ) -> None:
-        """
-        Encapsulates state related to a job that is being run via the DRM and
-        that we need to monitor.
-        """
         super().__init__(
             job_wrapper,
             job_destination,
@@ -254,6 +340,14 @@ class HTCondorJobState(AsynchronousJobState):
         if self._event_log is None:
             self._event_log = htcondor.JobEventLog(self.user_log)
         return self._event_log
+
+    def close_event_log(self) -> None:
+        if self._event_log is not None:
+            try:
+                self._event_log.close()
+            except Exception:
+                pass
+            self._event_log = None
 
 
 class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
@@ -282,7 +376,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 f"following error:\n{exc.__class__.__name__}: {str(exc)}"
             )
         self.htcondor = htcondor2
-        self._client_cache = {}
+        self._client_cache: dict = {}
         self._client_lock = threading.Lock()
 
     def shutdown(self):
@@ -301,7 +395,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             except Exception:
                 log.exception("Failed to shut down HTCondor client")
 
-    def _htcondor_params(self, job_destination: Optional["JobDestination"]):
+    def _htcondor_params(self, job_destination: "JobDestination | None"):
         """Resolve collector/schedd/config parameters from the destination or runner defaults."""
         params = job_destination.params if job_destination is not None else {}
         collector = params.get("htcondor_collector", None) or self.runner_params.htcondor_collector
@@ -309,7 +403,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         condor_config = params.get("htcondor_config", None) or self.runner_params.htcondor_config
         return collector, schedd_name, _normalize_condor_config(condor_config)
 
-    def _client_for_destination(self, job_destination: Optional["JobDestination"]):
+    def _client_for_destination(self, job_destination: "JobDestination | None"):
         _, _, condor_config = self._htcondor_params(job_destination)
         with self._client_lock:
             client = self._client_cache.get(condor_config)
@@ -459,6 +553,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 log.exception(f"({galaxy_id_tag}/{job_id}) Unable to check job status")
                 log.warning(f"({galaxy_id_tag}/{job_id}) job will now be errored")
                 cjs.fail_message = "Cluster could not complete job"
+                cjs.close_event_log()
                 self.work_queue.put((self.fail_job, cjs))
                 continue
 
@@ -480,11 +575,13 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     if external_metadata:
                         self._handle_metadata_externally(cjs.job_wrapper, resolve_requirements=True)
                     log.debug(f"({galaxy_id_tag}/{job_id}) job has completed")
+                    cjs.close_event_log()
                     self.work_queue.put((self.finish_job, cjs))
                 continue
             if job_failed:
                 log.debug(f"({galaxy_id_tag}/{job_id}) job failed")
                 cjs.failed = True
+                cjs.close_event_log()
                 self.work_queue.put((self.fail_job, cjs))
                 continue
             if job_held:
@@ -522,6 +619,8 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     if external_metadata:
                         self._handle_metadata_externally(cjs.job_wrapper, resolve_requirements=True)
                     log.debug(f"({galaxy_id_tag}/{external_id}) job has completed")
+                    if cjs:
+                        cjs.close_event_log()
                     self.work_queue.put((self.finish_job, cjs))
             except Exception as e:
                 log.warning(f"stop_job(): {job.id}: trying to stop container failed. ({e})")
@@ -572,7 +671,12 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         if cjs.job_id is None:
             raise RuntimeError("Missing HTCondor job_id while summarizing event log.")
         cluster_id = int(cjs.job_id)
-        log_size = os.path.getsize(cjs.user_log)
+
+        try:
+            log_size = os.path.getsize(cjs.user_log)
+        except FileNotFoundError:
+            return cjs.running, False, False, False, cjs.user_log_size
+
         event_log = cjs.event_log(self.htcondor)
 
         for event in event_log.events(stop_after=0):
@@ -581,29 +685,37 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             event_type = event.type
             if event_type == self.htcondor.JobEventType.EXECUTE:
                 job_running = True
+                job_held = False
             elif event_type in (
                 self.htcondor.JobEventType.JOB_EVICTED,
                 self.htcondor.JobEventType.JOB_SUSPENDED,
             ):
                 job_running = False
+            elif event_type == self.htcondor.JobEventType.JOB_UNSUSPENDED:
+                job_running = True
             elif event_type == self.htcondor.JobEventType.JOB_TERMINATED:
                 job_complete = True
             elif event_type == self.htcondor.JobEventType.JOB_HELD:
                 job_running = False
                 job_held = True
+            elif event_type == self.htcondor.JobEventType.JOB_RELEASED:
+                job_held = False
+                job_running = False
             elif event_type in (
                 self.htcondor.JobEventType.JOB_ABORTED,
                 self.htcondor.JobEventType.CLUSTER_REMOVE,
+                self.htcondor.JobEventType.SHADOW_EXCEPTION,
+                self.htcondor.JobEventType.EXECUTABLE_ERROR,
             ):
                 job_failed = True
 
         return job_running, job_complete, job_failed, job_held, log_size
 
-    def _condor_remove(self, external_id, job_destination: Optional["JobDestination"] = None):
+    def _condor_remove(self, external_id, job_destination: "JobDestination | None" = None):
         if not external_id:
             return "Missing external job id"
         try:
-            job_spec: Union[int, str] = int(external_id)
+            job_spec: int | str = int(external_id)
         except Exception:
             job_spec = external_id
         try:
@@ -633,11 +745,8 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     return self._run_command(cont.container_info["commands"][command], external_id)[0]
 
     def _run_command(self, command, external_job_id):
-        command = f"condor_ssh_to_job {external_job_id} {command}"
-
-        p = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, close_fds=True, preexec_fn=os.setpgrp
-        )
+        cmd = ["condor_ssh_to_job", str(external_job_id)] + shlex.split(command)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, preexec_fn=os.setpgrp)
         stdout, stderr = p.communicate()
         exit_code = p.returncode
         ret = None
@@ -645,5 +754,5 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             ret = stdout.strip()
         else:
             log.debug(stderr)
-        log.debug("_run_command(%s) exit code (%s) and failure: %s", command, exit_code, stderr)
+        log.debug("_run_command(%s) exit code (%s) and failure: %s", cmd, exit_code, stderr)
         return (exit_code, ret)

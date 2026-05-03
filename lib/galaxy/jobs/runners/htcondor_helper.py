@@ -4,7 +4,9 @@ import threading
 from typing import Any
 
 
-def _locate_schedd(htcondor, schedd_cache, schedd_lock, collector, schedd_name):
+def _locate_schedd(
+    htcondor, schedd_cache: dict, schedd_lock: threading.Lock, collector: str | None, schedd_name: str | None
+):
     cache_key = (collector, schedd_name)
     with schedd_lock:
         cached = schedd_cache.get(cache_key)
