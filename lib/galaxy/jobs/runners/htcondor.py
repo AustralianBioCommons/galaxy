@@ -323,6 +323,9 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         collector, schedd_name, _ = self._htcondor_params(job_destination)
 
         query_params = self._submit_params(job_destination)
+        # Set initialdir so HTCondor changes to the job working directory before
+        # executing the script.
+        query_params["initialdir"] = job_wrapper.working_directory
         container = None
         universe = query_params.get("universe", None)
         if universe and universe.strip().lower() == "docker":
