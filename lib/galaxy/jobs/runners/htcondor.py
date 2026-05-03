@@ -35,7 +35,7 @@ __all__ = ("HTCondorJobRunner",)
 
 HTCONDOR_DESTINATION_KEYS = ("htcondor_collector", "htcondor_schedd", "htcondor_config")
 HTCONDOR_HELPER_MODULE = "galaxy.jobs.runners.htcondor_helper"
-HTCONDOR_HELPER_TIMEOUT = 5
+HTCONDOR_HELPER_TIMEOUT = 30
 
 
 def _normalize_condor_config(condor_config: str | None) -> str | None:
@@ -191,7 +191,7 @@ class _HTCondorSubprocessClient(_HTCondorClient):
         process = self._process
         if process is None or process.stderr is None or process.poll() is None:
             return message
-        stderr = process.stderr.read().strip()
+        stderr = process.stderr.read(4096).strip()
         if stderr:
             return f"{message}: {stderr}"
         return message
@@ -384,8 +384,14 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             log.exception(f"({galaxy_id_tag}) failure preparing submit file")
             return
 
-        if job_wrapper.get_state() in (model.Job.states.DELETED, model.Job.states.STOPPED):
-            log.debug("(%s) Job deleted/stopped by user before it entered the queue", galaxy_id_tag)
+        if job_wrapper.get_state() in (
+            model.Job.states.DELETED,
+            model.Job.states.STOPPED,
+        ):
+            log.debug(
+                "(%s) Job deleted/stopped by user before it entered the queue",
+                galaxy_id_tag,
+            )
             if cleanup_job in ("always", "onsuccess"):
                 os.unlink(submit_file)
                 cjs.cleanup()
@@ -461,13 +467,18 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     self.work_queue.put((self.finish_job, cjs))
                 continue
             if job_failed:
+                if job_state in (model.Job.states.DELETED, model.Job.states.STOPPED):
+                    continue
                 log.debug(f"({galaxy_id_tag}/{job_id}) job failed")
                 cjs.failed = True
                 cjs.close_event_log()
                 self.work_queue.put((self.fail_job, cjs))
                 continue
             if job_held:
-                if job_state not in (model.Job.states.DELETED, model.Job.states.STOPPED):
+                if job_state not in (
+                    model.Job.states.DELETED,
+                    model.Job.states.STOPPED,
+                ):
                     cjs.job_wrapper.change_state(model.Job.states.QUEUED)
                 cjs.running = False
                 new_watched.append(cjs)
@@ -480,43 +491,19 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         """Attempts to delete a job from the DRM queue."""
         job = job_wrapper.get_job()
         external_id = job.job_runner_external_id
-        galaxy_id_tag = job_wrapper.get_id_tag()
         if job.container:
             try:
                 log.info(f"stop_job(): {job.id}: trying to stop container .... ({external_id})")
-                new_watch_list = []
-                cjs = None
-                for tcjs in self.watched:
-                    if tcjs.job_id != external_id:
-                        new_watch_list.append(tcjs)
-                    else:
-                        cjs = tcjs
-                        break
-                self.watched = new_watch_list
                 self._stop_container(job_wrapper)
-                if cjs and cjs.job_wrapper.get_state() != model.Job.states.DELETED:
-                    external_metadata = not asbool(
-                        cjs.job_wrapper.job_destination.params.get("embed_metadata_in_job", True)
-                    )
-                    if external_metadata:
-                        self._handle_metadata_externally(cjs.job_wrapper, resolve_requirements=True)
-                    log.debug(f"({galaxy_id_tag}/{external_id}) job has completed")
-                    if cjs:
-                        cjs.close_event_log()
-                    self.work_queue.put((self.finish_job, cjs))
             except Exception as e:
                 log.warning(f"stop_job(): {job.id}: trying to stop container failed. ({e})")
                 try:
                     self._kill_container(job_wrapper)
                 except Exception as e:
                     log.warning(f"stop_job(): {job.id}: trying to kill container failed. ({e})")
-                    failure_message = self._condor_remove(external_id, job_wrapper.job_destination)
-                    if failure_message:
-                        log.debug(f"({external_id}). Failed to stop condor {failure_message}")
-        else:
-            failure_message = self._condor_remove(external_id, job_wrapper.job_destination)
-            if failure_message:
-                log.debug(f"({external_id}). Failed to stop condor {failure_message}")
+        failure_message = self._condor_remove(external_id, job_wrapper.job_destination)
+        if failure_message:
+            log.debug(f"({external_id}). Failed to stop condor {failure_message}")
 
     def recover(self, job: model.Job, job_wrapper: "MinimalJobWrapper") -> None:
         """Recovers jobs stuck in the queued/running state when Galaxy started."""
@@ -622,17 +609,20 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             cont = job.container
             if cont:
                 if cont.container_type == "docker":
-                    return self._run_command(cont.container_info["commands"][command], external_id)[0]
+                    return self._run_command(cont.container_info["commands"][command], external_id)
 
     def _run_command(self, command, external_job_id):
         cmd = ["condor_ssh_to_job", str(external_job_id)] + shlex.split(command)
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, preexec_fn=os.setpgrp)
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            close_fds=True,
+            process_group=0,
+        )
         stdout, stderr = p.communicate()
         exit_code = p.returncode
-        ret = None
-        if exit_code == 0:
-            ret = stdout.strip()
-        else:
+        if exit_code != 0:
             log.debug(stderr)
         log.debug("_run_command(%s) exit code (%s) and failure: %s", cmd, exit_code, stderr)
-        return (exit_code, ret)
+        return exit_code

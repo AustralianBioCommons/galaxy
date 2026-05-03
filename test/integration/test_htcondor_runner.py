@@ -201,7 +201,13 @@ def start_htcondor_docker(container_name: str, jobs_directory: str) -> tuple[str
 
     # Obtain the container's Docker bridge IP — reachable from the host.
     container_ip = subprocess.check_output(
-        ["docker", "inspect", "-f", "{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}", container_name],
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+            container_name,
+        ],
         text=True,
     ).strip()
     collector_addr = f"{container_ip}:9618"
@@ -250,7 +256,14 @@ def start_htcondor_docker(container_name: str, jobs_directory: str) -> tuple[str
     # presents the token and the schedd verifies it — no password exchange needed.
     token_identity = f"{token_username}@galaxy_test"
     token_content = subprocess.check_output(
-        ["docker", "exec", container_name, "condor_token_create", "-identity", token_identity],
+        [
+            "docker",
+            "exec",
+            container_name,
+            "condor_token_create",
+            "-identity",
+            token_identity,
+        ],
         text=True,
     ).strip()
     token_dir = tempfile.mkdtemp(prefix="htcondor_tokens_")
@@ -268,7 +281,10 @@ def start_htcondor_docker(container_name: str, jobs_directory: str) -> tuple[str
 
 
 def stop_htcondor_docker(
-    container_name: str, container_config_path: str, host_config_path: str, token_dir: str
+    container_name: str,
+    container_config_path: str,
+    host_config_path: str,
+    token_dir: str,
 ) -> None:
     """Stop the minicondor container and clean up temporary config files."""
     subprocess.call(["docker", "rm", "-f", container_name])
@@ -289,7 +305,15 @@ def _condor_history_count(container_name: str) -> int:
     per completed job, with no header — making the count unambiguous.
     """
     result = subprocess.run(
-        ["docker", "exec", container_name, "condor_history", "-format", "%d\n", "ClusterId"],
+        [
+            "docker",
+            "exec",
+            container_name,
+            "condor_history",
+            "-format",
+            "%d\n",
+            "ClusterId",
+        ],
         capture_output=True,
         text=True,
     )
@@ -374,8 +398,18 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
         if _errors:
             raise RuntimeError(f"HTCondor container startup failed: {_errors}")
 
-        cls._container_config_path, cls._host_config_path, cls._collector_addr, cls._token_dir = _results["a"]
-        cls._container_config_path_b, cls._host_config_path_b, cls._collector_addr_b, cls._token_dir_b = _results["b"]
+        (
+            cls._container_config_path,
+            cls._host_config_path,
+            cls._collector_addr,
+            cls._token_dir,
+        ) = _results["a"]
+        (
+            cls._container_config_path_b,
+            cls._host_config_path_b,
+            cls._collector_addr_b,
+            cls._token_dir_b,
+        ) = _results["b"]
 
         # Remove any fake htcondor2 stub so the real library is imported.
         sys.modules.pop("htcondor2", None)
@@ -389,9 +423,17 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
         try:
             super().tearDownClass()
         finally:
-            stop_htcondor_docker(cls._container_name, cls._container_config_path, cls._host_config_path, cls._token_dir)
             stop_htcondor_docker(
-                cls._container_name_b, cls._container_config_path_b, cls._host_config_path_b, cls._token_dir_b
+                cls._container_name,
+                cls._container_config_path,
+                cls._host_config_path,
+                cls._token_dir,
+            )
+            stop_htcondor_docker(
+                cls._container_name_b,
+                cls._container_config_path_b,
+                cls._host_config_path_b,
+                cls._token_dir_b,
             )
             shutil.rmtree(cls._jobs_directory, ignore_errors=True)
 
@@ -632,7 +674,7 @@ class FastFakeHTCondorJobRunner(htcondor.HTCondorJobRunner):
         job_state = job_wrapper.get_state()
         if job_state == model.Job.states.DELETED:
             return False
-        if job_state != model.Job.states.QUEUED:
+        if job_state not in (model.Job.states.QUEUED, model.Job.states.NEW):
             return False
         job_wrapper.prepare()
         job_wrapper.runner_command_line = job_wrapper.command_line
@@ -715,7 +757,10 @@ def _watch_job(runner, job_wrapper, external_id="123"):
     cjs = htcondor.HTCondorJobState(
         job_wrapper=job_wrapper,
         job_destination=job_wrapper.job_destination,
-        user_log=os.path.join(job_wrapper.working_directory, f"galaxy_{job_wrapper.get_id_tag()}.condor.log"),
+        user_log=os.path.join(
+            job_wrapper.working_directory,
+            f"galaxy_{job_wrapper.get_id_tag()}.condor.log",
+        ),
         files_dir=job_wrapper.working_directory,
         job_id=external_id,
     )
@@ -979,10 +1024,18 @@ def test_held_released_then_executes_and_finishes(fake_instance, fake_htcondor, 
 def test_different_configs_use_separate_helpers(fake_instance, fake_htcondor, runner_factory):
     runner = runner_factory()
     runner.queue_job(
-        _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"))
+        _job_wrapper(
+            fake_instance,
+            1,
+            dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"),
+        )
     )
     runner.queue_job(
-        _job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"))
+        _job_wrapper(
+            fake_instance,
+            2,
+            dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"),
+        )
     )
 
     records = _records(fake_instance, "submit")
@@ -991,7 +1044,10 @@ def test_different_configs_use_separate_helpers(fake_instance, fake_htcondor, ru
         os.path.realpath("/tmp/condor-A"),
         os.path.realpath("/tmp/condor-B"),
     }
-    assert {record["schedd_name"] for record in records} == {"schedd@alpha", "schedd@beta"}
+    assert {record["schedd_name"] for record in records} == {
+        "schedd@alpha",
+        "schedd@beta",
+    }
     assert len({record["pid"] for record in records}) == 2
 
 
@@ -1024,7 +1080,10 @@ def test_same_config_reuses_helper_across_shedds(fake_instance, fake_htcondor, r
     records = _records(fake_instance, "submit")
     assert len(records) == 2
     assert {record["config"] for record in records} == {os.path.realpath(shared_config)}
-    assert {record["schedd_name"] for record in records} == {"schedd@alpha", "schedd@beta"}
+    assert {record["schedd_name"] for record in records} == {
+        "schedd@alpha",
+        "schedd@beta",
+    }
     assert {record["collector"] for record in records} == {"collector:9618"}
     assert len({record["pid"] for record in records}) == 1
     for record in records:
@@ -1036,7 +1095,9 @@ def test_same_config_reuses_helper_across_shedds(fake_instance, fake_htcondor, r
 def test_stop_job_uses_same_config_scoped_helper(fake_instance, fake_htcondor, runner_factory):
     runner = runner_factory()
     job_wrapper = _job_wrapper(
-        fake_instance, 1, dict(htcondor_config="/tmp/condor-stop", htcondor_schedd="schedd@stop")
+        fake_instance,
+        1,
+        dict(htcondor_config="/tmp/condor-stop", htcondor_schedd="schedd@stop"),
     )
     runner.queue_job(job_wrapper)
     runner.stop_job(job_wrapper)
@@ -1049,7 +1110,11 @@ def test_stop_job_uses_same_config_scoped_helper(fake_instance, fake_htcondor, r
     assert remove_record["job_spec"] == int(job_wrapper.job.job_runner_external_id)
 
 
-@pytest.mark.parametrize("state", [model.Job.states.STOPPED, model.Job.states.DELETED], ids=["stopped", "deleted"])
+@pytest.mark.parametrize(
+    "state",
+    [model.Job.states.STOPPED, model.Job.states.DELETED],
+    ids=["stopped", "deleted"],
+)
 def test_stopped_or_deleted_jobs_are_not_submitted(fake_instance, fake_htcondor, runner_factory, state):
     runner = runner_factory()
     job_wrapper = _job_wrapper(
@@ -1097,7 +1162,11 @@ def test_recover_without_external_id_requeues_job(fake_instance, fake_htcondor, 
     job.state = model.Job.states.QUEUED
     job_wrapper = _job_wrapper(fake_instance, 8, dict(htcondor_config="/tmp/condor-requeue"))
     put_calls = []
-    monkeypatch.setattr(runner, "put", lambda recovered_job_wrapper: put_calls.append(recovered_job_wrapper))
+    monkeypatch.setattr(
+        runner,
+        "put",
+        lambda recovered_job_wrapper: put_calls.append(recovered_job_wrapper),
+    )
 
     runner.recover(job, job_wrapper)
 
@@ -1110,10 +1179,18 @@ def test_runner_shutdown_terminates_all_helpers(fake_instance, fake_htcondor, ru
     runner.work_threads = []
     runner.shutdown_monitor = lambda: None
     runner.queue_job(
-        _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"))
+        _job_wrapper(
+            fake_instance,
+            1,
+            dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"),
+        )
     )
     runner.queue_job(
-        _job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"))
+        _job_wrapper(
+            fake_instance,
+            2,
+            dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"),
+        )
     )
 
     clients = list(runner._client_cache.values())
@@ -1242,7 +1319,15 @@ def test_event_log_closed_on_job_fail(fake_instance, fake_htcondor, runner_facto
 
 
 class MockJobWrapper:
-    def __init__(self, app, test_directory, tool, destination_params, job_id, state=model.Job.states.QUEUED):
+    def __init__(
+        self,
+        app,
+        test_directory,
+        tool,
+        destination_params,
+        job_id,
+        state=model.Job.states.QUEUED,
+    ):
         working_directory = tempfile.mkdtemp(prefix="htcondor_workdir_", dir=test_directory)
         tool_working_directory = os.path.join(working_directory, "working")
         os.makedirs(tool_working_directory)
@@ -1330,7 +1415,14 @@ class MockJobWrapper:
         return False
 
     def fail(
-        self, message, exception=False, tool_stdout="", tool_stderr="", exit_code=None, job_stdout=None, job_stderr=None
+        self,
+        message,
+        exception=False,
+        tool_stdout="",
+        tool_stderr="",
+        exit_code=None,
+        job_stdout=None,
+        job_stderr=None,
     ):
         self.fail_message = message
         self.fail_exception = exception

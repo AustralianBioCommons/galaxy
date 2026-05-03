@@ -4,31 +4,7 @@ import threading
 
 import htcondor2
 
-
-def _locate_schedd(schedd_cache, schedd_lock, collector, schedd_name):
-    cache_key = (collector, schedd_name)
-    with schedd_lock:
-        cached = schedd_cache.get(cache_key)
-    if cached:
-        return cached
-
-    if not collector and not schedd_name:
-        schedd = htcondor2.Schedd()
-    else:
-        collector_obj = htcondor2.Collector(pool=collector) if collector else htcondor2.Collector()
-        if schedd_name:
-            schedd_ad = collector_obj.locate(htcondor2.DaemonType.Schedd, name=schedd_name)
-        else:
-            schedd_ads = collector_obj.locateAll(htcondor2.DaemonType.Schedd)
-            schedd_ad = schedd_ads[0] if schedd_ads else None
-        if not schedd_ad:
-            location = f"collector={collector}" if collector else "local collector"
-            raise RuntimeError(f"Unable to locate schedd via {location} (schedd={schedd_name or 'first'})")
-        schedd = htcondor2.Schedd(schedd_ad)
-
-    with schedd_lock:
-        schedd_cache[cache_key] = schedd
-    return schedd
+from galaxy.jobs.runners.htcondor_helper import _locate_schedd
 
 
 def main():
@@ -50,12 +26,16 @@ def main():
 
             collector = request.get("collector")
             schedd_name = request.get("schedd_name")
-            schedd = _locate_schedd(schedd_cache, schedd_lock, collector, schedd_name)
+            schedd = _locate_schedd(htcondor2, schedd_cache, schedd_lock, collector, schedd_name)
             if command == "submit":
                 submit_result = schedd.submit(htcondor2.Submit(request["submit_description"]))
                 response = dict(ok=True, cluster=str(submit_result.cluster()))
             elif command == "remove":
-                schedd.act(htcondor2.JobAction.Remove, request["job_spec"], reason="Galaxy job stop request")
+                schedd.act(
+                    htcondor2.JobAction.Remove,
+                    request["job_spec"],
+                    reason="Galaxy job stop request",
+                )
                 response = dict(ok=True)
             else:
                 raise RuntimeError(f"Unknown HTCondor helper command: {command}")

@@ -5,7 +5,11 @@ from typing import Any
 
 
 def _locate_schedd(
-    htcondor, schedd_cache: dict, schedd_lock: threading.Lock, collector: str | None, schedd_name: str | None
+    htcondor,
+    schedd_cache: dict,
+    schedd_lock: threading.Lock,
+    collector: str | None,
+    schedd_name: str | None,
 ):
     cache_key = (collector, schedd_name)
     with schedd_lock:
@@ -58,7 +62,11 @@ def main() -> int:
                 submit_result = schedd.submit(htcondor2.Submit(request["submit_description"]))
                 response = dict(ok=True, cluster=str(submit_result.cluster()))
             elif command == "remove":
-                schedd.act(htcondor2.JobAction.Remove, request["job_spec"], reason="Galaxy job stop request")
+                schedd.act(
+                    htcondor2.JobAction.Remove,
+                    request["job_spec"],
+                    reason="Galaxy job stop request",
+                )
                 response = dict(ok=True)
             else:
                 raise RuntimeError(f"Unknown HTCondor helper command: {command}")
