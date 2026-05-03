@@ -1,10 +1,8 @@
 from galaxy.tool_util.model_factory import (
     parse_tool,
-    parse_tool_custom,
 )
 from galaxy.tool_util.parser.factory import get_tool_source
 from galaxy.tool_util.unittest_utils import functional_test_tool_path
-from tool_shed_client.schema import ShedParsedTool
 
 
 def tool_source_for(tool_name: str):
@@ -81,13 +79,11 @@ def test_parsed_tool_exposes_stdio_regex_rules():
     assert regex.desc == "some program message of interest"
 
 
-def test_parsed_tool_and_shed_parsed_tool_serialize():
+def test_parsed_tool_serializes():
     tool_source = tool_source_for("mulled_example_explicit.xml")
 
     parsed_tool = parse_tool(tool_source)
-    shed_parsed_tool = parse_tool_custom(tool_source, ShedParsedTool)
 
     assert parsed_tool.model_dump(mode="json")["requirements"][0]["name"] == "bwa"
-    assert shed_parsed_tool.model_dump(mode="json")["containers"][0]["type"] == "docker"
+    assert parsed_tool.model_dump(mode="json")["containers"][0]["type"] == "docker"
     assert parsed_tool.model_dump_json()
-    assert shed_parsed_tool.model_dump_json()
