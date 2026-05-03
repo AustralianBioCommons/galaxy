@@ -318,7 +318,7 @@ The equivalent XML form is also supported:
 </destinations>
 ```
 
-#### Multiple independent pools
+#### Multiple Independent Pools
 
 To submit jobs to two separate HTCondor pools, give each destination its own
 `htcondor_config` file. The runner creates one helper subprocess per file and
@@ -360,11 +360,11 @@ The test suite in `test/integration/test_htcondor_runner.py` contains two tiers:
 **Automated Docker tests (`TestHTCondorContainerJob`)**
 
 Requires only Docker and the `htcondor2` Python package. The test class starts two
-`htcondor/mini` all-in-one containers automatically (each running a master, schedd,
-collector, negotiator, and startd), authenticates via IDTOKENS generated inside each
-container, submits real Galaxy jobs to both pools, verifies via `condor_history` that
-each job reached the correct cluster, and tears everything down on exit. No manual
-setup is needed.
+`htcondor/mini` all-in-one containers automatically, each running a full HTCondor
+stack (master, schedd, collector, negotiator, and startd). It authenticates via
+IDTOKENS generated inside each container, submits real Galaxy jobs to both pools,
+and verifies via `condor_history` that each job reached the correct cluster.
+No manual setup is needed.
 
 ```bash
 pip install htcondor
