@@ -45,6 +45,10 @@ HTCONDOR_HELPER_TIMEOUT = 30
 # count absorbs transient filesystem hiccups (e.g. NFS timeouts reading the
 # event log) without masking genuine persistent failures.
 MAX_STATUS_ERROR_COUNT = 3
+# Number of consecutive monitor cycles in which the event log is absent before
+# a job is failed.  Covers the case where the log was never written (e.g.
+# filesystem full at submit time) or was lost after Galaxy restarted.
+MAX_MISSING_LOG_COUNT = 5
 
 # HTCondor HoldReasonCode values that indicate the job was held because it
 # exceeded its memory allocation.  Code 26 is used by cgroup-based enforcement
@@ -79,6 +83,7 @@ class _EventLogSummary(NamedTuple):
     job_held: bool
     term_signal: int | None  # signal that killed the process (e.g. 9), None if normal exit
     hold_reason_code: int    # HoldReasonCode from JOB_HELD ClassAd, 0 if absent
+    log_missing: bool = False  # True when the event log file does not exist
 
 
 def _normalize_condor_config(condor_config: str | None) -> str | None:
@@ -305,6 +310,7 @@ class HTCondorJobState(AsynchronousJobState):
         self._event_log = None
         self.status_error_count = 0
         self.held_count = 0
+        self.missing_log_count = 0
 
     def event_log(self, htcondor):
         if self._event_log is None:
@@ -542,6 +548,30 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             term_signal = summary.term_signal
             hold_reason_code = summary.hold_reason_code
 
+            if summary.log_missing:
+                cjs.missing_log_count += 1
+                if cjs.missing_log_count >= MAX_MISSING_LOG_COUNT:
+                    log.warning(
+                        f"({galaxy_id_tag}/{job_id}) event log absent for "
+                        f"{cjs.missing_log_count} consecutive cycles, failing job"
+                    )
+                    cjs.fail_message = (
+                        "This job's HTCondor event log could not be found. "
+                        "Galaxy cannot determine the job outcome — the job may have "
+                        "been removed from the queue while Galaxy was unavailable."
+                    )
+                    cjs.runner_state = runner_states.UNKNOWN_ERROR
+                    cjs.close_event_log()
+                    self.work_queue.put((self.fail_job, cjs))
+                    continue
+                log.debug(
+                    f"({galaxy_id_tag}/{job_id}) event log not yet available "
+                    f"(cycle {cjs.missing_log_count}/{MAX_MISSING_LOG_COUNT})"
+                )
+                new_watched.append(cjs)
+                continue
+            cjs.missing_log_count = 0
+
             if job_running:
                 cjs.job_wrapper.check_for_entry_points()
 
@@ -685,7 +715,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         cluster_id = int(cjs.job_id)
 
         if not os.path.exists(cjs.user_log):
-            return _EventLogSummary(cjs.running, False, None, False, None, 0)
+            return _EventLogSummary(cjs.running, False, None, False, None, 0, log_missing=True)
 
         event_log = cjs.event_log(self.htcondor)
 

@@ -511,6 +511,49 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
         assert _condor_history_count(self._container_name) == before_a, "Unexpected job appeared in cluster A"
         assert _condor_history_count(self._container_name_b) > before_b, "No new completed job in cluster B"
 
+    @skip_without_tool("cat_data_and_sleep")
+    def test_htcondor_docker_job_killed_externally(self) -> None:
+        """A job removed via condor_rm inside the container is failed in Galaxy.
+
+        Simulates an admin running condor_rm, a node eviction, or any other
+        external termination that is not initiated by Galaxy.  The runner must
+        detect the JOB_ABORTED event and transition the Galaxy job to ERROR.
+        """
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="1 2 3")
+            run_response = self.dataset_populator.run_tool(
+                "cat_data_and_sleep",
+                {"input1": {"src": "hda", "id": hda["id"]}, "sleep_time": 300},
+                history_id,
+            )
+            job_id = run_response["jobs"][0]["id"]
+
+            app = self._app
+            sa_session = app.model.session
+            job = sa_session.get(model.Job, app.security.decode_id(job_id))
+            assert job
+
+            for _ in range(60):
+                sa_session.refresh(job)
+                if job.job_runner_external_id:
+                    break
+                time.sleep(1)
+            assert job.job_runner_external_id, "Job was never submitted to the HTCondor schedd"
+
+            subprocess.run(
+                ["docker", "exec", self._container_name, "condor_rm", job.job_runner_external_id],
+                check=True,
+            )
+
+            for _ in range(60):
+                sa_session.refresh(job)
+                if job.state in (model.Job.states.ERROR, model.Job.states.DELETED):
+                    break
+                time.sleep(1)
+            assert job.state == model.Job.states.ERROR, (
+                f"Expected ERROR after external condor_rm, got {job.state}"
+            )
+
 
 class FakeHTCondorIntegrationInstance(integration_util.IntegrationInstance):
     """Galaxy app instance backed by the fake htcondor2 module.
@@ -1311,28 +1354,20 @@ def test_condor_remove_failure_is_logged(fake_instance, fake_htcondor, runner_fa
     assert "condor_rm failed" in failure_msg
 
 
-def test_event_log_closed_on_job_complete(fake_instance, fake_htcondor, runner_factory):
+@pytest.mark.parametrize(
+    ("event_name", "config_tag"),
+    [
+        pytest.param("JOB_TERMINATED", "close-log-complete", id="complete"),
+        pytest.param("JOB_ABORTED", "close-log-fail", id="fail"),
+    ],
+)
+def test_event_log_closed_on_terminal_event(fake_instance, fake_htcondor, runner_factory, event_name, config_tag):
+    """Event log is closed and its reference cleared after any terminal event."""
     runner = runner_factory()
-    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-close-log"))
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config=f"/tmp/condor-{config_tag}"))
     cjs = _watch_job(runner, job_wrapper)
     _write_user_log(cjs)
-    _set_job_events(fake_htcondor, cjs, ["JOB_TERMINATED"])
-
-    # Access the event log so it is created
-    _ = cjs.event_log(runner.htcondor)
-    assert cjs._event_log is not None
-
-    runner.check_watched_items()
-
-    assert cjs._event_log is None
-
-
-def test_event_log_closed_on_job_fail(fake_instance, fake_htcondor, runner_factory):
-    runner = runner_factory()
-    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-close-log-fail"))
-    cjs = _watch_job(runner, job_wrapper)
-    _write_user_log(cjs)
-    _set_job_events(fake_htcondor, cjs, ["JOB_ABORTED"])
+    _set_job_events(fake_htcondor, cjs, [event_name])
 
     _ = cjs.event_log(runner.htcondor)
     assert cjs._event_log is not None
@@ -1745,8 +1780,15 @@ def test_held_job_max_count_zero_disables_escalation(fake_instance, fake_htcondo
         assert len(runner.watched) == 1
 
 
-def test_inprocess_client_evicts_stale_schedd_on_submit_error(fake_instance, fake_htcondor):
-    """_HTCondorInProcessClient evicts the cached Schedd when submit raises."""
+@pytest.mark.parametrize(
+    ("operation", "failing_method"),
+    [
+        pytest.param("submit", "submit", id="submit"),
+        pytest.param("remove", "act", id="remove"),
+    ],
+)
+def test_inprocess_client_evicts_stale_schedd_on_error(fake_instance, fake_htcondor, operation, failing_method):
+    """_HTCondorInProcessClient evicts the cached Schedd when submit or remove raises."""
     from galaxy.jobs.runners.htcondor import _HTCondorInProcessClient
 
     client = _HTCondorInProcessClient(fake_htcondor)
@@ -1761,25 +1803,10 @@ def test_inprocess_client_evicts_stale_schedd_on_submit_error(fake_instance, fak
     client._schedd_cache[(None, None)] = FailingSchedd()
 
     with pytest.raises(RuntimeError, match="schedd lost connection"):
-        client.submit("executable = /bin/true\nqueue", None, None)
-
-    assert (None, None) not in client._schedd_cache, "stale entry should have been evicted on error"
-
-
-def test_inprocess_client_evicts_stale_schedd_on_remove_error(fake_instance, fake_htcondor):
-    """_HTCondorInProcessClient evicts the cached Schedd when remove raises."""
-    from galaxy.jobs.runners.htcondor import _HTCondorInProcessClient
-
-    client = _HTCondorInProcessClient(fake_htcondor)
-
-    class FailingSchedd:
-        def act(self, *a, **k):
-            raise RuntimeError("schedd lost connection")
-
-    client._schedd_cache[(None, None)] = FailingSchedd()
-
-    with pytest.raises(RuntimeError, match="schedd lost connection"):
-        client.remove(123, None, None)
+        if operation == "submit":
+            client.submit("executable = /bin/true\nqueue", None, None)
+        else:
+            client.remove(123, None, None)
 
     assert (None, None) not in client._schedd_cache, "stale entry should have been evicted on error"
 
@@ -1969,24 +1996,300 @@ def test_sigkill_on_user_stopped_job_finishes_not_oom(fake_instance, fake_htcond
 # ---------------------------------------------------------------------------
 
 
-def test_helper_stderr_lines_appear_in_buffer(fake_instance, fake_htcondor, runner_factory, caplog):
-    """Stderr output from the helper process is buffered and logged as warnings."""
-    import logging
+def test_helper_stderr_drain_thread_populates_buffer(fake_instance, fake_htcondor):
+    """Stderr written by the helper process is drained into _stderr_lines by the background thread."""
+    from galaxy.jobs.runners.htcondor import _HTCondorSubprocessClient
 
-    runner = runner_factory()
-    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-stderr-drain"))
+    client = _HTCondorSubprocessClient("/tmp/no-such-config")
 
-    client = runner._client_for_destination(job_wrapper.job_destination)
-    # Trigger process start
-    runner.queue_job(job_wrapper)
+    read_fd, write_fd = os.pipe()
+    mock_stderr = os.fdopen(read_fd, "r", encoding="utf-8")
 
-    assert client._process is not None, "helper process should have started"
+    class _FakeProcess:
+        stderr = mock_stderr
 
-    # Write a warning line to the helper's stdin as a fake stderr-producing scenario
-    # by directly writing to the process's stderr pipe substitute.
-    # Instead we simulate: write a sentinel to the helper's stderr by having
-    # the helper emit it, then check the buffer.
-    # The simplest reliable approach: write directly to the internal deque.
-    client._stderr_lines.append("condor credential expiring soon")
+    client._start_stderr_drain(_FakeProcess())
+
+    os.write(write_fd, b"condor credential expiring soon\n")
+    os.close(write_fd)  # EOF signals the drain thread to stop
+
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and not client._stderr_lines:
+        time.sleep(0.05)
 
     assert "condor credential expiring soon" in list(client._stderr_lines)
+
+
+# ---------------------------------------------------------------------------
+# Additional unit tests for helpers and edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_condor_config_none_returns_none():
+    from galaxy.jobs.runners.htcondor import _normalize_condor_config
+
+    assert _normalize_condor_config(None) is None
+    assert _normalize_condor_config("") is None
+
+
+def test_normalize_condor_config_expands_and_resolves(tmp_path):
+    from galaxy.jobs.runners.htcondor import _normalize_condor_config
+
+    config_path = tmp_path / "condor.cfg"
+    config_path.touch()
+    result = _normalize_condor_config(str(config_path))
+    assert result == os.path.realpath(str(config_path))
+    assert "~" not in result
+
+
+def test_condor_remove_missing_external_id_returns_error_string(fake_instance, fake_htcondor, runner_factory):
+    """_condor_remove with no external_id returns an error string rather than raising."""
+    runner = runner_factory()
+    msg = runner._condor_remove(None, None)
+    assert msg is not None
+    assert "missing" in msg.lower()
+
+    msg_empty = runner._condor_remove("", None)
+    assert msg_empty is not None
+
+
+def test_recover_unknown_state_does_not_add_to_monitor_queue(fake_instance, fake_htcondor, runner_factory):
+    """recover() with an unexpected job state does not add anything to the monitor queue."""
+    runner = runner_factory()
+    job = model.Job()
+    job.id = 42
+    job.state = model.Job.states.ERROR
+    job.job_runner_external_id = "999"
+    job_wrapper = _job_wrapper(fake_instance, 42, dict(htcondor_config="/tmp/condor-unknown-state"))
+
+    runner.recover(job, job_wrapper)
+
+    assert runner.monitor_queue.empty()
+
+
+def test_held_while_running_clears_running_flag(fake_instance, fake_htcondor, runner_factory):
+    """A job that was running and then gets held must have running=False when it stays watched."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-held-from-running"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    # Simulate that the job was previously seen as running.
+    cjs.running = True
+    job_wrapper.state = model.Job.states.RUNNING
+
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+    runner.check_watched_items()
+
+    assert len(runner.watched) == 1
+    assert not runner.watched[0].running
+    assert runner.work_queue.empty()
+
+
+def test_locate_schedd_no_collector_no_name_returns_local_schedd(fake_htcondor):
+    """_locate_schedd with no collector and no schedd_name uses Schedd() directly."""
+    import threading
+
+    from galaxy.jobs.runners.htcondor_helper import _locate_schedd
+
+    cache: dict = {}
+    lock = threading.Lock()
+    schedd = _locate_schedd(fake_htcondor, cache, lock, None, None)
+    assert schedd is not None
+    assert (None, None) in cache
+    assert cache[(None, None)] is schedd
+
+
+def test_locate_schedd_caches_and_returns_same_object(fake_htcondor):
+    """_locate_schedd returns the same object on a second call (cache hit)."""
+    import threading
+
+    from galaxy.jobs.runners.htcondor_helper import _locate_schedd
+
+    cache: dict = {}
+    lock = threading.Lock()
+    first = _locate_schedd(fake_htcondor, cache, lock, None, None)
+    second = _locate_schedd(fake_htcondor, cache, lock, None, None)
+    assert first is second
+
+
+def test_locate_schedd_with_collector_and_name(fake_htcondor):
+    """_locate_schedd with a collector and explicit schedd_name locates via the collector."""
+    import threading
+
+    from galaxy.jobs.runners.htcondor_helper import _locate_schedd
+
+    cache: dict = {}
+    lock = threading.Lock()
+    schedd = _locate_schedd(fake_htcondor, cache, lock, "collector:9618", "schedd@host")
+    assert schedd is not None
+    assert ("collector:9618", "schedd@host") in cache
+
+
+# ---------------------------------------------------------------------------
+# #1  stop_job with a container job
+# ---------------------------------------------------------------------------
+
+
+
+
+# ---------------------------------------------------------------------------
+# #2  _htcondor_params destination-vs-runner precedence
+# ---------------------------------------------------------------------------
+
+
+def test_htcondor_params_destination_overrides_runner(fake_instance, fake_htcondor, runner_factory):
+    """Destination-level params take precedence over runner-level defaults."""
+    runner = runner_factory()
+    runner.runner_params.htcondor_collector = "runner_collector:9618"
+    runner.runner_params.htcondor_schedd = "runner_schedd@host"
+    runner.runner_params.htcondor_config = None
+
+    dest = JobDestination(
+        id="test",
+        params=dict(
+            htcondor_collector="dest_collector:9618",
+            htcondor_schedd="dest_schedd@host",
+            htcondor_config="/tmp/dest_config",
+        ),
+    )
+    collector, schedd_name, condor_config = runner._htcondor_params(dest)
+
+    assert collector == "dest_collector:9618"
+    assert schedd_name == "dest_schedd@host"
+    assert condor_config == os.path.realpath("/tmp/dest_config")
+
+
+def test_htcondor_params_runner_default_used_when_destination_omits_params(
+    fake_instance, fake_htcondor, runner_factory
+):
+    """Runner-level defaults are used when the destination dict has no htcondor_* keys."""
+    runner = runner_factory()
+    runner.runner_params.htcondor_collector = "runner_collector:9618"
+    runner.runner_params.htcondor_schedd = "runner_schedd@host"
+    runner.runner_params.htcondor_config = None
+
+    dest = JobDestination(id="test", params={})
+    collector, schedd_name, condor_config = runner._htcondor_params(dest)
+
+    assert collector == "runner_collector:9618"
+    assert schedd_name == "runner_schedd@host"
+    assert condor_config is None
+
+
+def test_htcondor_params_none_destination_uses_runner_defaults(fake_instance, fake_htcondor, runner_factory):
+    """None destination falls back entirely to runner defaults."""
+    runner = runner_factory()
+    runner.runner_params.htcondor_collector = "runner_collector:9618"
+    runner.runner_params.htcondor_schedd = None
+    runner.runner_params.htcondor_config = None
+
+    collector, schedd_name, condor_config = runner._htcondor_params(None)
+
+    assert collector == "runner_collector:9618"
+    assert schedd_name is None
+    assert condor_config is None
+
+
+def test_htcondor_params_empty_string_falls_through_to_runner_default(
+    fake_instance, fake_htcondor, runner_factory
+):
+    """An empty string in the destination is falsy and lets the runner default win."""
+    runner = runner_factory()
+    runner.runner_params.htcondor_collector = "runner_collector:9618"
+    runner.runner_params.htcondor_schedd = None
+    runner.runner_params.htcondor_config = None
+
+    dest = JobDestination(id="test", params=dict(htcondor_collector=""))
+    collector, _, _ = runner._htcondor_params(dest)
+
+    assert collector == "runner_collector:9618"
+
+
+# ---------------------------------------------------------------------------
+# #8  Missing event log after recovery (lost-log safety net)
+# ---------------------------------------------------------------------------
+
+
+def test_missing_event_log_escalates_to_failure_after_max_count(fake_instance, fake_htcondor, runner_factory):
+    """A job whose event log is absent for MAX_MISSING_LOG_COUNT consecutive cycles is failed."""
+    from galaxy.jobs.runners import htcondor as htcondor_module
+
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        77,
+        dict(htcondor_config="/tmp/condor-missing-log-escalate"),
+        state=model.Job.states.RUNNING,
+    )
+    cjs = _watch_job(runner, job_wrapper)
+    # Deliberately do NOT write the user log — simulates a log that was never created or was lost.
+    assert not os.path.exists(cjs.user_log)
+
+    max_count = htcondor_module.MAX_MISSING_LOG_COUNT
+
+    for i in range(max_count - 1):
+        runner.check_watched_items()
+        assert len(runner.watched) == 1, f"job should still be watched after absent-log cycle {i + 1}"
+        assert runner.work_queue.empty(), f"no failure should be queued after cycle {i + 1}"
+        assert cjs.missing_log_count == i + 1
+
+    # Final cycle: escalates to failure.
+    runner.check_watched_items()
+    assert len(runner.watched) == 0
+    method, job_state_record = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
+    assert "event log" in job_state_record.fail_message.lower()
+    assert job_state_record.missing_log_count == max_count
+
+
+def test_missing_log_count_resets_when_log_appears(fake_instance, fake_htcondor, runner_factory):
+    """missing_log_count resets to 0 as soon as the event log becomes available."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-log-reappears"))
+    cjs = _watch_job(runner, job_wrapper)
+    assert not os.path.exists(cjs.user_log)
+
+    # Two cycles with no log.
+    runner.check_watched_items()
+    assert cjs.missing_log_count == 1
+    runner.check_watched_items()
+    assert cjs.missing_log_count == 2
+
+    # Log appears — counter resets and job stays watched (no terminal event yet).
+    _write_user_log(cjs)
+    runner.check_watched_items()
+    assert cjs.missing_log_count == 0
+    assert len(runner.watched) == 1
+
+
+def test_recovered_running_job_fails_when_log_never_appears(fake_instance, fake_htcondor, runner_factory):
+    """A RUNNING job re-added by recover() that never gets an event log is eventually failed."""
+    from galaxy.jobs.runners import htcondor as htcondor_module
+
+    runner = runner_factory()
+    job = model.Job()
+    job.id = 88
+    job.state = model.Job.states.RUNNING
+    job.job_runner_external_id = "888"
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        88,
+        dict(htcondor_config="/tmp/condor-recover-no-log"),
+        state=model.Job.states.RUNNING,
+    )
+
+    runner.recover(job, job_wrapper)
+    cjs = runner.monitor_queue.get_nowait()
+    assert cjs.running is True  # recovered as running
+    runner.watched = [cjs]
+
+    assert not os.path.exists(cjs.user_log)
+
+    max_count = htcondor_module.MAX_MISSING_LOG_COUNT
+    for _ in range(max_count):
+        runner.check_watched_items()
+
+    assert len(runner.watched) == 0
+    method, _ = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
