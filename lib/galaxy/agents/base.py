@@ -304,6 +304,10 @@ class BaseGalaxyAgent(ABC):
     agent: Agent[GalaxyAgentDependencies, Any]
     _INTERNAL_CONTEXT_KEYS = frozenset({"run_state"})
 
+    # Fallback when no max_tokens is configured. 8k leaves headroom on every
+    # backend we currently support (smallest is Qwen3-32B at 32k context).
+    DEFAULT_MAX_TOKENS = 8192
+
     def __init__(self, deps: GalaxyAgentDependencies):
         self.deps = deps
 
@@ -686,10 +690,7 @@ class BaseGalaxyAgent(ABC):
         return self._get_agent_config("temperature", 0.7)
 
     def _get_max_tokens(self) -> int:
-        # 8192 leaves headroom on the smallest backend we point at (Qwen3-32B,
-        # 32k total) while being big enough that most agents -- history in
-        # particular -- don't get truncated mid-answer at the default.
-        return self._get_agent_config("max_tokens", 8192)
+        return self._get_agent_config("max_tokens", self.DEFAULT_MAX_TOKENS)
 
     async def _call_agent_from_tool(
         self,

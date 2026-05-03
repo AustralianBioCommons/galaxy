@@ -108,13 +108,13 @@ The `inference_services` dictionary allows fine-grained control over individual 
 
 Supported keys within each agent block:
 
-| Key            | Description                                                                             |
-| -------------- | --------------------------------------------------------------------------------------- |
-| `model`        | Model name with optional provider prefix (e.g. `gpt-4o`, `anthropic:claude-sonnet-4-5`) |
-| `api_key`      | API key override for this agent or default                                              |
-| `api_base_url` | Base URL override for this agent or default                                             |
-| `temperature`  | Sampling temperature (0.0 - 1.0)                                                        |
-| `max_tokens`   | Maximum tokens in the response                                                          |
+| Key            | Description                                                                                                 |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `model`        | Model name with optional provider prefix (e.g. `gpt-4o`, `anthropic:claude-sonnet-4-5`)                     |
+| `api_key`      | API key override for this agent or default                                                                  |
+| `api_base_url` | Base URL override for this agent or default                                                                 |
+| `temperature`  | Sampling temperature (0.0 - 1.0)                                                                            |
+| `max_tokens`   | Maximum tokens in the response (default: 8192; 16384 for the history, orchestrator, and custom_tool agents) |
 
 ### Example: Per-Agent Overrides
 
@@ -130,11 +130,11 @@ galaxy:
         custom_tool:
             model: "openai:gpt-4o"
             temperature: 0.4
-            max_tokens: 2000
+            max_tokens: 16384
         error_analysis:
             model: "openai:gpt-4o"
             temperature: 0.2
-            max_tokens: 2000
+            max_tokens: 8192
 ```
 
 ### Example: Mixed Providers
@@ -302,10 +302,10 @@ galaxy:
             model: "openai:gpt-4o"
             api_key: "sk-..."
             temperature: 0.4
-            max_tokens: 2000
+            max_tokens: 16384
         error_analysis:
             model: "anthropic:claude-sonnet-4-5"
             api_key: "sk-ant-..."
             temperature: 0.2
-            max_tokens: 2000
+            max_tokens: 8192
 ```

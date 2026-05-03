@@ -41,6 +41,7 @@ class CustomToolAgent(BaseGalaxyAgent):
     """
 
     agent_type = AgentType.CUSTOM_TOOL
+    DEFAULT_MAX_TOKENS = 16384
 
     def _requires_structured_output(self) -> bool:
         return True
