@@ -69,14 +69,26 @@ class _HTCondorInProcessClient(_HTCondorClient):
     def _schedd(self, collector: str | None, schedd_name: str | None):
         return _locate_schedd(self.htcondor, self._schedd_cache, self._schedd_lock, collector, schedd_name)
 
+    def _evict_schedd(self, collector: str | None, schedd_name: str | None) -> None:
+        with self._schedd_lock:
+            self._schedd_cache.pop((collector, schedd_name), None)
+
     def submit(self, submit_description: str, collector: str | None, schedd_name: str | None) -> str:
-        submit_result = self._schedd(collector, schedd_name).submit(self.htcondor.Submit(submit_description))
-        return str(submit_result.cluster())
+        try:
+            submit_result = self._schedd(collector, schedd_name).submit(self.htcondor.Submit(submit_description))
+            return str(submit_result.cluster())
+        except Exception:
+            self._evict_schedd(collector, schedd_name)
+            raise
 
     def remove(self, job_spec: int | str, collector: str | None, schedd_name: str | None) -> None:
-        self._schedd(collector, schedd_name).act(
-            self.htcondor.JobAction.Remove, job_spec, reason="Galaxy job stop request"
-        )
+        try:
+            self._schedd(collector, schedd_name).act(
+                self.htcondor.JobAction.Remove, job_spec, reason="Galaxy job stop request"
+            )
+        except Exception:
+            self._evict_schedd(collector, schedd_name)
+            raise
 
 
 class _HTCondorSubprocessClient(_HTCondorClient):
@@ -269,10 +281,10 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         try:
             import htcondor2
         except Exception as exc:
-            raise exc.__class__(
+            raise ImportError(
                 "The htcondor2 Python package is required to use this feature, please install it or correct the "
                 f"following error:\n{exc.__class__.__name__}: {str(exc)}"
-            )
+            ) from exc
         self.htcondor = htcondor2
         self._client_cache: dict = {}
         self._client_lock = threading.Lock()
@@ -415,7 +427,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             )
         except Exception:
             log.exception("htcondor submit failed for job %s", job_wrapper.get_id_tag())
-            if self.app.config.cleanup_job == "always" and os.path.exists(submit_file):
+            if cleanup_job == "always" and os.path.exists(submit_file):
                 os.unlink(submit_file)
                 cjs.cleanup()
             job_wrapper.fail("htcondor submit failed", exception=True)
@@ -444,6 +456,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 continue
             try:
                 job_running, job_complete, failure_event, job_held = self._summarize_event_log(cjs)
+                cjs.status_error_count = 0
             except Exception:
                 cjs.status_error_count += 1
                 if cjs.status_error_count < MAX_STATUS_ERROR_COUNT:
@@ -628,7 +641,9 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             cjs.fail_message = "The HTCondor cluster was removed."
             cjs.runner_state = runner_states.UNKNOWN_ERROR
         elif failure_event == htc.EXECUTABLE_ERROR:
-            # Executable errors are configuration problems, not transient — skip resubmit.
+            # Executable errors are configuration problems, not transient.  runner_state is
+            # intentionally left unset (None) so the resubmission framework never fires for
+            # this case — only UNKNOWN_ERROR triggers resubmission handlers.
             cjs.fail_message = "This job could not start because the job script could not be found or executed."
         else:
             cjs.fail_message = "Cluster could not complete job"
@@ -673,8 +688,9 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            text=True,
             close_fds=True,
-            process_group=0,
+            preexec_fn=os.setpgrp,
         )
         stdout, stderr = p.communicate()
         exit_code = p.returncode

@@ -17,6 +17,7 @@ def _locate_schedd(
     if cached:
         return cached
 
+    # Collector lookup may be slow (network I/O) — do it outside the lock.
     if not collector and not schedd_name:
         schedd = htcondor.Schedd()
     else:
@@ -31,9 +32,10 @@ def _locate_schedd(
             raise RuntimeError(f"Unable to locate schedd via {location} (schedd={schedd_name or 'first'})")
         schedd = htcondor.Schedd(schedd_ad)
 
+    # Use setdefault so that if a concurrent caller already inserted this key
+    # while we were outside the lock, their entry wins and we discard ours.
     with schedd_lock:
-        schedd_cache[cache_key] = schedd
-    return schedd
+        return schedd_cache.setdefault(cache_key, schedd)
 
 
 def main() -> int:
@@ -44,8 +46,6 @@ def main() -> int:
     response: dict[str, object]
 
     for line in sys.stdin:
-        if not line:
-            break
         try:
             request = json.loads(line)
             command = request["command"]
