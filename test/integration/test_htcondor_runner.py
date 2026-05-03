@@ -354,12 +354,12 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
 
         # Start both containers in parallel to reduce wall-clock setup time.
         _results: dict[str, tuple] = {}
-        _errors: dict[str, BaseException] = {}
+        _errors: dict[str, Exception] = {}
 
         def _start(label: str, name: str) -> None:
             try:
                 _results[label] = start_htcondor_docker(name, cls._jobs_directory)
-            except BaseException as exc:
+            except Exception as exc:
                 _errors[label] = exc
 
         threads = [
