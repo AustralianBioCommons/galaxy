@@ -135,10 +135,14 @@ class DaemonType(enum.IntEnum):
 
 
 class FakeJobEvent:
-    def __init__(self, cluster, proc, event_type):
+    def __init__(self, cluster, proc, event_type, **classad_attrs):
         self.cluster = cluster
         self.proc = proc
         self.type = event_type
+        self._classad = classad_attrs
+
+    def get(self, key, default=None):
+        return self._classad.get(key, default)
 
 
 class Collector:
