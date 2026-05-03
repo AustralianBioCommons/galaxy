@@ -953,6 +953,30 @@ def _set_job_events(fake_htcondor, cjs, event_names):
             False,
             id="missing-log-stays-watched",
         ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-aborted-user-deleted"),
+            ["JOB_ABORTED"],
+            model.Job.states.DELETED,
+            True,
+            None,
+            model.Job.states.DELETED,
+            False,
+            0,
+            False,
+            id="aborted-after-user-delete-is-ignored",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-aborted-user-stopped"),
+            ["JOB_ABORTED"],
+            model.Job.states.STOPPED,
+            True,
+            "finish_job",
+            model.Job.states.STOPPED,
+            False,
+            0,
+            False,
+            id="aborted-after-user-stop-finishes",
+        ),
     ],
 )
 def test_watch_lifecycle_transitions(
@@ -1316,6 +1340,43 @@ def test_event_log_closed_on_job_fail(fake_instance, fake_htcondor, runner_facto
     runner.check_watched_items()
 
     assert cjs._event_log is None
+
+
+@pytest.mark.parametrize(
+    ("event_name", "expected_message_fragment", "expect_unknown_error_runner_state"),
+    [
+        ("SHADOW_EXCEPTION", "shadow exception", True),
+        ("JOB_ABORTED", "removed from the HTCondor queue", True),
+        ("CLUSTER_REMOVE", "cluster was removed", True),
+        ("EXECUTABLE_ERROR", "could not start", False),
+    ],
+)
+def test_failure_event_sets_message_and_runner_state(
+    fake_instance,
+    fake_htcondor,
+    runner_factory,
+    event_name,
+    expected_message_fragment,
+    expect_unknown_error_runner_state,
+):
+    """Each failure event type sets a distinct fail_message and the correct runner_state."""
+    from galaxy.jobs.runners.util import runner_states as rs
+
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config=f"/tmp/condor-msg-{event_name}"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+    _set_job_events(fake_htcondor, cjs, [event_name])
+
+    runner.check_watched_items()
+
+    method, job_state_record = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
+    assert expected_message_fragment.lower() in job_state_record.fail_message.lower()
+    if expect_unknown_error_runner_state:
+        assert job_state_record.runner_state == rs.UNKNOWN_ERROR
+    else:
+        assert getattr(job_state_record, "runner_state", None) is None
 
 
 class MockJobWrapper:

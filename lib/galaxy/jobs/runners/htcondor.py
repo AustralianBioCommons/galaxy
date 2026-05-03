@@ -19,6 +19,7 @@ from galaxy.jobs.runners import (
     AsynchronousJobState,
 )
 from galaxy.jobs.runners.htcondor_helper import _locate_schedd
+from galaxy.jobs.runners.util import runner_states
 from galaxy.jobs.runners.util.condor import (
     build_submit_description,
     submission_params,
@@ -436,11 +437,12 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 new_watched.append(cjs)
                 continue
             try:
-                job_running, job_complete, job_failed, job_held = self._summarize_event_log(cjs)
+                job_running, job_complete, failure_event, job_held = self._summarize_event_log(cjs)
             except Exception:
                 log.exception(f"({galaxy_id_tag}/{job_id}) Unable to check job status")
                 log.warning(f"({galaxy_id_tag}/{job_id}) job will now be errored")
                 cjs.fail_message = "Cluster could not complete job"
+                cjs.runner_state = runner_states.UNKNOWN_ERROR
                 cjs.close_event_log()
                 self.work_queue.put((self.fail_job, cjs))
                 continue
@@ -466,11 +468,12 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     cjs.close_event_log()
                     self.work_queue.put((self.finish_job, cjs))
                 continue
-            if job_failed:
-                if job_state in (model.Job.states.DELETED, model.Job.states.STOPPED):
+            if failure_event is not None:
+                if job_state == model.Job.states.DELETED:
                     continue
                 log.debug(f"({galaxy_id_tag}/{job_id}) job failed")
                 cjs.failed = True
+                self._apply_failure_event(cjs, failure_event)
                 cjs.close_event_log()
                 self.work_queue.put((self.fail_job, cjs))
                 continue
@@ -531,10 +534,10 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             cjs.running = False
             self.monitor_queue.put(cjs)
 
-    def _summarize_event_log(self, cjs: HTCondorJobState) -> tuple[bool, bool, bool, bool]:
+    def _summarize_event_log(self, cjs: HTCondorJobState) -> tuple[bool, bool, int | None, bool]:
         job_running = cjs.running
         job_complete = False
-        job_failed = False
+        failure_event: int | None = None
         job_held = False
 
         if cjs.job_id is None:
@@ -542,7 +545,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         cluster_id = int(cjs.job_id)
 
         if not os.path.exists(cjs.user_log):
-            return cjs.running, False, False, False
+            return cjs.running, False, None, False
 
         event_log = cjs.event_log(self.htcondor)
 
@@ -574,9 +577,31 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 self.htcondor.JobEventType.SHADOW_EXCEPTION,
                 self.htcondor.JobEventType.EXECUTABLE_ERROR,
             ):
-                job_failed = True
+                failure_event = event_type
 
-        return job_running, job_complete, job_failed, job_held
+        return job_running, job_complete, failure_event, job_held
+
+    def _apply_failure_event(self, cjs: HTCondorJobState, failure_event: int) -> None:
+        """Set fail_message and runner_state on cjs based on the HTCondor failure event type."""
+        htc = self.htcondor.JobEventType
+        if failure_event == htc.SHADOW_EXCEPTION:
+            cjs.fail_message = (
+                "This job failed due to an HTCondor shadow exception, which typically "
+                "indicates a transient error in the execution environment."
+            )
+            cjs.runner_state = runner_states.UNKNOWN_ERROR
+        elif failure_event == htc.JOB_ABORTED:
+            cjs.fail_message = "This job was removed from the HTCondor queue."
+            cjs.runner_state = runner_states.UNKNOWN_ERROR
+        elif failure_event == htc.CLUSTER_REMOVE:
+            cjs.fail_message = "The HTCondor cluster was removed."
+            cjs.runner_state = runner_states.UNKNOWN_ERROR
+        elif failure_event == htc.EXECUTABLE_ERROR:
+            # Executable errors are configuration problems, not transient — skip resubmit.
+            cjs.fail_message = "This job could not start because the job script could not be found or executed."
+        else:
+            cjs.fail_message = "Cluster could not complete job"
+            cjs.runner_state = runner_states.UNKNOWN_ERROR
 
     def _condor_remove(self, external_id, job_destination: "JobDestination | None" = None):
         if not external_id:
