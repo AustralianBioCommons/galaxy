@@ -221,6 +221,9 @@ class ConditionalDependencies:
     def check_chronos_python(self):
         return "galaxy.jobs.runners.chronos:ChronosJobRunner" in self.job_runners
 
+    def check_htcondor(self):
+        return "galaxy.jobs.runners.htcondor:HTCondorJobRunner" in self.job_runners
+
     def check_boto3_python(self):
         return "galaxy.jobs.runners.aws:AWSBatchJobRunner" in self.job_runners
 
