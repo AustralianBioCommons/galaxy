@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 from queue import Queue
 from typing import ClassVar
@@ -57,9 +58,6 @@ tools:
 # "htcondor/mini:23-el9".
 HTCONDOR_MINI_IMAGE = os.environ.get("GALAXY_TEST_HTCONDOR_IMAGE", "htcondor/mini:el9")
 
-# Use a non-standard port so we don't collide with any real HTCondor on the CI host.
-HTCONDOR_MINI_PORT = int(os.environ.get("GALAXY_TEST_HTCONDOR_MINI_PORT", "19618"))
-
 # Seconds to wait for the schedd to become reachable after container start.
 HTCONDOR_STARTUP_TIMEOUT = 120
 
@@ -67,46 +65,38 @@ HTCONDOR_STARTUP_TIMEOUT = 120
 def _container_condor_config() -> str:
     """Condor config mounted into the minicondor container.
 
-    Enables anonymous authentication and makes all daemons listen on every
-    interface so the host Python process can reach the schedd over the mapped
-    port.
+    Makes all daemons listen on every interface so the host htcondor2 library
+    can reach the schedd via the Docker bridge IP.  We keep the container's
+    default IDTOKENS-based security model intact; the host authenticates with
+    a token generated inside the container (see ``start_htcondor_docker``).
+
+    The negotiator interval is reduced so jobs are matched quickly in tests
+    (the default 60 s cycle would exceed the test timeout).
     """
     return textwrap.dedent("""
-        # Allow unauthenticated access — test environment only.
-        NETWORK_INTERFACE                  = *
-        SEC_DEFAULT_AUTHENTICATION_METHODS = ANONYMOUS
-        SEC_CLIENT_AUTHENTICATION_METHODS  = ANONYMOUS
-        ALLOW_READ              = *
-        ALLOW_WRITE             = *
-        ALLOW_ADMINISTRATOR     = *
-        ALLOW_NEGOTIATOR        = *
-        ALLOW_SCHEDD            = *
-        ALLOW_STARTD            = *
-        ALLOW_COLLECTOR         = *
-        ALLOW_ADVERTISE_MASTER  = *
-        ALLOW_ADVERTISE_SCHEDD  = *
-        ALLOW_ADVERTISE_STARTD  = *
-        ALLOW_NEGOTIATOR_SCHEDD = *
+        # Listen on all interfaces — required for the host to reach the container
+        # via its Docker bridge IP rather than only 127.0.0.1.
+        NETWORK_INTERFACE = *
+
+        # Match jobs quickly so tests finish well within their timeout.
+        NEGOTIATOR_INTERVAL = 5
         """).lstrip()
 
 
-def _host_condor_config(collector_addr: str) -> str:
-    """Minimal condor config for the host Python process.
+def _host_condor_config(collector_addr: str, token_dir: str) -> str:
+    """Minimal condor config for the host-side htcondor2 subprocess client.
 
-    Points the htcondor2 library at the containerised collector and disables
-    authentication to match the container's settings.
+    Points the htcondor2 library at the containerised collector and provides
+    the path to the IDTOKEN that was generated inside the container.
     """
     return textwrap.dedent(f"""
-        COLLECTOR_HOST                     = {collector_addr}
-        CONDOR_HOST                        = 127.0.0.1
-        SEC_DEFAULT_AUTHENTICATION_METHODS = ANONYMOUS
-        SEC_CLIENT_AUTHENTICATION_METHODS  = ANONYMOUS
-        ALLOW_READ  = *
-        ALLOW_WRITE = *
+        COLLECTOR_HOST      = {collector_addr}
+        CONDOR_HOST         = {collector_addr.split(":")[0]}
+        SEC_TOKEN_DIRECTORY = {token_dir}
         """).lstrip()
 
 
-def _container_job_conf(collector_addr: str) -> str:
+def _container_job_conf(collector_addr: str, host_config_path: str) -> str:
     return textwrap.dedent(f"""
         runners:
           local:
@@ -121,6 +111,7 @@ def _container_job_conf(collector_addr: str) -> str:
             htcondor_environment:
               runner: htcondor
               htcondor_collector: "{collector_addr}"
+              htcondor_config: "{host_config_path}"
             local_environment:
               runner: local
         tools:
@@ -129,28 +120,68 @@ def _container_job_conf(collector_addr: str) -> str:
         """).lstrip()
 
 
-def start_htcondor_docker(container_name: str, jobs_directory: str, port: int = HTCONDOR_MINI_PORT) -> tuple[str, str]:
-    """Start an htcondor/mini container and return (container_config_path, host_config_path).
+def _two_cluster_job_conf(
+    collector_addr_a: str,
+    host_config_path_a: str,
+    collector_addr_b: str,
+    host_config_path_b: str,
+) -> str:
+    """Job config routing tools across two independent HTCondor clusters.
 
-    The container is started with:
-    * A custom condor_config.local enabling anonymous auth on all interfaces.
-    * Port *port* on the host mapped to the collector/schedd port 9618 inside.
-    * The Galaxy job-working directory bind-mounted at the same path so job
-      scripts written by Galaxy are readable by the HTCondor startd.
-
-    Returns the paths of two temporary config files that must be removed by the
-    caller (via stop_htcondor_docker).
+    All tools default to cluster A.  ``create_2`` is explicitly routed to
+    cluster B so ``test_htcondor_docker_job_cluster_b`` can verify that each
+    cluster receives its own jobs independently.
     """
-    # Write the config that goes inside the container.
+    return textwrap.dedent(f"""
+        runners:
+          local:
+            load: galaxy.jobs.runners.local:LocalJobRunner
+            workers: 1
+          htcondor:
+            load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+            workers: 1
+        execution:
+          default: htcondor_cluster_a
+          environments:
+            htcondor_cluster_a:
+              runner: htcondor
+              htcondor_collector: "{collector_addr_a}"
+              htcondor_config: "{host_config_path_a}"
+            htcondor_cluster_b:
+              runner: htcondor
+              htcondor_collector: "{collector_addr_b}"
+              htcondor_config: "{host_config_path_b}"
+            local_environment:
+              runner: local
+        tools:
+          - id: __DATA_FETCH__
+            environment: local_environment
+          - id: checksum
+            environment: htcondor_cluster_b
+        """).lstrip()
+
+
+def start_htcondor_docker(container_name: str, jobs_directory: str) -> tuple[str, str, str, str]:
+    """Start an htcondor/mini container and return (container_config_path, host_config_path, collector_addr, token_dir).
+
+    The container is started without port mapping.  After it is running, its
+    Docker bridge IP is obtained via ``docker inspect`` and used as the
+    collector address.  This avoids the CEDAR address-embedding problem that
+    occurs with port mapping.
+
+    Authentication uses the container's default IDTOKENS model.  Once the
+    schedd is ready, the host OS user is added to the container's
+    ``/etc/passwd`` (so HTCondor can setuid to the right UID when running
+    jobs), and an IDTOKEN is generated inside the container and written to a
+    temporary directory on the host.  The host-side htcondor2 subprocess
+    client uses this token to authenticate with the container's schedd.
+
+    The Galaxy job-working directory is bind-mounted at the same path inside
+    the container so job scripts written by Galaxy are accessible to the startd.
+    """
     with tempfile.NamedTemporaryFile(suffix="_container_condor_config.local", mode="w", delete=False) as f:
         f.write(_container_condor_config())
         container_config_path = f.name
-
-    # Write the config used by the host-side htcondor2 Python library.
-    collector_addr = f"127.0.0.1:{port}"
-    with tempfile.NamedTemporaryFile(suffix="_host_condor_config", mode="w", delete=False) as f:
-        f.write(_host_condor_config(collector_addr))
-        host_config_path = f.name
 
     subprocess.check_call(
         [
@@ -160,8 +191,6 @@ def start_htcondor_docker(container_name: str, jobs_directory: str, port: int = 
             "--name",
             container_name,
             "--rm",
-            "-p",
-            f"{port}:9618",
             "-v",
             f"{jobs_directory}:{jobs_directory}",
             "-v",
@@ -169,16 +198,102 @@ def start_htcondor_docker(container_name: str, jobs_directory: str, port: int = 
             HTCONDOR_MINI_IMAGE,
         ]
     )
-    return container_config_path, host_config_path
+
+    # Obtain the container's Docker bridge IP — reachable from the host.
+    container_ip = subprocess.check_output(
+        ["docker", "inspect", "-f", "{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}", container_name],
+        text=True,
+    ).strip()
+    collector_addr = f"{container_ip}:9618"
+
+    # Wait for the schedd — this also ensures the pool password (used to sign
+    # IDTOKENS) has been initialised by condor_master.
+    _wait_for_htcondor_schedd(container_name)
+
+    # Determine which username to use for the job identity.  HTCondor's schedd
+    # validates that the submitting user exists in the container's /etc/passwd
+    # and the startd setuid()s to that UID when running the job.  The job
+    # working directories are owned by the host user's UID, so the job process
+    # must run as the same numeric UID.
+    #
+    # Strategy: look up the host UID in the container's passwd database.  If a
+    # user already has that UID (e.g. "restd" in htcondor/mini:el9), use that
+    # username for the token identity — the numeric UID is the same as the host
+    # user, so the job can write to the bind-mounted directories.  If no
+    # container user has the host UID, add an entry for the host username.
+    host_uid = os.getuid()
+    host_gid = os.getgid()
+    host_username = subprocess.check_output(["id", "-un"], text=True).strip()
+    result = subprocess.run(
+        ["docker", "exec", container_name, "getent", "passwd", str(host_uid)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        token_username = result.stdout.split(":")[0]
+    else:
+        # The host user is not in the container's passwd database.  Append a
+        # minimal entry so HTCondor can validate the identity and setuid to the
+        # right UID.  Pipe via stdin to tee to avoid any shell-quoting concerns.
+        passwd_line = f"{host_username}:x:{host_uid}:{host_gid}:{host_username}:/tmp:/bin/sh\n"
+        subprocess.run(
+            ["docker", "exec", "-i", container_name, "tee", "-a", "/etc/passwd"],
+            input=passwd_line,
+            text=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        token_username = host_username
+
+    # Generate an IDTOKEN inside the container for the resolved identity.
+    # The container signs the token with its pool password; the host client
+    # presents the token and the schedd verifies it — no password exchange needed.
+    token_identity = f"{token_username}@galaxy_test"
+    token_content = subprocess.check_output(
+        ["docker", "exec", container_name, "condor_token_create", "-identity", token_identity],
+        text=True,
+    ).strip()
+    token_dir = tempfile.mkdtemp(prefix="htcondor_tokens_")
+    os.chmod(token_dir, 0o700)
+    token_path = os.path.join(token_dir, "galaxy_test")
+    with open(token_path, "w") as fh:
+        fh.write(token_content + "\n")
+    os.chmod(token_path, 0o600)
+
+    with tempfile.NamedTemporaryFile(suffix="_host_condor_config", mode="w", delete=False) as f:
+        f.write(_host_condor_config(collector_addr, token_dir))
+        host_config_path = f.name
+
+    return container_config_path, host_config_path, collector_addr, token_dir
 
 
-def stop_htcondor_docker(container_name: str, container_config_path: str, host_config_path: str) -> None:
+def stop_htcondor_docker(
+    container_name: str, container_config_path: str, host_config_path: str, token_dir: str
+) -> None:
     """Stop the minicondor container and clean up temporary config files."""
     subprocess.call(["docker", "rm", "-f", container_name])
     with contextlib.suppress(OSError):
         os.remove(container_config_path)
     with contextlib.suppress(OSError):
         os.remove(host_config_path)
+    with contextlib.suppress(OSError):
+        os.remove(os.path.join(token_dir, "galaxy_test"))
+    with contextlib.suppress(OSError):
+        os.rmdir(token_dir)
+
+
+def _condor_history_count(container_name: str) -> int:
+    """Return the number of jobs recorded in the container's condor history.
+
+    Uses ``condor_history -format`` so the output contains exactly one line
+    per completed job, with no header — making the count unambiguous.
+    """
+    result = subprocess.run(
+        ["docker", "exec", container_name, "condor_history", "-format", "%d\n", "ClusterId"],
+        capture_output=True,
+        text=True,
+    )
+    return len([line for line in result.stdout.splitlines() if line.strip()])
 
 
 def _wait_for_htcondor_schedd(container_name: str, timeout: int = HTCONDOR_STARTUP_TIMEOUT) -> None:
@@ -208,22 +323,25 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
     Prerequisites
     -------------
     * Docker must be available (tests are skipped otherwise).
-    * Port ``HTCONDOR_MINI_PORT`` (default 19618) must be free on the host.
 
     Environment variables
     ---------------------
     ``GALAXY_TEST_HTCONDOR_IMAGE``
         Override the Docker image (default: ``htcondor/mini:el9``).
-    ``GALAXY_TEST_HTCONDOR_MINI_PORT``
-        Override the host port (default: 19618).
     """
 
     framework_tool_and_types = True
     _container_name: ClassVar[str] = "galaxy_htcondor_integration_test"
+    _container_name_b: ClassVar[str] = "galaxy_htcondor_integration_test_b"
     _jobs_directory: ClassVar[str]
     _container_config_path: ClassVar[str]
     _host_config_path: ClassVar[str]
-    _old_condor_config: ClassVar[str | None]
+    _collector_addr: ClassVar[str]
+    _token_dir: ClassVar[str]
+    _container_config_path_b: ClassVar[str]
+    _host_config_path_b: ClassVar[str]
+    _collector_addr_b: ClassVar[str]
+    _token_dir_b: ClassVar[str]
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -234,14 +352,30 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
             os.makedirs(subdir, exist_ok=True)
             os.chmod(subdir, 0o777)
 
-        cls._container_config_path, cls._host_config_path = start_htcondor_docker(
-            cls._container_name, cls._jobs_directory
-        )
-        _wait_for_htcondor_schedd(cls._container_name)
+        # Start both containers in parallel to reduce wall-clock setup time.
+        _results: dict[str, tuple] = {}
+        _errors: dict[str, BaseException] = {}
 
-        # Point the host-side htcondor2 library at the container's collector.
-        cls._old_condor_config = os.environ.get("CONDOR_CONFIG")
-        os.environ["CONDOR_CONFIG"] = cls._host_config_path
+        def _start(label: str, name: str) -> None:
+            try:
+                _results[label] = start_htcondor_docker(name, cls._jobs_directory)
+            except BaseException as exc:
+                _errors[label] = exc
+
+        threads = [
+            threading.Thread(target=_start, args=("a", cls._container_name), daemon=True),
+            threading.Thread(target=_start, args=("b", cls._container_name_b), daemon=True),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        if _errors:
+            raise RuntimeError(f"HTCondor container startup failed: {_errors}")
+
+        cls._container_config_path, cls._host_config_path, cls._collector_addr, cls._token_dir = _results["a"]
+        cls._container_config_path_b, cls._host_config_path_b, cls._collector_addr_b, cls._token_dir_b = _results["b"]
 
         # Remove any fake htcondor2 stub so the real library is imported.
         sys.modules.pop("htcondor2", None)
@@ -255,12 +389,11 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
         try:
             super().tearDownClass()
         finally:
-            stop_htcondor_docker(cls._container_name, cls._container_config_path, cls._host_config_path)
+            stop_htcondor_docker(cls._container_name, cls._container_config_path, cls._host_config_path, cls._token_dir)
+            stop_htcondor_docker(
+                cls._container_name_b, cls._container_config_path_b, cls._host_config_path_b, cls._token_dir_b
+            )
             shutil.rmtree(cls._jobs_directory, ignore_errors=True)
-            if cls._old_condor_config is None:
-                os.environ.pop("CONDOR_CONFIG", None)
-            else:
-                os.environ["CONDOR_CONFIG"] = cls._old_condor_config
 
     def setUp(self) -> None:
         super().setUp()
@@ -268,8 +401,12 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
 
     @classmethod
     def handle_galaxy_config_kwds(cls, config) -> None:
-        collector_addr = f"127.0.0.1:{HTCONDOR_MINI_PORT}"
-        job_conf_str = _container_job_conf(collector_addr)
+        job_conf_str = _two_cluster_job_conf(
+            cls._collector_addr,
+            cls._host_config_path,
+            cls._collector_addr_b,
+            cls._host_config_path_b,
+        )
         with tempfile.NamedTemporaryFile(suffix="_htcondor_container_job_conf.yml", mode="w", delete=False) as f:
             f.write(job_conf_str)
         config["job_config_file"] = f.name
@@ -279,8 +416,12 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
 
     @skip_without_tool("simple_constructs")
     def test_htcondor_docker_job(self) -> None:
-        """A job submitted via htcondor/mini finishes successfully."""
-        self._run_tool_test("simple_constructs")
+        """A job submitted to cluster A via htcondor/mini finishes successfully."""
+        before_a = _condor_history_count(self._container_name)
+        before_b = _condor_history_count(self._container_name_b)
+        self._run_tool_test("simple_constructs", maxseconds=300)
+        assert _condor_history_count(self._container_name) > before_a, "No new completed job in cluster A"
+        assert _condor_history_count(self._container_name_b) == before_b, "Unexpected job appeared in cluster B"
 
     @skip_without_tool("cat_data_and_sleep")
     def test_htcondor_docker_cancel(self) -> None:
@@ -318,6 +459,15 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
                     break
                 time.sleep(1)
             assert job.state == model.Job.states.DELETED, f"Expected DELETED, got {job.state}"
+
+    @skip_without_tool("checksum")
+    def test_htcondor_docker_job_cluster_b(self) -> None:
+        """A job routed to cluster B finishes successfully and does not appear in cluster A."""
+        before_a = _condor_history_count(self._container_name)
+        before_b = _condor_history_count(self._container_name_b)
+        self._run_tool_test("checksum", maxseconds=300)
+        assert _condor_history_count(self._container_name) == before_a, "Unexpected job appeared in cluster A"
+        assert _condor_history_count(self._container_name_b) > before_b, "No new completed job in cluster B"
 
 
 class FakeHTCondorIntegrationInstance(integration_util.IntegrationInstance):
