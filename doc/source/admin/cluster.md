@@ -218,7 +218,71 @@ If you need to add additional parameters to your condor submission, you can do s
 
 ### HTCondor (htcondor2 API)
 
-Runs jobs via the [HTCondor](https://research.cs.wisc.edu/htcondor/) DRM using the htcondor2 Python bindings (v2 API). Configuration is identical to the Condor runner, but submission, monitoring, and removal are performed through the Python API instead of the CLI. Ensure the `htcondor2` module is available in Galaxy's virtualenv (from your HTCondor installation or a Python package providing the bindings).
+Runs jobs via the [HTCondor](https://research.cs.wisc.edu/htcondor/) DRM using the
+[htcondor2](https://pypi.org/project/htcondor/) Python bindings (v2 API). Unlike the
+legacy Condor runner, which shells out to CLI tools, this runner communicates entirely
+through the Python API for submitting, monitoring, and removing jobs. Install the
+package with `pip install htcondor` (or obtain it from your HTCondor installation).
+
+#### Architecture
+
+The runner maintains a pool of per-configuration helper clients, chosen automatically
+based on the destination parameters:
+
+- **In-process client** — used when *no* `htcondor_config` destination parameter is
+  set. The `htcondor2` library communicates with the schedd directly from within the
+  Galaxy process, relying on the system-wide `CONDOR_CONFIG` (or `$CONDOR_CONFIG`).
+  This is the common case when Galaxy runs on the same machine as the schedd.
+
+- **Subprocess client** — used when an `htcondor_config` destination parameter is
+  provided. Galaxy spawns a dedicated helper process with `CONDOR_CONFIG` pointing to
+  that file, isolating it from the main Galaxy process. One subprocess is shared across
+  all destinations that reference the same config file, so jobs targeting different
+  schedds within the same pool share a single helper.
+
+#### Destination parameters
+
+The following parameters are recognised by the runner and are **not** forwarded to the
+condor submit description. All others (e.g. `request_cpus`, `request_memory`,
+`universe`) are passed through verbatim.
+
+| Parameter | Description |
+|-----------|-------------|
+| `htcondor_collector` | Collector address (e.g. `collector.example.org:9618`). When set, the runner queries this collector for a schedd rather than using the default from `CONDOR_CONFIG`. |
+| `htcondor_schedd` | Name of a specific schedd to target (e.g. `schedd@submit.example.org`). When omitted, the first schedd returned by the collector is used. |
+| `htcondor_config` | Path to an alternative `condor_config` file. Triggers the subprocess client so Galaxy's own HTCondor environment is unaffected. Useful when submitting to multiple independent pools. |
+
+#### Basic configuration
+
+```yaml
+runners:
+  htcondor:
+    load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+    workers: 4
+
+execution:
+  default: htcondor
+  environments:
+    htcondor:
+      runner: htcondor
+      request_cpus: 1
+      request_memory: 4096M
+```
+
+For remote pools, supply the collector/schedd and an alternative config file:
+
+```yaml
+execution:
+  environments:
+    htcondor_remote:
+      runner: htcondor
+      htcondor_collector: "collector.example.org:9618"
+      htcondor_schedd: "schedd@submit.example.org"
+      htcondor_config: "/etc/condor/pool_b_config"
+      request_memory: 8192M
+```
+
+The equivalent XML form is also supported:
 
 ```xml
 <plugins>
@@ -227,46 +291,57 @@ Runs jobs via the [HTCondor](https://research.cs.wisc.edu/htcondor/) DRM using t
 <destinations>
     <destination id="htcondor" runner="htcondor">
         <param id="request_cpus">4</param>
+        <param id="request_memory">4096M</param>
     </destination>
 </destinations>
 ```
 
-YAML configuration example:
-
-```yaml
-runners:
-  htcondor:
-    load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
-
-execution:
-  default: htcondor
-  environments:
-    htcondor:
-      runner: htcondor
-      request_cpus: 4
-```
-
-For remote pools, supply the collector/schedd and (optionally) a specific `CONDOR_CONFIG` file. These `htcondor_*` parameters are consumed by the runner and are not passed through to the submit description.
-
-```yaml
-execution:
-  environments:
-    htcondor_remote:
-      runner: htcondor
-      htcondor_collector: "collector.example.org:9618"
-      htcondor_schedd: "schedd@collector.example.org"
-      htcondor_config: "/etc/condor/condor_config"
-```
-
 #### Testing with htcondor/mini (Docker)
 
-The integration test for the htcondor runner can be exercised against the `htcondor/mini` container. The key points are:
+The test suite in `test/integration/test_htcondor_runner.py` contains three tiers:
 
-- Mount your Galaxy checkout into the container at the same path so job scripts and datasets are reachable.
+**Automated Docker test (`TestHTCondorContainerJob`)**
+
+Requires only Docker and the `htcondor2` Python package. The test class starts the
+`htcondor/mini` all-in-one container automatically (master, schedd, collector,
+negotiator, and startd in a single container), maps it to a local port with anonymous
+authentication, submits real Galaxy jobs, and tears everything down on exit. No manual
+setup is needed.
+
+```bash
+pip install htcondor
+python -m pytest test/integration/test_htcondor_runner.py::TestHTCondorContainerJob -v
+```
+
+Override the Docker image or host port if needed:
+
+```bash
+GALAXY_TEST_HTCONDOR_IMAGE=htcondor/mini:23-el9 \
+GALAXY_TEST_HTCONDOR_MINI_PORT=19618 \
+python -m pytest test/integration/test_htcondor_runner.py::TestHTCondorContainerJob -v
+```
+
+**Unit-style tests (fake htcondor2 stub)**
+
+No HTCondor installation required. A lightweight stub at
+`test/integration/htcondor_fake/htcondor2.py` mirrors the real htcondor2 API and
+records every submit/remove call. These cover job lifecycle transitions, multi-pool
+helper isolation, crash recovery, and cancellation:
+
+```bash
+python -m pytest test/integration/test_htcondor_runner.py -k "not Container" -v
+```
+
+**Live-cluster test against an existing pool**
+
+For testing against a real HTCondor cluster (or a manually configured container), set
+`GALAXY_TEST_HTCONDOR=1` and the appropriate connection variables.  The key points
+when using `htcondor/mini` for this purpose are:
+
+- Mount your Galaxy checkout into the container at the same path so job scripts and
+  datasets are reachable.
 - Use IDTOKENS for authentication and a client config file for `CONDOR_CONFIG`.
-- Ensure the submitter user exists in the container (so the owner is valid).
-
-Example (adjust `/home/$USER` if your checkout lives elsewhere):
+- Ensure the submitter user exists in the container.
 
 ```bash
 docker run -d --name htcondor-mini -v /home/$USER:/home/$USER htcondor/mini
@@ -292,14 +367,17 @@ EOF
 export GALAXY_TEST_HTCONDOR=1
 export GALAXY_TEST_HTCONDOR_COLLECTOR="$CONDOR_IP:9618"
 export GALAXY_TEST_HTCONDOR_CONFIG="/home/$USER/condor-token/condor_client.conf"
-python -m pytest test/integration/test_htcondor_runner.py -q
+python -m pytest test/integration/test_htcondor_runner.py -v
 
 docker rm -f htcondor-mini
 ```
 
-The test creates `htcondor_job_working_*` and `htcondor_data_*` directories under the repository root by default. You can override these with `GALAXY_TEST_HTCONDOR_JOB_WORKING_DIRECTORY` and `GALAXY_TEST_HTCONDOR_DATA_DIR` if you need different locations.
+The live-cluster test creates `htcondor_job_working_*` and `htcondor_data_*`
+directories under the repository root by default. Override them with
+`GALAXY_TEST_HTCONDOR_JOB_WORKING_DIRECTORY` and `GALAXY_TEST_HTCONDOR_DATA_DIR`.
 
-If your pool enforces a low cgroup memory limit, set `GALAXY_TEST_HTCONDOR_REQUEST_MEMORY` to a higher value (the test defaults to 512 MB).
+If your pool enforces a low cgroup memory limit, set `GALAXY_TEST_HTCONDOR_REQUEST_MEMORY`
+to a higher value (the test defaults to 512 MB).
 
 ### Pulsar
 
