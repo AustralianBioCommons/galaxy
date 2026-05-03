@@ -1379,6 +1379,139 @@ def test_failure_event_sets_message_and_runner_state(
         assert getattr(job_state_record, "runner_state", None) is None
 
 
+def test_events_across_two_cycles(fake_instance, fake_htcondor, runner_factory):
+    """Events arriving in separate monitor cycles carry cjs.running correctly."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-two-cycles"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    # Cycle 1: job starts executing.
+    _set_job_events(fake_htcondor, cjs, ["EXECUTE"])
+    runner.check_watched_items()
+    assert len(runner.watched) == 1
+    assert runner.watched[0].running is True
+    assert runner.work_queue.empty()
+    assert job_wrapper.state == model.Job.states.RUNNING
+
+    # Cycle 2: job terminates — cjs.running must be True coming in so that
+    # the state transition is handled correctly.
+    _set_job_events(fake_htcondor, cjs, ["JOB_TERMINATED"])
+    runner.check_watched_items()
+    assert len(runner.watched) == 0
+    method, _ = runner.work_queue.get_nowait()
+    assert method == runner.finish_job
+
+
+def test_recover_with_completed_event_log(fake_instance, fake_htcondor, runner_factory):
+    """recover() re-queues a RUNNING job; finish_job is called on the next cycle
+    if the event log already shows the job completed while Galaxy was down."""
+    runner = runner_factory()
+    job = model.Job()
+    job.id = 99
+    job.state = model.Job.states.RUNNING
+    job.job_runner_external_id = "456"
+    job_wrapper = _job_wrapper(
+        fake_instance, 99, dict(htcondor_config="/tmp/condor-recover-done"), state=model.Job.states.RUNNING
+    )
+
+    runner.recover(job, job_wrapper)
+
+    # Simulate what the monitor thread does: drain monitor_queue into watched.
+    cjs = runner.monitor_queue.get_nowait()
+    runner.watched = [cjs]
+
+    # Pre-populate the event log with the full lifecycle including completion.
+    _write_user_log(cjs)
+    _set_job_events(fake_htcondor, cjs, ["EXECUTE", "JOB_TERMINATED"])
+
+    runner.check_watched_items()
+
+    assert len(runner.watched) == 0
+    method, _ = runner.work_queue.get_nowait()
+    assert method == runner.finish_job
+
+
+def test_transient_status_error_retries_before_failing(fake_instance, fake_htcondor, runner_factory, monkeypatch):
+    """Transient errors from _summarize_event_log keep the job watched for
+    MAX_STATUS_ERROR_COUNT-1 cycles, then fail it on the final error."""
+    from galaxy.jobs.runners import htcondor as htcondor_module
+
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-transient-err"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    call_count = 0
+
+    def always_raise(c):
+        nonlocal call_count
+        call_count += 1
+        raise OSError("simulated NFS timeout")
+
+    monkeypatch.setattr(runner, "_summarize_event_log", always_raise)
+
+    max_count = htcondor_module.MAX_STATUS_ERROR_COUNT
+
+    # First MAX_STATUS_ERROR_COUNT-1 errors: job stays in watched, nothing queued.
+    for i in range(max_count - 1):
+        runner.check_watched_items()
+        assert len(runner.watched) == 1, f"job should still be watched after error {i + 1}"
+        assert runner.work_queue.empty(), f"no failure should be queued after error {i + 1}"
+        assert cjs.status_error_count == i + 1
+
+    # Final error: job is failed.
+    runner.check_watched_items()
+    assert len(runner.watched) == 0
+    method, job_state_record = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
+    assert job_state_record.status_error_count == max_count
+
+
+def test_held_job_escalates_to_failure_after_max_count(fake_instance, fake_htcondor, runner_factory):
+    """A job that is held max_held_count times without release is permanently failed."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-held-escalate"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    max_held = int(job_wrapper.job_destination.params.get("max_held_count", 3))
+
+    # Each cycle delivers a new JOB_HELD event and keeps the job in watched
+    # until the threshold is reached.
+    for i in range(max_held - 1):
+        _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+        runner.check_watched_items()
+        assert len(runner.watched) == 1, f"job should still be watched after hold {i + 1}"
+        assert runner.work_queue.empty()
+        assert cjs.held_count == i + 1
+
+    # Final hold: threshold reached, job is failed.
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+    runner.check_watched_items()
+    assert len(runner.watched) == 0
+    method, job_state_record = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
+    assert job_state_record.held_count == max_held
+    assert "held" in job_state_record.fail_message.lower()
+
+
+def test_held_job_max_count_is_configurable(fake_instance, fake_htcondor, runner_factory):
+    """max_held_count destination param overrides the default escalation threshold."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-held-custom", max_held_count="1"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    # With max_held_count=1 the very first hold should fail the job.
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+    runner.check_watched_items()
+
+    assert len(runner.watched) == 0
+    method, _ = runner.work_queue.get_nowait()
+    assert method == runner.fail_job
+
+
 class MockJobWrapper:
     def __init__(
         self,

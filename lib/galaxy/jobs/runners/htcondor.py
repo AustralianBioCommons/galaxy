@@ -37,6 +37,10 @@ __all__ = ("HTCondorJobRunner",)
 HTCONDOR_DESTINATION_KEYS = ("htcondor_collector", "htcondor_schedd", "htcondor_config")
 HTCONDOR_HELPER_MODULE = "galaxy.jobs.runners.htcondor_helper"
 HTCONDOR_HELPER_TIMEOUT = 30
+# Number of consecutive status-check errors before a job is failed.  A small
+# count absorbs transient filesystem hiccups (e.g. NFS timeouts reading the
+# event log) without masking genuine persistent failures.
+MAX_STATUS_ERROR_COUNT = 3
 
 
 def _normalize_condor_config(condor_config: str | None) -> str | None:
@@ -227,6 +231,8 @@ class HTCondorJobState(AsynchronousJobState):
         self.failed = False
         self.user_log = user_log
         self._event_log = None
+        self.status_error_count = 0
+        self.held_count = 0
 
     def event_log(self, htcondor):
         if self._event_log is None:
@@ -439,6 +445,15 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             try:
                 job_running, job_complete, failure_event, job_held = self._summarize_event_log(cjs)
             except Exception:
+                cjs.status_error_count += 1
+                if cjs.status_error_count < MAX_STATUS_ERROR_COUNT:
+                    log.warning(
+                        f"({galaxy_id_tag}/{job_id}) Transient error checking job status "
+                        f"(attempt {cjs.status_error_count}/{MAX_STATUS_ERROR_COUNT}), "
+                        "will retry next cycle"
+                    )
+                    new_watched.append(cjs)
+                    continue
                 log.exception(f"({galaxy_id_tag}/{job_id}) Unable to check job status")
                 log.warning(f"({galaxy_id_tag}/{job_id}) job will now be errored")
                 cjs.fail_message = "Cluster could not complete job"
@@ -482,6 +497,21 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     model.Job.states.DELETED,
                     model.Job.states.STOPPED,
                 ):
+                    cjs.held_count += 1
+                    max_held_count = int(cjs.job_wrapper.job_destination.params.get("max_held_count", 3))
+                    if cjs.held_count >= max_held_count:
+                        log.warning(
+                            f"({galaxy_id_tag}/{job_id}) Job held {cjs.held_count} "
+                            "times without release, failing permanently"
+                        )
+                        cjs.fail_message = (
+                            f"This job was held by HTCondor {cjs.held_count} time"
+                            f"{'s' if cjs.held_count != 1 else ''} without being released."
+                        )
+                        cjs.runner_state = runner_states.UNKNOWN_ERROR
+                        cjs.close_event_log()
+                        self.work_queue.put((self.fail_job, cjs))
+                        continue
                     cjs.job_wrapper.change_state(model.Job.states.QUEUED)
                 cjs.running = False
                 new_watched.append(cjs)
