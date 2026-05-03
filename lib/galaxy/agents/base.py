@@ -686,7 +686,10 @@ class BaseGalaxyAgent(ABC):
         return self._get_agent_config("temperature", 0.7)
 
     def _get_max_tokens(self) -> int:
-        return self._get_agent_config("max_tokens", 2000)
+        # 8192 leaves headroom on the smallest backend we point at (Qwen3-32B,
+        # 32k total) while being big enough that most agents -- history in
+        # particular -- don't get truncated mid-answer at the default.
+        return self._get_agent_config("max_tokens", 8192)
 
     async def _call_agent_from_tool(
         self,
