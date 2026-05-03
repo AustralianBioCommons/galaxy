@@ -19,6 +19,7 @@ from galaxy import (
 from galaxy.exceptions import Conflict
 from galaxy.managers import users
 from galaxy.model.db.user import get_user_by_email
+from galaxy.model.orm.now import now
 from galaxy.security.validate_user_input import (
     is_valid_email_str,
     validate_email,
@@ -246,7 +247,7 @@ class User(BaseUIController, UsesFormDefinitionsMixin):
         #  Activation is forced and the user is not active yet. Check the grace period.
         activation_grace_period = trans.app.config.activation_grace_period
         delta = timedelta(hours=int(activation_grace_period))
-        time_difference = datetime.utcnow() - create_time
+        time_difference = now() - create_time
         return time_difference > delta or activation_grace_period == 0
 
     @web.expose

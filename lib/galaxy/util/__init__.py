@@ -633,7 +633,7 @@ def pretty_print_time_interval(time=False, precise=False, utc=False):
     credit: http://stackoverflow.com/questions/1551382/user-friendly-time-format-in-python
     """
     if utc:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         now = datetime.now()
     if isinstance(time, (int, float)):

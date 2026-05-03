@@ -18,6 +18,7 @@ from sqlalchemy.orm.scoping import scoped_session
 
 from galaxy.exceptions import ObjectNotFound
 from galaxy.model import StoreExportAssociation
+from galaxy.model.orm.now import now
 from galaxy.schema.fields import Security
 from galaxy.schema.schema import ExportObjectType
 from galaxy.structured_app import MinimalManagerApp
@@ -98,7 +99,7 @@ class StoreExportTracker:
         Returns:
             List of export associations for the user.
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = now() - timedelta(days=days)
         stmt = (
             select(StoreExportAssociation)
             .where(

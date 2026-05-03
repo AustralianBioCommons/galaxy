@@ -9,6 +9,7 @@ except ImportError:
     # This middleware will never be used without influxdb.
     influxdb = None
 
+from galaxy.model.orm.now import now
 from galaxy.util import unicodify
 from . import ErrorPlugin
 
@@ -41,7 +42,7 @@ class InfluxDBPlugin(ErrorPlugin):
             [
                 {
                     "measurement": "galaxy_tool_error",
-                    "time": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "time": now().strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "fields": {"value": 1},
                     "tags": {
                         "exit_code": job.exit_code,

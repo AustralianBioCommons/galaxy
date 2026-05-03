@@ -48,6 +48,7 @@ from galaxy.model import (
     UserNotificationAssociation,
     UserRoleAssociation,
 )
+from galaxy.model.orm.now import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.schema.notifications import (
     AnyNotificationContent,
@@ -143,7 +144,7 @@ class NotificationManager:
 
     @property
     def _now(self):
-        return datetime.utcnow()
+        return now()
 
     @property
     def _notification_is_active(self):

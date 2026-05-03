@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from galaxy import model
 from galaxy.jobs.runners import JobState
+from galaxy.model.orm.now import now
 from ._safe_eval import safe_eval
 
 if TYPE_CHECKING:
@@ -127,7 +128,7 @@ class _ExpressionContext:
         if self._lazy_context is None:
             runner_state = getattr(self._job_state, "runner_state", None) or JobState.runner_states.UNKNOWN_ERROR
             attempt = 1
-            now = datetime.utcnow()
+            current_time = now()
             last_running_state = None
             last_queued_state = None
             for state in self._job_state.job_wrapper.get_job().state_history:
@@ -141,9 +142,9 @@ class _ExpressionContext:
             seconds_running = 0
             seconds_since_queued = 0
             if last_running_state:
-                seconds_running = (now - last_running_state.create_time).total_seconds()
+                seconds_running = (current_time - last_running_state.create_time).total_seconds()
             if last_queued_state:
-                seconds_since_queued = (now - last_queued_state.create_time).total_seconds()
+                seconds_since_queued = (current_time - last_queued_state.create_time).total_seconds()
 
             self._lazy_context = {
                 "walltime_reached": runner_state == JobState.runner_states.WALLTIME_REACHED,

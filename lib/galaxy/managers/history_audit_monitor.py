@@ -36,6 +36,7 @@ from galaxy.model import (
     HistoryAudit,
 )
 from galaxy.model.mapping import GalaxyModelMapping
+from galaxy.model.orm.now import now
 
 log = logging.getLogger(__name__)
 
@@ -223,11 +224,11 @@ class HistoryAuditMonitor:
 
     def _poll_audit_table(self) -> None:
         """Poll history_audit for recent changes."""
-        last_check = datetime.utcnow() - timedelta(seconds=self.poll_interval)
+        last_check = now() - timedelta(seconds=self.poll_interval)
 
         while not self._exit.is_set():
             try:
-                check_time = datetime.utcnow()
+                check_time = now()
                 stmt = (
                     sa_select(HistoryAudit.history_id)
                     .where(HistoryAudit.update_time > last_check)
