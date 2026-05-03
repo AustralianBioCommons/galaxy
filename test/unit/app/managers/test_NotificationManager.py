@@ -24,6 +24,7 @@ from galaxy.model import (
     Role,
     User,
 )
+from galaxy.model.orm.now import now
 from galaxy.schema.notifications import (
     BroadcastNotificationContent,
     BroadcastNotificationCreateRequest,
@@ -88,7 +89,7 @@ class NotificationManagerBaseTestCase(NotificationsBaseTestCase):
         return created_notification, notifications_sent
 
     def _has_expired(self, expiration_time: Optional[datetime]) -> bool:
-        return expiration_time < datetime.utcnow() if expiration_time else False
+        return expiration_time < now() if expiration_time else False
 
     def _assert_notification_expected(self, actual_notification: Any, expected_notification: dict[str, Any]):
         assert actual_notification
@@ -146,13 +147,13 @@ class TestBroadcastNotifications(NotificationManagerBaseTestCase):
         assert actual_notification.id == created_notification.id
 
     def test_get_all_broadcasted_notifications(self):
-        now = datetime.utcnow()
-        next_week = now + timedelta(days=7)
-        next_month = now + timedelta(days=30)
+        current_time = now()
+        next_week = current_time + timedelta(days=7)
+        next_month = current_time + timedelta(days=30)
 
         notification_data = self._default_broadcast_notification_data()
         notification_data["content"]["subject"] = "Recent Notification"
-        notification_data["publication_time"] = now
+        notification_data["publication_time"] = current_time
         self._send_broadcast_notification(notification_data)
 
         notification_data = self._default_broadcast_notification_data()
@@ -179,18 +180,18 @@ class TestBroadcastNotifications(NotificationManagerBaseTestCase):
         assert notifications[0].content["subject"] == "Scheduled Next Month Notification"
 
     def test_update_broadcasted_notification(self):
-        next_month = datetime.utcnow() + timedelta(days=30)
+        next_month = now() + timedelta(days=30)
         notification_data = self._default_broadcast_notification_data()
         notification_data["content"]["subject"] = "Old Scheduled Notification"
         notification_data["publication_time"] = next_month
         actual_notification = self._send_broadcast_notification(notification_data)
 
-        now = datetime.utcnow()
+        current_time = now()
         expected_content = BroadcastNotificationContent(subject="Updated Notification", message="Updated Message")
         update_request = NotificationBroadcastUpdateRequest(
             source="updated_source",
             variant=NotificationVariant.warning,
-            publication_time=now,
+            publication_time=current_time,
             content=expected_content,
         )
         updated_count = self.notification_manager.update_broadcasted_notification(
@@ -206,7 +207,7 @@ class TestBroadcastNotifications(NotificationManagerBaseTestCase):
         assert content["message"] == expected_content.message
 
     def test_cleanup_expired_broadcast_notifications(self):
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        one_hour_ago = now() - timedelta(hours=1)
         notification_data = self._default_broadcast_notification_data()
         notification_data["expiration_time"] = one_hour_ago
         actual_notification = self._send_broadcast_notification(notification_data)
@@ -290,7 +291,7 @@ class TestUserNotifications(NotificationManagerBaseTestCase):
 
     def test_scheduled_notifications(self):
         user = self._create_test_user()
-        tomorrow = datetime.utcnow() + timedelta(hours=24)
+        tomorrow = now() + timedelta(hours=24)
         expected_notification = self._default_test_notification_data()
         expected_notification["source"] = "test_scheduled"
         expected_notification["publication_time"] = tomorrow
@@ -347,8 +348,10 @@ class TestUserNotifications(NotificationManagerBaseTestCase):
 
     def test_cleanup_expired_notifications(self):
         user = self._create_test_user()
-        now = datetime.utcnow()
-        notification, _ = self._send_message_notification_to_users([user], notification={"expiration_time": now})
+        current_time = now()
+        notification, _ = self._send_message_notification_to_users(
+            [user], notification={"expiration_time": current_time}
+        )
         user_notification = self.notification_manager.get_user_notification(user, notification.id, active_only=False)
         assert user_notification
         assert self._has_expired(user_notification.expiration_time) is True
