@@ -498,6 +498,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     model.Job.states.STOPPED,
                 ):
                     cjs.held_count += 1
+                    # max_held_count: destination parameter, counts distinct JOB_HELD events (default 3)
                     max_held_count = int(cjs.job_wrapper.job_destination.params.get("max_held_count", 3))
                     if cjs.held_count >= max_held_count:
                         log.warning(

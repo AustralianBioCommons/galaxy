@@ -273,6 +273,7 @@ condor submit description. All others (e.g. `request_cpus`, `request_memory`,
 | `htcondor_collector` | Collector address (e.g. `collector.example.org:9618`). When set, the runner queries this collector for a schedd rather than using the default from `CONDOR_CONFIG`. |
 | `htcondor_schedd` | Name of a specific schedd to target (e.g. `schedd@submit.example.org`). When omitted, the first schedd returned by the collector is used. |
 | `htcondor_config` | Path to an alternative `condor_config` file. Triggers the subprocess client so Galaxy's own HTCondor environment is unaffected. Useful when submitting to multiple independent pools. |
+| `max_held_count` | Maximum number of distinct `JOB_HELD` events tolerated before the job is permanently failed (default: `3`). Each time HTCondor places a job on hold the counter increments by one; a job that stays held for days still counts as a single hold. Once the threshold is reached the job fails with `runner_state=UNKNOWN_ERROR`, which the resubmission framework can act on. Set to `1` to fail immediately on the first hold, or raise the value for workflows that expect periodic holds and automatic releases. |
 
 #### Basic configuration
 
@@ -289,6 +290,9 @@ execution:
       runner: htcondor
       request_cpus: 1
       request_memory: 4096M
+      # Fail after this many distinct hold events (default 3). Raise if your
+      # workflow expects periodic holds followed by automatic releases.
+      max_held_count: 3
 ```
 
 For remote pools, supply the collector/schedd and an alternative config file:
