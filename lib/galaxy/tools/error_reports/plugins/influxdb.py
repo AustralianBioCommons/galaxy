@@ -1,6 +1,5 @@
 """The module describes the ``influxdb`` error plugin plugin."""
 
-import datetime
 import logging
 
 try:

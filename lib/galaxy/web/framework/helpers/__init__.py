@@ -7,10 +7,7 @@ GalaxyWebTransaction in galaxy/webapps/base/webapp.py
 """
 
 import re
-from datetime import (
-    datetime,
-    timedelta,
-)
+from datetime import timedelta
 
 from babel import default_locale
 from babel.dates import format_timedelta

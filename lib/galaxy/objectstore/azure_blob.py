@@ -4,10 +4,7 @@ Object Store plugin for the Microsoft Azure Block Blob Storage system
 
 import logging
 import os
-from datetime import (
-    datetime,
-    timedelta,
-)
+from datetime import timedelta
 
 try:
     from azure.common import AzureHttpError

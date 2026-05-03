@@ -1,10 +1,7 @@
 import logging
 import socket
 import sqlite3
-from datetime import (
-    datetime,
-    timedelta,
-)
+from datetime import timedelta
 from typing import (
     Optional,
 )
