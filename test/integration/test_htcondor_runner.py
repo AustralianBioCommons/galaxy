@@ -2293,3 +2293,46 @@ def test_recovered_running_job_fails_when_log_never_appears(fake_instance, fake_
     assert len(runner.watched) == 0
     method, _ = runner.work_queue.get_nowait()
     assert method == runner.fail_job
+
+
+# ---------------------------------------------------------------------------
+# GALAXY_SLOTS / GALAXY_MEMORY_MB injection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_mb"),
+    [
+        pytest.param("4096", 4096, id="plain-int-mb"),
+        pytest.param("4096M", 4096, id="suffix-M"),
+        pytest.param("4096MB", 4096, id="suffix-MB"),
+        pytest.param("4g", 4096, id="suffix-g-lower"),
+        pytest.param("4G", 4096, id="suffix-G"),
+        pytest.param("4GB", 4096, id="suffix-GB"),
+        pytest.param("1T", 1024 * 1024, id="suffix-T"),
+        pytest.param("1TB", 1024 * 1024, id="suffix-TB"),
+        pytest.param("2048K", 2, id="suffix-K"),
+        pytest.param("2048KB", 2, id="suffix-KB"),
+        pytest.param("1.5G", 1536, id="float-GB"),
+    ],
+)
+def test_parse_memory_mb_valid(value, expected_mb):
+    from galaxy.jobs.runners.htcondor import _parse_memory_mb
+
+    assert _parse_memory_mb(value) == expected_mb
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param("$(MemoryGB) * 1024", id="classad-expression"),
+        pytest.param("ifThenElse(True, 4096, 2048)", id="classad-function"),
+        pytest.param("abc", id="garbage"),
+    ],
+)
+def test_parse_memory_mb_unparseable_returns_none(value):
+    from galaxy.jobs.runners.htcondor import _parse_memory_mb
+
+    assert _parse_memory_mb(value) is None
+
+

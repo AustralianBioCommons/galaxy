@@ -86,6 +86,30 @@ class _EventLogSummary(NamedTuple):
     log_missing: bool = False  # True when the event log file does not exist
 
 
+def _parse_memory_mb(value: str) -> int | None:
+    """Parse an HTCondor request_memory value to whole MB.
+
+    HTCondor's default unit is MB.  Recognises the K/M/G/T suffixes (case-
+    insensitive) and their two-letter forms (KB/MB/GB/TB).  Returns None for
+    values that cannot be parsed (e.g. ClassAd expressions).
+    """
+    value = value.strip()
+    _UNITS: dict[str, float] = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}
+    upper = value.upper()
+    for suffix, factor in _UNITS.items():
+        for variant in (suffix + "B", suffix):
+            if upper.endswith(variant):
+                numeric = value[: -len(variant)]
+                try:
+                    return max(1, int(float(numeric) * factor))
+                except ValueError:
+                    return None
+    try:
+        return int(float(value))
+    except ValueError:
+        return None
+
+
 def _normalize_condor_config(condor_config: str | None) -> str | None:
     if not condor_config:
         return None
@@ -426,6 +450,17 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
         else:
             galaxy_slots_statement = 'GALAXY_SLOTS="1"; export GALAXY_SLOTS;'
 
+        galaxy_memory_statement = ""
+        if request_memory := query_params.get("request_memory", None):
+            memory_mb = _parse_memory_mb(str(request_memory))
+            if memory_mb is not None:
+                slots = int(query_params.get("request_cpus", 1) or 1)
+                per_slot = memory_mb // max(1, slots)
+                galaxy_memory_statement = (
+                    f'GALAXY_MEMORY_MB="{memory_mb}"; export GALAXY_MEMORY_MB; '
+                    f'GALAXY_MEMORY_MB_PER_SLOT="{per_slot}"; export GALAXY_MEMORY_MB_PER_SLOT;'
+                )
+
         cjs = HTCondorJobState(
             job_wrapper=job_wrapper,
             job_destination=job_destination,
@@ -449,6 +484,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             job_wrapper,
             exit_code_path=cjs.exit_code_file,
             slots_statement=galaxy_slots_statement,
+            memory_statement=galaxy_memory_statement,
             shell=job_wrapper.shell,
         )
         try:
