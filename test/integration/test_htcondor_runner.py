@@ -1,18 +1,27 @@
+import contextlib
 import importlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
+import textwrap
+import time
 from queue import Queue
+from typing import ClassVar
 
 import pytest
 
 from galaxy import model
 from galaxy.jobs.job_destination import JobDestination
 from galaxy.jobs.runners import htcondor
-from galaxy_test.driver import integration_util
 from galaxy.util import bunch
+from galaxy_test.base.populators import (
+    DatasetPopulator,
+    skip_without_tool,
+)
+from galaxy_test.driver import integration_util
 
 LIVE_FAKE_MODULE_PATH = os.path.join(os.path.dirname(__file__), "htcondor_fake")
 
@@ -31,6 +40,29 @@ execution:
   environments:
     htcondor_environment:
       runner: htcondor{htcondor_params}
+    local_environment:
+      runner: local
+tools:
+  - id: __DATA_FETCH__
+    environment: local_environment
+"""
+
+
+def _fake_job_conf() -> str:
+    """Job config for the fake end-to-end test: in-process htcondor, no htcondor_config."""
+    return """
+runners:
+  local:
+    load: galaxy.jobs.runners.local:LocalJobRunner
+    workers: 1
+  htcondor:
+    load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+    workers: 1
+execution:
+  default: htcondor_environment
+  environments:
+    htcondor_environment:
+      runner: htcondor
     local_environment:
       runner: local
 tools:
@@ -108,8 +140,293 @@ instance = integration_util.integration_module_instance(HTCondorIntegrationInsta
 
 test_tools = integration_util.integration_tool_runner(["simple_constructs"])
 
+# ---------------------------------------------------------------------------
+# Docker-based minicondor container tests
+# ---------------------------------------------------------------------------
+
+# Override with GALAXY_TEST_HTCONDOR_IMAGE to pin a specific version, e.g.
+# "htcondor/mini:23-el9".
+HTCONDOR_MINI_IMAGE = os.environ.get("GALAXY_TEST_HTCONDOR_IMAGE", "htcondor/mini:el9")
+
+# Use a non-standard port so we don't collide with any real HTCondor on the CI host.
+HTCONDOR_MINI_PORT = int(os.environ.get("GALAXY_TEST_HTCONDOR_MINI_PORT", "19618"))
+
+# Seconds to wait for the schedd to become reachable after container start.
+HTCONDOR_STARTUP_TIMEOUT = 120
+
+
+def _container_condor_config() -> str:
+    """Condor config mounted into the minicondor container.
+
+    Enables anonymous authentication and makes all daemons listen on every
+    interface so the host Python process can reach the schedd over the mapped
+    port.
+    """
+    return textwrap.dedent("""
+        # Allow unauthenticated access — test environment only.
+        NETWORK_INTERFACE                  = *
+        SEC_DEFAULT_AUTHENTICATION_METHODS = ANONYMOUS
+        SEC_CLIENT_AUTHENTICATION_METHODS  = ANONYMOUS
+        ALLOW_READ              = *
+        ALLOW_WRITE             = *
+        ALLOW_ADMINISTRATOR     = *
+        ALLOW_NEGOTIATOR        = *
+        ALLOW_SCHEDD            = *
+        ALLOW_STARTD            = *
+        ALLOW_COLLECTOR         = *
+        ALLOW_ADVERTISE_MASTER  = *
+        ALLOW_ADVERTISE_SCHEDD  = *
+        ALLOW_ADVERTISE_STARTD  = *
+        ALLOW_NEGOTIATOR_SCHEDD = *
+        """).lstrip()
+
+
+def _host_condor_config(collector_addr: str) -> str:
+    """Minimal condor config for the host Python process.
+
+    Points the htcondor2 library at the containerised collector and disables
+    authentication to match the container's settings.
+    """
+    return textwrap.dedent(f"""
+        COLLECTOR_HOST                     = {collector_addr}
+        CONDOR_HOST                        = 127.0.0.1
+        SEC_DEFAULT_AUTHENTICATION_METHODS = ANONYMOUS
+        SEC_CLIENT_AUTHENTICATION_METHODS  = ANONYMOUS
+        ALLOW_READ  = *
+        ALLOW_WRITE = *
+        """).lstrip()
+
+
+def _container_job_conf(collector_addr: str) -> str:
+    return textwrap.dedent(f"""
+        runners:
+          local:
+            load: galaxy.jobs.runners.local:LocalJobRunner
+            workers: 1
+          htcondor:
+            load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+            workers: 1
+        execution:
+          default: htcondor_environment
+          environments:
+            htcondor_environment:
+              runner: htcondor
+              htcondor_collector: "{collector_addr}"
+            local_environment:
+              runner: local
+        tools:
+          - id: __DATA_FETCH__
+            environment: local_environment
+        """).lstrip()
+
+
+def start_htcondor_docker(container_name: str, jobs_directory: str, port: int = HTCONDOR_MINI_PORT) -> tuple[str, str]:
+    """Start an htcondor/mini container and return (container_config_path, host_config_path).
+
+    The container is started with:
+    * A custom condor_config.local enabling anonymous auth on all interfaces.
+    * Port *port* on the host mapped to the collector/schedd port 9618 inside.
+    * The Galaxy job-working directory bind-mounted at the same path so job
+      scripts written by Galaxy are readable by the HTCondor startd.
+
+    Returns the paths of two temporary config files that must be removed by the
+    caller (via stop_htcondor_docker).
+    """
+    # Write the config that goes inside the container.
+    with tempfile.NamedTemporaryFile(suffix="_container_condor_config.local", mode="w", delete=False) as f:
+        f.write(_container_condor_config())
+        container_config_path = f.name
+
+    # Write the config used by the host-side htcondor2 Python library.
+    collector_addr = f"127.0.0.1:{port}"
+    with tempfile.NamedTemporaryFile(suffix="_host_condor_config", mode="w", delete=False) as f:
+        f.write(_host_condor_config(collector_addr))
+        host_config_path = f.name
+
+    subprocess.check_call(
+        [
+            "docker",
+            "run",
+            "--detach",
+            "--name",
+            container_name,
+            "--rm",
+            "-p",
+            f"{port}:9618",
+            "-v",
+            f"{jobs_directory}:{jobs_directory}",
+            "-v",
+            f"{container_config_path}:/etc/condor/condor_config.local",
+            HTCONDOR_MINI_IMAGE,
+        ]
+    )
+    return container_config_path, host_config_path
+
+
+def stop_htcondor_docker(container_name: str, container_config_path: str, host_config_path: str) -> None:
+    """Stop the minicondor container and clean up temporary config files."""
+    subprocess.call(["docker", "rm", "-f", container_name])
+    with contextlib.suppress(OSError):
+        os.remove(container_config_path)
+    with contextlib.suppress(OSError):
+        os.remove(host_config_path)
+
+
+def _wait_for_htcondor_schedd(container_name: str, timeout: int = HTCONDOR_STARTUP_TIMEOUT) -> None:
+    """Poll until the schedd inside the container reports at least one slot."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["docker", "exec", container_name, "condor_status", "-schedd"],
+            capture_output=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return
+        time.sleep(2)
+    raise RuntimeError(f"HTCondor schedd in container {container_name!r} did not become ready within {timeout}s")
+
+
+@integration_util.skip_unless_docker()
+class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
+    """End-to-end tests using a real HTCondor minicondor Docker container.
+
+    These tests submit actual Galaxy jobs to the htcondor runner, which in turn
+    talks to a real HTCondor schedd running inside ``htcondor/mini``.  They
+    validate the full submit → monitor → finish cycle and the cancel path
+    against the real htcondor2 Python API, complementing the unit-style tests
+    that use the fake htcondor2 stub.
+
+    Prerequisites
+    -------------
+    * Docker must be available (tests are skipped otherwise).
+    * The ``htcondor2`` Python package must be installed in the test venv.
+      Install it with ``pip install htcondor``.
+    * Port ``HTCONDOR_MINI_PORT`` (default 19618) must be free on the host.
+
+    Environment variables
+    ---------------------
+    ``GALAXY_TEST_HTCONDOR_IMAGE``
+        Override the Docker image (default: ``htcondor/mini:el9``).
+    ``GALAXY_TEST_HTCONDOR_MINI_PORT``
+        Override the host port (default: 19618).
+    """
+
+    framework_tool_and_types = True
+    _container_name: ClassVar[str] = "galaxy_htcondor_integration_test"
+    _jobs_directory: ClassVar[str]
+    _container_config_path: ClassVar[str]
+    _host_config_path: ClassVar[str]
+    _old_condor_config: ClassVar[str | None]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        # Skip early if htcondor2 is not installed — avoids pulling the image
+        # unnecessarily.
+        try:
+            import htcondor2  # noqa: F401
+        except ImportError:
+            pytest.skip("htcondor2 Python package not installed (pip install htcondor)")
+
+        cls._jobs_directory = tempfile.mkdtemp(prefix="htcondor_container_jobs_")
+        os.chmod(cls._jobs_directory, 0o777)
+        for sub in ("files", "new_files"):
+            subdir = os.path.join(cls._jobs_directory, sub)
+            os.makedirs(subdir, exist_ok=True)
+            os.chmod(subdir, 0o777)
+
+        cls._container_config_path, cls._host_config_path = start_htcondor_docker(
+            cls._container_name, cls._jobs_directory
+        )
+        _wait_for_htcondor_schedd(cls._container_name)
+
+        # Point the host-side htcondor2 library at the container's collector.
+        cls._old_condor_config = os.environ.get("CONDOR_CONFIG")
+        os.environ["CONDOR_CONFIG"] = cls._host_config_path
+
+        # Remove any fake htcondor2 stub so the real library is imported.
+        sys.modules.pop("htcondor2", None)
+        if LIVE_FAKE_MODULE_PATH in sys.path:
+            sys.path.remove(LIVE_FAKE_MODULE_PATH)
+
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        try:
+            super().tearDownClass()
+        finally:
+            stop_htcondor_docker(cls._container_name, cls._container_config_path, cls._host_config_path)
+            shutil.rmtree(cls._jobs_directory, ignore_errors=True)
+            if cls._old_condor_config is None:
+                os.environ.pop("CONDOR_CONFIG", None)
+            else:
+                os.environ["CONDOR_CONFIG"] = cls._old_condor_config
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.dataset_populator = DatasetPopulator(self.galaxy_interactor)
+
+    @classmethod
+    def handle_galaxy_config_kwds(cls, config) -> None:
+        collector_addr = f"127.0.0.1:{HTCONDOR_MINI_PORT}"
+        job_conf_str = _container_job_conf(collector_addr)
+        with tempfile.NamedTemporaryFile(suffix="_htcondor_container_job_conf.yml", mode="w", delete=False) as f:
+            f.write(job_conf_str)
+        config["job_config_file"] = f.name
+        config["job_working_directory"] = cls._jobs_directory
+        config["file_path"] = os.path.join(cls._jobs_directory, "files")
+        config["new_file_path"] = os.path.join(cls._jobs_directory, "new_files")
+
+    @skip_without_tool("simple_constructs")
+    def test_htcondor_docker_job(self) -> None:
+        """A job submitted via htcondor/mini finishes successfully."""
+        self._run_tool_test("simple_constructs")
+
+    @skip_without_tool("cat_data_and_sleep")
+    def test_htcondor_docker_cancel(self) -> None:
+        """Cancelling a running job calls condor_rm and the job reaches DELETED."""
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="1 2 3")
+            run_response = self.dataset_populator.run_tool(
+                "cat_data_and_sleep",
+                {"input1": {"src": "hda", "id": hda["id"]}, "sleep_time": 300},
+                history_id,
+            )
+            job_id = run_response["jobs"][0]["id"]
+
+            app = self._app
+            sa_session = app.model.session
+            job = sa_session.get(model.Job, app.security.decode_id(job_id))
+            assert job
+
+            # Wait for the job to be submitted to the real schedd.
+            for _ in range(60):
+                sa_session.refresh(job)
+                if job.job_runner_external_id:
+                    break
+                time.sleep(1)
+            assert job.job_runner_external_id, "Job was never submitted to the HTCondor schedd"
+
+            # Cancel via the Galaxy API.
+            delete_response = self.dataset_populator.cancel_job(job_id)
+            assert delete_response.json() is True
+
+            # Wait for the Galaxy job record to reach the terminal DELETED state.
+            for _ in range(60):
+                sa_session.refresh(job)
+                if job.state == model.Job.states.DELETED:
+                    break
+                time.sleep(1)
+            assert job.state == model.Job.states.DELETED, f"Expected DELETED, got {job.state}"
+
 
 class FakeHTCondorIntegrationInstance(integration_util.IntegrationInstance):
+    """Galaxy app instance backed by the fake htcondor2 module.
+
+    Used by unit-style tests that exercise the runner directly without going
+    through Galaxy's job routing system.
+    """
+
     framework_tool_and_types = True
     _fake_record_dir: str
     _old_pythonpath: str | None
@@ -145,7 +462,112 @@ class FakeHTCondorIntegrationInstance(integration_util.IntegrationInstance):
             os.environ.pop("GALAXY_TEST_FAKE_HTCONDOR_RECORD_DIR", None)
             shutil.rmtree(cls._fake_record_dir, ignore_errors=True)
 
+
 fake_instance = integration_util.integration_module_instance(FakeHTCondorIntegrationInstance)
+
+
+class FakeHTCondorJobIntegrationInstance(FakeHTCondorIntegrationInstance):
+    """Like FakeHTCondorIntegrationInstance but configures Galaxy's job routing
+    to use the htcondor runner end-to-end, with auto-completion so submitted
+    jobs finish without a real HTCondor installation.
+    """
+
+    @classmethod
+    def _prepare_galaxy(cls):
+        super()._prepare_galaxy()
+        os.environ["GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE"] = "1"
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            super().tearDownClass()
+        finally:
+            os.environ.pop("GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE", None)
+
+    @classmethod
+    def handle_galaxy_config_kwds(cls, config):
+        job_conf_str = _fake_job_conf()
+        with tempfile.NamedTemporaryFile(suffix="_fake_htcondor_job_conf.yml", mode="w", delete=False) as job_conf:
+            job_conf.write(job_conf_str)
+        config["job_config_file"] = job_conf.name
+
+
+fake_job_instance = integration_util.integration_module_instance(FakeHTCondorJobIntegrationInstance)
+
+
+def test_fake_end_to_end_job(fake_job_instance):
+    """Full Galaxy job lifecycle via the htcondor runner backed by the fake module."""
+    fake_job_instance._run_tool_test("simple_constructs")
+
+
+class FakeHTCondorCancelIntegrationInstance(FakeHTCondorIntegrationInstance):
+    """Like FakeHTCondorJobIntegrationInstance but without auto-completion.
+
+    Jobs are submitted to the fake schedd and stay pending indefinitely, which
+    allows the test to cancel them via the Galaxy API before they finish.
+    AUTO_COMPLETE is explicitly cleared so this instance is not affected by
+    other module-scoped fixtures that enable it.
+    """
+
+    @classmethod
+    def _prepare_galaxy(cls):
+        super()._prepare_galaxy()
+        # Clear auto-complete so jobs stay pending and can be cancelled.
+        os.environ.pop("GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE", None)
+
+    @classmethod
+    def handle_galaxy_config_kwds(cls, config):
+        job_conf_str = _fake_job_conf()
+        with tempfile.NamedTemporaryFile(suffix="_fake_htcondor_cancel_job_conf.yml", mode="w", delete=False) as f:
+            f.write(job_conf_str)
+        config["job_config_file"] = f.name
+
+
+fake_cancel_instance = integration_util.integration_module_instance(FakeHTCondorCancelIntegrationInstance)
+
+
+def test_fake_cancel_job(fake_cancel_instance):
+    """Cancel a pending htcondor job via the Galaxy API and verify condor_rm is called."""
+    fake_cancel_instance.dataset_populator = DatasetPopulator(fake_cancel_instance.galaxy_interactor)
+    with fake_cancel_instance.dataset_populator.test_history() as history_id:
+        hda = fake_cancel_instance.dataset_populator.new_dataset(history_id, content="1 2 3")
+        run_response = fake_cancel_instance.dataset_populator.run_tool(
+            "cat_data_and_sleep",
+            {"input1": {"src": "hda", "id": hda["id"]}, "sleep_time": 300},
+            history_id,
+        )
+        job_id = run_response["jobs"][0]["id"]
+
+        app = fake_cancel_instance._app
+        sa_session = app.model.session
+        job = sa_session.get(model.Job, app.security.decode_id(job_id))
+        assert job
+
+        # Wait for the job to be submitted to the fake schedd (external_id set).
+        for _ in range(60):
+            sa_session.refresh(job)
+            if job.job_runner_external_id:
+                break
+            time.sleep(1)
+        assert job.job_runner_external_id, "Job was never submitted to the fake htcondor schedd"
+        external_id = job.job_runner_external_id
+
+        # Cancel via Galaxy API.
+        delete_response = fake_cancel_instance.dataset_populator.cancel_job(job_id)
+        assert delete_response.json() is True
+
+        # Wait for the job to reach the DELETED terminal state.
+        for _ in range(30):
+            sa_session.refresh(job)
+            if job.state == model.Job.states.DELETED:
+                break
+            time.sleep(1)
+        assert job.state == model.Job.states.DELETED, f"Expected DELETED, got {job.state}"
+
+        # Verify the fake schedd received a Remove action for this job.
+        remove_records = _records(fake_cancel_instance, kind="remove")
+        assert remove_records, "No condor remove record written — stop_job was not called"
+        assert int(remove_records[0]["job_spec"]) == int(external_id)
 
 
 class FastFakeHTCondorJobRunner(htcondor.HTCondorJobRunner):
@@ -257,6 +679,11 @@ def _write_user_log(cjs):
         handle.write("1")
 
 
+def _append_user_log(cjs):
+    with open(cjs.user_log, "a") as handle:
+        handle.write("1")
+
+
 def _set_job_events(fake_htcondor, cjs, event_names):
     fake_htcondor.JobEventLog.set_events(
         cjs.user_log,
@@ -329,6 +756,42 @@ def _set_job_events(fake_htcondor, cjs, event_names):
             id="cluster-remove-fails",
         ),
         pytest.param(
+            dict(htcondor_config="/tmp/condor-shadow"),
+            ["SHADOW_EXCEPTION"],
+            None,
+            True,
+            "fail_job",
+            model.Job.states.QUEUED,
+            False,
+            0,
+            False,
+            id="shadow-exception-fails",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-exe-error"),
+            ["EXECUTABLE_ERROR"],
+            None,
+            True,
+            "fail_job",
+            model.Job.states.QUEUED,
+            False,
+            0,
+            False,
+            id="executable-error-fails",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-held-stays"),
+            ["JOB_HELD"],
+            None,
+            True,
+            None,
+            model.Job.states.QUEUED,
+            False,
+            1,
+            False,
+            id="held-stays-watched",
+        ),
+        pytest.param(
             dict(htcondor_config="/tmp/condor-held-stopped"),
             ["JOB_HELD"],
             model.Job.states.STOPPED,
@@ -351,6 +814,42 @@ def _set_job_events(fake_htcondor, cjs, event_names):
             0,
             False,
             id="held-terminal-fails",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-released"),
+            ["JOB_HELD", "JOB_RELEASED"],
+            None,
+            True,
+            None,
+            model.Job.states.QUEUED,
+            False,
+            1,
+            False,
+            id="held-released-stays-watched",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-suspended"),
+            ["EXECUTE", "JOB_SUSPENDED"],
+            None,
+            True,
+            None,
+            model.Job.states.QUEUED,
+            False,
+            1,
+            False,
+            id="suspended-stops-running",
+        ),
+        pytest.param(
+            dict(htcondor_config="/tmp/condor-unsuspended"),
+            ["EXECUTE", "JOB_SUSPENDED", "JOB_UNSUSPENDED"],
+            None,
+            True,
+            None,
+            model.Job.states.RUNNING,
+            True,
+            1,
+            True,
+            id="unsuspended-resumes-running",
         ),
         pytest.param(
             dict(htcondor_config="/tmp/condor-missing-log"),
@@ -409,10 +908,38 @@ def test_watch_lifecycle_transitions(
     assert job_wrapper.entry_points_checked is expect_entry_points
 
 
+def test_held_released_then_executes_and_finishes(fake_instance, fake_htcondor, runner_factory):
+    """A job that is held, released, then executes and terminates completes normally."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-held-released-finish"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    # Cycle 1: job is held then released — should stay watched, not running
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD", "JOB_RELEASED"])
+    runner.check_watched_items()
+    assert runner.work_queue.empty()
+    assert len(runner.watched) == 1
+    assert not runner.watched[0].running
+
+    # Cycle 2: job re-executes and terminates
+    _append_user_log(cjs)  # change file size to bypass the no-change guard
+    _set_job_events(fake_htcondor, cjs, ["EXECUTE", "JOB_TERMINATED"])
+    runner.check_watched_items()
+    method, job_state_record = runner.work_queue.get_nowait()
+    assert method == runner.finish_job
+    assert job_state_record.job_id == cjs.job_id
+    assert runner.watched == []
+
+
 def test_different_configs_use_separate_helpers(fake_instance, fake_htcondor, runner_factory):
     runner = runner_factory()
-    runner.queue_job(_job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha")))
-    runner.queue_job(_job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta")))
+    runner.queue_job(
+        _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"))
+    )
+    runner.queue_job(
+        _job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"))
+    )
 
     records = _records(fake_instance, "submit")
     assert len(records) == 2
@@ -538,8 +1065,12 @@ def test_runner_shutdown_terminates_all_helpers(fake_instance, fake_htcondor, ru
     runner = runner_factory()
     runner.work_threads = []
     runner.shutdown_monitor = lambda: None
-    runner.queue_job(_job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha")))
-    runner.queue_job(_job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta")))
+    runner.queue_job(
+        _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-A", htcondor_schedd="schedd@alpha"))
+    )
+    runner.queue_job(
+        _job_wrapper(fake_instance, 2, dict(htcondor_config="/tmp/condor-B", htcondor_schedd="schedd@beta"))
+    )
 
     clients = list(runner._client_cache.values())
     processes = [client._process for client in clients if getattr(client, "_process", None) is not None]
@@ -599,6 +1130,71 @@ def test_finish_handles_external_metadata(fake_instance, fake_htcondor, runner_f
     assert job_state_record.job_id == cjs.job_id
     assert metadata_calls == [(job_wrapper, True)]
     assert runner.watched == []
+
+
+def test_submit_failure_fails_job(fake_instance, fake_htcondor, runner_factory, monkeypatch):
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-submit-fail"))
+
+    def failing_submit(*args, **kwargs):
+        raise RuntimeError("schedd unavailable")
+
+    client = runner._client_for_destination(job_wrapper.job_destination)
+    monkeypatch.setattr(client, "submit", failing_submit)
+
+    runner.queue_job(job_wrapper)
+
+    assert hasattr(job_wrapper, "fail_message")
+    assert "htcondor submit failed" in job_wrapper.fail_message
+    assert runner.monitor_queue.empty()
+
+
+def test_condor_remove_failure_is_logged(fake_instance, fake_htcondor, runner_factory, monkeypatch):
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-remove-fail"))
+    runner.queue_job(job_wrapper)
+
+    client = runner._client_for_destination(job_wrapper.job_destination)
+
+    def failing_remove(*args, **kwargs):
+        raise RuntimeError("condor_rm failed")
+
+    monkeypatch.setattr(client, "remove", failing_remove)
+
+    failure_msg = runner._condor_remove(job_wrapper.job.job_runner_external_id, job_wrapper.job_destination)
+    assert failure_msg is not None
+    assert "condor_rm failed" in failure_msg
+
+
+def test_event_log_closed_on_job_complete(fake_instance, fake_htcondor, runner_factory):
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-close-log"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+    _set_job_events(fake_htcondor, cjs, ["JOB_TERMINATED"])
+
+    # Access the event log so it is created
+    _ = cjs.event_log(runner.htcondor)
+    assert cjs._event_log is not None
+
+    runner.check_watched_items()
+
+    assert cjs._event_log is None
+
+
+def test_event_log_closed_on_job_fail(fake_instance, fake_htcondor, runner_factory):
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-close-log-fail"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+    _set_job_events(fake_htcondor, cjs, ["JOB_ABORTED"])
+
+    _ = cjs.event_log(runner.htcondor)
+    assert cjs._event_log is not None
+
+    runner.check_watched_items()
+
+    assert cjs._event_log is None
 
 
 class MockJobWrapper:

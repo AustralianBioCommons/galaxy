@@ -1,6 +1,19 @@
+"""Fake htcondor2 module for testing.
+
+Mirrors the real htcondor2 Python API surface used by the Galaxy runner.
+JobEventType integer values match the real htcondor2 library exactly so that
+tests exercising event-log logic stay faithful to production behaviour.
+
+When GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE is set, Schedd.submit() writes a
+dummy log file and pre-populates completion events so the Galaxy monitor thread
+can finish the job without a real HTCondor installation.
+"""
+
 import enum
 import json
 import os
+import re
+import subprocess
 import threading
 import time
 import uuid
@@ -40,6 +53,39 @@ def _next_cluster_id():
     return cluster_id
 
 
+def _parse_submit_field(submit_description: str, field: str) -> str | None:
+    m = re.search(rf"^{re.escape(field)}\s*=\s*(.+)$", submit_description, re.MULTILINE | re.IGNORECASE)
+    return m.group(1).strip() if m else None
+
+
+def _auto_complete_job(submit_description: str, cluster_id: int) -> None:
+    """Execute the job and inject completion events so the monitor can finish the job."""
+    log_path = _parse_submit_field(submit_description, "log")
+    if not log_path:
+        return
+    executable = _parse_submit_field(submit_description, "executable")
+    stdout_path = _parse_submit_field(submit_description, "output")
+    stderr_path = _parse_submit_field(submit_description, "error")
+
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "w") as fh:
+        fh.write("fake condor log\n")
+
+    # Actually run the job so that output files are produced.
+    if executable and os.path.isfile(executable):
+        with (
+            open(stdout_path, "w") if stdout_path else open(os.devnull, "w") as fout,
+            open(stderr_path, "w") if stderr_path else open(os.devnull, "w") as ferr,
+        ):
+            subprocess.run(["/bin/bash", executable], stdout=fout, stderr=ferr)
+
+    JobEventLog.events_by_log[log_path] = [
+        FakeJobEvent(cluster_id, 0, JobEventType.SUBMIT),
+        FakeJobEvent(cluster_id, 0, JobEventType.EXECUTE),
+        FakeJobEvent(cluster_id, 0, JobEventType.JOB_TERMINATED),
+    ]
+
+
 class Submit:
     def __init__(self, description):
         self.description = description
@@ -53,21 +99,35 @@ class SubmitResult:
         return self._cluster_id
 
 
+# Values match real htcondor2 exactly (IntEnum, same integers).
 class JobEventType(enum.IntEnum):
     SUBMIT = 0
     EXECUTE = 1
-    IMAGE_SIZE = 2
-    JOB_EVICTED = 3
-    JOB_SUSPENDED = 4
-    JOB_UNSUSPENDED = 5
-    JOB_TERMINATED = 6
-    JOB_ABORTED = 7
-    JOB_HELD = 8
-    CLUSTER_REMOVE = 9
+    EXECUTABLE_ERROR = 2
+    CHECKPOINTED = 3
+    JOB_EVICTED = 4
+    JOB_TERMINATED = 5
+    IMAGE_SIZE = 6
+    SHADOW_EXCEPTION = 7
+    GENERIC = 8
+    JOB_ABORTED = 9
+    JOB_SUSPENDED = 10
+    JOB_UNSUSPENDED = 11
+    JOB_HELD = 12
+    JOB_RELEASED = 13
+    CLUSTER_SUBMIT = 35
+    CLUSTER_REMOVE = 36
 
 
-class JobAction(enum.Enum):
-    Remove = "Remove"
+class JobAction(enum.IntEnum):
+    Hold = 1
+    Release = 2
+    Remove = 3
+    RemoveX = 4
+    Vacate = 5
+    VacateFast = 6
+    Suspend = 8
+    Continue = 9
 
 
 class DaemonType(enum.IntEnum):
@@ -108,9 +168,11 @@ class JobEventLog:
         cls.events_by_log[filename] = list(events)
 
     def events(self, stop_after=None):
-        events = self.events_by_log.get(self.filename, [])
-        self.events_by_log[self.filename] = []
-        yield from events
+        pending = self.events_by_log.pop(self.filename, [])
+        yield from pending
+
+    def close(self):
+        pass
 
 
 class Schedd:
@@ -126,6 +188,8 @@ class Schedd:
             submit_description=description.description,
             cluster_id=cluster_id,
         )
+        if os.environ.get("GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE"):
+            _auto_complete_job(description.description, cluster_id)
         return SubmitResult(cluster_id)
 
     def act(self, action, job_spec, reason=None):
@@ -133,7 +197,7 @@ class Schedd:
             "remove",
             collector=None if self.location is None else self.location.get("Pool"),
             schedd_name=None if self.location is None else self.location.get("Name"),
-            action=action.value if hasattr(action, "value") else str(action),
+            action=action.name if hasattr(action, "name") else str(action),
             job_spec=job_spec,
             reason=reason,
         )
