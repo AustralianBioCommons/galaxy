@@ -226,19 +226,41 @@ package with `pip install htcondor` (or obtain it from your HTCondor installatio
 
 #### Architecture
 
-The runner maintains a pool of per-configuration helper clients, chosen automatically
-based on the destination parameters:
+The `htcondor2` Python library is a C extension that reads its HTCondor
+configuration — collector address, authentication method, and security tokens —
+**at import time, not at call time**. Setting `CONDOR_CONFIG` after the module has
+already been imported has no effect. In a long-running Galaxy server process the
+library is therefore permanently bound to whatever configuration was active when it
+was first imported.
 
-- **In-process client** — used when *no* `htcondor_config` destination parameter is
-  set. The `htcondor2` library communicates with the schedd directly from within the
-  Galaxy process, relying on the system-wide `CONDOR_CONFIG` (or `$CONDOR_CONFIG`).
-  This is the common case when Galaxy runs on the same machine as the schedd.
+This constraint drives the two-client design:
+
+- **In-process client** — used when no `htcondor_config` destination parameter is
+  set. `htcondor2` runs directly inside the Galaxy server process and uses whichever
+  `CONDOR_CONFIG` (or `$CONDOR_CONFIG` environment variable) was present at startup.
+  This covers the common case where the Galaxy server host is already a submit node
+  — i.e. HTCondor is configured system-wide and Galaxy can reach the local schedd
+  without any extra configuration.
 
 - **Subprocess client** — used when an `htcondor_config` destination parameter is
-  provided. Galaxy spawns a dedicated helper process with `CONDOR_CONFIG` pointing to
-  that file, isolating it from the main Galaxy process. One subprocess is shared across
-  all destinations that reference the same config file, so jobs targeting different
-  schedds within the same pool share a single helper.
+  set. Because the Galaxy process has already imported `htcondor2` against its own
+  configuration, a separate Python helper process is spawned with `CONDOR_CONFIG`
+  set to the per-destination file *before* `htcondor2` is imported inside that
+  process. This isolates each pool's collector address and authentication tokens
+  entirely from the main Galaxy process and from every other pool. One long-lived
+  helper subprocess is shared across all destinations that reference the **same**
+  config file (keyed on the resolved absolute path), so multiple schedds within
+  the same pool share a single helper. Jobs targeting a second, independent pool
+  that has its own config file get their own helper subprocess.
+
+The practical rule is: to submit to a **remote or non-default pool**, set
+`htcondor_config` to a file that points `htcondor2` at the right collector and
+carries the pool's authentication tokens. To submit to the **local pool** (Galaxy
+host is already a submit node), omit `htcondor_config` and the in-process path is
+used automatically.
+
+Multiple independent pools are fully supported: give each destination its own
+`htcondor_config` file and the runner will maintain one helper subprocess per file.
 
 #### Destination parameters
 
@@ -296,16 +318,52 @@ The equivalent XML form is also supported:
 </destinations>
 ```
 
+#### Multiple independent pools
+
+To submit jobs to two separate HTCondor pools, give each destination its own
+`htcondor_config` file. The runner creates one helper subprocess per file and
+routes jobs accordingly:
+
+```yaml
+runners:
+  htcondor:
+    load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+    workers: 4
+
+execution:
+  default: htcondor_pool_a
+  environments:
+    htcondor_pool_a:
+      runner: htcondor
+      htcondor_collector: "collector-a.example.org:9618"
+      htcondor_config: "/etc/condor/pool_a_config"
+      request_memory: 4096M
+    htcondor_pool_b:
+      runner: htcondor
+      htcondor_collector: "collector-b.example.org:9618"
+      htcondor_config: "/etc/condor/pool_b_config"
+      request_memory: 8192M
+
+tools:
+  - id: memory_intensive_tool
+    environment: htcondor_pool_b
+```
+
+Each config file must point `htcondor2` at the right collector and carry the
+pool's authentication tokens (e.g. an IDTOKEN written to the directory referenced
+by `SEC_TOKEN_DIRECTORY`).
+
 #### Testing with htcondor/mini (Docker)
 
-The test suite in `test/integration/test_htcondor_runner.py` contains three tiers:
+The test suite in `test/integration/test_htcondor_runner.py` contains two tiers:
 
-**Automated Docker test (`TestHTCondorContainerJob`)**
+**Automated Docker tests (`TestHTCondorContainerJob`)**
 
-Requires only Docker and the `htcondor2` Python package. The test class starts the
-`htcondor/mini` all-in-one container automatically (master, schedd, collector,
-negotiator, and startd in a single container), maps it to a local port with anonymous
-authentication, submits real Galaxy jobs, and tears everything down on exit. No manual
+Requires only Docker and the `htcondor2` Python package. The test class starts two
+`htcondor/mini` all-in-one containers automatically (each running a master, schedd,
+collector, negotiator, and startd), authenticates via IDTOKENS generated inside each
+container, submits real Galaxy jobs to both pools, verifies via `condor_history` that
+each job reached the correct cluster, and tears everything down on exit. No manual
 setup is needed.
 
 ```bash
@@ -313,11 +371,10 @@ pip install htcondor
 python -m pytest test/integration/test_htcondor_runner.py::TestHTCondorContainerJob -v
 ```
 
-Override the Docker image or host port if needed:
+Override the Docker image if needed:
 
 ```bash
 GALAXY_TEST_HTCONDOR_IMAGE=htcondor/mini:23-el9 \
-GALAXY_TEST_HTCONDOR_MINI_PORT=19618 \
 python -m pytest test/integration/test_htcondor_runner.py::TestHTCondorContainerJob -v
 ```
 
