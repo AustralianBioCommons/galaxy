@@ -225,7 +225,6 @@ class HTCondorJobState(AsynchronousJobState):
         )
         self.failed = False
         self.user_log = user_log
-        self.user_log_size = 0
         self._event_log = None
 
     def event_log(self, htcondor):
@@ -428,19 +427,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 new_watched.append(cjs)
                 continue
             try:
-                assert cjs.job_wrapper.tool is not None
-                if cjs.job_wrapper.tool.tool_type != "interactive":
-                    try:
-                        log_size = os.stat(cjs.user_log).st_size
-                        if log_size == cjs.user_log_size:
-                            new_watched.append(cjs)
-                            continue
-                    except FileNotFoundError:
-                        new_watched.append(cjs)
-                        continue
-
-                job_running, job_complete, job_failed, job_held, log_size = self._summarize_event_log(cjs)
-                cjs.user_log_size = log_size
+                job_running, job_complete, job_failed, job_held = self._summarize_event_log(cjs)
             except Exception:
                 log.exception(f"({galaxy_id_tag}/{job_id}) Unable to check job status")
                 log.warning(f"({galaxy_id_tag}/{job_id}) job will now be errored")
@@ -554,7 +541,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             cjs.running = False
             self.monitor_queue.put(cjs)
 
-    def _summarize_event_log(self, cjs: HTCondorJobState):
+    def _summarize_event_log(self, cjs: HTCondorJobState) -> tuple[bool, bool, bool, bool]:
         job_running = cjs.running
         job_complete = False
         job_failed = False
@@ -564,10 +551,8 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             raise RuntimeError("Missing HTCondor job_id while summarizing event log.")
         cluster_id = int(cjs.job_id)
 
-        try:
-            log_size = os.path.getsize(cjs.user_log)
-        except FileNotFoundError:
-            return cjs.running, False, False, False, cjs.user_log_size
+        if not os.path.exists(cjs.user_log):
+            return cjs.running, False, False, False
 
         event_log = cjs.event_log(self.htcondor)
 
@@ -601,7 +586,7 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             ):
                 job_failed = True
 
-        return job_running, job_complete, job_failed, job_held, log_size
+        return job_running, job_complete, job_failed, job_held
 
     def _condor_remove(self, external_id, job_destination: "JobDestination | None" = None):
         if not external_id:

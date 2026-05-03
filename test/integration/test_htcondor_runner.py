@@ -679,11 +679,6 @@ def _write_user_log(cjs):
         handle.write("1")
 
 
-def _append_user_log(cjs):
-    with open(cjs.user_log, "a") as handle:
-        handle.write("1")
-
-
 def _set_job_events(fake_htcondor, cjs, event_names):
     fake_htcondor.JobEventLog.set_events(
         cjs.user_log,
@@ -923,7 +918,6 @@ def test_held_released_then_executes_and_finishes(fake_instance, fake_htcondor, 
     assert not runner.watched[0].running
 
     # Cycle 2: job re-executes and terminates
-    _append_user_log(cjs)  # change file size to bypass the no-change guard
     _set_job_events(fake_htcondor, cjs, ["EXECUTE", "JOB_TERMINATED"])
     runner.check_watched_items()
     method, job_state_record = runner.work_queue.get_nowait()
