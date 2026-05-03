@@ -498,9 +498,9 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                     model.Job.states.STOPPED,
                 ):
                     cjs.held_count += 1
-                    # max_held_count: destination parameter, counts distinct JOB_HELD events (default 3)
+                    # max_held_count: destination parameter, counts distinct JOB_HELD events (default 3, 0 = disabled)
                     max_held_count = int(cjs.job_wrapper.job_destination.params.get("max_held_count", 3))
-                    if cjs.held_count >= max_held_count:
+                    if max_held_count > 0 and cjs.held_count >= max_held_count:
                         log.warning(
                             f"({galaxy_id_tag}/{job_id}) Job held {cjs.held_count} "
                             "times without release, failing permanently"
