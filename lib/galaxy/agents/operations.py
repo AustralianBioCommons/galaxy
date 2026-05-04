@@ -10,8 +10,12 @@ from typing import (
     Optional,
 )
 
+from sqlalchemy import select
+
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.managers.hdas import HDAManager
+from galaxy.managers.tools import DynamicToolManager
+from galaxy.model import UserDynamicToolAssociation
 from galaxy.schema import (
     FilterQueryParams,
     SerializationParams,
@@ -26,9 +30,12 @@ from galaxy.schema.invocation import InvocationSerializationParams
 from galaxy.schema.schema import (
     CreateHistoryPayload,
     DatasetSourceType,
+    InvocationIndexPayload,
+    WorkflowIndexPayload,
 )
 from galaxy.schema.workflows import InvokeWorkflowPayload
 from galaxy.structured_app import MinimalManagerApp
+from galaxy.tool_util_models.dynamic_tool_models import DynamicUnprivilegedToolCreatePayload
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +68,7 @@ class AgentOperationsManager:
         self._invocations_service: Optional[Any] = None
         self._hda_manager: Optional[HDAManager] = None
         self._dataset_collections_service: Optional[Any] = None
+        self._dynamic_tools_manager: Optional[Any] = None
 
     def _encode_id(self, value: int) -> str:
         return self.trans.security.encode_id(value)
@@ -147,6 +155,12 @@ class AgentOperationsManager:
 
             self._dataset_collections_service = self.app[DatasetCollectionsService]
         return self._dataset_collections_service
+
+    @property
+    def dynamic_tools_manager(self):
+        if self._dynamic_tools_manager is None:
+            self._dynamic_tools_manager = self.app[DynamicToolManager]
+        return self._dynamic_tools_manager
 
     def connect(self) -> dict[str, Any]:
         config = self.app.config
@@ -429,8 +443,6 @@ class AgentOperationsManager:
         show_shared: bool = True,
         search: str | None = None,
     ) -> dict[str, Any]:
-        from galaxy.webapps.galaxy.services.workflows import WorkflowIndexPayload
-
         payload = WorkflowIndexPayload(
             limit=limit,
             offset=offset,
@@ -515,8 +527,6 @@ class AgentOperationsManager:
         decoded_history_id = None
         if history_id:
             decoded_history_id = self.trans.security.decode_id(history_id)
-
-        from galaxy.webapps.galaxy.services.invocations import InvocationIndexPayload
 
         payload = InvocationIndexPayload(
             workflow_id=decoded_workflow_id,
@@ -873,3 +883,67 @@ class AgentOperationsManager:
             "deleted": user.deleted,
             "create_time": user.create_time.isoformat() if user.create_time else None,
         }
+
+    # ==================== User-Defined Tools (UDT) ====================
+
+    def list_user_tools(self, active: bool = True) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        tools = list(self.dynamic_tools_manager.list_unprivileged_tools(user, active=active))
+        return {
+            "tools": [t.to_dict() for t in tools],
+            "count": len(tools),
+        }
+
+    def create_user_tool(self, representation: dict[str, Any]) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        payload = DynamicUnprivilegedToolCreatePayload(src="representation", representation=representation)
+        dynamic_tool = self.dynamic_tools_manager.create_unprivileged_tool(user, payload)
+        return dynamic_tool.to_dict()
+
+    def delete_user_tool(self, uuid: str) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        dynamic_tool = self.dynamic_tools_manager.get_unprivileged_tool_by_uuid(user, uuid)
+        if dynamic_tool is None:
+            raise ValueError(f"User-defined tool {uuid!r} not found")
+
+        self.dynamic_tools_manager.deactivate_unprivileged_tool(user, dynamic_tool)
+        return {"uuid": uuid, "deactivated": True}
+
+    def run_user_tool(self, history_id: str, tool_uuid: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated")
+
+        dynamic_tool = self.dynamic_tools_manager.get_unprivileged_tool_by_uuid(user, tool_uuid)
+        if dynamic_tool is None:
+            raise ValueError(f"User-defined tool {tool_uuid!r} not found")
+        # UDT deactivation is per-user by design: deactivate_unprivileged_tool only
+        # flips the user-association, leaving DynamicTool.active intact so other
+        # users sharing the underlying tool aren't affected. The runtime check has
+        # to look at the association, not just dynamic_tool.active.
+        session = self.dynamic_tools_manager.session()
+        assoc_active = session.scalar(
+            select(UserDynamicToolAssociation.active).where(
+                UserDynamicToolAssociation.user_id == user.id,
+                UserDynamicToolAssociation.dynamic_tool_id == dynamic_tool.id,
+            )
+        )
+        if not dynamic_tool.active or not assoc_active:
+            raise ValueError(f"User-defined tool {tool_uuid!r} is deactivated")
+
+        payload = {
+            "history_id": history_id,
+            "tool_uuid": tool_uuid,
+            "inputs": inputs,
+        }
+        result = self.tools_service._create(self.trans, payload)
+        return self._encode_ids_in_response(result)

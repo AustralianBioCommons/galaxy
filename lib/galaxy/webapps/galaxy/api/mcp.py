@@ -429,6 +429,140 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.get_user()
 
+    # ==================== User-Defined Tools (UDT) ====================
+
+    @mcp.tool()
+    def list_user_tools(api_key: str, ctx: MCPContext, active: bool = True) -> dict[str, Any]:
+        """List user-defined tools belonging to the current user.
+
+        Args:
+            active: If True (default), only show active tools. Set False to
+                include deactivated tools.
+
+        Returns:
+            Dict with 'tools' (list of user tools, each with id, uuid, tool_id,
+            name, and active status) and 'count'.
+        """
+        with _mcp_error_handler("list_user_tools"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.list_user_tools(active)
+
+    @mcp.tool()
+    def create_user_tool(representation: dict[str, Any], api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """Create a user-defined tool in Galaxy from a YAML tool definition.
+
+        User-defined tools are lightweight, containerized tools that can be
+        created without admin privileges. They are stored in the database,
+        scoped to the creating user, and can be embedded in workflows
+        (importing the workflow automatically creates the tool for the
+        importing user).
+
+        Requires the USER_TOOL_EXECUTE role on the calling user and
+        enable_beta_tool_formats=true in the Galaxy config; both are enforced
+        by the underlying manager and surface as permission/config errors here.
+
+        Args:
+            representation: The tool definition as a dictionary matching the
+                GalaxyUserTool schema. Required fields:
+                - class: "GalaxyUserTool" (exactly this string)
+                - id: tool identifier (lowercase, no spaces, 3-255 chars)
+                - version: version string (e.g. "0.1.0")
+                - name: display name shown in Galaxy tool menu
+                - container: container image as a STRING (e.g. "python:3.12-slim"),
+                  NOT a dict -- this is a common mistake
+                - shell_command: the command to execute, with $(inputs.name.path)
+                  for data inputs and $(inputs.name) for parameter inputs
+                - inputs: list of input dicts, each with "name" and "type"
+                  (type can be: "data", "integer", "float", "text", "boolean")
+                - outputs: list of output dicts, each with "name", "type": "data",
+                  "format" (e.g. "tabular", "vcf", "bed"), and "from_work_dir"
+
+        Returns:
+            Dict with the created tool's id, uuid, tool_id, active status, and
+            the validated representation.
+
+        Example:
+            create_user_tool({
+                "class": "GalaxyUserTool",
+                "id": "my_filter",
+                "version": "0.1.0",
+                "name": "My Filter",
+                "container": "python:3.12-slim",
+                "shell_command": "python3 -c 'import sys; ...'",
+                "inputs": [{"name": "input1", "type": "data", "format": "tabular"}],
+                "outputs": [
+                    {"name": "output1", "type": "data",
+                     "format": "tabular", "from_work_dir": "out.tsv"}
+                ]
+            })
+
+        NEXT STEPS:
+        - Run the tool: run_user_tool(history_id, tool_uuid, inputs)
+        - List your tools: list_user_tools()
+        - Delete a tool: delete_user_tool(uuid)
+        """
+        with _mcp_error_handler("create_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.create_user_tool(representation)
+
+    @mcp.tool()
+    def delete_user_tool(uuid: str, api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """Deactivate a user-defined tool. Deactivated tools are not loaded into the toolbox.
+
+        Existing job history that referenced the tool is preserved; only
+        future runs are blocked.
+
+        Args:
+            uuid: The UUID of the tool to deactivate. Get this from list_user_tools().
+
+        Returns:
+            Dict confirming deactivation: {"uuid": ..., "deactivated": True}.
+        """
+        with _mcp_error_handler("delete_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.delete_user_tool(uuid)
+
+    @mcp.tool()
+    def run_user_tool(
+        history_id: str,
+        tool_uuid: str,
+        inputs: dict[str, Any],
+        api_key: str,
+        ctx: MCPContext,
+    ) -> dict[str, Any]:
+        """Run a user-defined tool by UUID, producing outputs in the given history.
+
+        Resolution happens through the tool service's standard run path,
+        which accepts tool_uuid in the payload and dispatches via the
+        toolbox's unprivileged-tool resolver -- so this is functionally a
+        UUID-keyed counterpart to run_tool().
+
+        Args:
+            history_id: Galaxy history ID where outputs will be placed.
+            tool_uuid: The UUID of the user-defined tool (from create_user_tool
+                or list_user_tools).
+            inputs: Tool input parameters keyed by input name.
+                - Dataset inputs: {"input_name": {"src": "hda", "id": "<dataset_id>"}}
+                - Collection inputs: {"input_name": {"src": "hdca", "id": "<collection_id>"}}
+                - Scalar parameters: {"param_name": value}
+
+        Returns:
+            Dict with job info (job_id, history_id, state) and output dataset IDs.
+
+        Example:
+            run_user_tool(
+                history_id="abc123",
+                tool_uuid="61d15277-a911-45ef-aa66-5385146578cc",
+                inputs={
+                    "scorer_output": {"src": "hda", "id": "59ace41fc068d3ad"},
+                    "top_tracks_per_variant": 5,
+                },
+            )
+        """
+        with _mcp_error_handler("run_user_tool"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.run_user_tool(history_id, tool_uuid, inputs)
+
     mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 

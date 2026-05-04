@@ -1637,6 +1637,10 @@ class WorkflowIndexQueryPayload(Model):
     skip_step_counts: bool = False
 
 
+class WorkflowIndexPayload(WorkflowIndexQueryPayload):
+    missing_tools: bool = False
+
+
 class JobIndexSortByEnum(str, Enum):
     create_time = "create_time"
     update_time = "update_time"
@@ -1687,6 +1691,10 @@ class InvocationIndexQueryPayload(Model):
     )
     offset: Optional[int] = Field(default=0, description="Number of invocations to skip")
     include_nested_invocations: bool = True
+
+
+class InvocationIndexPayload(InvocationIndexQueryPayload):
+    instance: bool = Field(default=False, description="Is provided workflow id for Workflow instead of StoredWorkflow?")
 
 
 PageSortByEnum = Literal["create_time", "title", "update_time", "username"]
