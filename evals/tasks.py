@@ -147,8 +147,8 @@ def make_router_inspect_task(
 
     async def router_inspect_task(query: str) -> dict[str, Any]:
         router = QueryRouterAgent(deps)
-        full_query = router._build_query_with_context(query, context)
-        result = await router._run_with_retry(full_query)
+        message_history = router._extract_message_history(context)
+        result = await router._run_with_retry(query, message_history=message_history)
         return {
             "content": extract_result_content(result),
             "tool_calls": _extract_tool_calls(result),
