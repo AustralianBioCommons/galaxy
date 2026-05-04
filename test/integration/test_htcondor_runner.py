@@ -1993,6 +1993,31 @@ def test_sigkill_on_user_stopped_job_finishes_not_oom(fake_instance, fake_htcond
 # ---------------------------------------------------------------------------
 
 
+def test_subprocess_client_restarts_after_helper_crash(fake_instance, fake_htcondor):
+    """The subprocess client spawns a fresh helper process when the old one dies unexpectedly."""
+    from galaxy.jobs.runners.htcondor import _HTCondorSubprocessClient
+
+    client = _HTCondorSubprocessClient("/tmp/condor-subprocess-restart")
+    try:
+        # First submit triggers process spawn.
+        client.submit("universe = vanilla\ngetenv = true\nnotification = NEVER\nqueue", None, None)
+        first_process = client._process
+        assert first_process is not None
+        assert first_process.poll() is None  # alive
+
+        # Simulate a crash.
+        first_process.kill()
+        first_process.wait()
+        assert first_process.poll() is not None  # dead
+
+        # Next submit must restart automatically and succeed.
+        client.submit("universe = vanilla\ngetenv = true\nnotification = NEVER\nqueue", None, None)
+        assert client._process is not first_process  # new process object
+        assert client._process.poll() is None  # new process is alive
+    finally:
+        client.shutdown()
+
+
 def test_helper_stderr_drain_thread_populates_buffer(fake_instance, fake_htcondor):
     """Stderr written by the helper process is drained into _stderr_lines by the background thread."""
     from galaxy.jobs.runners.htcondor import _HTCondorSubprocessClient
