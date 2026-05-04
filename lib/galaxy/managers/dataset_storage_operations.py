@@ -993,6 +993,8 @@ class StorageOperationRunExecutor:
 
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
         source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
+        target_proxy: Optional[DatasetObjectStoreProxy] = None
+        extra_files_path_name = dataset.extra_files_path_name
         if not self._source_dataset_exists(source_proxy):
             self._record_transfer_failure(
                 dataset_id,
@@ -1004,10 +1006,11 @@ class StorageOperationRunExecutor:
         try:
             bytes_processed = 0
             if self.storage_operation_manager.requires_data_transfer(dataset, self.run.target_object_store_id):
+                target_proxy = self._dataset_proxy(dataset, self.run.target_object_store_id)
                 bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
                 self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
                 self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
-                self._cleanup_source_dataset_data(source_proxy, dataset.extra_files_path_name)
+                self._cleanup_source_dataset_data(source_proxy, extra_files_path_name)
             else:
                 self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
 
@@ -1017,6 +1020,8 @@ class StorageOperationRunExecutor:
             self._notify_dataset_update(dataset)
         except ChecksumVerificationError as exc:
             log.warning("Integrity verification failed for run %s dataset %s: %s", self.run.id, dataset.id, exc)
+            if target_proxy is not None:
+                self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
             self._record_transfer_failure(
                 dataset_id,
                 DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
@@ -1024,6 +1029,8 @@ class StorageOperationRunExecutor:
             )
         except Exception:
             log.exception("Storage operation execution error for run %s dataset %s", self.run.id, dataset.id)
+            if target_proxy is not None:
+                self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
             self._record_transfer_failure(
                 dataset_id,
                 DatasetStorageOperationFailureReasonCode.execution_error,
@@ -1221,6 +1228,40 @@ class StorageOperationRunExecutor:
                 "Failed to delete source extra files after storage move for run %s dataset %s",
                 self.run.id,
                 source_proxy.id,
+                exc_info=True,
+            )
+
+    def _cleanup_target_dataset_data(
+        self,
+        target_proxy: DatasetObjectStoreProxy,
+        extra_files_path_name: Optional[str],
+    ) -> None:
+        try:
+            self.app.object_store.delete(target_proxy)
+        except Exception:
+            log.warning(
+                "Failed to delete target dataset file while rolling back failed storage move for run %s dataset %s",
+                self.run.id,
+                target_proxy.id,
+                exc_info=True,
+            )
+
+        if not extra_files_path_name:
+            return
+
+        try:
+            if self.app.object_store.exists(target_proxy, dir_only=True, extra_dir=extra_files_path_name):
+                self.app.object_store.delete(
+                    target_proxy,
+                    entire_dir=True,
+                    extra_dir=extra_files_path_name,
+                    dir_only=True,
+                )
+        except Exception:
+            log.warning(
+                "Failed to delete target extra files while rolling back failed storage move for run %s dataset %s",
+                self.run.id,
+                target_proxy.id,
                 exc_info=True,
             )
 

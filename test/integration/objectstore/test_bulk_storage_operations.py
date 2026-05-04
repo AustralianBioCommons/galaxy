@@ -25,8 +25,22 @@ Tests cover:
 
 import os
 import string
-from typing import Any
+from typing import (
+    Any,
+    cast,
+)
+from unittest.mock import patch
 
+from galaxy.managers.dataset_storage_operations import (
+    DatasetStorageOperationManager,
+    StorageOperationRunExecutor,
+)
+from galaxy.managers.datasets import DatasetManager
+from galaxy.model import (
+    DatasetStorageOperationSnapshot,
+    User,
+)
+from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy_test.base.decorators import requires_celery
 from galaxy_test.base.populators import (
     DatasetCollectionPopulator,
@@ -159,6 +173,45 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         default_path = os.path.join(self.object_stores_parent, "files_default")
         separate_path = os.path.join(self.object_stores_parent, "files_separate")
         return files_count(default_path), files_count(separate_path)
+
+    def _execute_snapshot_sync(
+        self,
+        sa_session: galaxy_scoped_session,
+        snapshot: DatasetStorageOperationSnapshot,
+        *,
+        skip_ineligible: bool,
+        force_checksum_mismatch: bool = False,
+    ) -> str:
+        storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
+        dataset_manager = DatasetManager(self._app)
+        user = sa_session.get(User, snapshot.user_id)
+
+        run, _ = storage_operation_manager.create_run_and_summary(
+            sa_session=sa_session,
+            snapshot=snapshot,
+            skip_ineligible=skip_ineligible,
+        )
+        executor = storage_operation_manager.create_run_executor(
+            sa_session=sa_session,
+            dataset_manager=dataset_manager,
+            app=self._app,
+            run=run,
+            user=user,
+        )
+
+        if force_checksum_mismatch:
+            # Simulate corruption by forcing source/target checksums to differ during verify step.
+            with patch.object(
+                StorageOperationRunExecutor,
+                "_sha256",
+                autospec=True,
+                side_effect=lambda _self, path: "source-hash" if "files_default" in path else "target-hash",
+            ):
+                executor.execute_run(snapshot)
+        else:
+            executor.execute_run(snapshot)
+
+        return self._app.security.encode_id(run.id)
 
     def _item(self, hda_id: str) -> dict[str, Any]:
         return {"id": hda_id, "history_content_type": "dataset"}
@@ -683,3 +736,74 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 "becomes-ineligible\n",
             )
             self._assert_dataset_store_and_content(history_id, control["id"], DEFAULT_OBJECT_STORE_ID, "control\n")
+
+    def test_cross_device_checksum_mismatch_is_safe_and_rerunnable(self):
+        """Checksum mismatch fails safely (no data loss) and the same snapshot can be re-run successfully."""
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="checksum-guard", wait=True)
+
+            preview = self._preview_move(
+                history_id,
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                [self._item(hda["id"])],
+            )
+            self._assert_eligibility(preview, eligible=1, ineligible=0)
+            baseline_default_count, baseline_separate_count = self._store_file_counts()
+
+            # Force checksum mismatch during execution to simulate corruption or other transfer failure.
+            # This uses a synchronous execution of the snapshot to ensure the mismatch occurs in the first run
+            # and allows re-running the same snapshot without needing to wait for a real async run to complete.
+            sa_session = cast(galaxy_scoped_session, self._app.model.session)
+            snapshot_id = self._app.security.decode_id(preview["snapshot_id"])
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot_id)
+            assert snapshot is not None
+            first_run_id = self._execute_snapshot_sync(
+                sa_session,
+                snapshot,
+                skip_ineligible=False,
+                force_checksum_mismatch=True,
+            )
+            first_run_status = self.dataset_populator.storage_run_status(history_id, first_run_id)
+            self._assert_run_counts(first_run_status["run"], succeeded=0, failed=1, skipped=0)
+
+            first_run_items = self._run_items(history_id, first_run_id)
+            assert len(first_run_items) == 1
+            assert first_run_items[0]["dataset_id"] == hda["id"]
+            assert first_run_items[0]["state"] == "failed"
+            assert first_run_items[0]["reason_code"] == "checksum_verification_failed"
+
+            # Failed transfer should rollback target writes (no leftover files).
+            failed_default_count, failed_separate_count = self._store_file_counts()
+            assert failed_default_count == baseline_default_count
+            assert failed_separate_count == baseline_separate_count
+
+            # Failure path must keep data readable from source store (no data loss).
+            self._assert_dataset_store_and_content(
+                history_id,
+                hda["id"],
+                DEFAULT_OBJECT_STORE_ID,
+                "checksum-guard\n",
+            )
+
+            # Re-run same snapshot without forced corruption; move should now succeed.
+            second_run_id = self._execute_snapshot_sync(sa_session, snapshot, skip_ineligible=False)
+            second_run_status = self.dataset_populator.storage_run_status(history_id, second_run_id)
+            self._assert_run_counts(second_run_status["run"], succeeded=1, failed=0, skipped=0)
+
+            second_run_items = self._run_items(history_id, second_run_id)
+            assert len(second_run_items) == 1
+            assert second_run_items[0]["dataset_id"] == hda["id"]
+            assert second_run_items[0]["state"] == "succeeded"
+            assert second_run_items[0]["reason_code"] is None
+            assert second_run_items[0]["bytes_processed"] > 0
+
+            succeeded_default_count, succeeded_separate_count = self._store_file_counts()
+            assert succeeded_default_count == baseline_default_count - 1
+            assert succeeded_separate_count == baseline_separate_count + 1
+
+            self._assert_dataset_store_and_content(
+                history_id,
+                hda["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "checksum-guard\n",
+            )
