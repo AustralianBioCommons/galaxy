@@ -20,14 +20,17 @@ from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
     error_analysis_dataset,
     routing_dataset,
+    tool_recommendation_dataset,
 )
 from .evaluators import (
     HandoffMatch,
     MustMention,
+    MustMentionAny,
 )
 from .tasks import (
     make_error_analysis_task,
     make_router_task,
+    make_tool_recommendation_task,
 )
 
 
@@ -66,7 +69,23 @@ def build_error_analysis(
     )
 
 
+def build_tool_recommendation(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+) -> BuiltDataset:
+    dataset = tool_recommendation_dataset(judge_model=judge_model, only=only)
+    dataset.add_evaluator(MustMentionAny())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_tool_recommendation_task(deps),
+        primary_score="MustMentionAny",
+    )
+
+
 SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing": build_routing,
     "error_analysis": build_error_analysis,
+    "tool_recommendation": build_tool_recommendation,
 }

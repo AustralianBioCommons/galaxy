@@ -19,6 +19,11 @@ Current datasets:
 - **error_analysis**: prose failure descriptions against `ErrorAnalysisAgent`.
   Scored two ways: `MustMention` (deterministic keyword check) and `LLMJudge`
   (fuzzy "is the advice on-topic and actionable for this failure mode").
+- **tool_recommendation**: "what tool should I use for X?" queries against
+  `ToolRecommendationAgent`. Scored by `MustMentionAny` (any of a set of
+  canonical tool names appears) plus optional `LLMJudge` with per-case rubrics.
+  Runs without a live toolbox, so it measures the model's prior knowledge of
+  Galaxy tools rather than grounded search behavior.
 
 ## Layout
 

@@ -18,6 +18,7 @@ from galaxy.agents.base import GalaxyAgentDependencies
 from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
+from galaxy.agents.tools import ToolRecommendationAgent
 
 _registry = build_default_registry()
 
@@ -85,3 +86,25 @@ def make_error_analysis_task(
         return response.content
 
     return error_analysis_task
+
+
+def make_tool_recommendation_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+) -> Callable[[str], Awaitable[str]]:
+    """Build an async callable: query -> tool-recommendation response content.
+
+    Note: deps here typically have ``toolbox=None`` (no live Galaxy), so the
+    fast-path exact-match branch and the agent's ``search_galaxy_tools``
+    in-agent tool both return empty. That means we're scoring the model's
+    prior knowledge of canonical Galaxy tools, not its grounded search
+    behavior. Useful for prompt + model quality; not a substitute for an
+    end-to-end test against a live toolbox.
+    """
+
+    async def tool_recommendation_task(query: str) -> str:
+        agent = ToolRecommendationAgent(deps)
+        response = await agent.process(query, context=context)
+        return response.content
+
+    return tool_recommendation_task
