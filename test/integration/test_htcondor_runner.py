@@ -355,6 +355,7 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
     """
 
     framework_tool_and_types = True
+    dataset_populator: DatasetPopulator
     _container_name: ClassVar[str] = "galaxy_htcondor_integration_test"
     _container_name_b: ClassVar[str] = "galaxy_htcondor_integration_test_b"
     _jobs_directory: ClassVar[str]
@@ -1752,11 +1753,11 @@ def test_cleanup_job_always_at_submit_failure(fake_instance, fake_htcondor, runn
             cjs_cleanup_calls.append(True)
             original_cleanup(self_cjs)
 
-        htcondor_module.HTCondorJobState.cleanup = tracking_cleanup
+        setattr(htcondor_module.HTCondorJobState, "cleanup", tracking_cleanup)
         try:
             htcondor_module.HTCondorJobRunner.queue_job(runner, jw)
         finally:
-            htcondor_module.HTCondorJobState.cleanup = original_cleanup
+            setattr(htcondor_module.HTCondorJobState, "cleanup", original_cleanup)
 
     patched_queue_job(job_wrapper)
 
@@ -2012,6 +2013,7 @@ def test_subprocess_client_restarts_after_helper_crash(fake_instance, fake_htcon
         # Next submit must restart automatically and succeed.
         client.submit("universe = vanilla\ngetenv = true\nnotification = NEVER\nqueue", None, None)
         assert client._process is not first_process  # new process object
+        assert client._process is not None
         assert client._process.poll() is None  # new process is alive
     finally:
         client.shutdown()
