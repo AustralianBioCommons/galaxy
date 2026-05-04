@@ -25,14 +25,18 @@ class HandoffMatch(Evaluator[str, str, dict]):
 
 
 @dataclass
-class MustMention(Evaluator[str, str, dict]):
-    """Score 1.0 if every keyword in metadata['must_mention'] appears in the output (case-insensitive)."""
+class MustMention(Evaluator[Any, Any, dict]):
+    """Score 1.0 if every keyword in metadata['must_mention'] appears in the output (case-insensitive).
 
-    def evaluate(self, ctx: EvaluatorContext[str, str, dict]) -> float:
+    Accepts either a string output or a dict with a "content" key (e.g. from
+    router/tool-recommendation tasks that also return tool-call info).
+    """
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Any, dict]) -> float:
         keywords = (ctx.metadata or {}).get("must_mention") or []
         if not keywords:
             return 1.0
-        text = (ctx.output or "").lower()
+        text = _output_text(ctx.output).lower()
         return 1.0 if all(kw.lower() in text for kw in keywords) else 0.0
 
 
@@ -50,3 +54,24 @@ class MustMentionAny(Evaluator[Any, Any, dict]):
             return 1.0
         text = _output_text(ctx.output).lower()
         return 1.0 if any(kw.lower() in text for kw in keywords) else 0.0
+
+
+@dataclass
+class ToolCallMatch(Evaluator[Any, Any, dict]):
+    """Score 1.0 if the model called any tool named in metadata['expected_tool_calls'].
+
+    Reads tool calls from ctx.output["tool_calls"], a list of
+    ``{"name": str, "args": dict | str | None}`` produced by
+    :func:`tasks.make_router_inspect_task`. ``expected_tool_calls`` is
+    OR-semantic: passes if at least one of the listed tool names was
+    invoked. Use a separate Case (or a more specific evaluator) when you
+    need AND across multiple tools.
+    """
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Any, dict]) -> float:
+        expected = (ctx.metadata or {}).get("expected_tool_calls") or []
+        if not expected:
+            return 1.0
+        output = ctx.output if isinstance(ctx.output, dict) else {}
+        called = {tc.get("name") for tc in (output.get("tool_calls") or []) if isinstance(tc, dict)}
+        return 1.0 if any(name in called for name in expected) else 0.0

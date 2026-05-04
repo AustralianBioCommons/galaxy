@@ -1,8 +1,9 @@
 """Task callables that wrap Galaxy agents for use with pydantic-evals.
 
-Each task takes a string query and returns the field of an AgentResponse we
-care about scoring. Today: routing target. Future: full AgentResponse for
-quality scorers.
+Each task takes a string query and returns whatever shape the dataset's
+evaluators need. Most return a string; tasks that need to expose the
+underlying pydantic-ai run (e.g. for tool-call inspection) return a dict
+with ``content`` and ``tool_calls``.
 """
 
 from collections.abc import (
@@ -10,11 +11,15 @@ from collections.abc import (
     Callable,
 )
 from typing import (
+    Any,
     Optional,
 )
 from unittest.mock import MagicMock
 
-from galaxy.agents.base import GalaxyAgentDependencies
+from galaxy.agents.base import (
+    extract_result_content,
+    GalaxyAgentDependencies,
+)
 from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
@@ -108,3 +113,45 @@ def make_tool_recommendation_task(
         return response.content
 
     return tool_recommendation_task
+
+
+def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
+    """Pull every ToolCallPart from a pydantic-ai result into a flat list.
+
+    Each entry is ``{"name": tool_name, "args": args}``. Args may be a dict,
+    a JSON string, or None depending on how the model emitted them.
+    """
+    calls: list[dict[str, Any]] = []
+    try:
+        messages = result.all_messages()
+    except AttributeError:
+        return calls
+    for msg in messages:
+        for part in getattr(msg, "parts", ()) or ():
+            tool_name = getattr(part, "tool_name", None)
+            if tool_name and getattr(part, "part_kind", None) == "tool-call":
+                calls.append({"name": tool_name, "args": getattr(part, "args", None)})
+    return calls
+
+
+def make_router_inspect_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+) -> Callable[[str], Awaitable[dict[str, Any]]]:
+    """Build an async callable: query -> {"content": str, "tool_calls": list}.
+
+    Bypasses ``QueryRouterAgent.process`` so we can read tool calls off the
+    raw pydantic-ai result. Useful for evaluating router fast-path tool use
+    (did it call ``search_tools`` when asked "is FastQC installed?"?).
+    """
+
+    async def router_inspect_task(query: str) -> dict[str, Any]:
+        router = QueryRouterAgent(deps)
+        full_query = router._build_query_with_context(query, context)
+        result = await router._run_with_retry(full_query)
+        return {
+            "content": extract_result_content(result),
+            "tool_calls": _extract_tool_calls(result),
+        }
+
+    return router_inspect_task

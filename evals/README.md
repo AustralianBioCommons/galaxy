@@ -24,6 +24,14 @@ Current datasets:
   canonical tool names appears) plus optional `LLMJudge` with per-case rubrics.
   Runs without a live toolbox, so it measures the model's prior knowledge of
   Galaxy tools rather than grounded search behavior.
+- **router_tool_use**: inventory/availability queries that should trigger
+  router fast-path tool calls (`search_tools`, `search_workflows`,
+  `list_histories`, `get_server_info`, `get_user_info`). Scored by
+  `ToolCallMatch` -- did the model invoke at least one of the expected
+  tools? Includes a regression case for the failure observed in
+  galaxyproject/galaxy#21661 (comment 4367167981) where the router answered
+  "what tools are installed?" with a generic essay instead of calling
+  `search_tools`.
 
 ## Layout
 
