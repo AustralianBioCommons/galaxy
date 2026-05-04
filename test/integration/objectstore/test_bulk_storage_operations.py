@@ -23,6 +23,7 @@ Tests cover:
 - dataset_not_found: dataset purged between preview and execute
 """
 
+import os
 import string
 from typing import Any
 
@@ -31,7 +32,10 @@ from galaxy_test.base.populators import (
     DatasetCollectionPopulator,
     DatasetPopulator,
 )
-from ._base import BaseObjectStoreIntegrationTestCase
+from ._base import (
+    BaseObjectStoreIntegrationTestCase,
+    files_count,
+)
 
 DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE = string.Template("""<?xml version="1.0"?>
 <object_store type="distributed" id="primary" order="0">
@@ -147,6 +151,14 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
     def _run_items(self, history_id: str, run_id: str, search: str | None = None) -> list[dict[str, Any]]:
         return self.dataset_populator.storage_run_items(history_id, run_id, search=search)
+
+    def _run_items_by_dataset_id(self, items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        return {item["dataset_id"]: item for item in items}
+
+    def _store_file_counts(self) -> tuple[int, int]:
+        default_path = os.path.join(self.object_stores_parent, "files_default")
+        separate_path = os.path.join(self.object_stores_parent, "files_separate")
+        return files_count(default_path), files_count(separate_path)
 
     def _item(self, hda_id: str) -> dict[str, Any]:
         return {"id": hda_id, "history_content_type": "dataset"}
@@ -581,3 +593,93 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert len(final["items"]) == 1
             assert final["items"][0]["state"] == "failed"
             assert final["items"][0]["reason_code"] == "dataset_not_found"
+
+    @requires_celery
+    def test_idempotent_reexecution_mixed_state_no_data_mutation(self):
+        """Re-executing the same snapshot is safe and does not duplicate cross-device files."""
+        with self.dataset_populator.test_history() as history_id:
+            to_move = self.dataset_populator.new_dataset(history_id, content="to-move", wait=True)
+            becomes_ineligible = self.dataset_populator.new_dataset(history_id, content="becomes-ineligible", wait=True)
+            control = self.dataset_populator.new_dataset(history_id, content="control", wait=True)
+
+            preview = self._preview_move(
+                history_id,
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                [self._item(to_move["id"]), self._item(becomes_ineligible["id"])],
+            )
+            self._assert_eligibility(preview, eligible=2, ineligible=0)
+
+            # Simulate state drift after preview using a real move operation.
+            _, _, drift_final = self._run_move(
+                history_id,
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                [self._item(becomes_ineligible["id"])],
+            )
+            self._assert_run_counts(drift_final["run"], succeeded=1, failed=0, skipped=0)
+
+            baseline_default_count, baseline_separate_count = self._store_file_counts()
+
+            first_execute = self._execute_snapshot(history_id, preview["snapshot_id"], skip_ineligible=True)
+            first_run = self.dataset_populator.wait_for_storage_run(
+                history_id,
+                first_execute["run"]["run_id"],
+                include_items_on_terminal=True,
+            )
+            self._assert_run_counts(first_run["run"], succeeded=1, failed=0, skipped=1)
+
+            first_items_by_dataset = self._run_items_by_dataset_id(first_run["items"])
+            assert first_items_by_dataset[to_move["id"]]["state"] == "succeeded"
+            assert first_items_by_dataset[to_move["id"]]["reason_code"] is None
+            assert first_items_by_dataset[becomes_ineligible["id"]]["state"] == "skipped"
+            assert first_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == "already_in_target"
+
+            first_default_count, first_separate_count = self._store_file_counts()
+            assert first_default_count == baseline_default_count - 1
+            assert first_separate_count == baseline_separate_count + 1
+
+            self._assert_dataset_store_and_content(
+                history_id,
+                to_move["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "to-move\n",
+            )
+            self._assert_dataset_store_and_content(
+                history_id,
+                becomes_ineligible["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "becomes-ineligible\n",
+            )
+            self._assert_dataset_store_and_content(history_id, control["id"], DEFAULT_OBJECT_STORE_ID, "control\n")
+
+            second_execute = self._execute_snapshot(history_id, preview["snapshot_id"], skip_ineligible=True)
+            second_run = self.dataset_populator.wait_for_storage_run(
+                history_id,
+                second_execute["run"]["run_id"],
+                include_items_on_terminal=True,
+            )
+            assert second_execute["run"]["run_id"] != first_execute["run"]["run_id"]
+            self._assert_run_counts(second_run["run"], succeeded=0, failed=0, skipped=2)
+
+            second_items_by_dataset = self._run_items_by_dataset_id(second_run["items"])
+            assert second_items_by_dataset[to_move["id"]]["state"] == "skipped"
+            assert second_items_by_dataset[to_move["id"]]["reason_code"] == "already_in_target"
+            assert second_items_by_dataset[becomes_ineligible["id"]]["state"] == "skipped"
+            assert second_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == "already_in_target"
+
+            second_default_count, second_separate_count = self._store_file_counts()
+            assert second_default_count == first_default_count
+            assert second_separate_count == first_separate_count
+
+            self._assert_dataset_store_and_content(
+                history_id,
+                to_move["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "to-move\n",
+            )
+            self._assert_dataset_store_and_content(
+                history_id,
+                becomes_ineligible["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "becomes-ineligible\n",
+            )
+            self._assert_dataset_store_and_content(history_id, control["id"], DEFAULT_OBJECT_STORE_ID, "control\n")
