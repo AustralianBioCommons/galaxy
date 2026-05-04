@@ -1073,6 +1073,15 @@ execution:
       # enabling automatic resubmission to a longer-running destination.
       #request_walltime: "24:00:00"
 
+      # Advanced: set periodic_hold directly as a raw HTCondor ClassAd
+      # expression for multi-condition policies. HTCondor evaluates it every
+      # PERIODIC_EXPR_INTERVAL (default 60 s); when true the job is held with
+      # HoldReasonCode=16 (walltime_reached). Takes precedence over
+      # request_walltime — the runner will not inject its own periodic_hold
+      # when this key is present.
+      # Example: hold if wall-clock exceeds 2 h OR resident memory > 16 GB:
+      #periodic_hold: "(JobDurationSeconds >= 7200 || ResidentSetSize > 16777216)"
+
       # Maximum distinct JOB_HELD events before the job is permanently failed
       # (default 3, set to 0 to disable hold escalation entirely).
       #max_held_count: 3
