@@ -343,6 +343,8 @@ class WorkflowsAPIController(
         style = kwd.get("style", "export")
         download_format = kwd.get("format")
         version = kwd.get("version")
+        if version is not None:
+            version = int(version)
         history = None
         if history_id := kwd.get("history_id"):
             history = self.history_manager.get_accessible(

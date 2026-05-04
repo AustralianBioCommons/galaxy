@@ -777,7 +777,7 @@ class SubWorkflowModule(WorkflowModule):
         return self._modules
 
     @property
-    def version_changes(self):
+    def version_changes(self) -> list[str]:
         version_changes = []
         for m in self.get_modules():
             if hasattr(m, "version_changes"):
