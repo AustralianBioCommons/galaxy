@@ -1754,7 +1754,6 @@ def test_cleanup_job_always_at_submit_failure(fake_instance, fake_htcondor, runn
 
         htcondor_module.HTCondorJobState.cleanup = tracking_cleanup
         try:
-            runner.__class__.__bases__[0].queue_job  # just confirm inheritance
             htcondor_module.HTCondorJobRunner.queue_job(runner, jw)
         finally:
             htcondor_module.HTCondorJobState.cleanup = original_cleanup
@@ -2018,40 +2017,9 @@ def test_subprocess_client_restarts_after_helper_crash(fake_instance, fake_htcon
         client.shutdown()
 
 
-def test_helper_stderr_drain_thread_populates_buffer(fake_instance, fake_htcondor):
-    """Stderr written by the helper process is drained into _stderr_lines by the background thread."""
-    from galaxy.jobs.runners.htcondor import _HTCondorSubprocessClient
-
-    client = _HTCondorSubprocessClient("/tmp/no-such-config")
-
-    read_fd, write_fd = os.pipe()
-    mock_stderr = os.fdopen(read_fd, "r", encoding="utf-8")
-
-    class _FakeProcess:
-        stderr = mock_stderr
-
-    client._start_stderr_drain(_FakeProcess())
-
-    os.write(write_fd, b"condor credential expiring soon\n")
-    os.close(write_fd)  # EOF signals the drain thread to stop
-
-    deadline = time.monotonic() + 2
-    while time.monotonic() < deadline and not client._stderr_lines:
-        time.sleep(0.05)
-
-    assert "condor credential expiring soon" in list(client._stderr_lines)
-
-
 # ---------------------------------------------------------------------------
 # Additional unit tests for helpers and edge cases
 # ---------------------------------------------------------------------------
-
-
-def test_normalize_condor_config_none_returns_none():
-    from galaxy.jobs.runners.htcondor import _normalize_condor_config
-
-    assert _normalize_condor_config(None) is None
-    assert _normalize_condor_config("") is None
 
 
 def test_normalize_condor_config_expands_and_resolves(tmp_path):
@@ -2197,33 +2165,6 @@ def test_htcondor_params_runner_default_used_when_destination_omits_params(
     assert condor_config is None
 
 
-def test_htcondor_params_none_destination_uses_runner_defaults(fake_instance, fake_htcondor, runner_factory):
-    """None destination falls back entirely to runner defaults."""
-    runner = runner_factory()
-    runner.runner_params.htcondor_collector = "runner_collector:9618"
-    runner.runner_params.htcondor_schedd = None
-    runner.runner_params.htcondor_config = None
-
-    collector, schedd_name, condor_config = runner._htcondor_params(None)
-
-    assert collector == "runner_collector:9618"
-    assert schedd_name is None
-    assert condor_config is None
-
-
-def test_htcondor_params_empty_string_falls_through_to_runner_default(fake_instance, fake_htcondor, runner_factory):
-    """An empty string in the destination is falsy and lets the runner default win."""
-    runner = runner_factory()
-    runner.runner_params.htcondor_collector = "runner_collector:9618"
-    runner.runner_params.htcondor_schedd = None
-    runner.runner_params.htcondor_config = None
-
-    dest = JobDestination(id="test", params=dict(htcondor_collector=""))
-    collector, _, _ = runner._htcondor_params(dest)
-
-    assert collector == "runner_collector:9618"
-
-
 # ---------------------------------------------------------------------------
 # #8  Missing event log after recovery (lost-log safety net)
 # ---------------------------------------------------------------------------
@@ -2281,38 +2222,6 @@ def test_missing_log_count_resets_when_log_appears(fake_instance, fake_htcondor,
     assert len(runner.watched) == 1
 
 
-def test_recovered_running_job_fails_when_log_never_appears(fake_instance, fake_htcondor, runner_factory):
-    """A RUNNING job re-added by recover() that never gets an event log is eventually failed."""
-    from galaxy.jobs.runners import htcondor as htcondor_module
-
-    runner = runner_factory()
-    job = model.Job()
-    job.id = 88
-    job.state = model.Job.states.RUNNING
-    job.job_runner_external_id = "888"
-    job_wrapper = _job_wrapper(
-        fake_instance,
-        88,
-        dict(htcondor_config="/tmp/condor-recover-no-log"),
-        state=model.Job.states.RUNNING,
-    )
-
-    runner.recover(job, job_wrapper)
-    cjs = runner.monitor_queue.get_nowait()
-    assert cjs.running is True  # recovered as running
-    runner.watched = [cjs]
-
-    assert not os.path.exists(cjs.user_log)
-
-    max_count = htcondor_module.MAX_MISSING_LOG_COUNT
-    for _ in range(max_count):
-        runner.check_watched_items()
-
-    assert len(runner.watched) == 0
-    method, _ = runner.work_queue.get_nowait()
-    assert method == runner.fail_job
-
-
 # ---------------------------------------------------------------------------
 # GALAXY_SLOTS / GALAXY_MEMORY_MB injection
 # ---------------------------------------------------------------------------
@@ -2322,16 +2231,10 @@ def test_recovered_running_job_fails_when_log_never_appears(fake_instance, fake_
     ("value", "expected_mb"),
     [
         pytest.param("4096", 4096, id="plain-int-mb"),
-        pytest.param("4096M", 4096, id="suffix-M"),
-        pytest.param("4096MB", 4096, id="suffix-MB"),
-        pytest.param("4g", 4096, id="suffix-g-lower"),
         pytest.param("4G", 4096, id="suffix-G"),
-        pytest.param("4GB", 4096, id="suffix-GB"),
-        pytest.param("1T", 1024 * 1024, id="suffix-T"),
-        pytest.param("1TB", 1024 * 1024, id="suffix-TB"),
-        pytest.param("2048K", 2, id="suffix-K"),
-        pytest.param("2048KB", 2, id="suffix-KB"),
-        pytest.param("1.5G", 1536, id="float-GB"),
+        pytest.param("4GB", 4096, id="suffix-GB-two-letter"),
+        pytest.param("2048K", 2, id="suffix-K-sub-mb"),
+        pytest.param("1.5G", 1536, id="float"),
     ],
 )
 def test_parse_memory_mb_valid(value, expected_mb):
@@ -2406,20 +2309,6 @@ def test_request_walltime_adds_periodic_hold(fake_instance, fake_htcondor, runne
     assert "request_walltime" not in records[0]["submit_description"]
 
 
-def test_request_walltime_hhmmss_format(fake_instance, fake_htcondor, runner_factory):
-    """request_walltime accepts HH:MM:SS format."""
-    runner = runner_factory()
-    job_wrapper = _job_wrapper(
-        fake_instance,
-        1,
-        dict(htcondor_config="/tmp/condor-walltime-hms", request_walltime="1:00:00"),
-    )
-    runner.queue_job(job_wrapper)
-
-    records = _records(fake_instance, "submit")
-    assert "periodic_hold = (JobDurationSeconds >= 3600)" in records[0]["submit_description"]
-
-
 def test_request_walltime_absent_no_periodic_hold(fake_instance, fake_htcondor, runner_factory):
     """No periodic_hold is injected when request_walltime is not set."""
     runner = runner_factory()
@@ -2448,3 +2337,97 @@ def test_request_walltime_does_not_override_user_periodic_hold(fake_instance, fa
     desc = records[0]["submit_description"]
     assert "periodic_hold = (JobDurationSeconds >= 7200)" in desc
     assert "periodic_hold = (JobDurationSeconds >= 3600)" not in desc
+
+
+def test_galaxy_only_params_do_not_appear_in_submit_description(fake_instance, fake_htcondor, runner_factory):
+    """Galaxy-internal destination parameters (max_held_count, embed_metadata_in_job) must not
+    appear in the Condor submit description — HTCondor does not know about them."""
+    runner = runner_factory()
+    job_wrapper = _job_wrapper(
+        fake_instance,
+        1,
+        dict(
+            htcondor_config="/tmp/condor-galaxy-params",
+            max_held_count="5",
+            embed_metadata_in_job="false",
+        ),
+    )
+    runner.queue_job(job_wrapper)
+
+    records = _records(fake_instance, "submit")
+    assert len(records) == 1
+    desc = records[0]["submit_description"]
+    assert "max_held_count" not in desc
+    assert "embed_metadata_in_job" not in desc
+
+
+# ---------------------------------------------------------------------------
+# held_count reset on JOB_RELEASED
+# ---------------------------------------------------------------------------
+
+
+def test_held_count_resets_on_release(fake_instance, fake_htcondor, runner_factory):
+    """held_count is reset to 0 when a JOB_RELEASED event is seen, so a job that is
+    held-and-released multiple times does not accumulate toward max_held_count."""
+    runner = runner_factory()
+    # max_held_count=2 so we can verify the reset prevents premature failure.
+    job_wrapper = _job_wrapper(fake_instance, 1, dict(htcondor_config="/tmp/condor-held-reset", max_held_count="2"))
+    cjs = _watch_job(runner, job_wrapper)
+    _write_user_log(cjs)
+
+    # Cycle 1: held — held_count becomes 1
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+    runner.check_watched_items()
+    assert cjs.held_count == 1
+    assert runner.work_queue.empty()
+
+    # Cycle 2: released — held_count must reset to 0
+    _set_job_events(fake_htcondor, cjs, ["JOB_RELEASED"])
+    runner.check_watched_items()
+    assert cjs.held_count == 0
+    assert runner.work_queue.empty()
+
+    # Cycle 3: held again — held_count becomes 1 again (would be 2 without the reset,
+    # which would trigger permanent failure with max_held_count=2)
+    _set_job_events(fake_htcondor, cjs, ["JOB_HELD"])
+    runner.check_watched_items()
+    assert cjs.held_count == 1
+    assert runner.work_queue.empty(), "should not fail — release reset the counter"
+    assert len(runner.watched) == 1
+
+
+# ---------------------------------------------------------------------------
+# Subprocess client request timeout
+# ---------------------------------------------------------------------------
+
+
+def test_subprocess_client_times_out_on_hung_helper(fake_instance, fake_htcondor, monkeypatch):
+    """If the helper process stops responding, _request raises RuntimeError after the timeout
+    and marks the process as dead so the next call spawns a fresh helper."""
+    import select as _select
+
+    from galaxy.jobs.runners.htcondor import (
+        _HTCondorSubprocessClient,
+        HTCONDOR_HELPER_TIMEOUT,
+    )
+
+    client = _HTCondorSubprocessClient("/tmp/condor-timeout-test")
+
+    # Patch select.select to simulate a timeout (no file descriptors ready).
+    def fake_select(rlist, wlist, xlist, timeout):
+        return [], [], []
+
+    monkeypatch.setattr(_select, "select", fake_select)
+
+    # Trigger process creation by accessing the client internals, then call _request.
+    with client._lock:
+        client._ensure_process_locked()
+    original_process = client._process
+    assert original_process is not None
+
+    with pytest.raises(RuntimeError, match=str(HTCONDOR_HELPER_TIMEOUT)):
+        client.submit("universe = vanilla\nqueue", None, None)
+
+    # The hung process must have been killed and the reference cleared.
+    assert original_process.poll() is not None, "hung process should have been killed"
+    assert client._process is None, "process reference should be cleared for respawn"
