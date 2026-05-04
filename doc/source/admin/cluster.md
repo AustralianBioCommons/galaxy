@@ -321,9 +321,31 @@ The equivalent XML form is also supported:
     <destination id="htcondor" runner="htcondor">
         <param id="request_cpus">4</param>
         <param id="request_memory">4096M</param>
+        <param id="request_walltime">24:00:00</param>
     </destination>
 </destinations>
 ```
+
+#### Walltime and Advanced Hold Expressions
+
+`request_walltime` is a convenience parameter that covers the most common case: limiting a job by elapsed wall-clock time. Internally it injects `periodic_hold = (JobDurationSeconds >= N)` into the submit description. HTCondor evaluates this expression every `PERIODIC_EXPR_INTERVAL` (default 60 s); when it becomes true the job is placed on hold with `HoldReasonCode=16`, which Galaxy maps to `walltime_reached`.
+
+For more complex policies you can set `periodic_hold` directly. HTCondor ClassAd expressions can combine any job attribute, so a single expression can enforce multiple resource limits at once:
+
+```yaml
+execution:
+  environments:
+    htcondor_gpu:
+      runner: htcondor
+      request_gpus: 1
+      request_memory: 16384M
+      # Hold the job if it exceeds 2 hours wall-clock time OR if its resident
+      # set size exceeds 16 GB (16777216 KB).  A user-supplied periodic_hold
+      # takes precedence over request_walltime — the runner will not overwrite it.
+      periodic_hold: "(JobDurationSeconds >= 7200 || ResidentSetSize > 16777216)"
+```
+
+When `periodic_hold` is set directly, `request_walltime` is ignored for that destination.
 
 #### Multiple Independent Pools
 
