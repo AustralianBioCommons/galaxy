@@ -57,8 +57,15 @@ def make_deps(
     # (history, error_analysis, tools) don't crash before the model returns.
     # Real-Galaxy operations still won't work, but routing-decision measurement
     # survives the handoff chain.
+    trans = MagicMock()
+    # Router fast-path tools call workflow / history services that unpack a
+    # (rows, total_count) tuple. A bare MagicMock returns another MagicMock,
+    # which raises ValueError on unpack and aborts the agent run before we
+    # can read tool calls. Give those service .index() calls an explicit
+    # empty result so the tool succeeds with no data and the model moves on.
+    trans.app.__getitem__.return_value.index.return_value = ([], 0)
     return GalaxyAgentDependencies(
-        trans=MagicMock(),
+        trans=trans,
         user=MagicMock(),
         config=config,
         get_agent=_registry.get_agent,
