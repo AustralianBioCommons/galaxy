@@ -5,6 +5,7 @@ import { type AnyUser, isAdminUser, isAnonymousUser, isRegisteredUser, type Regi
 import { useHashedUserId } from "@/composables/hashedUserId";
 import { useUserLocalStorageFromHashId } from "@/composables/userLocalStorageFromHashedId";
 import { useHistoryStore } from "@/stores/historyStore";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 import {
     addFavoriteToolQuery,
     getCurrentUser,
@@ -47,6 +48,25 @@ export const useUserStore = defineStore("userStore", () => {
 
     let loadPromise: Promise<void> | null = null;
 
+    function requestQuotaRefreshForLoadedQuotaStore() {
+        const quotaUsageStore = useQuotaUsageStore();
+        if (quotaUsageStore.isLoaded) {
+            quotaUsageStore.requestRefreshDebounced();
+        }
+    }
+
+    function shouldRefreshQuotaAfterUserUpdate(previousUser: AnyUser, nextUser: RegisteredUser) {
+        if (!isRegisteredUser(previousUser)) {
+            return true;
+        }
+
+        return (
+            previousUser.total_disk_usage !== nextUser.total_disk_usage ||
+            previousUser.quota_percent !== nextUser.quota_percent ||
+            previousUser.quota !== nextUser.quota
+        );
+    }
+
     function $reset() {
         currentUser.value = null;
         currentPreferences.value = null;
@@ -84,21 +104,38 @@ export const useUserStore = defineStore("userStore", () => {
         currentUser.value = user;
     }
 
+    function setUserState(user: AnyUser) {
+        const previousUser = currentUser.value;
+
+        if (isRegisteredUser(user)) {
+            currentUser.value = user;
+            currentPreferences.value = processUserPreferences(user);
+            if (shouldRefreshQuotaAfterUserUpdate(previousUser, user)) {
+                requestQuotaRefreshForLoadedQuotaStore();
+            }
+        } else if (isAnonymousUser(user)) {
+            currentUser.value = user;
+        } else if (user === null) {
+            currentUser.value = null;
+        }
+    }
+
+    function syncCurrentUser(user: AnyUser) {
+        setUserState(user);
+    }
+
+    function refreshUser(includeHistories = false) {
+        loadPromise = null;
+        return loadUser(includeHistories);
+    }
+
     function loadUser(includeHistories = true) {
         if (!loadPromise) {
             loadPromise = new Promise<void>((resolve, reject) => {
                 (async () => {
                     try {
                         const user = await getCurrentUser();
-
-                        if (isRegisteredUser(user)) {
-                            currentUser.value = user;
-                            currentPreferences.value = processUserPreferences(user);
-                        } else if (isAnonymousUser(user)) {
-                            currentUser.value = user;
-                        } else if (user === null) {
-                            currentUser.value = null;
-                        }
+                        setUserState(user);
                         if (includeHistories) {
                             const historyStore = useHistoryStore();
                             await historyStore.loadHistories();
@@ -190,6 +227,8 @@ export const useUserStore = defineStore("userStore", () => {
         historyPanelWidth,
         recentTools,
         loadUser,
+        refreshUser,
+        syncCurrentUser,
         matchesCurrentUsername,
         setCurrentUser,
         setCurrentTheme,

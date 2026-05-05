@@ -11,6 +11,7 @@ import { useCollectionElementsStore } from "@/stores/collectionElementsStore";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useHistoryItemsStore } from "@/stores/historyItemsStore";
 import { useHistoryStore } from "@/stores/historyStore";
+import { useUserStore } from "@/stores/userStore";
 import { loadSet } from "@/utils/setCache";
 import { urlData } from "@/utils/url";
 
@@ -97,7 +98,9 @@ async function _fetchHistoryAndChangedItems(app, { force }) {
     historyItemsStore.saveHistoryItems(historyId, payload);
     collectionElementsStore.saveCollections(payload);
     if (app) {
-        app.user.loadFromApi(app.user.id || "current");
+        await app.user.loadFromApi(app.user.id || "current");
+        const userStore = useUserStore();
+        userStore.syncCurrentUser(app.user.attributes ?? null);
     }
 }
 
