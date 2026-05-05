@@ -9,7 +9,6 @@ import type { HistoryReference, StorageOperationPreviewResponse } from "@/api/hi
 import { useWizard } from "@/components/Common/Wizard/useWizard";
 import { HistoryFilters } from "@/components/History/HistoryFilters";
 import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/model/queries";
-import { QuotaSourceUsageProvider } from "@/components/User/DiskUsage/Quota/QuotaUsageProvider.js";
 import { useConfig } from "@/composables/config";
 import { Toast } from "@/composables/toast";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
@@ -22,7 +21,7 @@ import GenericWizard from "@/components/Common/Wizard/GenericWizard.vue";
 import StorageOperationPreviewReport from "@/components/History/CurrentHistory/HistoryOperations/StorageOperationPreviewReport.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 import ObjectStoreBadges from "@/components/ObjectStore/ObjectStoreBadges.vue";
-import QuotaUsageBar from "@/components/User/DiskUsage/Quota/QuotaUsageBar.vue";
+import ProvidedQuotaSourceUsageBar from "@/components/User/DiskUsage/Quota/ProvidedQuotaSourceUsageBar.vue";
 
 const props = defineProps<{
     show: boolean;
@@ -275,17 +274,10 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                                 <div v-if="option.description" class="small text-muted mt-1 text-break">
                                     {{ option.description }}
                                 </div>
-                                <QuotaSourceUsageProvider
+                                <ProvidedQuotaSourceUsageBar
                                     v-if="option.quota && option.quota.enabled"
-                                    v-slot="{ result: quotaUsage, loading: isLoadingUsage }"
-                                    :quota-source-label="option.quota.source">
-                                    <LoadingSpan v-if="isLoadingUsage" message="Loading quota" />
-                                    <QuotaUsageBar
-                                        v-else-if="quotaUsage"
-                                        :quota-usage="quotaUsage"
-                                        :embedded="true"
-                                        class="mt-1" />
-                                </QuotaSourceUsageProvider>
+                                    :object-store="option"
+                                    class="mt-1" />
                             </div>
                         </template>
                     </Multiselect>
