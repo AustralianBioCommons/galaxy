@@ -74,6 +74,7 @@ async function _fetchHistoryAndChangedItems(app, { force }) {
         return;
     }
 
+    const sizeChanged = historyStore.didHistorySizeChange(history);
     const historyId = history.id;
     lastUpdateTime = history.update_time;
     historyItemsStore.setLastUpdateTime();
@@ -97,10 +98,11 @@ async function _fetchHistoryAndChangedItems(app, { force }) {
     datasetStore.saveDatasets(payload);
     historyItemsStore.saveHistoryItems(historyId, payload);
     collectionElementsStore.saveCollections(payload);
-    if (app) {
-        await app.user.loadFromApi(app.user.id || "current");
+
+    if (sizeChanged) {
         const userStore = useUserStore();
-        userStore.syncCurrentUser(app.user.attributes ?? null);
+        await userStore.refreshUser(false);
+        userStore.syncLegacyAppUser(app);
     }
 }
 
