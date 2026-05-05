@@ -10,6 +10,7 @@ import { useWizard } from "@/components/Common/Wizard/useWizard";
 import { HistoryFilters } from "@/components/History/HistoryFilters";
 import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/model/queries";
 import { QuotaSourceUsageProvider } from "@/components/User/DiskUsage/Quota/QuotaUsageProvider.js";
+import { useConfig } from "@/composables/config";
 import { Toast } from "@/composables/toast";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
@@ -40,6 +41,7 @@ const emit = defineEmits<{
 const objectStoreStore = useObjectStoreStore();
 const storageOperationsStore = useStorageOperationsStore();
 const { loading: objectStoresLoading, loadErrorMessage } = storeToRefs(objectStoreStore);
+const { config, isConfigLoaded } = useConfig(true);
 
 const selectedTargetObjectStoreId = ref<string | null>(null);
 const storagePreview = ref<StorageOperationPreviewResponse | null>(null);
@@ -48,6 +50,11 @@ const storageExecuting = ref(false);
 const previewError = ref<string | null>(null);
 const executionError = ref<string | null>(null);
 const notifyOnCompletion = ref(true);
+
+const notificationSystemEnabled = computed(
+    () => isConfigLoaded.value && config.value?.enable_notification_system === true,
+);
+const shouldNotifyOnCompletion = computed(() => notifyOnCompletion.value && notificationSystemEnabled.value);
 
 const wizard = useWizard({
     configure: {
@@ -181,7 +188,7 @@ async function executeStorageOperation() {
             props.history,
             snapshotId,
             undefined,
-            notifyOnCompletion.value,
+            shouldNotifyOnCompletion.value,
         );
         storageOperationsStore.startRun(toTrackedStorageRun(props.history.id, executeResponse.run));
 
@@ -284,7 +291,7 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                     </Multiselect>
                 </div>
 
-                <div class="mb-2">
+                <div v-if="notificationSystemEnabled" class="mb-2">
                     <label class="d-flex align-items-center mb-0">
                         <input v-model="notifyOnCompletion" type="checkbox" class="mr-2" />
                         Notify me when the storage operation completes
