@@ -7,6 +7,7 @@
  *   Trigger:   .hover (default), .focus
  *   Content:   .html (innerHTML instead of textContent)
  *   Styling:   .v-danger
+ *   Behavior:  .onoverflow (only show tooltip when text overflows with ellipsis)
  *
  * Value forms:
  *   v-g-tooltip                           → reads element's title attribute
@@ -37,6 +38,8 @@ interface TooltipState {
     placement: Placement;
     isHtml: boolean;
     showDelay: ReturnType<typeof useDelayedAction>;
+    onOverflow: boolean;
+    resizeObserver: ResizeObserver | null;
 }
 
 const stateMap = new WeakMap<HTMLElement, TooltipState>();
@@ -219,6 +222,14 @@ function showTooltip(el: HTMLElement) {
         return;
     }
 
+    // If onOverflow is enabled, only show tooltip when text is overflowing
+    if (state.onOverflow) {
+        const isOverflowing = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+        if (!isOverflowing) {
+            return;
+        }
+    }
+
     suppressNativeTooltip(el);
 
     if (!state.tooltipEl.isConnected) {
@@ -339,6 +350,7 @@ export const vGTooltip: ObjectDirective<HTMLElement> = {
         const modifiers = binding.modifiers || {};
         const isDanger = !!modifiers["v-danger"];
         const isHtml = !!modifiers.html;
+        const onOverflow = !!modifiers.onoverflow;
         const placement = getPlacement(modifiers, binding.value);
 
         const { tooltipEl, arrowEl, contentEl } = createTooltipEl(isDanger);
@@ -347,6 +359,21 @@ export const vGTooltip: ObjectDirective<HTMLElement> = {
         const uid = `g-tooltip-${tooltipCounter++}`;
         tooltipEl.id = uid;
         el.setAttribute("aria-describedby", uid);
+
+        let resizeObserver: ResizeObserver | null = null;
+        if (onOverflow) {
+            // Watch for size changes to re-evaluate overflow state
+            resizeObserver = new ResizeObserver(() => {
+                // If tooltip is showing but no longer overflowing, hide it
+                if (tooltipEl.isConnected) {
+                    const isOverflowing = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+                    if (!isOverflowing) {
+                        hideTooltip(el);
+                    }
+                }
+            });
+            resizeObserver.observe(el);
+        }
 
         const state: TooltipState = {
             tooltipEl,
@@ -357,6 +384,8 @@ export const vGTooltip: ObjectDirective<HTMLElement> = {
             placement,
             isHtml,
             showDelay: useDelayedAction(DEFAULT_TOOLTIP_HOVER_DELAY_MS),
+            onOverflow,
+            resizeObserver,
         };
 
         stateMap.set(el, state);
@@ -386,6 +415,7 @@ export const vGTooltip: ObjectDirective<HTMLElement> = {
         state.cleanupListeners();
         clearPendingShow(el);
         state.cleanupAutoUpdate?.();
+        state.resizeObserver?.disconnect();
         state.tooltipEl.remove();
         restoreNativeTooltip(el);
         el.removeAttribute("aria-describedby");
