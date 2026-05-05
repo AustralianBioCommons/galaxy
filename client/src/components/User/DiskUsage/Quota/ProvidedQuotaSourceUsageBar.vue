@@ -1,43 +1,49 @@
 <template>
-    <QuotaSourceUsageProvider
-        v-if="objectStore.quota.enabled"
-        v-slot="{ result: quotaUsage, loading: isLoadingUsage }"
-        :quota-source-label="objectStore.quota.source">
-        <LoadingSpan v-if="isLoadingUsage" :message="loadingMessage | localize" />
+    <div v-if="objectStore.quota.enabled">
+        <LoadingSpan v-if="isLoadingUsage" :message="loadingMessage" />
         <QuotaUsageBar v-else-if="quotaUsage" :quota-usage="quotaUsage" :embedded="true" :compact="true" />
-    </QuotaSourceUsageProvider>
+    </div>
 </template>
 
-<script>
-import { QuotaSourceUsageProvider } from "./QuotaUsageProvider";
+<script setup lang="ts">
+import { computed, watch } from "vue";
+
+import type { ConcreteObjectStoreModel } from "@/api";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 
 import QuotaUsageBar from "./QuotaUsageBar.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 
-export default {
-    components: {
-        LoadingSpan,
-        QuotaUsageBar,
-        QuotaSourceUsageProvider,
+interface Props {
+    objectStore: ConcreteObjectStoreModel;
+    embedded?: boolean;
+    compact?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    embedded: true,
+    compact: false,
+});
+
+const loadingMessage = "Loading Galaxy storage information";
+
+const quotaUsageStore = useQuotaUsageStore();
+
+const quotaSourceLabel = computed(() => props.objectStore.quota.source ?? null);
+const quotaSourceKey = computed(() => quotaSourceLabel.value ?? "__null__");
+
+const quotaUsage = computed(() => quotaUsageStore.getQuotaUsageBySourceLabel(quotaSourceLabel.value) ?? null);
+const isLoadingUsage = computed(() => Boolean(quotaUsageStore.loadingBySource[quotaSourceKey.value]));
+
+watch(
+    () => [props.objectStore.quota.enabled, quotaSourceLabel.value] as const,
+    ([enabled, sourceLabel]) => {
+        if (!enabled) {
+            return;
+        }
+
+        void quotaUsageStore.loadQuotaUsageForSource(sourceLabel, true);
     },
-    props: {
-        objectStore: {
-            type: Object,
-            required: true,
-        },
-        embedded: {
-            type: Boolean,
-            default: true,
-        },
-        compact: {
-            type: Boolean,
-            default: false,
-        },
-    },
-    data() {
-        return {
-            loadingMessage: "Loading Galaxy storage information",
-        };
-    },
-};
+    { immediate: true },
+);
 </script>
