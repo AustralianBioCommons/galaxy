@@ -1,7 +1,11 @@
 <template>
     <div v-if="objectStore.quota.enabled">
         <LoadingSpan v-if="isLoadingUsage" :message="loadingMessage" />
-        <QuotaUsageBar v-else-if="quotaUsage" :quota-usage="quotaUsage" :embedded="true" :compact="true" />
+        <QuotaUsageBar
+            v-else-if="quotaUsage"
+            :quota-usage="quotaUsage"
+            :embedded="props.embedded"
+            :compact="props.compact" />
     </div>
 </template>
 
