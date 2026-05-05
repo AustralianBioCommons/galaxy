@@ -224,7 +224,8 @@ function showTooltip(el: HTMLElement) {
 
     // If onOverflow is enabled, only show tooltip when text is overflowing
     if (state.onOverflow) {
-        const isOverflowing = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+        // Use a threshold of 1px to account for line clamped text
+        const isOverflowing = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
         if (!isOverflowing) {
             return;
         }
@@ -366,7 +367,7 @@ export const vGTooltip: ObjectDirective<HTMLElement> = {
             resizeObserver = new ResizeObserver(() => {
                 // If tooltip is showing but no longer overflowing, hide it
                 if (tooltipEl.isConnected) {
-                    const isOverflowing = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+                    const isOverflowing = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
                     if (!isOverflowing) {
                         hideTooltip(el);
                     }
