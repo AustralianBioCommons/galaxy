@@ -29,7 +29,6 @@
 
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
-import { useRouter } from "vue-router/composables";
 
 import { userOwnsHistory } from "@/api";
 import type { AnyHistoryEntry } from "@/api/histories";
@@ -120,8 +119,6 @@ const props = withDefaults(defineProps<Props>(), {
     highlighted: false,
 });
 
-const router = useRouter();
-
 const historyStore = useHistoryStore();
 
 const userStore = useUserStore();
@@ -184,8 +181,8 @@ const emit = defineEmits<{
  * Handles clicking on the history title to navigate to the history view
  * @function onTitleClick
  */
-function onTitleClick() {
-    router.push(`/histories/view?id=${props.history.id}`);
+async function onTitleClick() {
+    await historyStore.setCurrentHistory(props.history.id);
 }
 
 /**
@@ -195,7 +192,7 @@ function onTitleClick() {
 const historyCardTitle = computed(() => {
     return {
         label: props.history.name,
-        title: localize("Click to view this history"),
+        title: localize("Click to set as current"),
         handler: onTitleClick,
     };
 });

@@ -129,7 +129,7 @@ function onKeyDown(event: KeyboardEvent) {
     <GCard
         :id="workflow.id"
         class="workflow-card"
-        can-rename-title
+        :can-rename-title="!props.workflow.deleted"
         :title="workflowCardTitle"
         :title-badges="workflowCardTitleBadges"
         :title-n-lines="2"

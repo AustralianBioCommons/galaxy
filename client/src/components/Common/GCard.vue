@@ -756,15 +756,7 @@ function onKeyDown(event: KeyboardEvent) {
     }
 
     .g-card-rename {
-        visibility: hidden;
         align-self: flex-start;
-    }
-
-    &:hover,
-    &:focus-within {
-        .g-card-rename {
-            visibility: visible;
-        }
     }
 
     .g-card-content {
