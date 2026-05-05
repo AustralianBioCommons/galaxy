@@ -191,9 +191,9 @@ class TestWorkflowExtractionApi(BaseWorkflowsApiTestCase, WorkflowStructureAsser
         jobs_summary = self._run_workflow(
             """
 class: GalaxyWorkflow
+inputs:
+  text_input1: collection
 steps:
-  - label: text_input1
-    type: input_collection
   - tool_id: collection_paired_test
     state:
       f1:
@@ -269,9 +269,9 @@ test_data:
         jobs_summary = self._run_workflow(
             """
 class: GalaxyWorkflow
+inputs:
+  text_input1: collection
 steps:
-  - label: text_input1
-    type: input_collection
   - label: noop
     tool_id: cat1
     state:
@@ -340,11 +340,10 @@ steps:
         jobs_summary = self._run_workflow(
             """
 class: GalaxyWorkflow
+inputs:
+  text_input1: data
+  text_input2: data
 steps:
-  - label: text_input1
-    type: input
-  - label: text_input2
-    type: input
   - label: cat_inputs
     tool_id: cat1
     state:
@@ -391,9 +390,9 @@ test_data:
         jobs_summary = self._run_workflow(
             """
 class: GalaxyWorkflow
+inputs:
+  text_input1: collection
 steps:
-  - label: text_input1
-    type: input_collection
   - label: cat_inputs
     tool_id: cat1
     state:
