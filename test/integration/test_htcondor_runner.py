@@ -1753,11 +1753,11 @@ def test_cleanup_job_always_at_submit_failure(fake_instance, fake_htcondor, runn
             cjs_cleanup_calls.append(True)
             original_cleanup(self_cjs)
 
-        setattr(htcondor_module.HTCondorJobState, "cleanup", tracking_cleanup)
+        htcondor_module.HTCondorJobState.cleanup = tracking_cleanup
         try:
             htcondor_module.HTCondorJobRunner.queue_job(runner, jw)
         finally:
-            setattr(htcondor_module.HTCondorJobState, "cleanup", original_cleanup)
+            htcondor_module.HTCondorJobState.cleanup = original_cleanup
 
     patched_queue_job(job_wrapper)
 
