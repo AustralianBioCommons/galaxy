@@ -329,7 +329,7 @@ function onKeyDown(event: KeyboardEvent) {
                 <div class="d-flex flex-column flex-gapy-1">
                     <div
                         :id="`g-card-${props.id}-header`"
-                        class="d-flex flex-wrap flex-gapy-1 flex-gapx-1 justify-content-between">
+                        class="d-flex flex-gapy-1 flex-gapx-1 justify-content-between">
                         <div class="d-flex flex-column flex-grow-1 g-card-title-section">
                             <div class="d-flex">
                                 <div v-if="selectable">
@@ -349,7 +349,6 @@ function onKeyDown(event: KeyboardEvent) {
                                             :id="getElementId(props.id, 'title')"
                                             bold
                                             inline
-                                            class="d-block"
                                             :size="props.titleSize">
                                             <FontAwesomeIcon
                                                 v-if="props.titleIcon?.icon"
@@ -371,7 +370,7 @@ function onKeyDown(event: KeyboardEvent) {
                                             <template v-else>
                                                 <span
                                                     :id="getElementId(props.id, 'title-text')"
-                                                    v-g-tooltip.hover
+                                                    v-g-tooltip.onoverflow
                                                     :title="localize(title)"
                                                     :class="{ 'g-card-title-truncate': props.titleNLines }">
                                                     {{ title }}
@@ -758,6 +757,7 @@ function onKeyDown(event: KeyboardEvent) {
 
     .g-card-rename {
         visibility: hidden;
+        align-self: flex-start;
     }
 
     &:hover,

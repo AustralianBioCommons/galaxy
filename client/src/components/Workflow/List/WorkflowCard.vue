@@ -18,7 +18,6 @@ interface Props {
     filterable?: boolean;
     publishedView?: boolean;
     editorView?: boolean;
-    compact?: boolean;
     current?: boolean;
     selected?: boolean;
     selectable?: boolean;
@@ -32,7 +31,6 @@ const props = withDefaults(defineProps<Props>(), {
     hideRuns: false,
     filterable: true,
     editorView: false,
-    compact: false,
     current: false,
     selected: false,
     selectable: false,
@@ -134,7 +132,7 @@ function onKeyDown(event: KeyboardEvent) {
         can-rename-title
         :title="workflowCardTitle"
         :title-badges="workflowCardTitleBadges"
-        :title-n-lines="props.compact ? 2 : undefined"
+        :title-n-lines="2"
         :description="description || ''"
         :grid-view="props.gridView"
         :badges="workflowCardBadges"
