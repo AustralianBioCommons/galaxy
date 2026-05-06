@@ -1,11 +1,12 @@
 """Integration tests for bulk storage operations (preview / execute / run status).
 
 These run against a real Galaxy instance with a distributed object store that has
-four backends:
+five backends:
 
 * ``default``         – main store, weight=1, device ``tmp_disk``
 * ``other``           – secondary store, weight=0, same device ``tmp_disk``
 * ``separate_device`` – weight=0, different device ``other_disk``
+* ``expirable_store`` – disk store with object expiration enabled
 * ``private_store``   – private disk store used for warning and quota coverage
 
 Tests cover:
@@ -54,38 +55,74 @@ from ._base import (
     files_count,
 )
 
-DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE = string.Template("""<?xml version="1.0"?>
-<object_store type="distributed" id="primary" order="0">
-    <backends>
-        <backend id="default" allow_selection="true" type="disk" weight="1" device="tmp_disk">
-            <files_dir path="${temp_directory}/files_default"/>
-            <extra_dir type="temp" path="${temp_directory}/tmp_default"/>
-            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_default"/>
-        </backend>
-        <backend id="other" allow_selection="true" type="disk" weight="0" device="tmp_disk">
-            <quota source="other_quota" />
-            <files_dir path="${temp_directory}/files_default"/>
-            <extra_dir type="temp" path="${temp_directory}/tmp_other"/>
-            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_other"/>
-        </backend>
-        <backend id="separate_device" allow_selection="true" type="disk" weight="0" device="other_disk">
-            <files_dir path="${temp_directory}/files_separate"/>
-            <extra_dir type="temp" path="${temp_directory}/tmp_separate"/>
-            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_separate"/>
-        </backend>
-        <backend id="expirable_store" allow_selection="true" type="disk" weight="0" device="tmp_disk" object_expires_after_days="30">
-            <files_dir path="${temp_directory}/files_expirable"/>
-            <extra_dir type="temp" path="${temp_directory}/tmp_expirable"/>
-            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_expirable"/>
-        </backend>
-        <backend id="private_store" allow_selection="true" type="disk" weight="0" private="true" device="private_disk">
-            <quota source="private_quota" />
-            <files_dir path="${temp_directory}/files_private"/>
-            <extra_dir type="temp" path="${temp_directory}/tmp_private"/>
-            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_private"/>
-        </backend>
-    </backends>
-</object_store>
+DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE = string.Template("""
+type: distributed
+backends:
+    - id: default
+      type: disk
+      weight: 1
+      allow_selection: true
+      device: tmp_disk
+      files_dir: "${temp_directory}/files_default"
+      extra_dirs:
+      - type: temp
+        path: "${temp_directory}/tmp_default"
+      - type: job_work
+        path: "${temp_directory}/job_working_directory_default"
+
+    - id: other
+      type: disk
+      weight: 0
+      allow_selection: true
+      device: tmp_disk
+      quota:
+          source: other_quota
+      files_dir: "${temp_directory}/files_default"
+      extra_dirs:
+      - type: temp
+        path: "${temp_directory}/tmp_other"
+      - type: job_work
+        path: "${temp_directory}/job_working_directory_other"
+
+    - id: separate_device
+      type: disk
+      weight: 0
+      allow_selection: true
+      device: other_disk
+      files_dir: "${temp_directory}/files_separate"
+      extra_dirs:
+      - type: temp
+        path: "${temp_directory}/tmp_separate"
+      - type: job_work
+        path: "${temp_directory}/job_working_directory_separate"
+
+    - id: expirable_store
+      type: disk
+      weight: 0
+      allow_selection: true
+      device: tmp_disk
+      object_expires_after_days: 30
+      files_dir: "${temp_directory}/files_expirable"
+      extra_dirs:
+      - type: temp
+        path: "${temp_directory}/tmp_expirable"
+      - type: job_work
+        path: "${temp_directory}/job_working_directory_expirable"
+
+    - id: private_store
+      type: disk
+      weight: 0
+      allow_selection: true
+      private: true
+      device: private_disk
+      quota:
+        source: private_quota
+      files_dir: "${temp_directory}/files_private"
+      extra_dirs:
+      - type: temp
+        path: "${temp_directory}/tmp_private"
+      - type: job_work
+        path: "${temp_directory}/job_working_directory_private"
 """)
 
 DEFAULT_OBJECT_STORE_ID = "default"
@@ -112,14 +149,11 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     @classmethod
     def handle_galaxy_config_kwds(cls, config):
         config["new_user_dataset_access_role_default_private"] = True
-        cls._configure_object_store(DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE, config)
+        cls._configure_object_store(DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE, config, format="yml")
 
     def setUp(self):
         super().setUp()
         self.dataset_collection_populator = DatasetCollectionPopulator(self.galaxy_interactor)
-        expirable_store = self._app.object_store.get_concrete_store_by_object_store_id(EXPIRABLE_OBJECT_STORE_ID)
-        if expirable_store is not None:
-            expirable_store.object_expires_after_days = 30
 
     # ------------------------------------------------------------------ helpers
 
