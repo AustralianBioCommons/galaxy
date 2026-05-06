@@ -1214,7 +1214,14 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
         # seem to require Galaxy's Python.
         # FIXME: the (instantiated) tool class should emit this behavior, and not
         #        use inspection by string check
-        if self.tool_type not in ["default", "manage_data", "interactive", "data_source", "data_source_async"]:
+        if self.tool_type not in [
+            "default",
+            "manage_data",
+            "interactive",
+            "data_source",
+            "data_source_async",
+            "user_defined",
+        ]:
             return True
 
         if self.tool_type == "manage_data" and Version(str(self.profile)) < Version("18.09"):
