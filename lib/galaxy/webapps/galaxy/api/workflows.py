@@ -344,7 +344,10 @@ class WorkflowsAPIController(
         download_format = kwd.get("format")
         version = kwd.get("version")
         if version is not None:
-            version = int(version)
+            try:
+                version = int(version)
+            except ValueError:
+                raise exceptions.RequestParameterInvalidException("Invalid version specified.")
         history = None
         if history_id := kwd.get("history_id"):
             history = self.history_manager.get_accessible(
