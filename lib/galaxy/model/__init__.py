@@ -417,11 +417,11 @@ def set_datatypes_registry(d_registry):
     _datatypes_registry = d_registry
 
 
-class HasTags:
+class HasTags(Dictifiable):
     dict_collection_visible_keys = ["tags"]
     dict_element_visible_keys = ["tags"]
 
-    def to_dict(self, *args, **kwargs):
+    def to_dict(self, *args, **kwargs) -> dict[str, Any]:
         rval = super().to_dict(*args, **kwargs)
         rval["tags"] = self.make_tag_string_list()
         return rval
@@ -3508,7 +3508,7 @@ class HistoryAudit(Base):
             session.execute(q)
 
 
-class History(Base, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable, UsesCreateAndUpdateTime):
+class History(Base, HasTags, UsesAnnotations, HasName, Serializable, UsesCreateAndUpdateTime):
     __tablename__ = "history"
     __table_args__ = (Index("ix_history_slug", "slug", mysql_length=200),)
 
@@ -5875,7 +5875,7 @@ class DatasetInstance(RepresentById, UsesCreateAndUpdateTime, _HasTable):
             rval["file_metadata"] = file_metadata
 
 
-class HistoryDatasetAssociation(DatasetInstance, HasTags, Dictifiable, UsesAnnotations, HasName, Serializable):
+class HistoryDatasetAssociation(DatasetInstance, HasTags, UsesAnnotations, HasName, Serializable):
     """
     Resource class that creates a relation between a dataset and a user history.
     """
@@ -7830,7 +7830,6 @@ class HistoryDatasetCollectionAssociation(
     Base,
     DatasetCollectionInstance,
     HasTags,
-    Dictifiable,
     UsesAnnotations,
     Serializable,
 ):
@@ -8582,7 +8581,7 @@ class GalaxySessionToHistoryAssociation(Base, RepresentById):
         self.history = history
 
 
-class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpdateTime):
+class StoredWorkflow(Base, HasTags, RepresentById, UsesCreateAndUpdateTime):
     """
     StoredWorkflow represents the root node of a tree of objects that compose a workflow, including workflow revisions, steps, and subworkflows.
     It is responsible for the metadata associated with a workflow including owner, name, published, and create/update time.
@@ -8703,7 +8702,7 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
         self.workflows = listify(workflow)
         self.hidden = hidden
 
-    def get_internal_version(self, version: Optional[int] = None):
+    def get_internal_version(self, version: Optional[int] = None) -> "Workflow":
         if version is None:
             return self.latest_workflow
         if len(self.workflows) <= version:
@@ -8756,7 +8755,7 @@ class StoredWorkflow(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpd
         rows_as_dict = dict(r for r in rows if r[0] is not None)  # type: ignore[arg-type, var-annotated]
         return InvocationsStateCounts(rows_as_dict)
 
-    def to_dict(self, view="collection", value_mapper=None):
+    def to_dict(self, view="collection", value_mapper=None) -> dict[str, Any]:
         rval = super().to_dict(view=view, value_mapper=value_mapper)
         rval["latest_workflow_uuid"] = (lambda uuid: str(uuid) if self.latest_workflow.uuid else None)(
             self.latest_workflow.uuid
@@ -11520,7 +11519,7 @@ class UserAuthnzToken(Base, UserMixin, RepresentById):
         return instance
 
 
-class Page(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpdateTime):
+class Page(Base, HasTags, RepresentById, UsesCreateAndUpdateTime):
     __tablename__ = "page"
     __table_args__ = (Index("ix_page_slug", "slug", mysql_length=200),)
 
@@ -11641,7 +11640,7 @@ class PageUserShareAssociation(Base, UserShareAssociation):
     page: Mapped["Page"] = relationship(back_populates="users_shared_with")
 
 
-class Visualization(Base, HasTags, Dictifiable, RepresentById, UsesCreateAndUpdateTime):
+class Visualization(Base, HasTags, RepresentById, UsesCreateAndUpdateTime):
     __tablename__ = "visualization"
     __table_args__ = (
         Index("ix_visualization_dbkey", "dbkey", mysql_length=200),

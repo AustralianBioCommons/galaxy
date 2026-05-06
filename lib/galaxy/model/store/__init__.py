@@ -2579,7 +2579,7 @@ class DirectoryModelExportStore(ModelExportStore):
             if not self.app:
                 raise Exception(f"Missing self.app in {self}.")
             self.app.workflow_contents_manager.store_workflow_artifacts(
-                workflows_directory, workflow_key, workflow, user=history.user, history=history
+                workflows_directory, workflow_key, workflow, history=history, user=history.user
             )
             invocations_attrs.append(invocation_attrs)
 
