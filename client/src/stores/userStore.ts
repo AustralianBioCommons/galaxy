@@ -5,6 +5,7 @@ import { type AnyUser, isAdminUser, isAnonymousUser, isRegisteredUser, type Regi
 import { useHashedUserId } from "@/composables/hashedUserId";
 import { useUserLocalStorageFromHashId } from "@/composables/userLocalStorageFromHashedId";
 import { useHistoryStore } from "@/stores/historyStore";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 import {
     addFavoriteToolQuery,
     getCurrentUser,
@@ -26,6 +27,14 @@ export type ListViewMode = "grid" | "list";
 
 type UserListViewPreferences = Record<string, ListViewMode>;
 
+interface LegacyGalaxyAppUserLike {
+    attributes: Record<string, unknown>;
+}
+
+interface LegacyGalaxyAppLike {
+    user?: LegacyGalaxyAppUserLike;
+}
+
 const RECENT_TOOLS_LIMIT = 10;
 
 export const useUserStore = defineStore("userStore", () => {
@@ -46,6 +55,25 @@ export const useUserStore = defineStore("userStore", () => {
     const recentTools = useUserLocalStorageFromHashId<string[]>("user-store-recent-tools", [], hashedUserId);
 
     let loadPromise: Promise<void> | null = null;
+
+    function requestQuotaRefreshForLoadedQuotaStore() {
+        const quotaUsageStore = useQuotaUsageStore();
+        if (quotaUsageStore.isLoaded) {
+            quotaUsageStore.requestRefreshDebounced();
+        }
+    }
+
+    function shouldRefreshQuotaAfterUserUpdate(previousUser: AnyUser, nextUser: RegisteredUser) {
+        if (!isRegisteredUser(previousUser)) {
+            return true;
+        }
+
+        return (
+            previousUser.total_disk_usage !== nextUser.total_disk_usage ||
+            previousUser.quota_percent !== nextUser.quota_percent ||
+            previousUser.quota !== nextUser.quota
+        );
+    }
 
     function $reset() {
         currentUser.value = null;
@@ -84,21 +112,53 @@ export const useUserStore = defineStore("userStore", () => {
         currentUser.value = user;
     }
 
+    function setUserState(user: AnyUser) {
+        const previousUser = currentUser.value;
+
+        if (isRegisteredUser(user)) {
+            currentUser.value = user;
+            currentPreferences.value = processUserPreferences(user);
+            if (shouldRefreshQuotaAfterUserUpdate(previousUser, user)) {
+                requestQuotaRefreshForLoadedQuotaStore();
+            }
+        } else if (isAnonymousUser(user)) {
+            currentUser.value = user;
+        } else if (user === null) {
+            currentUser.value = null;
+        }
+    }
+
+    /**
+     * @deprecated
+     * This function bridges the Pinia user store with the legacy
+     * jQuery-based Galaxy app's `app.user.attributes` object. Once the legacy
+     * app and all its consumers are fully migrated to Vue/Pinia, this sync
+     * will no longer be needed and should be removed along with the
+     * `LegacyGalaxyAppLike` interface.
+     */
+    function syncLegacyAppUser(app?: LegacyGalaxyAppLike | null) {
+        if (!app?.user || !currentUser.value) {
+            return;
+        }
+
+        app.user.attributes = {
+            ...app.user.attributes,
+            ...currentUser.value,
+        };
+    }
+
+    function refreshUser(includeHistories = false) {
+        loadPromise = null;
+        return loadUser(includeHistories);
+    }
+
     function loadUser(includeHistories = true) {
         if (!loadPromise) {
             loadPromise = new Promise<void>((resolve, reject) => {
                 (async () => {
                     try {
                         const user = await getCurrentUser();
-
-                        if (isRegisteredUser(user)) {
-                            currentUser.value = user;
-                            currentPreferences.value = processUserPreferences(user);
-                        } else if (isAnonymousUser(user)) {
-                            currentUser.value = user;
-                        } else if (user === null) {
-                            currentUser.value = null;
-                        }
+                        setUserState(user);
                         if (includeHistories) {
                             const historyStore = useHistoryStore();
                             await historyStore.loadHistories();
@@ -190,6 +250,8 @@ export const useUserStore = defineStore("userStore", () => {
         historyPanelWidth,
         recentTools,
         loadUser,
+        refreshUser,
+        syncLegacyAppUser,
         matchesCurrentUsername,
         setCurrentUser,
         setCurrentTheme,

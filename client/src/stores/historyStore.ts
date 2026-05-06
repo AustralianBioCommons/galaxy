@@ -52,6 +52,7 @@ export const useHistoryStore = defineStore("historyStore", () => {
     const storedHistories = ref<{ [key: string]: AnyHistory }>({});
     const historyLoadErrors = ref<{ [key: string]: Error }>({});
     const changingCurrentHistory = ref(false);
+    const knownHistorySizes = new Map<string, number>();
 
     const histories = computed(() => {
         return Object.values(storedHistories.value)
@@ -152,6 +153,12 @@ export const useHistoryStore = defineStore("historyStore", () => {
         } else {
             set(storedHistories.value, history.id, history);
         }
+    }
+
+    function didHistorySizeChange(history: { id: string; size: number }) {
+        const previousHistorySize = knownHistorySizes.get(history.id);
+        knownHistorySizes.set(history.id, history.size);
+        return previousHistorySize !== history.size;
     }
 
     function setHistories(histories: AnyHistory[]) {
@@ -636,6 +643,7 @@ export const useHistoryStore = defineStore("historyStore", () => {
         setCurrentHistoryId,
         setFilterText,
         setHistory,
+        didHistorySizeChange,
         setHistories,
         pinHistory,
         unpinHistories,

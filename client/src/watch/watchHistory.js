@@ -11,6 +11,7 @@ import { useCollectionElementsStore } from "@/stores/collectionElementsStore";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useHistoryItemsStore } from "@/stores/historyItemsStore";
 import { useHistoryStore } from "@/stores/historyStore";
+import { useUserStore } from "@/stores/userStore";
 import { loadSet } from "@/utils/setCache";
 import { urlData } from "@/utils/url";
 
@@ -73,6 +74,7 @@ async function _fetchHistoryAndChangedItems(app, { force }) {
         return;
     }
 
+    const sizeChanged = historyStore.didHistorySizeChange(history);
     const historyId = history.id;
     lastUpdateTime = history.update_time;
     historyItemsStore.setLastUpdateTime();
@@ -96,8 +98,11 @@ async function _fetchHistoryAndChangedItems(app, { force }) {
     datasetStore.saveDatasets(payload);
     historyItemsStore.saveHistoryItems(historyId, payload);
     collectionElementsStore.saveCollections(payload);
-    if (app) {
-        app.user.loadFromApi(app.user.id || "current");
+
+    if (sizeChanged) {
+        const userStore = useUserStore();
+        await userStore.refreshUser(false);
+        userStore.syncLegacyAppUser(app);
     }
 }
 

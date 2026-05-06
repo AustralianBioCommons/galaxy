@@ -1,7 +1,7 @@
-import { GalaxyApi } from "@/api";
+import { type AnyUser, GalaxyApi, toAnyUser } from "@/api";
 import { rethrowSimple } from "@/utils/simple-error";
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<AnyUser> {
     const { data, error } = await GalaxyApi().GET("/api/users/{user_id}", {
         params: { path: { user_id: "current" } },
     });
@@ -9,7 +9,7 @@ export async function getCurrentUser() {
     if (error) {
         rethrowSimple(error);
     }
-    return data;
+    return toAnyUser(data);
 }
 
 export async function addFavoriteToolQuery(userId: string, toolId: string) {
