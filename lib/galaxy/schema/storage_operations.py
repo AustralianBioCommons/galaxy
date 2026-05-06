@@ -66,6 +66,7 @@ class DatasetStorageOperationFailureReasonCode(str, Enum):
     shared_dataset = "shared_dataset"
     insufficient_permissions = "insufficient_permissions"
     dataset_in_use = "dataset_in_use"
+    target_expiration_imminent = "target_expiration_imminent"
     checksum_verification_failed = "checksum_verification_failed"
     execution_error = "execution_error"
 

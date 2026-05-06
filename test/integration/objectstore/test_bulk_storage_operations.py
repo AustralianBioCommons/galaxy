@@ -25,6 +25,7 @@ Tests cover:
 
 import os
 import string
+from datetime import timedelta
 from typing import (
     Any,
     cast,
@@ -38,8 +39,10 @@ from galaxy.managers.dataset_storage_operations import (
 from galaxy.managers.datasets import DatasetManager
 from galaxy.model import (
     DatasetStorageOperationSnapshot,
+    HistoryDatasetAssociation,
     User,
 )
+from galaxy.model.orm.now import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy_test.base.decorators import requires_celery
 from galaxy_test.base.populators import (
@@ -70,6 +73,11 @@ DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE = string.Template("""<?xml version="1.0
             <extra_dir type="temp" path="${temp_directory}/tmp_separate"/>
             <extra_dir type="job_work" path="${temp_directory}/job_working_directory_separate"/>
         </backend>
+        <backend id="expirable_store" allow_selection="true" type="disk" weight="0" device="tmp_disk" object_expires_after_days="30">
+            <files_dir path="${temp_directory}/files_expirable"/>
+            <extra_dir type="temp" path="${temp_directory}/tmp_expirable"/>
+            <extra_dir type="job_work" path="${temp_directory}/job_working_directory_expirable"/>
+        </backend>
         <backend id="private_store" allow_selection="true" type="disk" weight="0" private="true" device="private_disk">
             <quota source="private_quota" />
             <files_dir path="${temp_directory}/files_private"/>
@@ -83,8 +91,14 @@ DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE = string.Template("""<?xml version="1.0
 DEFAULT_OBJECT_STORE_ID = "default"
 OTHER_OBJECT_STORE_ID = "other"
 SEPARATE_DEVICE_OBJECT_STORE_ID = "separate_device"
+EXPIRABLE_OBJECT_STORE_ID = "expirable_store"
 PRIVATE_OBJECT_STORE_ID = "private_store"
 FAILED_OR_SKIPPED_SEARCH = "state:failed state:skipped"
+TARGET_EXPIRATION_IMMINENT_REASON_CODE = "target_expiration_imminent"
+EXPIRABLE_TARGET_WARNING = (
+    "Target storage is expirable. Datasets may expire earlier than expected after the move, "
+    "depending on when they were originally created."
+)
 PRIVACY_DOWNGRADE_WARNING = (
     "Some selected datasets would move from private storage to shareable storage. "
     "After the operation, you will be able to share these datasets with other users."
@@ -103,6 +117,9 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def setUp(self):
         super().setUp()
         self.dataset_collection_populator = DatasetCollectionPopulator(self.galaxy_interactor)
+        expirable_store = self._app.object_store.get_concrete_store_by_object_store_id(EXPIRABLE_OBJECT_STORE_ID)
+        if expirable_store is not None:
+            expirable_store.object_expires_after_days = 30
 
     # ------------------------------------------------------------------ helpers
 
@@ -275,6 +292,17 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         assert dataset_details["object_store_id"] == object_store_id
         return dataset
 
+    def _set_dataset_create_time_days_ago(self, hda_id: str, days_ago: int) -> None:
+        sa_session = cast(galaxy_scoped_session, self._app.model.session)
+        decoded_hda_id = self._app.security.decode_id(hda_id)
+        hda = sa_session.get(HistoryDatasetAssociation, decoded_hda_id)
+        assert hda is not None
+        dataset = hda.dataset
+        assert dataset is not None
+        dataset.create_time = now() - timedelta(days=days_ago)
+        sa_session.add(dataset)
+        sa_session.commit()
+
     def _unknown_encoded_id(self) -> str:
         return self._app.security.encode_id(999999999)
 
@@ -342,6 +370,37 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             self._assert_eligibility(preview, eligible=1, ineligible=0)
             assert PRIVACY_DOWNGRADE_WARNING in preview["warnings"]
+
+    def test_preview_warns_when_target_store_is_expirable(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="expirable-warning", wait=True)
+
+            preview = self._preview_move(history_id, EXPIRABLE_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+            self._assert_eligibility(preview, eligible=1, ineligible=0)
+            assert EXPIRABLE_TARGET_WARNING in preview["warnings"]
+
+    def test_preview_ineligible_when_target_expiration_is_imminent(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="expires-soon", wait=True)
+            self._set_dataset_create_time_days_ago(hda["id"], days_ago=25)
+
+            preview = self._preview_move(history_id, EXPIRABLE_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+            eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
+            item = eligibility["items"][0]
+            assert item["state"] == "ineligible"
+            assert item["reason_code"] == TARGET_EXPIRATION_IMMINENT_REASON_CODE
+
+    def test_preview_eligible_when_target_expiration_threshold_not_crossed(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="threshold-boundary", wait=True)
+            self._set_dataset_create_time_days_ago(hda["id"], days_ago=19)
+
+            preview = self._preview_move(history_id, EXPIRABLE_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+            eligibility = self._assert_eligibility(preview, eligible=1, ineligible=0)
+            assert eligibility["items"][0]["state"] == "eligible"
 
     def test_preview_ineligible_invalid_target(self):
         """A non-existent target store returns invalid_target_object_store."""
@@ -557,6 +616,46 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert len(final["items"]) == 1
             assert final["items"][0]["state"] == "failed"
             assert final["items"][0]["reason_code"] == "already_in_target"
+
+    @requires_celery
+    def test_skip_ineligible_true_skips_target_expiration_imminent(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="expirable-skip", wait=True)
+            self._set_dataset_create_time_days_ago(hda["id"], days_ago=25)
+
+            _, _, final = self._run_move(
+                history_id,
+                EXPIRABLE_OBJECT_STORE_ID,
+                [self._item(hda["id"])],
+                skip_ineligible=True,
+                include_items_on_terminal=True,
+                search=FAILED_OR_SKIPPED_SEARCH,
+            )
+
+            self._assert_run_counts(final["run"], succeeded=0, failed=0, skipped=1)
+            assert len(final["items"]) == 1
+            assert final["items"][0]["state"] == "skipped"
+            assert final["items"][0]["reason_code"] == TARGET_EXPIRATION_IMMINENT_REASON_CODE
+
+    @requires_celery
+    def test_skip_ineligible_false_fails_target_expiration_imminent(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="expirable-fail", wait=True)
+            self._set_dataset_create_time_days_ago(hda["id"], days_ago=25)
+
+            _, _, final = self._run_move(
+                history_id,
+                EXPIRABLE_OBJECT_STORE_ID,
+                [self._item(hda["id"])],
+                skip_ineligible=False,
+                include_items_on_terminal=True,
+                search=FAILED_OR_SKIPPED_SEARCH,
+            )
+
+            self._assert_run_counts(final["run"], succeeded=0, failed=1, skipped=0)
+            assert len(final["items"]) == 1
+            assert final["items"][0]["state"] == "failed"
+            assert final["items"][0]["reason_code"] == TARGET_EXPIRATION_IMMINENT_REASON_CODE
 
     def test_get_run_unknown_id_returns_404(self):
         """GET on an unknown run_id returns HTTP 404."""

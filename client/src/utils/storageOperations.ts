@@ -51,6 +51,11 @@ const REASON_CODE_DESCRIPTIONS: Record<DatasetStorageOperationFailureReasonCode,
         label: "Dataset in use",
         description: "The dataset is currently being used by an active job and cannot be moved.",
     },
+    target_expiration_imminent: {
+        label: "Would expire soon in target location",
+        description:
+            "Moving this dataset would leave less than 10 days before expiration in the selected target location.",
+    },
     checksum_verification_failed: {
         label: "Checksum verification failed",
         description:

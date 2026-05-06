@@ -11370,6 +11370,7 @@ export interface components {
             | "shared_dataset"
             | "insufficient_permissions"
             | "dataset_in_use"
+            | "target_expiration_imminent"
             | "checksum_verification_failed"
             | "execution_error";
         /** DatasetTextContentDetails */

@@ -63,6 +63,9 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+
+MINIMUM_DAYS_TO_EXPIRATION = 10
+
 StorageOperationContent = Union[HistoryDatasetAssociation, HistoryDatasetCollectionAssociation]
 DatasetMoveValidationFailure = tuple[DatasetStorageOperationFailureReasonCode, str]
 
@@ -183,6 +186,13 @@ class DatasetStorageOperationManager:
                 "Dataset is currently used by an active job.",
             )
 
+        is_below_expiration_threshold = self.is_dataset_below_expiration_threshold(dataset, target_object_store_id)
+        if is_below_expiration_threshold:
+            return (
+                DatasetStorageOperationFailureReasonCode.target_expiration_imminent,
+                f"Dataset would expire in less than {MINIMUM_DAYS_TO_EXPIRATION} days after moving to the target storage.",
+            )
+
         return None
 
     def target_quota_delta(
@@ -271,6 +281,15 @@ class DatasetStorageOperationManager:
         target_is_private = self._is_private_for_object_store_id(target_object_store_id)
         return source_is_private is True and target_is_private is False
 
+    def is_target_store_expirable(self, target_object_store_id: str) -> bool:
+        return self._target_store_expiration_days(target_object_store_id) is not None
+
+    def is_dataset_below_expiration_threshold(self, dataset: Dataset, target_object_store_id: str) -> bool:
+        remaining_lifetime = self._target_remaining_lifetime(dataset, target_object_store_id)
+        if remaining_lifetime is None:
+            return False
+        return remaining_lifetime < timedelta(days=MINIMUM_DAYS_TO_EXPIRATION)
+
     def is_cross_device_move(self, dataset: Dataset, target_object_store_id: str) -> bool:
         source_object_store_id = dataset.object_store_id
         if source_object_store_id is None:
@@ -298,6 +317,25 @@ class DatasetStorageOperationManager:
             return self.object_store.is_private(proxy)
         except Exception:
             return None
+
+    def _target_remaining_lifetime(self, dataset: Dataset, target_object_store_id: str) -> Optional[timedelta]:
+        expiration_days = self._target_store_expiration_days(target_object_store_id)
+        if expiration_days is None or dataset.create_time is None:
+            return None
+
+        expiration_time = dataset.create_time + timedelta(days=expiration_days)
+        return expiration_time - now()
+
+    def _target_store_expiration_days(self, target_object_store_id: str) -> Optional[int]:
+        concrete_store = self.object_store.get_concrete_store_by_object_store_id(target_object_store_id)
+        if concrete_store is None:
+            return None
+
+        expiration_days = concrete_store.object_expires_after_days
+        if expiration_days is None:
+            return None
+
+        return int(expiration_days)
 
     def create_operation_snapshot(
         self,
@@ -515,6 +553,11 @@ class DatasetStorageOperationPreviewBuilder:
                 "Some selected datasets would move from private storage to shareable storage. "
                 "After the operation, you will be able to share these datasets with other users."
             )
+        if self.storage_operation_manager.is_target_store_expirable(target_object_store_id):
+            warnings.append(
+                "Target storage is expirable. Datasets may expire earlier than expected after the move, "
+                "depending on when they were originally created."
+            )
 
         return StorageOperationPreviewResponse(
             snapshot_id=_as_encoded_database_id(snapshot.id),
@@ -561,6 +604,7 @@ class DatasetStorageOperationPreviewBuilder:
                 dataset,
                 target_object_store_id,
             )
+
             if reason is None:
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
