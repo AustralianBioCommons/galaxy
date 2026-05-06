@@ -44,14 +44,21 @@ export async function invokeWorkflow(workflowId, invocationData) {
  * @param {String} toolVersion - Corresponding tool version.
  * @param {Object} toolInputs - Current tool state.
  * @param {Object} historyId - History ID to populate data selection fields.
+ * @param {Object} optionsPagination - Optional per-parameter pagination spec
+ *   (`{<dotted-name>: {<src>: {offset, limit, search}}}`) forwarded as
+ *   `options_pagination` so the workflow run form can lazy-load paginated
+ *   options or backend-search the dropdown.
  */
-export async function getTool(toolId, toolVersion, toolInputs, historyId) {
+export async function getTool(toolId, toolVersion, toolInputs, historyId, optionsPagination) {
     const requestData = {
         tool_id: toolId,
         tool_version: toolVersion,
         inputs: JSON.parse(JSON.stringify(toolInputs)),
         history_id: historyId,
     };
+    if (optionsPagination) {
+        requestData.options_pagination = optionsPagination;
+    }
     try {
         const { data } = await axios.post(`${getAppRoot()}api/tools/${toolId}/build`, requestData);
         return data;
