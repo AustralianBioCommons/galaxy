@@ -130,9 +130,9 @@ class TestWorkflowExtractionSelenium(SeleniumTestCase, WorkflowStructureAssertio
         self.workflow_populator.run_workflow(
             """
 class: GalaxyWorkflow
+inputs:
+  text_input1: collection
 steps:
-  - label: text_input1
-    type: input_collection
   - label: noop
     tool_id: cat1
     state:

@@ -283,7 +283,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         change_datatype: bed
         set_columns:
@@ -1024,7 +1024,7 @@ steps:
   subworkflow:
     in:
       dataset: dataset
-    outputs:
+    out:
       output:
         outputSource: cat1/out_file1
     run:
@@ -3016,7 +3016,7 @@ steps:
 steps:
   empty_output:
     tool_id: empty_output
-    outputs:
+    out:
       out_file1:
         change_datatype: tabular
   column_param:
@@ -3039,7 +3039,7 @@ steps:
 steps:
   empty_output:
     tool_id: empty_output
-    outputs:
+    out:
       out_file1:
         change_datatype: tabular
   column_param_list:
@@ -3064,7 +3064,7 @@ steps:
 steps:
   empty_output:
     tool_id: empty_output
-    outputs:
+    out:
       out_file1:
         change_datatype: tabular
   column_param_list:
@@ -3783,7 +3783,7 @@ steps:
     in:
       some_collection: some_collection
       should_run: should_run
-    outputs:
+    out:
       inner_out: a_tool_step/out_file1
     when: $(inputs.should_run)
 outputs:
@@ -3843,7 +3843,7 @@ steps:
     in:
       some_file: some_file
       should_run: should_run
-    outputs:
+    out:
       inner_out: a_tool_step/out_file1
     when: $(inputs.should_run)
 outputs:
@@ -5818,7 +5818,7 @@ steps:
     tool_id: random_lines1
     in:
       input: text_input1
-    outputs:
+    out:
         out_file1:
           change_datatype: csv
 """,
@@ -5848,7 +5848,7 @@ steps:
     tool_id: collection_split_on_column
     in:
       input1: input
-    outputs:
+    out:
         split_output:
           change_datatype: csv
 outputs:
@@ -6166,11 +6166,6 @@ steps:
     tool_id: create_2
     state:
       sleep_time: 0
-    outputs:
-      out_file1:
-        rename: "my new name"
-      out_file2:
-        rename: "my other new name"
   first_cat1:
     tool_id: cat
     in:
@@ -6198,11 +6193,6 @@ steps:
     tool_id: create_2
     state:
       sleep_time: 0
-    outputs:
-      out_file1:
-        rename: "my new name"
-      out_file2:
-        rename: "my other new name"
 outputs:
   main_out:
     outputSource: create_2/does_not_exist
@@ -7574,7 +7564,7 @@ steps:
         cat1:
           in:
             input1: apply/output
-          outputs:
+          out:
             out_file1:
               rename: "#{inner_text_input} suffix"
         """,
@@ -7639,7 +7629,7 @@ steps:
     tool_id: cat1
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         hide: true
 """,
@@ -7985,7 +7975,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         rename: "my new name"
 """,
@@ -8026,7 +8016,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         rename: "#{input1} suffix"
 """,
@@ -8060,7 +8050,7 @@ steps:
   - tool_id: collection_creates_pair
     in:
       input1: input1
-    outputs:
+    out:
       paired_output:
         rename: "my new name"
 """,
@@ -8095,7 +8085,7 @@ steps:
       datasets:
       - id_cond:
           id_select: id
-    outputs:
+    out:
       output:
         hide: true
 """,
@@ -8130,7 +8120,7 @@ steps:
       datasets:
       - id_cond:
           id_select: id
-    outputs:
+    out:
       output:
         delete_intermediate_datasets: true
 """,
@@ -8168,7 +8158,7 @@ steps:
       datasets:
       - id_cond:
           id_select: idx
-    outputs:
+    out:
       output:
         change_datatype: txt
   - tool_id: __BUILD_LIST__
@@ -8218,7 +8208,7 @@ steps:
     tool_id: __EXTRACT_DATASET__
     in:
       input: build_list/output
-    outputs:
+    out:
       output:
         change_datatype: vcf_bgzip
 """,
@@ -8249,7 +8239,7 @@ steps:
       datasets:
       - id_cond:
           id_select: idx
-    outputs:
+    out:
       output:
         rename: "my new name"
 """,
@@ -8280,7 +8270,7 @@ steps:
     tool_id: create_2
     state:
       sleep_time: 0
-    outputs:
+    out:
       out_file1:
         rename: "my new name"
       out_file2:
@@ -8319,14 +8309,11 @@ steps:
       failbool: true
       input1:
         $link: input1
-    outputs:
-      out_file1:
-        rename: "cat1 out"
   cat:
     tool_id: cat
     in:
       input1: first_fail/out_file1
-    outputs:
+    out:
       out_file1:
         rename: "#{input1} suffix"
 """,
@@ -8374,7 +8361,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         rename: "#{input1} #{input1 | upper} suffix"
 """,
@@ -8408,7 +8395,7 @@ steps:
       queries:
         - input2:
             $link: input2
-    outputs:
+    out:
       out_file1:
         rename: "#{queries_0.input2| basename} suffix"
 """,
@@ -8447,7 +8434,7 @@ steps:
           $link: fastq_input
       reference:
         $link: fasta_input
-    outputs:
+    out:
       out_file1:
         rename: "#{fastq_input.fastq_input1 | basename} suffix"
 """,
@@ -8488,7 +8475,7 @@ steps:
           $link: fastq_input
       reference:
         $link: fasta_input
-    outputs:
+    out:
       out_file1:
         # The fully prefixed variant test in "test_run_rename_based_on_input_conditional" should be preferred,
         # but we don't want to break old workflow renaming actions
@@ -8526,7 +8513,7 @@ steps:
     state:
       input1:
         $link: input1
-    outputs:
+    out:
       paired_output:
         hide: true
 """,
@@ -8560,7 +8547,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         hide: true
 """,
@@ -8599,7 +8586,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         add_tags:
             - "name:treated1fb"
@@ -8647,7 +8634,7 @@ steps:
     tool_id: collection_creates_pair
     in:
       input1: input1
-    outputs:
+    out:
       paired_output:
         add_tags:
             - "name:foo"
@@ -8683,7 +8670,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         add_tags:
             - "name:foo"
@@ -8721,7 +8708,7 @@ steps:
     tool_id: cat
     in:
       input1: input1
-    outputs:
+    out:
       out_file1:
         add_tags:
           - "name:foo"
@@ -8729,7 +8716,7 @@ steps:
     tool_id: collection_creates_pair
     in:
       input1: first_cat/out_file1
-    outputs:
+    out:
       paired_output:
         remove_tags:
           - "name:foo"
@@ -8772,7 +8759,7 @@ steps:
     tool_id: __EXTRACT_DATASET__
     in:
       input: input1
-    outputs:
+    out:
       output:
         add_tags:
           - "name:foo"
@@ -8903,7 +8890,7 @@ steps:
     tool_id: cat1
     in:
       input1: second_cat/out_file1
-    outputs:
+    out:
       out_file1:
         delete_intermediate_datasets: true
 """,
