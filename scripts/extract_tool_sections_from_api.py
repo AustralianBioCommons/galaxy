@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """
-Refresh section-derived tool tags from the Galaxy EU tools API.
+Refresh section-derived tool tags from a Galaxy server's `/api/tools` payload.
+
+Defaults to the EU Galaxy instance and writes the curated tag map to
+``config/tool_tag_mappings.yml`` next to this repo; both can be overridden
+via CLI flags so the script works from any cwd.
 """
+
+import argparse
 import json
 import re
-from pathlib import Path
+import sys
+import urllib.error
 import urllib.request
+from pathlib import Path
 
 import yaml
 from yaml.events import (
@@ -15,11 +23,14 @@ from yaml.events import (
     ScalarEvent,
 )
 
-# API endpoint
-API_URL = "https://usegalaxy.eu/api/tools/"
+DEFAULT_API_URL = "https://usegalaxy.eu/api/tools/"
+DEFAULT_OUTPUT_FILE = Path(__file__).resolve().parent.parent / "config" / "tool_tag_mappings.yml"
+DEFAULT_TIMEOUT_SECONDS = 60
 
-# Output file
-OUTPUT_FILE = Path("lib/galaxy/tool_util/ontologies/tool_tag_mappings.yml")
+# Module-level globals overwritten from CLI args in ``main`` so the helper
+# functions (which the test suite imports) keep their existing signatures.
+API_URL = DEFAULT_API_URL
+OUTPUT_FILE = DEFAULT_OUTPUT_FILE
 SAFE_UNQUOTED_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 YAML_BOOLEAN_LIKE_VALUES = {"", "~", "null", "Null", "NULL", "true", "True", "TRUE", "false", "False", "FALSE"}
 
@@ -29,7 +40,14 @@ class QuotedString(str):
 
 
 class QuotingDumper(yaml.SafeDumper):
-    """YAML dumper that keeps our scalar quoting explicit and predictable."""
+    """YAML dumper that keeps scalar quoting explicit and predictable.
+
+    PyYAML's default dumper changes quoting heuristically when scalar lengths
+    cross internal thresholds, which churns the output for diff review every
+    time we regenerate the file. A round-trip dumper from ``ruamel.yaml`` would
+    avoid this, but ruamel.yaml isn't a Galaxy runtime dependency and this
+    script is admin-only, so we patch the simple-key heuristic instead.
+    """
 
     def check_simple_key(self):
         length = 0
@@ -45,14 +63,11 @@ class QuotingDumper(yaml.SafeDumper):
             if self.analysis is None:
                 self.analysis = self.analyze_scalar(self.event.value)
             length += len(self.analysis.scalar)
-        return (
-            length < 4096
-            and (
-                isinstance(self.event, AliasEvent)
-                or (isinstance(self.event, ScalarEvent) and not self.analysis.empty and not self.analysis.multiline)
-                or self.check_empty_sequence()
-                or self.check_empty_mapping()
-            )
+        return length < 4096 and (
+            isinstance(self.event, AliasEvent)
+            or (isinstance(self.event, ScalarEvent) and not self.analysis.empty and not self.analysis.multiline)
+            or self.check_empty_sequence()
+            or self.check_empty_mapping()
         )
 
 
@@ -63,16 +78,21 @@ def represent_quoted_string(dumper, data):
 QuotingDumper.add_representer(QuotedString, represent_quoted_string)
 
 
-def fetch_tools():
-    """Fetch tools from Galaxy EU API"""
-    print(f"Fetching tools from {API_URL}...")
+def fetch_tools(api_url=None, timeout=DEFAULT_TIMEOUT_SECONDS):
+    """Fetch tools from a Galaxy `/api/tools` endpoint.
+
+    Raises ``RuntimeError`` on transport / HTTP / decoding failures so the caller
+    can fail fast instead of silently overwriting the YAML with a no-op result.
+    """
+    target_url = api_url or API_URL
+    print(f"Fetching tools from {target_url}...")
     try:
-        with urllib.request.urlopen(API_URL) as response:
-            data = json.loads(response.read().decode("utf-8"))
-        return data
-    except Exception as e:
-        print(f"Error fetching data: {e}")
-        return None
+        with urllib.request.urlopen(target_url, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise RuntimeError(f"Could not reach {target_url}: {exc}") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"Server at {target_url} returned an unparseable response: {exc}") from exc
 
 
 def normalize_section_alias(value):
@@ -122,7 +142,7 @@ def extract_sections_and_tools(data):
 def load_existing_mappings():
     """Load existing tool_tag_mappings.yml"""
     if OUTPUT_FILE.exists():
-        with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+        with open(OUTPUT_FILE, encoding="utf-8") as f:
             return yaml.safe_load(f)
     return {"tool_tags": {}}
 
@@ -193,7 +213,7 @@ def update_mappings(existing_data, sections, section_ids):
                 new_mappings += 1
                 print(f"  Added {tool_id} with tag: {tag}")
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  - New tool mappings: {new_mappings}")
     print(f"  - Updated tool mappings: {updated_mappings}")
     print(f"  - Total tools with tags: {len(tool_tags)}")
@@ -224,27 +244,51 @@ def save_mappings(data):
     print("Done!")
 
 
-def main():
-    # Fetch tools from API
-    data = fetch_tools()
-    if not data:
-        return
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--api-url",
+        default=DEFAULT_API_URL,
+        help=f"Galaxy /api/tools endpoint to scrape (default: {DEFAULT_API_URL}).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT_FILE,
+        help=f"Path of the curated tool_tag_mappings.yml to write (default: {DEFAULT_OUTPUT_FILE}).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT_SECONDS}).",
+    )
+    return parser
 
-    # Extract sections and tools
+
+def main(argv=None) -> int:
+    args = _build_arg_parser().parse_args(argv)
+
+    global API_URL, OUTPUT_FILE
+    API_URL = args.api_url
+    OUTPUT_FILE = args.output
+
+    try:
+        data = fetch_tools(api_url=args.api_url, timeout=args.timeout)
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
     sections, section_ids = extract_sections_and_tools(data)
     if not sections:
-        print("No sections found!")
-        return
+        print("No sections found!", file=sys.stderr)
+        return 1
 
-    # Load existing mappings
     existing_data = load_existing_mappings()
-
-    # Update mappings
     updated_data = update_mappings(existing_data, sections, section_ids)
-
-    # Save mappings
     save_mappings(updated_data)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
