@@ -778,13 +778,12 @@ class DatasetStorageOperationRunManager:
                     "state": "state",
                     "reason": "reason_code",
                     "reason_code": "reason_code",
-                    "message": "message",
                     "dataset": "dataset_id",
                     "dataset_id": "dataset_id",
                 },
             )
 
-            for filter_name in ("state", "reason_code", "message", "dataset_id"):
+            for filter_name in ("state", "reason_code", "dataset_id"):
                 filter_terms = [term for term in parsed_search.filter_terms if term.filter == filter_name]
                 if not filter_terms:
                     continue
@@ -817,13 +816,11 @@ class DatasetStorageOperationRunManager:
                     free_text_conditions: list[ColumnElement[bool]] = [
                         DatasetStorageOperationRunItem.state == text,
                         DatasetStorageOperationRunItem.reason_code == text,
-                        DatasetStorageOperationRunItem.message == text,
                     ]
                 else:
                     free_text_conditions = [
                         DatasetStorageOperationRunItem.state.ilike(f"%{text}%"),
                         DatasetStorageOperationRunItem.reason_code.ilike(f"%{text}%"),
-                        DatasetStorageOperationRunItem.message.ilike(f"%{text}%"),
                     ]
 
                 dataset_ids = self._decode_storage_run_item_dataset_ids([text], decode_id=decode_id)
@@ -841,7 +838,6 @@ class DatasetStorageOperationRunManager:
                 reason_code=(
                     DatasetStorageOperationFailureReasonCode(run_item.reason_code) if run_item.reason_code else None
                 ),
-                message=run_item.message,
                 attempt_count=run_item.attempt_count,
                 bytes_processed=run_item.bytes_processed,
                 create_time=run_item.create_time,
@@ -877,10 +873,6 @@ class ChecksumVerificationError(ValueError):
 
 class StorageOperationRunExecutor:
     """Executes a storage operation run and returns notification outcome details to the caller."""
-
-    _CHECKSUM_FAILURE_MESSAGE = "Integrity verification failed after copying dataset data to the target store."
-    _EXECUTION_FAILURE_MESSAGE = "Storage operation failed due to an internal error."
-    _SOURCE_DATA_MISSING_MESSAGE = "Dataset source data was not found in the object store at execution time."
 
     def __init__(
         self,
@@ -959,7 +951,6 @@ class StorageOperationRunExecutor:
                 dataset_id=dataset_id,
                 state="failed",
                 reason_code=DatasetStorageOperationFailureReasonCode.dataset_not_found,
-                message="Dataset was not found at execution time.",
             )
             return
 
@@ -971,9 +962,9 @@ class StorageOperationRunExecutor:
             self.target_quota_source_label,
         )
 
-        reason_code, message = self._validate_dataset(dataset, quota_delta)
+        reason_code = self._validate_dataset(dataset, quota_delta)
         if reason_code is not None:
-            self._record_ineligible(dataset_id, reason_code, message)
+            self._record_ineligible(dataset_id, reason_code)
             return
 
         self._execute_dataset_transfer(dataset, dataset_id, quota_delta)
@@ -982,7 +973,7 @@ class StorageOperationRunExecutor:
         self,
         dataset: Dataset,
         quota_delta: int,
-    ) -> tuple[Optional[DatasetStorageOperationFailureReasonCode], Optional[str]]:
+    ) -> Optional[DatasetStorageOperationFailureReasonCode]:
         reason = self.storage_operation_manager.validate_dataset_for_move(
             self.app.security_agent,
             self.user,
@@ -990,7 +981,8 @@ class StorageOperationRunExecutor:
             self.run.target_object_store_id,
         )
         if reason is not None:
-            return reason
+            reason_code, _message = reason
+            return reason_code
 
         target_quota_projection = self.storage_operation_manager.target_quota_projection(
             self.app.quota_agent,
@@ -1000,18 +992,14 @@ class StorageOperationRunExecutor:
             additional_target_usage=self.additional_target_usage,
         )
         if target_quota_projection and target_quota_projection.exceeds_quota:
-            quota_message = self.storage_operation_manager.target_quota_exceeded_message(
-                phase_label="at execution time"
-            )
-            return DatasetStorageOperationFailureReasonCode.target_quota_exceeded, quota_message
+            return DatasetStorageOperationFailureReasonCode.target_quota_exceeded
 
-        return None, None
+        return None
 
     def _record_ineligible(
         self,
         dataset_id: int,
         reason_code: DatasetStorageOperationFailureReasonCode,
-        message: Optional[str],
     ):
         state = "skipped" if self.run.skip_ineligible else "failed"
         if state == "skipped":
@@ -1022,7 +1010,6 @@ class StorageOperationRunExecutor:
             dataset_id=dataset_id,
             state=state,
             reason_code=reason_code,
-            message=message,
         )
 
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
@@ -1033,7 +1020,6 @@ class StorageOperationRunExecutor:
             self._record_transfer_failure(
                 dataset_id,
                 DatasetStorageOperationFailureReasonCode.dataset_not_found,
-                self._SOURCE_DATA_MISSING_MESSAGE,
             )
             return
 
@@ -1059,7 +1045,6 @@ class StorageOperationRunExecutor:
             self._record_transfer_failure(
                 dataset_id,
                 DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
-                self._CHECKSUM_FAILURE_MESSAGE,
             )
         except Exception:
             log.exception("Storage operation execution error for run %s dataset %s", self.run.id, dataset.id)
@@ -1068,7 +1053,6 @@ class StorageOperationRunExecutor:
             self._record_transfer_failure(
                 dataset_id,
                 DatasetStorageOperationFailureReasonCode.execution_error,
-                self._EXECUTION_FAILURE_MESSAGE,
             )
 
     def _source_dataset_exists(self, source_proxy: DatasetObjectStoreProxy) -> bool:
@@ -1085,14 +1069,12 @@ class StorageOperationRunExecutor:
         self,
         dataset_id: int,
         reason_code: DatasetStorageOperationFailureReasonCode,
-        message: str,
     ) -> None:
         self.failed_count += 1
         self._add_run_item(
             dataset_id=dataset_id,
             state="failed",
             reason_code=reason_code,
-            message=message,
         )
 
     def _add_run_item(
@@ -1101,7 +1083,6 @@ class StorageOperationRunExecutor:
         dataset_id: int,
         state: str,
         reason_code: Optional[DatasetStorageOperationFailureReasonCode] = None,
-        message: Optional[str] = None,
         bytes_processed: int = 0,
     ):
         self.sa_session.add(
@@ -1110,7 +1091,6 @@ class StorageOperationRunExecutor:
                 dataset_id=dataset_id,
                 state=state,
                 reason_code=reason_code,
-                message=message,
                 bytes_processed=bytes_processed,
             )
         )

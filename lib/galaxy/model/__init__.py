@@ -12778,7 +12778,6 @@ class DatasetStorageOperationRunItem(Base):
     dataset_id: Mapped[int] = mapped_column(ForeignKey("dataset.id", ondelete="CASCADE"), index=True)
     state: Mapped[str] = mapped_column(String(32), index=True)
     reason_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     attempt_count: Mapped[int] = mapped_column(default=1)
     bytes_processed: Mapped[int] = mapped_column(default=0)
     create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)

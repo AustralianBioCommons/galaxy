@@ -138,7 +138,6 @@ class StorageOperationRunItemStatus(Model):
     dataset_id: EncodedDatabaseIdField
     state: StorageOperationRunItemState
     reason_code: Optional[DatasetStorageOperationFailureReasonCode] = None
-    message: Optional[str] = None
     attempt_count: int
     bytes_processed: int
     create_time: datetime = CreateTimeField

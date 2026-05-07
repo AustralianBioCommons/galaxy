@@ -161,14 +161,13 @@ StorageRunLimitQueryParam = Query(
 StorageRunItemsSearchTags = [
     IndexQueryTag("state", "Item state."),
     IndexQueryTag("reason_code", "Item reason code.", alias="reason"),
-    IndexQueryTag("message", "Item message."),
     IndexQueryTag("dataset_id", "Encoded dataset id.", alias="dataset"),
 ]
 
 StorageRunSearchQueryParam: Optional[str] = search_query_param(
     model_name="Storage operation run item",
     tags=StorageRunItemsSearchTags,
-    free_text_fields=["state", "reason_code", "message", "dataset_id"],
+    free_text_fields=["state", "reason_code", "dataset_id"],
 )
 
 RecursiveQueryParam = Query(

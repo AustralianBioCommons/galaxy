@@ -13,7 +13,7 @@ import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
 import Filtering, { contains } from "@/utils/filtering";
 import localize from "@/utils/localization";
-import { toTrackedStorageRun } from "@/utils/storageOperations";
+import { getIneligibleReasonDescription, toTrackedStorageRun } from "@/utils/storageOperations";
 
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
 import DatasetPopoverLink from "@/components/Common/DatasetPopoverLink.vue";
@@ -61,12 +61,6 @@ const runItemFilterClass = new Filtering(
             handler: contains("reason_code"),
             menuItem: true,
         },
-        message: {
-            placeholder: "message",
-            type: String,
-            handler: contains("message"),
-            menuItem: true,
-        },
     },
     undefined,
     true,
@@ -82,7 +76,7 @@ const tableFields: TableField[] = [
     { key: "dataset_id", label: localize("Dataset"), width: "260px" },
     { key: "state", label: localize("State"), width: "120px" },
     { key: "reason_code", label: localize("Reason code"), width: "180px" },
-    { key: "message", label: localize("Message"), sortable: true, class: "run-item-message" },
+    { key: "reason_text", label: localize("Reason"), sortable: false, class: "run-item-reason" },
 ];
 
 const failedOrSkippedCount = computed(() => (run.value?.failed_count ?? 0) + (run.value?.skipped_count ?? 0));
@@ -147,6 +141,13 @@ function getItemStateVariant(state: string) {
         return "warning";
     }
     return "secondary";
+}
+
+function getReasonText(reasonCode: string | null | undefined) {
+    if (!reasonCode) {
+        return "-";
+    }
+    return localize(getIneligibleReasonDescription(reasonCode).description);
 }
 
 watch(filterText, () => {
@@ -276,8 +277,8 @@ onBeforeUnmount(() => {
                         <span>{{ slot.item.reason_code || "-" }}</span>
                     </template>
 
-                    <template v-slot:cell(message)="slot">
-                        <span>{{ slot.item.message || "-" }}</span>
+                    <template v-slot:cell(reason_text)="slot">
+                        <span>{{ getReasonText(slot.item.reason_code) }}</span>
                     </template>
                 </GTable>
 
@@ -303,7 +304,7 @@ onBeforeUnmount(() => {
     max-width: 520px;
 }
 
-:deep(.run-item-message) {
+:deep(.run-item-reason) {
     white-space: normal;
     word-break: break-word;
 }

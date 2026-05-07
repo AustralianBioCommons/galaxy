@@ -22834,8 +22834,6 @@ export interface components {
              * @example 0123456789ABCDEF
              */
             dataset_id: string;
-            /** Message */
-            message?: string | null;
             reason_code?: components["schemas"]["DatasetStorageOperationFailureReasonCode"] | null;
             state: components["schemas"]["StorageOperationRunItemState"];
             /**
@@ -38299,16 +38297,13 @@ export interface operations {
                  *     `reason_code`
                  *     : Item reason code. (The tag `reason` can be used a short hand alias for this tag to filter on this attribute.)
                  *
-                 *     `message`
-                 *     : Item message.
-                 *
                  *     `dataset_id`
                  *     : Encoded dataset id. (The tag `dataset` can be used a short hand alias for this tag to filter on this attribute.)
                  *
                  *     ## Free Text
                  *
                  *     Free text search terms will be searched against the following attributes of the
-                 *     Storage operation run items: `state`, `reason_code`, `message`, `dataset_id`.
+                 *     Storage operation run items: `state`, `reason_code`, `dataset_id`.
                  */
                 search?: string | null;
             };
