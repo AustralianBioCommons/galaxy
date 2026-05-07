@@ -132,10 +132,7 @@ EXPIRABLE_OBJECT_STORE_ID = "expirable_store"
 PRIVATE_OBJECT_STORE_ID = "private_store"
 FAILED_OR_SKIPPED_SEARCH = "state:failed state:skipped"
 TARGET_EXPIRATION_IMMINENT_REASON_CODE = "target_expiration_imminent"
-EXPIRABLE_TARGET_WARNING = (
-    "Target storage is expirable. Datasets may expire earlier than expected after the move, "
-    "depending on when they were originally created."
-)
+EXPIRABLE_TARGET_WARNING = "Datasets in the target storage expire based on their original creation date, so they may expire sooner than expected after moving. "
 PRIVACY_DOWNGRADE_WARNING = (
     "Some selected datasets would move from private storage to shareable storage. "
     "After the operation, you will be able to share these datasets with other users."

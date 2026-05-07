@@ -555,8 +555,7 @@ class DatasetStorageOperationPreviewBuilder:
             )
         if self.storage_operation_manager.is_target_store_expirable(target_object_store_id):
             warnings.append(
-                "Target storage is expirable. Datasets may expire earlier than expected after the move, "
-                "depending on when they were originally created."
+                "Datasets in the target storage expire based on their original creation date, so they may expire sooner than expected after moving. "
             )
 
         return StorageOperationPreviewResponse(
