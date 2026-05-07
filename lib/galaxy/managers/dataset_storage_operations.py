@@ -67,7 +67,6 @@ MINIMUM_DAYS_TO_EXPIRATION = 10
 TRANSFER_RETRY_ATTEMPTS = 3
 
 StorageOperationContent = Union[HistoryDatasetAssociation, HistoryDatasetCollectionAssociation]
-DatasetMoveValidationFailure = tuple[DatasetStorageOperationFailureReasonCode, str]
 
 
 @dataclass(frozen=True)
@@ -120,58 +119,34 @@ class DatasetStorageOperationManager:
         user: Optional[User],
         dataset: Dataset,
         target_object_store_id: str,
-    ) -> Optional[DatasetMoveValidationFailure]:
+    ) -> Optional[DatasetStorageOperationFailureReasonCode]:
         target_device_id = self._device_id_for_store(target_object_store_id)
         if target_device_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.invalid_target_object_store,
-                f"Target object store '{target_object_store_id}' is invalid.",
-            )
+            return DatasetStorageOperationFailureReasonCode.invalid_target_object_store
 
         source_object_store_id = dataset.object_store_id
         if source_object_store_id is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.missing_source_object_store,
-                "Dataset does not define a source object store.",
-            )
+            return DatasetStorageOperationFailureReasonCode.missing_source_object_store
         if source_object_store_id == target_object_store_id:
-            return (
-                DatasetStorageOperationFailureReasonCode.already_in_target,
-                "Dataset is already in the requested object store.",
-            )
+            return DatasetStorageOperationFailureReasonCode.already_in_target
 
         if dataset.library_associations:
-            return (
-                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
-                "Library datasets are not eligible for object store changes.",
-            )
+            return DatasetStorageOperationFailureReasonCode.insufficient_permissions
 
         if user is None:
-            return (
-                DatasetStorageOperationFailureReasonCode.insufficient_permissions,
-                "Dataset is not eligible for object store changes.",
-            )
+            return DatasetStorageOperationFailureReasonCode.insufficient_permissions
 
         can_change = security_agent.can_change_object_store_id(user, dataset)
         if not can_change:
-            return (
-                DatasetStorageOperationFailureReasonCode.shared_dataset,
-                "Dataset is referenced by histories you do not own and cannot be moved.",
-            )
+            return DatasetStorageOperationFailureReasonCode.shared_dataset
 
         ok_to_edit_metadata = getattr(dataset, "ok_to_edit_metadata", None)
         if callable(ok_to_edit_metadata) and not ok_to_edit_metadata():
-            return (
-                DatasetStorageOperationFailureReasonCode.dataset_in_use,
-                "Dataset is currently used by an active job.",
-            )
+            return DatasetStorageOperationFailureReasonCode.dataset_in_use
 
         is_below_expiration_threshold = self.is_dataset_below_expiration_threshold(dataset, target_object_store_id)
         if is_below_expiration_threshold:
-            return (
-                DatasetStorageOperationFailureReasonCode.target_expiration_imminent,
-                f"Dataset would expire in less than {MINIMUM_DAYS_TO_EXPIRATION} days after moving to the target storage.",
-            )
+            return DatasetStorageOperationFailureReasonCode.target_expiration_imminent
 
         return None
 
@@ -601,8 +576,7 @@ class DatasetStorageOperationPreviewBuilder:
                     privacy_downgrade_count += 1
             else:
                 ineligible_count += 1
-                reason_code, _ = reason
-                self._increment_eligibility_reason(eligibility_reason_counts, reason_code)
+                self._increment_eligibility_reason(eligibility_reason_counts, reason)
 
         quota_delta_transfers = [
             StorageOperationQuotaDeltaTransfer(
@@ -985,8 +959,7 @@ class StorageOperationRunExecutor:
             self.run.target_object_store_id,
         )
         if reason is not None:
-            reason_code, _message = reason
-            return reason_code
+            return reason
 
         target_quota_projection = self.storage_operation_manager.target_quota_projection(
             self.app.quota_agent,
