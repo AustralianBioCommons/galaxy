@@ -49,6 +49,7 @@ const storageExecuting = ref(false);
 const previewError = ref<string | null>(null);
 const executionError = ref<string | null>(null);
 const notifyOnCompletion = ref(true);
+const dropdownOpen = ref(false);
 
 const notificationSystemEnabled = computed(
     () => isConfigLoaded.value && config.value?.enable_notification_system === true,
@@ -138,6 +139,7 @@ function resetState() {
     previewError.value = null;
     executionError.value = null;
     notifyOnCompletion.value = true;
+    dropdownOpen.value = false;
 }
 
 async function previewStorageOperation() {
@@ -259,7 +261,9 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                         label="name"
                         placeholder="Select target storage location"
                         class="w-100 multiselect--soft-option-highlight"
-                        @input="onTargetStoreSelected">
+                        @input="onTargetStoreSelected"
+                        @open="dropdownOpen = true"
+                        @close="dropdownOpen = false">
                         <template v-slot:singleLabel="{ option }">
                             <span>{{ option.name ?? "Unknown storage location" }}</span>
                         </template>
@@ -275,7 +279,7 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
                                     {{ option.description }}
                                 </div>
                                 <ProvidedQuotaSourceUsageBar
-                                    v-if="option.quota && option.quota.enabled"
+                                    v-if="dropdownOpen && option.quota && option.quota.enabled"
                                     :object-store="option"
                                     class="mt-1" />
                             </div>
