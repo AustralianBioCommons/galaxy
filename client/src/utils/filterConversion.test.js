@@ -12,7 +12,10 @@ describe("test filtering helpers to convert filters to filter text", () => {
             tag: {
                 type: "MultiTags",
                 handler: contains("tag", undefined, (value) => {
-                    const normalizedValue = String(value).trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+                    const normalizedValue = String(value)
+                        .trim()
+                        .replace(/^"(.*)"$/, "$1")
+                        .replace(/^'(.*)'$/, "$1");
                     return /\s/.test(normalizedValue) ? `"${normalizedValue}"` : normalizedValue;
                 }),
                 menuItem: true,

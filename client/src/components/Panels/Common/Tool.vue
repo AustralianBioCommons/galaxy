@@ -45,7 +45,13 @@ function onClick(evt: MouseEvent) {
     <div class="toolTitle">
         <a
             v-if="props.tool.disabled"
-            :class="['title-link', 'name', 'text-muted', 'tool-link', { 'favorite-top-level-drag-target': props.showDragHandle }]"
+            :class="[
+                'title-link',
+                'name',
+                'text-muted',
+                'tool-link',
+                { 'favorite-top-level-drag-target': props.showDragHandle },
+            ]"
             :data-tool-id="props.tool.id"
             :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null">
             <span v-if="!props.hideName">{{ props.tool.name }}</span>
@@ -53,7 +59,12 @@ function onClick(evt: MouseEvent) {
         </a>
         <a
             v-else
-            :class="['title-link', 'cursor-pointer', 'tool-link', { 'favorite-top-level-drag-target': props.showDragHandle }]"
+            :class="[
+                'title-link',
+                'cursor-pointer',
+                'tool-link',
+                { 'favorite-top-level-drag-target': props.showDragHandle },
+            ]"
             :data-tool-id="props.tool.id"
             :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null"
             :href="toolLink"

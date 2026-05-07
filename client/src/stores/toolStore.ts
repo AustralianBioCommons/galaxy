@@ -6,7 +6,12 @@ import axios, { type AxiosResponse } from "axios";
 import { defineStore } from "pinia";
 import Vue, { computed, type Ref, ref, shallowRef } from "vue";
 
-import { MY_PANEL_VIEW_DESCRIPTION, MY_PANEL_VIEW_ID, MY_PANEL_VIEW_NAME, MY_PANEL_VIEW_TYPE } from "@/components/Panels/panelViews";
+import {
+    MY_PANEL_VIEW_DESCRIPTION,
+    MY_PANEL_VIEW_ID,
+    MY_PANEL_VIEW_NAME,
+    MY_PANEL_VIEW_TYPE,
+} from "@/components/Panels/panelViews";
 import { FAVORITES_KEYS, filterTools, type types_to_icons } from "@/components/Panels/utilities";
 import { parseHelpForSummary } from "@/components/ToolsList/utilities";
 import { useUserLocalStorage } from "@/composables/userLocalStorage";

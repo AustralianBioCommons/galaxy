@@ -1292,58 +1292,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/events/history-subscriptions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Subscribe to history_update SSE events for histories you don't own.
-         * @description Asks every webapp worker to start routing ``history_update`` events
-         *     for these histories to the requesting user/session, in addition to the
-         *     default owner-routing. Idempotent: re-subscribing to the same id is a
-         *     no-op. Clients re-send the full set after each ``EventSource.onopen``
-         *     so reconnects don't drop subscriptions.
-         */
-        post: operations["subscribe_history_viewer_api_events_history_subscriptions_post"];
-        /** Cancel viewer subscriptions for these histories. */
-        delete: operations["unsubscribe_history_viewer_api_events_history_subscriptions_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/events/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Server-Sent Events stream for real-time updates.
-         * @description Opens a Server-Sent Events (SSE) connection that pushes real-time
-         *     updates for notifications, history changes, and other events.
-         *
-         *     On reconnect, the browser sends the ``Last-Event-ID`` header automatically.
-         *     If the notification system is enabled, any notifications created since that
-         *     timestamp are delivered as a catch-up ``notification_status`` event.
-         *
-         *     Anonymous users receive only broadcast events.
-         */
-        get: operations["stream_events_api_events_stream_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/exports": {
         parameters: {
             query?: never;
@@ -2807,71 +2755,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/histories/{history_id}/extract_workflow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Extract a workflow from a history.
-         * @description Extracts a workflow from a history based on the selected jobs and datasets provided in the payload.
-         *
-         *     Takes the job IDs, dataset HIDs, and dataset collection HIDs along with a workflow name,
-         *     and constructs a new stored workflow capturing the provenance of those steps.
-         *     Returns the ID of the newly created workflow.
-         */
-        post: operations["extract_workflow_from_history_api_histories__history_id__extract_workflow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/histories/{history_id}/extraction_summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Return jobs and dataset summary for extracting a workflow from a history.
-         * @description Creates a summary of the jobs, datasets and dataset collections in the history
-         *     that can be used to extract a workflow from the history.
-         *
-         *     Returns the list of jobs with their associated input/output datasets, plus any
-         *     implicit collections, which can be used to select steps for workflow extraction.
-         */
-        get: operations["extraction_summary_api_histories__history_id__extraction_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/histories/{history_id}/graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Returns a history-scoped structural graph. */
-        get: operations["graph_api_histories__history_id__graph_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/histories/{history_id}/jobs_summary": {
         parameters: {
             query?: never;
@@ -3894,6 +3777,26 @@ export interface paths {
         get: operations["get_api_licenses__id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Records a collection of metrics.
+         * @description Record any metrics sent and return some status object.
+         */
+        post: operations["create_api_metrics_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5856,6 +5759,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/{user_id}/favorites/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Persist the user's top-level favorites order */
+        put: operations["set_favorite_order_api_users__user_id__favorites_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/{user_id}/favorites/{object_type}": {
         parameters: {
             query?: never;
@@ -7296,6 +7216,71 @@ export interface components {
              */
             type: string;
         };
+        /** AdminToolSource */
+        AdminToolSource: {
+            /** citations */
+            citations?: components["schemas"]["Citation"][] | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            class: "GalaxyTool";
+            /** command */
+            command: string;
+            /** container */
+            container?: string | null;
+            /** description */
+            description?: string | null;
+            /** edam_operations */
+            edam_operations?: string[] | null;
+            /** edam_topics */
+            edam_topics?: string[] | null;
+            /** help */
+            help?: components["schemas"]["HelpContent"] | null;
+            /** id */
+            id?: string | null;
+            /**
+             * inputs
+             * @default []
+             */
+            inputs: components["schemas"]["GalaxyToolParameterModel-Input"][];
+            /** license */
+            license?: string | null;
+            /** name */
+            name?: string | null;
+            /**
+             * outputs
+             * @default []
+             */
+            outputs: (
+                | components["schemas"]["IncomingToolOutputDataset"]
+                | components["schemas"]["IncomingToolOutputCollection"]
+                | components["schemas"]["ToolOutputText"]
+                | components["schemas"]["ToolOutputInteger"]
+                | components["schemas"]["ToolOutputFloat"]
+                | components["schemas"]["ToolOutputBoolean"]
+            )[];
+            /** profile */
+            profile?: number | null;
+            /**
+             * requirements
+             * @default []
+             */
+            requirements:
+                | (
+                      | components["schemas"]["JavascriptRequirement"]
+                      | components["schemas"]["ResourceRequirement"]
+                      | components["schemas"]["ContainerRequirement"]
+                  )[]
+                | null;
+            /**
+             * version
+             * @default 1.0
+             */
+            version: string | null;
+            /** xrefs */
+            xrefs?: components["schemas"]["XrefDict"][] | null;
+        };
         /**
          * AgentListResponse
          * @description Response listing available agents.
@@ -7496,11 +7481,6 @@ export interface components {
              */
             published: boolean;
             /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
-            /**
              * Purged
              * @description Whether this item has been permanently removed.
              */
@@ -7623,11 +7603,6 @@ export interface components {
              * @description Whether this resource is currently publicly available to all users.
              */
             published: boolean;
-            /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
             /**
              * Purged
              * @description Whether this item has been permanently removed.
@@ -7761,50 +7736,50 @@ export interface components {
         /** BaseUrlParameterModel */
         BaseUrlParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_baseurl
              * @constant
              */
             parameter_type: "gx_baseurl";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "baseurl";
         };
@@ -8004,58 +7979,58 @@ export interface components {
         /** BooleanParameterModel */
         BooleanParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
-            /** Falsevalue */
+            /** falsevalue */
             falsevalue?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_boolean
              * @constant
              */
             parameter_type: "gx_boolean";
-            /** Truevalue */
+            /** truevalue */
             truevalue?: string | null;
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "boolean";
             /**
-             * Value
+             * value
              * @default false
              */
             value: boolean | null;
@@ -8420,9 +8395,9 @@ export interface components {
         };
         /** Citation */
         Citation: {
-            /** Content */
+            /** content */
             content: string;
-            /** Type */
+            /** type */
             type: string;
         };
         /** CitationErrorResponse */
@@ -8460,16 +8435,11 @@ export interface components {
             /** Item Ids */
             item_ids: string[];
         };
-        /** CollectionAttributes */
-        CollectionAttributes: {
-            /** Collection Type */
-            collection_type?: string | null;
-        };
         /** CollectionElementCollectionRequestUri */
         CollectionElementCollectionRequestUri: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Class
+             * @constant
              */
             class: "Collection";
             /** Collection Type */
@@ -8488,8 +8458,8 @@ export interface components {
         /** CollectionElementDataRequestUri */
         CollectionElementDataRequestUri: {
             /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
+             * Class
+             * @constant
              */
             class: "File";
             /** Created From Basename */
@@ -8515,6 +8485,8 @@ export interface components {
             identifier: string;
             /** Info */
             info?: string | null;
+            /** Location */
+            location: string;
             /** Name */
             name?: string | null;
             /**
@@ -8531,8 +8503,6 @@ export interface components {
              * @default false
              */
             to_posix_lines: boolean;
-            /** Url */
-            url: string;
         };
         /** CollectionElementIdentifier */
         CollectionElementIdentifier: {
@@ -8575,53 +8545,53 @@ export interface components {
         /** ColorParameterModel */
         ColorParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_color
              * @constant
              */
             parameter_type: "gx_color";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "color";
-            /** Value */
+            /** value */
             value?: string | null;
         };
         /** CompositeDataElement */
@@ -8828,63 +8798,119 @@ export interface components {
             source: string | null;
         };
         /** ConditionalParameterModel */
-        ConditionalParameterModel: {
+        "ConditionalParameterModel-Input": {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_conditional
              * @constant
              */
             parameter_type: "gx_conditional";
-            /** Test Parameter */
+            /** test_parameter */
             test_parameter:
                 | components["schemas"]["BooleanParameterModel"]
                 | components["schemas"]["SelectParameterModel"];
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "conditional";
-            /** Whens */
-            whens: components["schemas"]["ConditionalWhen"][];
+            /** whens */
+            whens: components["schemas"]["ConditionalWhen-Input"][];
+        };
+        /** ConditionalParameterModel */
+        "ConditionalParameterModel-Output": {
+            /**
+             * argument
+             * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
+             */
+            argument?: string | null;
+            /**
+             * help
+             * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
+             */
+            help?: string | null;
+            /**
+             * hidden
+             * @default false
+             */
+            hidden: boolean;
+            /**
+             * is_dynamic
+             * @default false
+             */
+            is_dynamic: boolean;
+            /**
+             * label
+             * @description Will be displayed on the tool page as the label of the parameter.
+             */
+            label?: string | null;
+            /**
+             * name
+             * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
+             */
+            name: string;
+            /**
+             * optional
+             * @description If `false`, parameter must have a value.
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * parameter_type
+             * @default gx_conditional
+             * @constant
+             */
+            parameter_type: "gx_conditional";
+            /** test_parameter */
+            test_parameter:
+                | components["schemas"]["BooleanParameterModel"]
+                | components["schemas"]["SelectParameterModel"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "conditional";
+            /** whens */
+            whens: components["schemas"]["ConditionalWhen-Output"][];
         };
         /** ConditionalWhen */
-        ConditionalWhen: {
+        "ConditionalWhen-Input": {
             /** Discriminator */
             discriminator: boolean | string;
             /** Is Default When */
@@ -8898,7 +8924,7 @@ export interface components {
                 | components["schemas"]["CwlNullParameterModel"]
                 | components["schemas"]["CwlFileParameterModel"]
                 | components["schemas"]["CwlDirectoryParameterModel"]
-                | components["schemas"]["CwlUnionParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Input"]
                 | components["schemas"]["TextParameterModel"]
                 | components["schemas"]["IntegerParameterModel"]
                 | components["schemas"]["FloatParameterModel"]
@@ -8910,14 +8936,51 @@ export interface components {
                 | components["schemas"]["DataColumnParameterModel"]
                 | components["schemas"]["DirectoryUriParameterModel"]
                 | components["schemas"]["RulesParameterModel"]
-                | components["schemas"]["DrillDownParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Input"]
                 | components["schemas"]["GroupTagParameterModel"]
                 | components["schemas"]["BaseUrlParameterModel"]
                 | components["schemas"]["GenomeBuildParameterModel"]
                 | components["schemas"]["ColorParameterModel"]
-                | components["schemas"]["ConditionalParameterModel"]
-                | components["schemas"]["RepeatParameterModel"]
-                | components["schemas"]["SectionParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Input"]
+                | components["schemas"]["RepeatParameterModel-Input"]
+                | components["schemas"]["SectionParameterModel-Input"]
+            )[];
+        };
+        /** ConditionalWhen */
+        "ConditionalWhen-Output": {
+            /** Discriminator */
+            discriminator: boolean | string;
+            /** Is Default When */
+            is_default_when: boolean;
+            /** Parameters */
+            parameters: (
+                | components["schemas"]["CwlIntegerParameterModel"]
+                | components["schemas"]["CwlFloatParameterModel"]
+                | components["schemas"]["CwlStringParameterModel"]
+                | components["schemas"]["CwlBooleanParameterModel"]
+                | components["schemas"]["CwlNullParameterModel"]
+                | components["schemas"]["CwlFileParameterModel"]
+                | components["schemas"]["CwlDirectoryParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Output"]
+                | components["schemas"]["TextParameterModel"]
+                | components["schemas"]["IntegerParameterModel"]
+                | components["schemas"]["FloatParameterModel"]
+                | components["schemas"]["BooleanParameterModel"]
+                | components["schemas"]["HiddenParameterModel"]
+                | components["schemas"]["SelectParameterModel"]
+                | components["schemas"]["DataParameterModel"]
+                | components["schemas"]["DataCollectionParameterModel"]
+                | components["schemas"]["DataColumnParameterModel"]
+                | components["schemas"]["DirectoryUriParameterModel"]
+                | components["schemas"]["RulesParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Output"]
+                | components["schemas"]["GroupTagParameterModel"]
+                | components["schemas"]["BaseUrlParameterModel"]
+                | components["schemas"]["GenomeBuildParameterModel"]
+                | components["schemas"]["ColorParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Output"]
+                | components["schemas"]["RepeatParameterModel-Output"]
+                | components["schemas"]["SectionParameterModel-Output"]
             )[];
         };
         /**
@@ -8942,19 +9005,20 @@ export interface components {
         };
         /** Container */
         Container: {
-            /** Container Id */
+            /** container_id */
             container_id: string;
             /**
-             * Type
+             * type
              * @enum {string}
              */
             type: "docker" | "singularity";
         };
         /** ContainerRequirement */
         ContainerRequirement: {
+            /** container */
             container: components["schemas"]["Container"];
             /**
-             * Type
+             * type
              * @constant
              */
             type: "container";
@@ -9373,6 +9437,20 @@ export interface components {
             ready: boolean | null;
             /** State */
             state?: string | null;
+        };
+        /** CreateMetricsPayload */
+        CreateMetricsPayload: {
+            /**
+             * List of metrics to be recorded.
+             * @default []
+             * @example {
+             *       "args": "{\"test\":\"value\"}",
+             *       "level": 0,
+             *       "namespace": "test-source",
+             *       "time": "2021-01-23T18:25:43.511Z"
+             *     }
+             */
+            metrics: components["schemas"]["Metric"][];
         };
         /** CreateNewCollectionPayload */
         CreateNewCollectionPayload: {
@@ -9914,11 +9992,6 @@ export interface components {
              */
             published?: boolean | null;
             /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
-            /**
              * Purged
              * @description Whether this item has been permanently removed.
              */
@@ -10158,11 +10231,6 @@ export interface components {
              */
             published?: boolean | null;
             /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
-            /**
              * Purged
              * @description Whether this item has been permanently removed.
              */
@@ -10234,12 +10302,12 @@ export interface components {
         /** CwlBooleanParameterModel */
         CwlBooleanParameterModel: {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_boolean
              * @constant
              */
@@ -10248,43 +10316,43 @@ export interface components {
         /** CwlDirectoryParameterModel */
         CwlDirectoryParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_directory
              * @constant
              */
@@ -10293,43 +10361,43 @@ export interface components {
         /** CwlFileParameterModel */
         CwlFileParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_file
              * @constant
              */
@@ -10338,12 +10406,12 @@ export interface components {
         /** CwlFloatParameterModel */
         CwlFloatParameterModel: {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_float
              * @constant
              */
@@ -10352,12 +10420,12 @@ export interface components {
         /** CwlIntegerParameterModel */
         CwlIntegerParameterModel: {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_integer
              * @constant
              */
@@ -10366,12 +10434,12 @@ export interface components {
         /** CwlNullParameterModel */
         CwlNullParameterModel: {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_null
              * @constant
              */
@@ -10380,31 +10448,31 @@ export interface components {
         /** CwlStringParameterModel */
         CwlStringParameterModel: {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_string
              * @constant
              */
             parameter_type: "cwl_string";
         };
         /** CwlUnionParameterModel */
-        CwlUnionParameterModel: {
+        "CwlUnionParameterModel-Input": {
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Parameter Type
+             * parameter_type
              * @default cwl_union
              * @constant
              */
             parameter_type: "cwl_union";
-            /** Parameters */
+            /** parameters */
             parameters: (
                 | components["schemas"]["CwlIntegerParameterModel"]
                 | components["schemas"]["CwlFloatParameterModel"]
@@ -10413,7 +10481,32 @@ export interface components {
                 | components["schemas"]["CwlNullParameterModel"]
                 | components["schemas"]["CwlFileParameterModel"]
                 | components["schemas"]["CwlDirectoryParameterModel"]
-                | components["schemas"]["CwlUnionParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Input"]
+            )[];
+        };
+        /** CwlUnionParameterModel */
+        "CwlUnionParameterModel-Output": {
+            /**
+             * name
+             * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
+             */
+            name: string;
+            /**
+             * parameter_type
+             * @default cwl_union
+             * @constant
+             */
+            parameter_type: "cwl_union";
+            /** parameters */
+            parameters: (
+                | components["schemas"]["CwlIntegerParameterModel"]
+                | components["schemas"]["CwlFloatParameterModel"]
+                | components["schemas"]["CwlStringParameterModel"]
+                | components["schemas"]["CwlBooleanParameterModel"]
+                | components["schemas"]["CwlNullParameterModel"]
+                | components["schemas"]["CwlFileParameterModel"]
+                | components["schemas"]["CwlDirectoryParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Output"]
             )[];
         };
         /**
@@ -10528,62 +10621,62 @@ export interface components {
         /** DataCollectionParameterModel */
         DataCollectionParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
-            /** Collection Type */
+            /** collection_type */
             collection_type?: string | null;
             /**
-             * Extensions
+             * extensions
              * @default [
              *       "data"
              *     ]
              */
             extensions: string[];
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_data_collection
              * @constant
              */
             parameter_type: "gx_data_collection";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "data_collection";
-            /** Value */
+            /** value */
             value: {
                 [key: string]: unknown;
             } | null;
@@ -10591,55 +10684,55 @@ export interface components {
         /** DataColumnParameterModel */
         DataColumnParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Multiple */
+            /** multiple */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_data_column
              * @constant
              */
             parameter_type: "gx_data_column";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "data_column";
-            /** Value */
+            /** value */
             value?: number | number[] | null;
         };
         /** DataElementsFromTarget */
@@ -10716,12 +10809,12 @@ export interface components {
         /** DataParameterModel */
         DataParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Extensions
+             * extensions
              * @description Limit inputs to datasets with these extensions. Use 'data' to allow all input datasets.
              * @default [
              *       "data"
@@ -10732,55 +10825,55 @@ export interface components {
              */
             extensions: string[];
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Max */
+            /** max */
             max?: number | null;
-            /** Min */
+            /** min */
             min?: number | null;
             /**
-             * Multiple
+             * multiple
              * @description Allow multiple values to be selected.
              * @default false
              */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_data
              * @constant
              */
             parameter_type: "gx_data";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "data";
         };
@@ -11516,54 +11609,54 @@ export interface components {
         /** DirectoryUriParameterModel */
         DirectoryUriParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_directory_uri
              * @constant
              */
             parameter_type: "gx_directory_uri";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "directory";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: (
@@ -11623,72 +11716,142 @@ export interface components {
             version: string;
         };
         /** DrillDownOptionsDict */
-        DrillDownOptionsDict: {
-            /** Name */
+        "DrillDownOptionsDict-Input": {
+            /** name */
             name: string | null;
-            /** Options */
-            options: components["schemas"]["DrillDownOptionsDict"][];
-            /** Selected */
+            /** options */
+            options: components["schemas"]["DrillDownOptionsDict-Input"][];
+            /** selected */
             selected: boolean;
-            /** Value */
+            /** value */
+            value: string;
+        };
+        /** DrillDownOptionsDict */
+        "DrillDownOptionsDict-Output": {
+            /** name */
+            name: string | null;
+            /** options */
+            options: components["schemas"]["DrillDownOptionsDict-Output"][];
+            /** selected */
+            selected: boolean;
+            /** value */
             value: string;
         };
         /** DrillDownParameterModel */
-        DrillDownParameterModel: {
+        "DrillDownParameterModel-Input": {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Hierarchy
+             * hierarchy
              * @enum {string}
              */
             hierarchy: "recurse" | "exact";
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Multiple */
+            /** multiple */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
-            /** Options */
-            options?: components["schemas"]["DrillDownOptionsDict"][] | null;
+            /** options */
+            options?: components["schemas"]["DrillDownOptionsDict-Input"][] | null;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_drill_down
              * @constant
              */
             parameter_type: "gx_drill_down";
             /**
-             * Type
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "drill_down";
+        };
+        /** DrillDownParameterModel */
+        "DrillDownParameterModel-Output": {
+            /**
+             * argument
+             * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
+             */
+            argument?: string | null;
+            /**
+             * help
+             * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
+             */
+            help?: string | null;
+            /**
+             * hidden
+             * @default false
+             */
+            hidden: boolean;
+            /**
+             * hierarchy
+             * @enum {string}
+             */
+            hierarchy: "recurse" | "exact";
+            /**
+             * is_dynamic
+             * @default false
+             */
+            is_dynamic: boolean;
+            /**
+             * label
+             * @description Will be displayed on the tool page as the label of the parameter.
+             */
+            label?: string | null;
+            /** multiple */
+            multiple: boolean;
+            /**
+             * name
+             * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
+             */
+            name: string;
+            /**
+             * optional
+             * @description If `false`, parameter must have a value.
+             * @default false
+             */
+            optional: boolean;
+            /** options */
+            options?: components["schemas"]["DrillDownOptionsDict-Output"][] | null;
+            /**
+             * parameter_type
+             * @default gx_drill_down
              * @constant
+             */
+            parameter_type: "gx_drill_down";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "drill_down";
         };
@@ -11794,7 +11957,7 @@ export interface components {
              */
             hidden: boolean | null;
             /** Representation */
-            representation: components["schemas"]["UserToolSource-Input"] | components["schemas"]["YamlToolSource"];
+            representation: components["schemas"]["UserToolSource-Input"] | components["schemas"]["AdminToolSource"];
             /**
              * Src
              * @default representation
@@ -12177,11 +12340,6 @@ export interface components {
          */
         ExportRecordData: {
             /**
-             * Ignore Errors
-             * @description Last resort. If True, skip serialization errors caused by missing provenance (e.g. orphan implicit collection job associations, null job param refs from older histories that pre-date collections) instead of failing. Exported data may be incomplete or corrupt.
-             */
-            ignore_errors?: boolean | null;
-            /**
              * Include deleted
              * @description Include file contents for deleted datasets (if include_files is True).
              * @default false
@@ -12311,33 +12469,51 @@ export interface components {
         /** FavoriteObjectsSummary */
         FavoriteObjectsSummary: {
             /**
-             * Favorite tools
-             * @description The name of the tools the user favored.
-             */
-            tools: string[];
-            /**
-             * Favorite tags
-             * @description The curated tool tags the user favored.
-             */
-            tags: string[];
-            /**
              * Favorite EDAM operations
              * @description The EDAM operation identifiers the user favored.
              */
-            edam_operations: string[];
+            edam_operations?: string[];
             /**
              * Favorite EDAM topics
              * @description The EDAM topic identifiers the user favored.
              */
-            edam_topics: string[];
+            edam_topics?: string[];
             /**
              * Favorite order
-             * @description The persisted order of top-level favorite entries.
+             * @description The persisted order of top-level favorite tools and favorite sections.
              */
-            order: {
-                object_type: "tools" | "tags" | "edam_operations" | "edam_topics";
-                object_id: string;
-            }[];
+            order?: components["schemas"]["FavoriteOrderItem"][];
+            /**
+             * Favorite tags
+             * @description The curated tool tags the user favored.
+             */
+            tags?: string[];
+            /**
+             * Favorite tools
+             * @description The name of the tools the user favored.
+             */
+            tools?: string[];
+        };
+        /** FavoriteOrderItem */
+        FavoriteOrderItem: {
+            /**
+             * Favorite object ID
+             * @description The ID of the favorite object in the ordered favorites list.
+             */
+            object_id: string;
+            /**
+             * Favorite object type
+             * @description The type of favorite object in the ordered favorites list.
+             */
+            object_type: components["schemas"]["FavoriteObjectType"];
+        };
+        /** FavoriteOrderPayload */
+        FavoriteOrderPayload: {
+            /**
+             * Favorite order
+             * @description The complete ordered list of top-level favorite entries.
+             */
+            order?: components["schemas"]["FavoriteOrderItem"][];
         };
         /** FetchDataPayload */
         FetchDataPayload: {
@@ -12577,39 +12753,39 @@ export interface components {
         };
         /** FilePatternDatasetCollectionDescription */
         FilePatternDatasetCollectionDescription: {
-            /** Assign Primary Output */
+            /** assign_primary_output */
             assign_primary_output: boolean;
-            /** Directory */
+            /** directory */
             directory: string | null;
             /**
-             * Discover Via
+             * discover_via
              * @constant
              */
             discover_via: "pattern";
-            /** Format */
+            /** format */
             format: string | null;
-            /** Match Relative Path */
+            /** match_relative_path */
             match_relative_path: boolean;
-            /** Pattern */
+            /** pattern */
             pattern: string;
-            /** Recurse */
+            /** recurse */
             recurse: boolean;
             /**
-             * Sort Comp
+             * sort_comp
              * @enum {string}
              */
             sort_comp: "lexical" | "numeric";
             /**
-             * Sort Key
+             * sort_key
              * @enum {string}
              */
             sort_key: "filename" | "name" | "designation" | "dbkey";
             /**
-             * Sort Reverse
+             * sort_reverse
              * @default false
              */
             sort_reverse: boolean;
-            /** Visible */
+            /** visible */
             visible: boolean;
         };
         /** FileRequestUri */
@@ -12637,6 +12813,8 @@ export interface components {
             hashes?: components["schemas"]["FileHash"][] | null;
             /** Info */
             info?: string | null;
+            /** Location */
+            location: string;
             /** Name */
             name?: string | null;
             /**
@@ -12653,8 +12831,6 @@ export interface components {
              * @default false
              */
             to_posix_lines: boolean;
-            /** Url */
-            url: string;
         };
         /** FileSourceTemplateSummaries */
         FileSourceTemplateSummaries: components["schemas"]["FileSourceTemplateSummary"][];
@@ -12687,16 +12863,13 @@ export interface components {
                 | "webdav"
                 | "dropbox"
                 | "googledrive"
-                | "onedrive"
                 | "elabftw"
                 | "inveniordm"
                 | "zenodo"
                 | "rspace"
                 | "dataverse"
                 | "huggingface"
-                | "iiif"
-                | "omero"
-                | "ssh";
+                | "omero";
             /** Variables */
             variables?:
                 | (
@@ -12834,62 +13007,62 @@ export interface components {
         /** FloatParameterModel */
         FloatParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Max */
+            /** max */
             max?: number | null;
-            /** Min */
+            /** min */
             min?: number | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_float
              * @constant
              */
             parameter_type: "gx_float";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "float";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: components["schemas"]["InRangeParameterValidatorModel"][];
-            /** Value */
+            /** value */
             value?: number | null;
         };
         /** FolderLibraryFolderItem */
@@ -13076,6 +13249,48 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
+        /** GalaxyToolParameterModel */
+        "GalaxyToolParameterModel-Input":
+            | components["schemas"]["TextParameterModel"]
+            | components["schemas"]["IntegerParameterModel"]
+            | components["schemas"]["FloatParameterModel"]
+            | components["schemas"]["BooleanParameterModel"]
+            | components["schemas"]["HiddenParameterModel"]
+            | components["schemas"]["SelectParameterModel"]
+            | components["schemas"]["DataParameterModel"]
+            | components["schemas"]["DataCollectionParameterModel"]
+            | components["schemas"]["DataColumnParameterModel"]
+            | components["schemas"]["DirectoryUriParameterModel"]
+            | components["schemas"]["RulesParameterModel"]
+            | components["schemas"]["DrillDownParameterModel-Input"]
+            | components["schemas"]["GroupTagParameterModel"]
+            | components["schemas"]["BaseUrlParameterModel"]
+            | components["schemas"]["GenomeBuildParameterModel"]
+            | components["schemas"]["ColorParameterModel"]
+            | components["schemas"]["ConditionalParameterModel-Input"]
+            | components["schemas"]["RepeatParameterModel-Input"]
+            | components["schemas"]["SectionParameterModel-Input"];
+        /** GalaxyToolParameterModel */
+        "GalaxyToolParameterModel-Output":
+            | components["schemas"]["TextParameterModel"]
+            | components["schemas"]["IntegerParameterModel"]
+            | components["schemas"]["FloatParameterModel"]
+            | components["schemas"]["BooleanParameterModel"]
+            | components["schemas"]["HiddenParameterModel"]
+            | components["schemas"]["SelectParameterModel"]
+            | components["schemas"]["DataParameterModel"]
+            | components["schemas"]["DataCollectionParameterModel"]
+            | components["schemas"]["DataColumnParameterModel"]
+            | components["schemas"]["DirectoryUriParameterModel"]
+            | components["schemas"]["RulesParameterModel"]
+            | components["schemas"]["DrillDownParameterModel-Output"]
+            | components["schemas"]["GroupTagParameterModel"]
+            | components["schemas"]["BaseUrlParameterModel"]
+            | components["schemas"]["GenomeBuildParameterModel"]
+            | components["schemas"]["ColorParameterModel"]
+            | components["schemas"]["ConditionalParameterModel-Output"]
+            | components["schemas"]["RepeatParameterModel-Output"]
+            | components["schemas"]["SectionParameterModel-Output"];
         /** GenerateTourResponse */
         GenerateTourResponse: {
             /**
@@ -13097,106 +13312,60 @@ export interface components {
         /** GenomeBuildParameterModel */
         GenomeBuildParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Multiple */
+            /** multiple */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_genomebuild
              * @constant
              */
             parameter_type: "gx_genomebuild";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "genomebuild";
-        };
-        /** GraphEdge */
-        GraphEdge: {
-            /** Source */
-            source: string;
-            /** Target */
-            target: string;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dataset_input" | "dataset_output" | "collection_input" | "collection_output";
-        };
-        /** GraphNode */
-        GraphNode: {
-            /** Collection Type */
-            collection_type?: string | null;
-            /** Deleted */
-            deleted?: boolean | null;
-            /** Extension */
-            extension?: string | null;
-            /** Hid */
-            hid?: number | null;
-            /** Id */
-            id: string;
-            /** Name */
-            name?: string | null;
-            /** State */
-            state?: string | null;
-            /** Tool Id */
-            tool_id?: string | null;
-            /** Tool Name */
-            tool_name?: string | null;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dataset" | "collection" | "tool_request";
-            /** Visible */
-            visible?: boolean | null;
         };
         /**
          * GroupCreatePayload
          * @description Payload schema for creating a group.
          */
         GroupCreatePayload: {
-            /**
-             * auto-create role
-             * @description If true, create a new role with the same name as the group and associate it.
-             * @default false
-             */
-            auto_create_role: boolean;
             /** name of the group */
             name: string;
             /**
@@ -13302,52 +13471,52 @@ export interface components {
         /** GroupTagParameterModel */
         GroupTagParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Multiple */
+            /** multiple */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_group_tag
              * @constant
              */
             parameter_type: "gx_group_tag";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "group_tag";
         };
@@ -14860,10 +15029,10 @@ export interface components {
         };
         /** HelpContent */
         HelpContent: {
-            /** Content */
+            /** content */
             content: string;
             /**
-             * Format
+             * format
              * @enum {string}
              */
             format: "restructuredtext" | "plain_text" | "markdown";
@@ -15125,54 +15294,54 @@ export interface components {
         /** HiddenParameterModel */
         HiddenParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_hidden
              * @constant
              */
             parameter_type: "gx_hidden";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "hidden";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: (
@@ -15181,7 +15350,7 @@ export interface components {
                 | components["schemas"]["ExpressionParameterValidatorModel"]
                 | components["schemas"]["EmptyFieldParameterValidatorModel"]
             )[];
-            /** Value */
+            /** value */
             value: string | null;
         };
         /**
@@ -15382,11 +15551,6 @@ export interface components {
              */
             published: boolean;
             /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
-            /**
              * Purged
              * @description Whether this item has been permanently removed.
              */
@@ -15456,14 +15620,6 @@ export interface components {
              */
             username_and_slug?: string | null;
         };
-        /** HistoryGraphResponse */
-        HistoryGraphResponse: {
-            /** Edges */
-            edges: components["schemas"]["GraphEdge"][];
-            /** Nodes */
-            nodes: components["schemas"]["GraphNode"][];
-            truncated: components["schemas"]["TruncationInfo"];
-        };
         /**
          * HistorySummary
          * @description History summary information.
@@ -15516,11 +15672,6 @@ export interface components {
              */
             published: boolean;
             /**
-             * Purge Task
-             * @description Summary of the async task purging datasets in this history. Only present when purge is performed via a background task.
-             */
-            purge_task?: components["schemas"]["AsyncTaskResultSummary"] | null;
-            /**
              * Purged
              * @description Whether this item has been permanently removed.
              */
@@ -15545,14 +15696,6 @@ export interface components {
              * @description The relative URL to access this item.
              */
             url: string;
-        };
-        /**
-         * HistoryViewerSubscriptionPayload
-         * @description REST payload for ``/api/events/history-subscriptions`` endpoints.
-         */
-        HistoryViewerSubscriptionPayload: {
-            /** History Ids */
-            history_ids: string[];
         };
         /**
          * Hyperlink
@@ -15672,20 +15815,21 @@ export interface components {
         /** IncomingToolOutputCollection */
         IncomingToolOutputCollection: {
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden?: boolean | null;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name?: string | null;
+            /** structure */
             structure: components["schemas"]["ToolOutputCollectionStructure"];
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -15695,7 +15839,7 @@ export interface components {
         };
         /** IncomingToolOutputDataset */
         IncomingToolOutputDataset: {
-            /** Discover Datasets */
+            /** discover_datasets */
             discover_datasets?:
                 | (
                       | components["schemas"]["FilePatternDatasetCollectionDescription"]
@@ -15703,12 +15847,12 @@ export interface components {
                   )[]
                 | null;
             /**
-             * Format
+             * format
              * @description The short name for the output datatype.
              */
             format?: string | null;
             /**
-             * Format Source
+             * format_source
              * @description This sets the data type of the output dataset(s) to be the same format as that of the specified tool input.
              */
             format_source?: string | null;
@@ -15718,27 +15862,27 @@ export interface components {
              */
             from_work_dir?: string | null;
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden?: boolean | null;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Metadata Source
+             * metadata_source
              * @description This copies the metadata information from the tool’s input dataset to serve as default for information that cannot be detected from the output. One prominent use case is interval data with a non-standard column order that cannot be deduced from a header line, but which is known to be identical in the input and output datasets.
              */
             metadata_source?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name?: string | null;
             /**
-             * Precreate Directory
+             * precreate_directory
              * @default false
              */
             precreate_directory: boolean | null;
@@ -16023,61 +16167,61 @@ export interface components {
         /** IntegerParameterModel */
         IntegerParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Max */
+            /** max */
             max?: number | null;
-            /** Min */
+            /** min */
             min?: number | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_integer
              * @constant
              */
             parameter_type: "gx_integer";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "integer";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: components["schemas"]["InRangeParameterValidatorModel"][];
-            /** Value */
+            /** value */
             value?: number | null;
         };
         /** InvocationCancellationHistoryDeletedResponse */
@@ -16949,9 +17093,7 @@ export interface components {
              * @default {}
              */
             parameters: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: unknown;
             } | null;
             /**
              * Legacy Step Parameters Normalized
@@ -17067,10 +17209,10 @@ export interface components {
         ItemsFromSrc: "url" | "files" | "path" | "ftp_import" | "server_dir";
         /** JavascriptRequirement */
         JavascriptRequirement: {
-            /** Expression Lib */
+            /** expression_lib */
             expression_lib: string[] | null;
             /**
-             * Type
+             * type
              * @constant
              */
             type: "javascript";
@@ -17475,14 +17617,6 @@ export interface components {
         };
         /** JobRequest */
         JobRequest: {
-            /** Credentials Context */
-            credentials_context?:
-                | {
-                      [key: string]: unknown;
-                  }[]
-                | null;
-            /** Data Manager Mode */
-            data_manager_mode?: string | null;
             /**
              * history_id
              * @description TODO
@@ -17495,8 +17629,6 @@ export interface components {
             inputs?: {
                 [key: string]: unknown;
             } | null;
-            /** Preferred Object Store ID */
-            preferred_object_store_id?: string | null;
             /**
              * rerun_remap_job_id
              * @description TODO
@@ -17514,8 +17646,6 @@ export interface components {
              * @default true
              */
             strict: boolean;
-            /** Tags */
-            tags?: string[] | null;
             /**
              * tool_id
              * @description TODO
@@ -18842,6 +18972,30 @@ export interface components {
              */
             file_type: string;
         };
+        /** Metric */
+        Metric: {
+            /**
+             * Arguments
+             * @description A JSON string containing an array of extra data.
+             */
+            args: string;
+            /**
+             * Level
+             * @description An integer representing the metric's log level.
+             */
+            level: number;
+            /**
+             * Namespace
+             * @description Label indicating the source of the metric.
+             */
+            namespace: string;
+            /**
+             * Timestamp
+             * @description The timestamp in ISO format.
+             * @example 2021-01-23T18:25:43.511Z
+             */
+            time: string;
+        };
         /**
          * ModelStoreFormat
          * @description Available types of model stores for export.
@@ -19395,11 +19549,6 @@ export interface components {
              */
             url: string;
         };
-        /**
-         * OutputCompareType
-         * @enum {string}
-         */
-        OutputCompareType: "diff" | "re_match" | "sim_size" | "re_match_multiline" | "contains" | "image_diff";
         /** OutputReferenceByLabel */
         OutputReferenceByLabel: {
             /**
@@ -20554,7 +20703,7 @@ export interface components {
             /** Dry Run */
             dry_run: boolean;
             /** Workflow */
-            workflow: unknown;
+            workflow: string;
         };
         /** RegexJobMessage */
         RegexJobMessage: {
@@ -20710,54 +20859,54 @@ export interface components {
             action_type: "remove_unlabeled_workflow_outputs";
         };
         /** RepeatParameterModel */
-        RepeatParameterModel: {
+        "RepeatParameterModel-Input": {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
-            /** Max */
+            /** max */
             max?: number | null;
-            /** Min */
+            /** min */
             min?: number | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_repeat
              * @constant
              */
             parameter_type: "gx_repeat";
-            /** Parameters */
+            /** parameters */
             parameters: (
                 | components["schemas"]["CwlIntegerParameterModel"]
                 | components["schemas"]["CwlFloatParameterModel"]
@@ -20766,7 +20915,7 @@ export interface components {
                 | components["schemas"]["CwlNullParameterModel"]
                 | components["schemas"]["CwlFileParameterModel"]
                 | components["schemas"]["CwlDirectoryParameterModel"]
-                | components["schemas"]["CwlUnionParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Input"]
                 | components["schemas"]["TextParameterModel"]
                 | components["schemas"]["IntegerParameterModel"]
                 | components["schemas"]["FloatParameterModel"]
@@ -20778,18 +20927,102 @@ export interface components {
                 | components["schemas"]["DataColumnParameterModel"]
                 | components["schemas"]["DirectoryUriParameterModel"]
                 | components["schemas"]["RulesParameterModel"]
-                | components["schemas"]["DrillDownParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Input"]
                 | components["schemas"]["GroupTagParameterModel"]
                 | components["schemas"]["BaseUrlParameterModel"]
                 | components["schemas"]["GenomeBuildParameterModel"]
                 | components["schemas"]["ColorParameterModel"]
-                | components["schemas"]["ConditionalParameterModel"]
-                | components["schemas"]["RepeatParameterModel"]
-                | components["schemas"]["SectionParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Input"]
+                | components["schemas"]["RepeatParameterModel-Input"]
+                | components["schemas"]["SectionParameterModel-Input"]
             )[];
             /**
-             * Type
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "repeat";
+        };
+        /** RepeatParameterModel */
+        "RepeatParameterModel-Output": {
+            /**
+             * argument
+             * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
+             */
+            argument?: string | null;
+            /**
+             * help
+             * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
+             */
+            help?: string | null;
+            /**
+             * hidden
+             * @default false
+             */
+            hidden: boolean;
+            /**
+             * is_dynamic
+             * @default false
+             */
+            is_dynamic: boolean;
+            /**
+             * label
+             * @description Will be displayed on the tool page as the label of the parameter.
+             */
+            label?: string | null;
+            /** max */
+            max?: number | null;
+            /** min */
+            min?: number | null;
+            /**
+             * name
+             * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
+             */
+            name: string;
+            /**
+             * optional
+             * @description If `false`, parameter must have a value.
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * parameter_type
+             * @default gx_repeat
              * @constant
+             */
+            parameter_type: "gx_repeat";
+            /** parameters */
+            parameters: (
+                | components["schemas"]["CwlIntegerParameterModel"]
+                | components["schemas"]["CwlFloatParameterModel"]
+                | components["schemas"]["CwlStringParameterModel"]
+                | components["schemas"]["CwlBooleanParameterModel"]
+                | components["schemas"]["CwlNullParameterModel"]
+                | components["schemas"]["CwlFileParameterModel"]
+                | components["schemas"]["CwlDirectoryParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Output"]
+                | components["schemas"]["TextParameterModel"]
+                | components["schemas"]["IntegerParameterModel"]
+                | components["schemas"]["FloatParameterModel"]
+                | components["schemas"]["BooleanParameterModel"]
+                | components["schemas"]["HiddenParameterModel"]
+                | components["schemas"]["SelectParameterModel"]
+                | components["schemas"]["DataParameterModel"]
+                | components["schemas"]["DataCollectionParameterModel"]
+                | components["schemas"]["DataColumnParameterModel"]
+                | components["schemas"]["DirectoryUriParameterModel"]
+                | components["schemas"]["RulesParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Output"]
+                | components["schemas"]["GroupTagParameterModel"]
+                | components["schemas"]["BaseUrlParameterModel"]
+                | components["schemas"]["GenomeBuildParameterModel"]
+                | components["schemas"]["ColorParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Output"]
+                | components["schemas"]["RepeatParameterModel-Output"]
+                | components["schemas"]["SectionParameterModel-Output"]
+            )[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "repeat";
         };
@@ -20859,56 +21092,56 @@ export interface components {
         /** ResourceRequirement */
         ResourceRequirement: {
             /**
-             * Cores Max
+             * cores_max
              * @description Maximum reserved number of CPU cores.
              *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              */
             cores_max?: number | null;
             /**
-             * Cores Min
+             * cores_min
              * @description Minimum reserved number of CPU cores.
              *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              * @default 1
              */
             cores_min: number | null;
-            /** Cuda Compute Capability */
+            /** cuda_compute_capability */
             cuda_compute_capability?: number | null;
-            /** Cuda Device Count Max */
+            /** cuda_device_count_max */
             cuda_device_count_max?: number | null;
-            /** Cuda Device Count Min */
+            /** cuda_device_count_min */
             cuda_device_count_min?: number | null;
-            /** Cuda Version Min */
+            /** cuda_version_min */
             cuda_version_min?: number | null;
-            /** Gpu Memory Min */
+            /** gpu_memory_min */
             gpu_memory_min?: number | null;
             /**
-             * Ram Max
+             * ram_max
              * @description Maximum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              */
             ram_max?: number | null;
             /**
-             * Ram Min
+             * ram_min
              * @description Minimum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              * @default 256
              */
             ram_min: number | null;
-            /** Shm Size */
+            /** shm_size */
             shm_size?: number | null;
             /**
-             * Timelimit
+             * timelimit
              * @description Maximum time in seconds the tool is allowed to run. Job will be terminated if exceeded.
              */
             timelimit?: number | null;
-            /** Tmpdir Max */
+            /** tmpdir_max */
             tmpdir_max?: number | null;
-            /** Tmpdir Min */
+            /** tmpdir_min */
             tmpdir_min?: number | null;
             /**
-             * Type
+             * type
              * @constant
              */
             type: "resource";
@@ -20984,50 +21217,50 @@ export interface components {
         /** RulesParameterModel */
         RulesParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_rules
              * @constant
              */
             parameter_type: "gx_rules";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "rules";
         };
@@ -21251,50 +21484,50 @@ export interface components {
             name: string;
         };
         /** SectionParameterModel */
-        SectionParameterModel: {
+        "SectionParameterModel-Input": {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_section
              * @constant
              */
             parameter_type: "gx_section";
-            /** Parameters */
+            /** parameters */
             parameters: (
                 | components["schemas"]["CwlIntegerParameterModel"]
                 | components["schemas"]["CwlFloatParameterModel"]
@@ -21303,7 +21536,7 @@ export interface components {
                 | components["schemas"]["CwlNullParameterModel"]
                 | components["schemas"]["CwlFileParameterModel"]
                 | components["schemas"]["CwlDirectoryParameterModel"]
-                | components["schemas"]["CwlUnionParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Input"]
                 | components["schemas"]["TextParameterModel"]
                 | components["schemas"]["IntegerParameterModel"]
                 | components["schemas"]["FloatParameterModel"]
@@ -21315,18 +21548,98 @@ export interface components {
                 | components["schemas"]["DataColumnParameterModel"]
                 | components["schemas"]["DirectoryUriParameterModel"]
                 | components["schemas"]["RulesParameterModel"]
-                | components["schemas"]["DrillDownParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Input"]
                 | components["schemas"]["GroupTagParameterModel"]
                 | components["schemas"]["BaseUrlParameterModel"]
                 | components["schemas"]["GenomeBuildParameterModel"]
                 | components["schemas"]["ColorParameterModel"]
-                | components["schemas"]["ConditionalParameterModel"]
-                | components["schemas"]["RepeatParameterModel"]
-                | components["schemas"]["SectionParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Input"]
+                | components["schemas"]["RepeatParameterModel-Input"]
+                | components["schemas"]["SectionParameterModel-Input"]
             )[];
             /**
-             * Type
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "section";
+        };
+        /** SectionParameterModel */
+        "SectionParameterModel-Output": {
+            /**
+             * argument
+             * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
+             */
+            argument?: string | null;
+            /**
+             * help
+             * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
+             */
+            help?: string | null;
+            /**
+             * hidden
+             * @default false
+             */
+            hidden: boolean;
+            /**
+             * is_dynamic
+             * @default false
+             */
+            is_dynamic: boolean;
+            /**
+             * label
+             * @description Will be displayed on the tool page as the label of the parameter.
+             */
+            label?: string | null;
+            /**
+             * name
+             * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
+             */
+            name: string;
+            /**
+             * optional
+             * @description If `false`, parameter must have a value.
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * parameter_type
+             * @default gx_section
              * @constant
+             */
+            parameter_type: "gx_section";
+            /** parameters */
+            parameters: (
+                | components["schemas"]["CwlIntegerParameterModel"]
+                | components["schemas"]["CwlFloatParameterModel"]
+                | components["schemas"]["CwlStringParameterModel"]
+                | components["schemas"]["CwlBooleanParameterModel"]
+                | components["schemas"]["CwlNullParameterModel"]
+                | components["schemas"]["CwlFileParameterModel"]
+                | components["schemas"]["CwlDirectoryParameterModel"]
+                | components["schemas"]["CwlUnionParameterModel-Output"]
+                | components["schemas"]["TextParameterModel"]
+                | components["schemas"]["IntegerParameterModel"]
+                | components["schemas"]["FloatParameterModel"]
+                | components["schemas"]["BooleanParameterModel"]
+                | components["schemas"]["HiddenParameterModel"]
+                | components["schemas"]["SelectParameterModel"]
+                | components["schemas"]["DataParameterModel"]
+                | components["schemas"]["DataCollectionParameterModel"]
+                | components["schemas"]["DataColumnParameterModel"]
+                | components["schemas"]["DirectoryUriParameterModel"]
+                | components["schemas"]["RulesParameterModel"]
+                | components["schemas"]["DrillDownParameterModel-Output"]
+                | components["schemas"]["GroupTagParameterModel"]
+                | components["schemas"]["BaseUrlParameterModel"]
+                | components["schemas"]["GenomeBuildParameterModel"]
+                | components["schemas"]["ColorParameterModel"]
+                | components["schemas"]["ConditionalParameterModel-Output"]
+                | components["schemas"]["RepeatParameterModel-Output"]
+                | components["schemas"]["SectionParameterModel-Output"]
+            )[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "section";
         };
@@ -21347,61 +21660,61 @@ export interface components {
         /** SelectParameterModel */
         SelectParameterModel: {
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Multiple
+             * multiple
              * @default false
              */
             multiple: boolean;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
-            /** Options */
+            /** options */
             options?: components["schemas"]["LabelValue"][] | null;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_select
              * @constant
              */
             parameter_type: "gx_select";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "select";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: components["schemas"]["NoOptionsParameterValidatorModel"][];
@@ -22700,8 +23013,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Multiline */
-            multiline?: boolean | null;
             /** Name */
             name: string;
             /** Optional */
@@ -22715,8 +23026,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Multiline */
-            multiline?: boolean | null;
             /** Name */
             name: string;
             /** Optional */
@@ -22743,8 +23052,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Multiline */
-            multiline?: boolean | null;
             /** Name */
             name: string;
             /** Optional */
@@ -22771,8 +23078,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Multiline */
-            multiline?: boolean | null;
             /** Name */
             name: string;
             /** Optional */
@@ -22799,8 +23104,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Multiline */
-            multiline?: boolean | null;
             /** Name */
             name: string;
             /** Optional */
@@ -22818,410 +23121,6 @@ export interface components {
                       | components["schemas"]["LengthParameterValidatorModel"]
                   )[]
                 | null;
-        };
-        /** TestCollectionCollectionElementAssertions */
-        "TestCollectionCollectionElementAssertions-Input": {
-            /**
-             * Class
-             * @default Collection
-             */
-            class: "Collection" | null;
-            /** Element Tests */
-            element_tests?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Input"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Input"];
-            } | null;
-            /** Elements */
-            elements?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Input"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Input"];
-            } | null;
-        };
-        /** TestCollectionCollectionElementAssertions */
-        "TestCollectionCollectionElementAssertions-Output": {
-            /**
-             * Class
-             * @default Collection
-             */
-            class: "Collection" | null;
-            /** Element Tests */
-            element_tests?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Output"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Output"];
-            } | null;
-            /** Elements */
-            elements?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Output"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Output"];
-            } | null;
-        };
-        /** TestCollectionDatasetElementAssertions */
-        "TestCollectionDatasetElementAssertions-Input": {
-            /**
-             * Asserts
-             * @description Assertions about the content of the output.
-             */
-            asserts?:
-                | components["schemas"]["assertion_list-Input"]
-                | components["schemas"]["assertion_dict-Input"]
-                | null;
-            /**
-             * Checksum
-             * @description The target output's checksum should match the value specified here, in the form `hash_type$hash_value` (e.g. `sha1$8156d7ca0f46ed7abac98f82e36cfaddb2aca041`). Useful for large static files where uploading the whole file is inconvenient.
-             */
-            checksum?: string | null;
-            /**
-             * Class
-             * @default File
-             */
-            class: "File" | null;
-            /**
-             * Compare
-             * @description Comparison mode used when matching the output against the reference file.
-             */
-            compare?: components["schemas"]["OutputCompareType"] | null;
-            /**
-             * Decompress
-             * @description If true, decompress files before comparison. Applies to assertions expressed with `assert_contents` or `compare` set to anything but `sim_size`. Useful for testing compressed outputs that are non-deterministic despite having deterministic decompressed contents. By default, only files compressed with bz2, gzip and zip are automatically decompressed.
-             */
-            decompress?: boolean | null;
-            /**
-             * Delta
-             * @description If `compare` is set to `sim_size`, the maximum allowed absolute size difference (in bytes) between the generated data set and the reference file in `test-data/`. Default is 10000 bytes. Can be combined with `delta_frac`.
-             */
-            delta?: number | null;
-            /**
-             * Delta Frac
-             * @description If `compare` is set to `sim_size`, the maximum allowed relative size difference between the generated data set and the reference file in `test-data/`. 0.1 means the generated file can differ by at most 10%. Default is not to check for relative size difference. Can be combined with `delta`.
-             */
-            delta_frac?: number | null;
-            /**
-             * File
-             * @description Name of the output file stored in the target `test-data` directory that will be used to compare against the results of executing the tool via the functional test framework.
-             */
-            file?: string | null;
-            /**
-             * File Type
-             * @description If specified, this value is checked against the corresponding output's data type. If these do not match, the test will fail.
-             */
-            ftype?: string | null;
-            /**
-             * Lines Diff
-             * @description Applies when `compare` is set to `diff`, `re_match`, or `contains`. For `diff`, the number of lines of difference to allow (a modified line counts as two: one added, one removed).
-             */
-            lines_diff?: number | null;
-            /**
-             * Location
-             * @description URL that points to a remote output file that will be downloaded and used for output comparison. Use only when the file cannot be included in the `test-data` folder. May be combined with `file` (downloads when missing on disk) or used alone (filename inferred from the URL). A `checksum` is also used to verify the download when provided.
-             */
-            location?: string | null;
-            /**
-             * Metadata
-             * @description Mapping of metadata keys to expected values for this output.
-             */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Path
-             * @description Filesystem path to a local output file used for comparison.
-             */
-            path?: string | null;
-            /**
-             * Sort
-             * @description Applies only if `compare` is `diff`, `re_match` or `re_match_multiline`. Sorts the lines of the history data set before comparison; for `diff` and `re_match` the local file is also sorted. Useful for non-deterministic output.
-             */
-            sort?: boolean | null;
-        };
-        /** TestCollectionDatasetElementAssertions */
-        "TestCollectionDatasetElementAssertions-Output": {
-            /**
-             * Asserts
-             * @description Assertions about the content of the output.
-             */
-            asserts?:
-                | components["schemas"]["assertion_list-Output"]
-                | components["schemas"]["assertion_dict-Output"]
-                | null;
-            /**
-             * Checksum
-             * @description The target output's checksum should match the value specified here, in the form `hash_type$hash_value` (e.g. `sha1$8156d7ca0f46ed7abac98f82e36cfaddb2aca041`). Useful for large static files where uploading the whole file is inconvenient.
-             */
-            checksum?: string | null;
-            /**
-             * Class
-             * @default File
-             */
-            class: "File" | null;
-            /**
-             * Compare
-             * @description Comparison mode used when matching the output against the reference file.
-             */
-            compare?: components["schemas"]["OutputCompareType"] | null;
-            /**
-             * Decompress
-             * @description If true, decompress files before comparison. Applies to assertions expressed with `assert_contents` or `compare` set to anything but `sim_size`. Useful for testing compressed outputs that are non-deterministic despite having deterministic decompressed contents. By default, only files compressed with bz2, gzip and zip are automatically decompressed.
-             */
-            decompress?: boolean | null;
-            /**
-             * Delta
-             * @description If `compare` is set to `sim_size`, the maximum allowed absolute size difference (in bytes) between the generated data set and the reference file in `test-data/`. Default is 10000 bytes. Can be combined with `delta_frac`.
-             */
-            delta?: number | null;
-            /**
-             * Delta Frac
-             * @description If `compare` is set to `sim_size`, the maximum allowed relative size difference between the generated data set and the reference file in `test-data/`. 0.1 means the generated file can differ by at most 10%. Default is not to check for relative size difference. Can be combined with `delta`.
-             */
-            delta_frac?: number | null;
-            /**
-             * File
-             * @description Name of the output file stored in the target `test-data` directory that will be used to compare against the results of executing the tool via the functional test framework.
-             */
-            file?: string | null;
-            /**
-             * File Type
-             * @description If specified, this value is checked against the corresponding output's data type. If these do not match, the test will fail.
-             */
-            ftype?: string | null;
-            /**
-             * Lines Diff
-             * @description Applies when `compare` is set to `diff`, `re_match`, or `contains`. For `diff`, the number of lines of difference to allow (a modified line counts as two: one added, one removed).
-             */
-            lines_diff?: number | null;
-            /**
-             * Location
-             * @description URL that points to a remote output file that will be downloaded and used for output comparison. Use only when the file cannot be included in the `test-data` folder. May be combined with `file` (downloads when missing on disk) or used alone (filename inferred from the URL). A `checksum` is also used to verify the download when provided.
-             */
-            location?: string | null;
-            /**
-             * Metadata
-             * @description Mapping of metadata keys to expected values for this output.
-             */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Path
-             * @description Filesystem path to a local output file used for comparison.
-             */
-            path?: string | null;
-            /**
-             * Sort
-             * @description Applies only if `compare` is `diff`, `re_match` or `re_match_multiline`. Sorts the lines of the history data set before comparison; for `diff` and `re_match` the local file is also sorted. Useful for non-deterministic output.
-             */
-            sort?: boolean | null;
-        };
-        /** TestCollectionOutputAssertions */
-        "TestCollectionOutputAssertions-Input": {
-            /** Attributes */
-            attributes?: components["schemas"]["CollectionAttributes"] | null;
-            /**
-             * Class
-             * @default Collection
-             */
-            class: "Collection" | null;
-            /** Collection Type */
-            collection_type?: string | null;
-            /** Element Count */
-            element_count?: number | null;
-            /** Element Tests */
-            element_tests?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Input"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Input"];
-            } | null;
-            /** Elements */
-            elements?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Input"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Input"];
-            } | null;
-        };
-        /** TestCollectionOutputAssertions */
-        "TestCollectionOutputAssertions-Output": {
-            /** Attributes */
-            attributes?: components["schemas"]["CollectionAttributes"] | null;
-            /**
-             * Class
-             * @default Collection
-             */
-            class: "Collection" | null;
-            /** Collection Type */
-            collection_type?: string | null;
-            /** Element Count */
-            element_count?: number | null;
-            /** Element Tests */
-            element_tests?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Output"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Output"];
-            } | null;
-            /** Elements */
-            elements?: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionDatasetElementAssertions-Output"]
-                    | components["schemas"]["TestCollectionCollectionElementAssertions-Output"];
-            } | null;
-        };
-        /** TestDataOutputAssertions */
-        "TestDataOutputAssertions-Input": {
-            /**
-             * Asserts
-             * @description Assertions about the content of the output.
-             */
-            asserts?:
-                | components["schemas"]["assertion_list-Input"]
-                | components["schemas"]["assertion_dict-Input"]
-                | null;
-            /**
-             * Checksum
-             * @description The target output's checksum should match the value specified here, in the form `hash_type$hash_value` (e.g. `sha1$8156d7ca0f46ed7abac98f82e36cfaddb2aca041`). Useful for large static files where uploading the whole file is inconvenient.
-             */
-            checksum?: string | null;
-            /**
-             * Class
-             * @default File
-             */
-            class: "File" | null;
-            /**
-             * Compare
-             * @description Comparison mode used when matching the output against the reference file.
-             */
-            compare?: components["schemas"]["OutputCompareType"] | null;
-            /**
-             * Decompress
-             * @description If true, decompress files before comparison. Applies to assertions expressed with `assert_contents` or `compare` set to anything but `sim_size`. Useful for testing compressed outputs that are non-deterministic despite having deterministic decompressed contents. By default, only files compressed with bz2, gzip and zip are automatically decompressed.
-             */
-            decompress?: boolean | null;
-            /**
-             * Delta
-             * @description If `compare` is set to `sim_size`, the maximum allowed absolute size difference (in bytes) between the generated data set and the reference file in `test-data/`. Default is 10000 bytes. Can be combined with `delta_frac`.
-             */
-            delta?: number | null;
-            /**
-             * Delta Frac
-             * @description If `compare` is set to `sim_size`, the maximum allowed relative size difference between the generated data set and the reference file in `test-data/`. 0.1 means the generated file can differ by at most 10%. Default is not to check for relative size difference. Can be combined with `delta`.
-             */
-            delta_frac?: number | null;
-            /**
-             * File
-             * @description Name of the output file stored in the target `test-data` directory that will be used to compare against the results of executing the tool via the functional test framework.
-             */
-            file?: string | null;
-            /**
-             * File Type
-             * @description If specified, this value is checked against the corresponding output's data type. If these do not match, the test will fail.
-             */
-            ftype?: string | null;
-            /**
-             * Lines Diff
-             * @description Applies when `compare` is set to `diff`, `re_match`, or `contains`. For `diff`, the number of lines of difference to allow (a modified line counts as two: one added, one removed).
-             */
-            lines_diff?: number | null;
-            /**
-             * Location
-             * @description URL that points to a remote output file that will be downloaded and used for output comparison. Use only when the file cannot be included in the `test-data` folder. May be combined with `file` (downloads when missing on disk) or used alone (filename inferred from the URL). A `checksum` is also used to verify the download when provided.
-             */
-            location?: string | null;
-            /**
-             * Metadata
-             * @description Mapping of metadata keys to expected values for this output.
-             */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Path
-             * @description Filesystem path to a local output file used for comparison.
-             */
-            path?: string | null;
-            /**
-             * Sort
-             * @description Applies only if `compare` is `diff`, `re_match` or `re_match_multiline`. Sorts the lines of the history data set before comparison; for `diff` and `re_match` the local file is also sorted. Useful for non-deterministic output.
-             */
-            sort?: boolean | null;
-        };
-        /** TestDataOutputAssertions */
-        "TestDataOutputAssertions-Output": {
-            /**
-             * Asserts
-             * @description Assertions about the content of the output.
-             */
-            asserts?:
-                | components["schemas"]["assertion_list-Output"]
-                | components["schemas"]["assertion_dict-Output"]
-                | null;
-            /**
-             * Checksum
-             * @description The target output's checksum should match the value specified here, in the form `hash_type$hash_value` (e.g. `sha1$8156d7ca0f46ed7abac98f82e36cfaddb2aca041`). Useful for large static files where uploading the whole file is inconvenient.
-             */
-            checksum?: string | null;
-            /**
-             * Class
-             * @default File
-             */
-            class: "File" | null;
-            /**
-             * Compare
-             * @description Comparison mode used when matching the output against the reference file.
-             */
-            compare?: components["schemas"]["OutputCompareType"] | null;
-            /**
-             * Decompress
-             * @description If true, decompress files before comparison. Applies to assertions expressed with `assert_contents` or `compare` set to anything but `sim_size`. Useful for testing compressed outputs that are non-deterministic despite having deterministic decompressed contents. By default, only files compressed with bz2, gzip and zip are automatically decompressed.
-             */
-            decompress?: boolean | null;
-            /**
-             * Delta
-             * @description If `compare` is set to `sim_size`, the maximum allowed absolute size difference (in bytes) between the generated data set and the reference file in `test-data/`. Default is 10000 bytes. Can be combined with `delta_frac`.
-             */
-            delta?: number | null;
-            /**
-             * Delta Frac
-             * @description If `compare` is set to `sim_size`, the maximum allowed relative size difference between the generated data set and the reference file in `test-data/`. 0.1 means the generated file can differ by at most 10%. Default is not to check for relative size difference. Can be combined with `delta`.
-             */
-            delta_frac?: number | null;
-            /**
-             * File
-             * @description Name of the output file stored in the target `test-data` directory that will be used to compare against the results of executing the tool via the functional test framework.
-             */
-            file?: string | null;
-            /**
-             * File Type
-             * @description If specified, this value is checked against the corresponding output's data type. If these do not match, the test will fail.
-             */
-            ftype?: string | null;
-            /**
-             * Lines Diff
-             * @description Applies when `compare` is set to `diff`, `re_match`, or `contains`. For `diff`, the number of lines of difference to allow (a modified line counts as two: one added, one removed).
-             */
-            lines_diff?: number | null;
-            /**
-             * Location
-             * @description URL that points to a remote output file that will be downloaded and used for output comparison. Use only when the file cannot be included in the `test-data` folder. May be combined with `file` (downloads when missing on disk) or used alone (filename inferred from the URL). A `checksum` is also used to verify the download when provided.
-             */
-            location?: string | null;
-            /**
-             * Metadata
-             * @description Mapping of metadata keys to expected values for this output.
-             */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Path
-             * @description Filesystem path to a local output file used for comparison.
-             */
-            path?: string | null;
-            /**
-             * Sort
-             * @description Applies only if `compare` is `diff`, `re_match` or `re_match_multiline`. Sorts the lines of the history data set before comparison; for `diff` and `re_match` the local file is also sorted. Useful for non-deterministic output.
-             */
-            sort?: boolean | null;
         };
         /** TestUpdateInstancePayload */
         TestUpdateInstancePayload: {
@@ -23246,64 +23145,64 @@ export interface components {
         /** TextParameterModel */
         TextParameterModel: {
             /**
-             * Area
+             * area
              * @default false
              */
             area: boolean;
             /**
-             * Argument
+             * argument
              * @description If the parameter reflects just one command line argument of a certain tool, this tag should be set to that particular argument. It is rendered in parenthesis after the help section, and it will create the name attribute (if not given explicitly) from the argument attribute by stripping leading dashes and replacing all remaining dashes by underscores (e.g. if argument="--long-parameter" then name="long_parameter" is implicit).
              */
             argument?: string | null;
             /**
-             * Default Options
+             * default_options
              * @default []
              */
             default_options: components["schemas"]["LabelValue"][];
             /**
-             * Help
+             * help
              * @description Short bit of text, rendered on the tool form just below the associated field to provide information about the field.
              */
             help?: string | null;
             /**
-             * Hidden
+             * hidden
              * @default false
              */
             hidden: boolean;
             /**
-             * Is Dynamic
+             * is_dynamic
              * @default false
              */
             is_dynamic: boolean;
             /**
-             * Label
+             * label
              * @description Will be displayed on the tool page as the label of the parameter.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows or inside command templating.
              */
             name: string;
             /**
-             * Optional
+             * optional
              * @description If `false`, parameter must have a value.
              * @default false
              */
             optional: boolean;
             /**
-             * Parameter Type
+             * parameter_type
              * @default gx_text
              * @constant
              */
             parameter_type: "gx_text";
             /**
-             * Type
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             type: "text";
             /**
-             * Validators
+             * validators
              * @default []
              */
             validators: (
@@ -23312,7 +23211,7 @@ export interface components {
                 | components["schemas"]["ExpressionParameterValidatorModel"]
                 | components["schemas"]["EmptyFieldParameterValidatorModel"]
             )[];
-            /** Value */
+            /** default_value */
             value?: string | null;
         };
         /** ToolDataDetails */
@@ -23432,17 +23331,17 @@ export interface components {
         /** ToolOutputBoolean */
         ToolOutputBoolean: {
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden: unknown;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name: unknown;
@@ -23454,36 +23353,36 @@ export interface components {
         };
         /** ToolOutputCollectionStructure */
         ToolOutputCollectionStructure: {
-            /** Collection Type */
+            /** collection_type */
             collection_type?: string | null;
-            /** Collection Type From Rules */
+            /** collection_type_from_rules */
             collection_type_from_rules?: string | null;
-            /** Collection Type Source */
+            /** collection_type_source */
             collection_type_source?: string | null;
-            /** Discover Datasets */
+            /** discover_datasets */
             discover_datasets?:
                 | (
                       | components["schemas"]["FilePatternDatasetCollectionDescription"]
                       | components["schemas"]["ToolProvidedMetadataDatasetCollection"]
                   )[]
                 | null;
-            /** Structured Like */
+            /** structured_like */
             structured_like?: string | null;
         };
         /** ToolOutputFloat */
         ToolOutputFloat: {
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden: unknown;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name: unknown;
@@ -23496,17 +23395,17 @@ export interface components {
         /** ToolOutputInteger */
         ToolOutputInteger: {
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden: unknown;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name: unknown;
@@ -23519,17 +23418,17 @@ export interface components {
         /** ToolOutputText */
         ToolOutputText: {
             /**
-             * Hidden
+             * hidden
              * @description If true, the output will not be shown in the history.
              */
             hidden: unknown;
             /**
-             * Label
+             * label
              * @description Output label. Will be used as dataset name in history.
              */
             label?: string | null;
             /**
-             * Name
+             * name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name: unknown;
@@ -23541,22 +23440,22 @@ export interface components {
         };
         /** ToolProvidedMetadataDatasetCollection */
         ToolProvidedMetadataDatasetCollection: {
-            /** Assign Primary Output */
+            /** assign_primary_output */
             assign_primary_output: boolean;
-            /** Directory */
+            /** directory */
             directory: string | null;
             /**
-             * Discover Via
+             * discover_via
              * @constant
              */
             discover_via: "tool_provided_metadata";
-            /** Format */
+            /** format */
             format: string | null;
-            /** Match Relative Path */
+            /** match_relative_path */
             match_relative_path: boolean;
-            /** Recurse */
+            /** recurse */
             recurse: boolean;
-            /** Visible */
+            /** visible */
             visible: boolean;
         };
         /** ToolReportForDataset */
@@ -23603,7 +23502,8 @@ export interface components {
                 [key: string]: unknown;
             };
             state: components["schemas"]["ToolRequestState"];
-            state_message?: components["schemas"]["ToolRequestStateMessage"] | null;
+            /** State Message */
+            state_message: string | null;
         };
         /** ToolRequestImplicitCollectionReference */
         ToolRequestImplicitCollectionReference: {
@@ -23646,22 +23546,14 @@ export interface components {
                 [key: string]: unknown;
             };
             state: components["schemas"]["ToolRequestState"];
-            state_message?: components["schemas"]["ToolRequestStateMessage"] | null;
+            /** State Message */
+            state_message: string | null;
         };
         /**
          * ToolRequestState
          * @enum {string}
          */
         ToolRequestState: "new" | "submitted" | "failed";
-        /** ToolRequestStateMessage */
-        ToolRequestStateMessage: {
-            /** Err Data */
-            err_data?: {
-                [key: string]: unknown;
-            } | null;
-            /** Err Msg */
-            err_msg: string;
-        };
         /** ToolStep */
         ToolStep: {
             /**
@@ -23817,22 +23709,6 @@ export interface components {
              * @description Title displayed in the header of the step container
              */
             title?: string | null;
-        };
-        /** TruncationInfo */
-        TruncationInfo: {
-            /**
-             * Item Count Capped
-             * @default false
-             */
-            item_count_capped: boolean;
-            /**
-             * Scope Type
-             * @default recent
-             * @enum {string}
-             */
-            scope_type: "recent" | "seed_centered";
-            /** Seed In Scope */
-            seed_in_scope?: boolean | null;
         };
         /** UndeleteHistoriesPayload */
         UndeleteHistoriesPayload: {
@@ -24587,16 +24463,13 @@ export interface components {
                 | "webdav"
                 | "dropbox"
                 | "googledrive"
-                | "onedrive"
                 | "elabftw"
                 | "inveniordm"
                 | "zenodo"
                 | "rspace"
                 | "dataverse"
                 | "huggingface"
-                | "iiif"
-                | "omero"
-                | "ssh";
+                | "omero";
             /** Uri Root */
             uri_root: string;
             /**
@@ -24956,12 +24829,12 @@ export interface components {
              * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
              * @example my-cool-tool
              */
-            id?: string | null;
+            id: string;
             /**
              * inputs
              * @default []
              */
-            inputs: components["schemas"]["YamlGalaxyToolParameter-Input"][];
+            inputs: components["schemas"]["GalaxyToolParameterModel-Input"][];
             /**
              * license
              * @description A full URI or a a short [SPDX](https://spdx.org/licenses/) identifier for a license for this tool wrapper. The tool wrapper license can be independent of the underlying tool license. This license covers the tool yaml and associated scripts shipped with the tool.
@@ -24985,8 +24858,6 @@ export interface components {
                 | components["schemas"]["ToolOutputFloat"]
                 | components["schemas"]["ToolOutputBoolean"]
             )[];
-            /** profile */
-            profile?: number | null;
             /**
              * requirements
              * @description A list of requirements needed to execute this tool. These can be javascript expressions, resource requirements or container images.
@@ -25005,14 +24876,12 @@ export interface components {
              * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
              */
             shell_command: string;
-            /** tests */
-            tests?: components["schemas"]["YamlToolTest-Input"][] | null;
             /**
              * version
              * @description Version for the tool.
              * @example 0.1.0
              */
-            version?: string | null;
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
@@ -25055,12 +24924,12 @@ export interface components {
              * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
              * @example my-cool-tool
              */
-            id?: string | null;
+            id: string;
             /**
              * inputs
              * @default []
              */
-            inputs: components["schemas"]["YamlGalaxyToolParameter-Output"][];
+            inputs: components["schemas"]["GalaxyToolParameterModel-Output"][];
             /**
              * license
              * @description A full URI or a a short [SPDX](https://spdx.org/licenses/) identifier for a license for this tool wrapper. The tool wrapper license can be independent of the underlying tool license. This license covers the tool yaml and associated scripts shipped with the tool.
@@ -25084,8 +24953,6 @@ export interface components {
                 | components["schemas"]["ToolOutputFloat"]
                 | components["schemas"]["ToolOutputBoolean"]
             )[];
-            /** profile */
-            profile?: number | null;
             /**
              * requirements
              * @description A list of requirements needed to execute this tool. These can be javascript expressions, resource requirements or container images.
@@ -25104,14 +24971,12 @@ export interface components {
              * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
              */
             shell_command: string;
-            /** tests */
-            tests?: components["schemas"]["YamlToolTest-Output"][] | null;
             /**
              * version
              * @description Version for the tool.
              * @example 0.1.0
              */
-            version?: string | null;
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
@@ -25541,145 +25406,6 @@ export interface components {
              * @description An array of one or more acceptable engines versions for the `workflow_engine`
              */
             workflow_engine_version?: string[] | null;
-        };
-        /** WorkflowExtractionJob */
-        WorkflowExtractionJob: {
-            /**
-             * Checked
-             * @description Whether this job should be preselected for extraction (True if any outputs are not deleted).
-             */
-            checked: boolean;
-            /**
-             * ID
-             * @description Encoded job ID, or null for fake input dataset entries.
-             */
-            id: string | null;
-            /**
-             * Outputs
-             * @description The history items produced by this job.
-             */
-            outputs?: components["schemas"]["WorkflowExtractionOutput"][];
-            /**
-             * Step Type
-             * @description The role this job plays in the extracted workflow.
-             * @enum {string}
-             */
-            step_type: "tool" | "input_dataset" | "input_collection";
-            /**
-             * Tool ID
-             * @description The tool ID that created this job.
-             */
-            tool_id?: string | null;
-            /**
-             * Tool Name
-             * @description Human-readable name of the tool.
-             */
-            tool_name?: string | null;
-            /**
-             * Tool Version
-             * @description The tool version used by this job.
-             */
-            tool_version?: string | null;
-            /**
-             * Tool Version Warning
-             * @description Warning when the current tool version differs from the version used by this job.
-             */
-            tool_version_warning?: string | null;
-        };
-        /** WorkflowExtractionOutput */
-        WorkflowExtractionOutput: {
-            /**
-             * Deleted
-             * @description Whether this item has been deleted.
-             */
-            deleted: boolean;
-            /**
-             * HID
-             * @description The history item ID (position in history).
-             */
-            hid: number;
-            /**
-             * History Content Type
-             * @description Whether this is a dataset or dataset_collection.
-             */
-            history_content_type: components["schemas"]["HistoryContentType"];
-            /**
-             * ID
-             * @description Encoded ID of the history content item.
-             * @example 0123456789ABCDEF
-             */
-            id: string;
-            /**
-             * Name
-             * @description The name of the dataset or collection.
-             */
-            name: string;
-            /**
-             * State
-             * @description The state of the dataset or collection.
-             */
-            state: components["schemas"]["DatasetState"];
-        };
-        /** WorkflowExtractionPayload */
-        WorkflowExtractionPayload: {
-            /**
-             * Dataset Collection HIDs
-             * @description History item IDs (HIDs) of dataset collections to treat as workflow inputs.
-             */
-            dataset_collection_hids?: number[];
-            /**
-             * Dataset Collection Names
-             * @description Names for the input dataset collections, parallel to dataset_collection_hids.
-             */
-            dataset_collection_names?: string[];
-            /**
-             * Dataset HIDs
-             * @description History item IDs (HIDs) of datasets to treat as workflow inputs.
-             */
-            dataset_hids?: number[];
-            /**
-             * Dataset Names
-             * @description Names for the input datasets, parallel to dataset_hids.
-             */
-            dataset_names?: string[];
-            /**
-             * Job IDs
-             * @description Encoded IDs of compatible tool jobs to include as workflow steps.
-             */
-            job_ids?: string[];
-            /**
-             * Workflow Name
-             * @description The name for the extracted workflow.
-             */
-            workflow_name: string;
-        };
-        /** WorkflowExtractionResult */
-        WorkflowExtractionResult: {
-            /**
-             * Workflow ID
-             * @description The encoded ID of the newly created workflow.
-             * @example 0123456789ABCDEF
-             */
-            id: string;
-        };
-        /** WorkflowExtractionSummary */
-        WorkflowExtractionSummary: {
-            /**
-             * History ID
-             * @description The encoded ID of the history being extracted from.
-             * @example 0123456789ABCDEF
-             */
-            history_id: string;
-            /**
-             * Jobs
-             * @description Ordered list of jobs (and fake input entries) found in the history.
-             */
-            jobs?: components["schemas"]["WorkflowExtractionJob"][];
-            /**
-             * Warnings
-             * @description Any warnings generated during summarization (e.g. datasets still running).
-             */
-            warnings?: string[];
         };
         /** WorkflowInput */
         WorkflowInput: {
@@ -26119,11 +25845,6 @@ export interface components {
              */
             bco_override_xref?: components["schemas"]["XrefItem"][] | null;
             /**
-             * Ignore Errors
-             * @description Last resort. If True, skip serialization errors caused by missing provenance (e.g. orphan implicit collection job associations, null job param refs from older histories that pre-date collections) instead of failing. Exported data may be incomplete or corrupt.
-             */
-            ignore_errors?: boolean | null;
-            /**
              * Include deleted
              * @description Include file contents for deleted datasets (if include_files is True).
              * @default false
@@ -26154,11 +25875,6 @@ export interface components {
         };
         /** WriteStoreToPayload */
         WriteStoreToPayload: {
-            /**
-             * Ignore Errors
-             * @description Last resort. If True, skip serialization errors caused by missing provenance (e.g. orphan implicit collection job associations, null job param refs from older histories that pre-date collections) instead of failing. Exported data may be incomplete or corrupt.
-             */
-            ignore_errors?: boolean | null;
             /**
              * Include deleted
              * @description Include file contents for deleted datasets (if include_files is True).
@@ -26221,3953 +25937,20 @@ export interface components {
              */
             namespace: string;
         };
-        /** YamlBooleanParameter */
-        YamlBooleanParameter: {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "boolean";
-            /**
-             * Value
-             * @default false
-             */
-            value: boolean | null;
-        };
-        /** YamlColorParameter */
-        YamlColorParameter: {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "color";
-            /** Value */
-            value?: string | null;
-        };
-        /** YamlConditionalParameter */
-        "YamlConditionalParameter-Input": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /** Test Parameter */
-            test_parameter:
-                | components["schemas"]["YamlBooleanParameter"]
-                | components["schemas"]["YamlSelectParameter"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "conditional";
-            /** Whens */
-            whens: components["schemas"]["YamlConditionalWhen-Input"][];
-        };
-        /** YamlConditionalParameter */
-        "YamlConditionalParameter-Output": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /** Test Parameter */
-            test_parameter:
-                | components["schemas"]["YamlBooleanParameter"]
-                | components["schemas"]["YamlSelectParameter"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "conditional";
-            /** Whens */
-            whens: components["schemas"]["YamlConditionalWhen-Output"][];
-        };
-        /** YamlConditionalWhen */
-        "YamlConditionalWhen-Input": {
-            /** Discriminator */
-            discriminator: boolean | string;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Input"][];
-        };
-        /** YamlConditionalWhen */
-        "YamlConditionalWhen-Output": {
-            /** Discriminator */
-            discriminator: boolean | string;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Output"][];
-        };
-        /** YamlDataCollectionParameter */
-        YamlDataCollectionParameter: {
-            /** Collection Type */
-            collection_type?: string | null;
-            /**
-             * Format
-             * @default [
-             *       "data"
-             *     ]
-             */
-            format: string[];
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "data_collection";
-        };
-        /** YamlDataParameter */
-        YamlDataParameter: {
-            /**
-             * Format
-             * @default [
-             *       "data"
-             *     ]
-             */
-            format: string[];
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
-            /**
-             * Multiple
-             * @default false
-             */
-            multiple: boolean;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "data";
-        };
-        /** YamlFloatParameter */
-        YamlFloatParameter: {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "float";
-            /**
-             * Validators
-             * @default []
-             */
-            validators: components["schemas"]["InRangeParameterValidatorModel"][];
-            /** Value */
-            value?: number | null;
-        };
-        /** YamlGalaxyToolParameter */
-        "YamlGalaxyToolParameter-Input":
-            | components["schemas"]["YamlBooleanParameter"]
-            | components["schemas"]["YamlIntegerParameter"]
-            | components["schemas"]["YamlFloatParameter"]
-            | components["schemas"]["YamlTextParameter"]
-            | components["schemas"]["YamlSelectParameter"]
-            | components["schemas"]["YamlColorParameter"]
-            | components["schemas"]["YamlDataParameter"]
-            | components["schemas"]["YamlDataCollectionParameter"]
-            | components["schemas"]["YamlConditionalParameter-Input"]
-            | components["schemas"]["YamlRepeatParameter-Input"]
-            | components["schemas"]["YamlSectionParameter-Input"];
-        /** YamlGalaxyToolParameter */
-        "YamlGalaxyToolParameter-Output":
-            | components["schemas"]["YamlBooleanParameter"]
-            | components["schemas"]["YamlIntegerParameter"]
-            | components["schemas"]["YamlFloatParameter"]
-            | components["schemas"]["YamlTextParameter"]
-            | components["schemas"]["YamlSelectParameter"]
-            | components["schemas"]["YamlColorParameter"]
-            | components["schemas"]["YamlDataParameter"]
-            | components["schemas"]["YamlDataCollectionParameter"]
-            | components["schemas"]["YamlConditionalParameter-Output"]
-            | components["schemas"]["YamlRepeatParameter-Output"]
-            | components["schemas"]["YamlSectionParameter-Output"];
-        /** YamlIntegerParameter */
-        YamlIntegerParameter: {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "integer";
-            /**
-             * Validators
-             * @default []
-             */
-            validators: components["schemas"]["InRangeParameterValidatorModel"][];
-            /** Value */
-            value?: number | null;
-        };
-        /**
-         * YamlLabelValue
-         * @description YAML-friendly option model — ``selected`` defaults to ``False``.
-         */
-        YamlLabelValue: {
-            /** Label */
-            label: string;
-            /**
-             * Selected
-             * @default false
-             */
-            selected: boolean;
-            /** Value */
-            value: string;
-        };
-        /** YamlRepeatParameter */
-        "YamlRepeatParameter-Input": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Input"][];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "repeat";
-        };
-        /** YamlRepeatParameter */
-        "YamlRepeatParameter-Output": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Output"][];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "repeat";
-        };
-        /** YamlSectionParameter */
-        "YamlSectionParameter-Input": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Input"][];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "section";
-        };
-        /** YamlSectionParameter */
-        "YamlSectionParameter-Output": {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * Parameters
-             * @default []
-             */
-            parameters: components["schemas"]["YamlGalaxyToolParameter-Output"][];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "section";
-        };
-        /** YamlSelectParameter */
-        YamlSelectParameter: {
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /**
-             * Multiple
-             * @default false
-             */
-            multiple: boolean;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /** Options */
-            options: components["schemas"]["YamlLabelValue"][];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "select";
-            /**
-             * Validators
-             * @default []
-             */
-            validators: components["schemas"]["NoOptionsParameterValidatorModel"][];
-        };
         /** YamlTemplateConfigFile */
         YamlTemplateConfigFile: {
-            /** Content */
+            /** content */
             content: string;
             /**
-             * Eval Engine
+             * eval_engine
              * @default ecmascript
              * @constant
              */
             eval_engine: "ecmascript";
-            /** Filename */
+            /** filename */
             filename?: string | null;
-            /** Name */
+            /** name */
             name?: string | null;
-        };
-        /** YamlTestCredential */
-        YamlTestCredential: {
-            /**
-             * Name
-             * @description Name of the credentials group.
-             */
-            name: string;
-            /**
-             * Secrets
-             * @description Secrets exposed to the tool environment.
-             * @default []
-             */
-            secrets: components["schemas"]["YamlTestCredentialValue"][];
-            /**
-             * Variables
-             * @description Variables exposed to the tool environment.
-             * @default []
-             */
-            variables: components["schemas"]["YamlTestCredentialValue"][];
-            /**
-             * Version
-             * @description Version of the credential definition.
-             */
-            version?: string | null;
-        };
-        /** YamlTestCredentialValue */
-        YamlTestCredentialValue: {
-            /**
-             * Name
-             * @description Name of the credential variable or secret.
-             */
-            name: string;
-            /**
-             * Value
-             * @description Value of the credential variable or secret.
-             */
-            value: string;
-        };
-        /** YamlTextParameter */
-        YamlTextParameter: {
-            /**
-             * Area
-             * @default false
-             */
-            area: boolean;
-            /** Help */
-            help?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Name */
-            name: string;
-            /**
-             * Optional
-             * @default false
-             */
-            optional: boolean;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "text";
-            /**
-             * Validators
-             * @default []
-             */
-            validators: (
-                | components["schemas"]["LengthParameterValidatorModel"]
-                | components["schemas"]["RegexParameterValidatorModel"]
-                | components["schemas"]["EmptyFieldParameterValidatorModel"]
-            )[];
-            /** Value */
-            value?: string | null;
-        };
-        /** YamlToolSource */
-        YamlToolSource: {
-            /** citations */
-            citations?: components["schemas"]["Citation"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            class: "GalaxyTool";
-            /**
-             * configfiles
-             * @description A list of config files for this tool.
-             */
-            configfiles?: components["schemas"]["YamlTemplateConfigFile"][] | null;
-            /**
-             * container
-             * @description Container image to use for this tool.
-             * @example quay.io/biocontainers/python:3.13
-             */
-            container?: string | null;
-            /**
-             * description
-             * @description The description is displayed in the tool menu immediately following the hyperlink for the tool.
-             */
-            description?: string | null;
-            /** edam_operations */
-            edam_operations?: string[] | null;
-            /** edam_topics */
-            edam_topics?: string[] | null;
-            /**
-             * help
-             * @description Help text shown below the tool interface.
-             */
-            help?: components["schemas"]["HelpContent"] | null;
-            /**
-             * id
-             * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
-             * @example my-cool-tool
-             */
-            id?: string | null;
-            /**
-             * inputs
-             * @default []
-             */
-            inputs: components["schemas"]["YamlGalaxyToolParameter-Input"][];
-            /**
-             * license
-             * @description A full URI or a a short [SPDX](https://spdx.org/licenses/) identifier for a license for this tool wrapper. The tool wrapper license can be independent of the underlying tool license. This license covers the tool yaml and associated scripts shipped with the tool.
-             * @example MIT
-             */
-            license?: string | null;
-            /**
-             * name
-             * @description The name of the tool, displayed in the tool menu. This is not the same as the tool id, which is a unique identifier for the tool.
-             */
-            name: string;
-            /**
-             * outputs
-             * @default []
-             */
-            outputs: (
-                | components["schemas"]["IncomingToolOutputDataset"]
-                | components["schemas"]["IncomingToolOutputCollection"]
-                | components["schemas"]["ToolOutputText"]
-                | components["schemas"]["ToolOutputInteger"]
-                | components["schemas"]["ToolOutputFloat"]
-                | components["schemas"]["ToolOutputBoolean"]
-            )[];
-            /** profile */
-            profile?: number | null;
-            /**
-             * requirements
-             * @description A list of requirements needed to execute this tool. These can be javascript expressions, resource requirements or container images.
-             * @default []
-             */
-            requirements:
-                | (
-                      | components["schemas"]["JavascriptRequirement"]
-                      | components["schemas"]["ResourceRequirement"]
-                      | components["schemas"]["ContainerRequirement"]
-                  )[]
-                | null;
-            /**
-             * shell_command
-             * @description A string that contains the command to be executed. Parameters can be referenced inside $().
-             * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
-             */
-            shell_command: string;
-            /** tests */
-            tests?: components["schemas"]["YamlToolTest-Input"][] | null;
-            /**
-             * version
-             * @description Version for the tool.
-             * @example 0.1.0
-             */
-            version?: string | null;
-            /** xrefs */
-            xrefs?: components["schemas"]["XrefDict"][] | null;
-        };
-        /**
-         * YamlToolTest
-         * @description In-tool test case as authored in YAML tool fixtures.
-         */
-        "YamlToolTest-Input": {
-            /**
-             * Assert Stderr
-             * @description Assertions to apply against the tool's standard error.
-             */
-            assert_stderr?:
-                | components["schemas"]["assertion_list-Input"]
-                | components["schemas"]["assertion_dict-Input"]
-                | null;
-            /**
-             * Assert Stdout
-             * @description Assertions to apply against the tool's standard output.
-             */
-            assert_stdout?:
-                | components["schemas"]["assertion_list-Input"]
-                | components["schemas"]["assertion_dict-Input"]
-                | null;
-            /**
-             * Command
-             * @description Assertions to apply against the executed command line.
-             */
-            command?:
-                | components["schemas"]["assertion_list-Input"]
-                | components["schemas"]["assertion_dict-Input"]
-                | null;
-            /**
-             * Credentials
-             * @description Credentials to inject for this test case.
-             */
-            credentials?: components["schemas"]["YamlTestCredential"][] | null;
-            /**
-             * Doc
-             * @description Human-readable description of this test case.
-             */
-            doc?: string | null;
-            /**
-             * Expect Exit Code
-             * @description Expected process exit code.
-             */
-            expect_exit_code?: number | null;
-            /**
-             * Expect Failure
-             * @description If true, the tool is expected to produce an error.
-             */
-            expect_failure?: boolean | null;
-            /**
-             * Expect Test Failure
-             * @description If true, the test itself is expected to fail.
-             */
-            expect_test_failure?: boolean | null;
-            /**
-             * Inputs
-             * @description Mapping of input parameter names to test values.
-             */
-            inputs?: {
-                [key: string]:
-                    | boolean
-                    | number
-                    | string
-                    | unknown[]
-                    | {
-                          [key: string]: unknown;
-                      };
-            } | null;
-            /**
-             * Outputs
-             * @description Mapping of output names to expected values or assertions.
-             * @default {}
-             */
-            outputs: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionOutputAssertions-Input"]
-                    | components["schemas"]["TestDataOutputAssertions-Input"]
-                    | (boolean | number | string);
-            };
-        };
-        /**
-         * YamlToolTest
-         * @description In-tool test case as authored in YAML tool fixtures.
-         */
-        "YamlToolTest-Output": {
-            /**
-             * Assert Stderr
-             * @description Assertions to apply against the tool's standard error.
-             */
-            assert_stderr?:
-                | components["schemas"]["assertion_list-Output"]
-                | components["schemas"]["assertion_dict-Output"]
-                | null;
-            /**
-             * Assert Stdout
-             * @description Assertions to apply against the tool's standard output.
-             */
-            assert_stdout?:
-                | components["schemas"]["assertion_list-Output"]
-                | components["schemas"]["assertion_dict-Output"]
-                | null;
-            /**
-             * Command
-             * @description Assertions to apply against the executed command line.
-             */
-            command?:
-                | components["schemas"]["assertion_list-Output"]
-                | components["schemas"]["assertion_dict-Output"]
-                | null;
-            /**
-             * Credentials
-             * @description Credentials to inject for this test case.
-             */
-            credentials?: components["schemas"]["YamlTestCredential"][] | null;
-            /**
-             * Doc
-             * @description Human-readable description of this test case.
-             */
-            doc?: string | null;
-            /**
-             * Expect Exit Code
-             * @description Expected process exit code.
-             */
-            expect_exit_code?: number | null;
-            /**
-             * Expect Failure
-             * @description If true, the tool is expected to produce an error.
-             */
-            expect_failure?: boolean | null;
-            /**
-             * Expect Test Failure
-             * @description If true, the test itself is expected to fail.
-             */
-            expect_test_failure?: boolean | null;
-            /**
-             * Inputs
-             * @description Mapping of input parameter names to test values.
-             */
-            inputs?: {
-                [key: string]:
-                    | boolean
-                    | number
-                    | string
-                    | unknown[]
-                    | {
-                          [key: string]: unknown;
-                      };
-            } | null;
-            /**
-             * Outputs
-             * @description Mapping of output names to expected values or assertions.
-             * @default {}
-             */
-            outputs: {
-                [key: string]:
-                    | components["schemas"]["TestCollectionOutputAssertions-Output"]
-                    | components["schemas"]["TestDataOutputAssertions-Output"]
-                    | (boolean | number | string);
-            };
-        };
-        /** assertion_dict */
-        "assertion_dict-Input": {
-            /** Assert Attribute Is */
-            attribute_is?: components["schemas"]["base_attribute_is_model"] | null;
-            /** Assert Attribute Matches */
-            attribute_matches?: components["schemas"]["base_attribute_matches_model"] | null;
-            /** Assert Element Text */
-            element_text?: components["schemas"]["base_element_text_model-Input"] | null;
-            /** Assert Element Text Is */
-            element_text_is?: components["schemas"]["base_element_text_is_model"] | null;
-            /** Assert Element Text Matches */
-            element_text_matches?: components["schemas"]["base_element_text_matches_model"] | null;
-            /** Assert Has Archive Member */
-            has_archive_member?: components["schemas"]["base_has_archive_member_model-Input"] | null;
-            /** Assert Has Element With Path */
-            has_element_with_path?: components["schemas"]["base_has_element_with_path_model"] | null;
-            /** Assert Has H5 Attribute */
-            has_h5_attribute?: components["schemas"]["base_has_h5_attribute_model"] | null;
-            /** Assert Has H5 Keys */
-            has_h5_keys?: components["schemas"]["base_has_h5_keys_model"] | null;
-            /** Assert Has Image Center Of Mass */
-            has_image_center_of_mass?: components["schemas"]["base_has_image_center_of_mass_model"] | null;
-            /** Assert Has Image Channels */
-            has_image_channels?: components["schemas"]["base_has_image_channels_model"] | null;
-            /** Assert Has Image Depth */
-            has_image_depth?: components["schemas"]["base_has_image_depth_model"] | null;
-            /** Assert Has Image Frames */
-            has_image_frames?: components["schemas"]["base_has_image_frames_model"] | null;
-            /** Assert Has Image Height */
-            has_image_height?: components["schemas"]["base_has_image_height_model"] | null;
-            /** Assert Has Image Mean Intensity */
-            has_image_mean_intensity?: components["schemas"]["base_has_image_mean_intensity_model"] | null;
-            /** Assert Has Image Mean Object Size */
-            has_image_mean_object_size?: components["schemas"]["base_has_image_mean_object_size_model"] | null;
-            /** Assert Has Image N Labels */
-            has_image_n_labels?: components["schemas"]["base_has_image_n_labels_model"] | null;
-            /** Assert Has Image Width */
-            has_image_width?: components["schemas"]["base_has_image_width_model"] | null;
-            /** Assert Has Json Property With Text */
-            has_json_property_with_text?: components["schemas"]["base_has_json_property_with_text_model"] | null;
-            /** Assert Has Json Property With Value */
-            has_json_property_with_value?: components["schemas"]["base_has_json_property_with_value_model"] | null;
-            /** Assert Has Line */
-            has_line?: components["schemas"]["base_has_line_model"] | null;
-            /** Assert Has Line Matching */
-            has_line_matching?: components["schemas"]["base_has_line_matching_model"] | null;
-            /** Assert Has N Columns */
-            has_n_columns?: components["schemas"]["base_has_n_columns_model"] | null;
-            /** Assert Has N Elements With Path */
-            has_n_elements_with_path?: components["schemas"]["base_has_n_elements_with_path_model"] | null;
-            /** Assert Has N Lines */
-            has_n_lines?: components["schemas"]["base_has_n_lines_model"] | null;
-            /** Assert Has Size */
-            has_size?: components["schemas"]["base_has_size_model"] | null;
-            /** Assert Has Text */
-            has_text?: components["schemas"]["base_has_text_model"] | null;
-            /** Assert Has Text Matching */
-            has_text_matching?: components["schemas"]["base_has_text_matching_model"] | null;
-            /** Assert Is Valid Xml */
-            is_valid_xml?: components["schemas"]["base_is_valid_xml_model"] | null;
-            /** Assert Not Has Text */
-            not_has_text?: components["schemas"]["base_not_has_text_model"] | null;
-            /** Assert Xml Element */
-            xml_element?: components["schemas"]["base_xml_element_model-Input"] | null;
-        };
-        /** assertion_dict */
-        "assertion_dict-Output": {
-            /** Assert Attribute Is */
-            attribute_is?: components["schemas"]["base_attribute_is_model"] | null;
-            /** Assert Attribute Matches */
-            attribute_matches?: components["schemas"]["base_attribute_matches_model"] | null;
-            /** Assert Element Text */
-            element_text?: components["schemas"]["base_element_text_model-Output"] | null;
-            /** Assert Element Text Is */
-            element_text_is?: components["schemas"]["base_element_text_is_model"] | null;
-            /** Assert Element Text Matches */
-            element_text_matches?: components["schemas"]["base_element_text_matches_model"] | null;
-            /** Assert Has Archive Member */
-            has_archive_member?: components["schemas"]["base_has_archive_member_model-Output"] | null;
-            /** Assert Has Element With Path */
-            has_element_with_path?: components["schemas"]["base_has_element_with_path_model"] | null;
-            /** Assert Has H5 Attribute */
-            has_h5_attribute?: components["schemas"]["base_has_h5_attribute_model"] | null;
-            /** Assert Has H5 Keys */
-            has_h5_keys?: components["schemas"]["base_has_h5_keys_model"] | null;
-            /** Assert Has Image Center Of Mass */
-            has_image_center_of_mass?: components["schemas"]["base_has_image_center_of_mass_model"] | null;
-            /** Assert Has Image Channels */
-            has_image_channels?: components["schemas"]["base_has_image_channels_model"] | null;
-            /** Assert Has Image Depth */
-            has_image_depth?: components["schemas"]["base_has_image_depth_model"] | null;
-            /** Assert Has Image Frames */
-            has_image_frames?: components["schemas"]["base_has_image_frames_model"] | null;
-            /** Assert Has Image Height */
-            has_image_height?: components["schemas"]["base_has_image_height_model"] | null;
-            /** Assert Has Image Mean Intensity */
-            has_image_mean_intensity?: components["schemas"]["base_has_image_mean_intensity_model"] | null;
-            /** Assert Has Image Mean Object Size */
-            has_image_mean_object_size?: components["schemas"]["base_has_image_mean_object_size_model"] | null;
-            /** Assert Has Image N Labels */
-            has_image_n_labels?: components["schemas"]["base_has_image_n_labels_model"] | null;
-            /** Assert Has Image Width */
-            has_image_width?: components["schemas"]["base_has_image_width_model"] | null;
-            /** Assert Has Json Property With Text */
-            has_json_property_with_text?: components["schemas"]["base_has_json_property_with_text_model"] | null;
-            /** Assert Has Json Property With Value */
-            has_json_property_with_value?: components["schemas"]["base_has_json_property_with_value_model"] | null;
-            /** Assert Has Line */
-            has_line?: components["schemas"]["base_has_line_model"] | null;
-            /** Assert Has Line Matching */
-            has_line_matching?: components["schemas"]["base_has_line_matching_model"] | null;
-            /** Assert Has N Columns */
-            has_n_columns?: components["schemas"]["base_has_n_columns_model"] | null;
-            /** Assert Has N Elements With Path */
-            has_n_elements_with_path?: components["schemas"]["base_has_n_elements_with_path_model"] | null;
-            /** Assert Has N Lines */
-            has_n_lines?: components["schemas"]["base_has_n_lines_model"] | null;
-            /** Assert Has Size */
-            has_size?: components["schemas"]["base_has_size_model"] | null;
-            /** Assert Has Text */
-            has_text?: components["schemas"]["base_has_text_model"] | null;
-            /** Assert Has Text Matching */
-            has_text_matching?: components["schemas"]["base_has_text_matching_model"] | null;
-            /** Assert Is Valid Xml */
-            is_valid_xml?: components["schemas"]["base_is_valid_xml_model"] | null;
-            /** Assert Not Has Text */
-            not_has_text?: components["schemas"]["base_not_has_text_model"] | null;
-            /** Assert Xml Element */
-            xml_element?: components["schemas"]["base_xml_element_model-Output"] | null;
-        };
-        /** assertion_list */
-        "assertion_list-Input": (
-            | (
-                  | components["schemas"]["has_line_model"]
-                  | components["schemas"]["has_line_matching_model"]
-                  | components["schemas"]["has_n_lines_model"]
-                  | components["schemas"]["has_text_model"]
-                  | components["schemas"]["has_text_matching_model"]
-                  | components["schemas"]["not_has_text_model"]
-                  | components["schemas"]["has_n_columns_model"]
-                  | components["schemas"]["attribute_is_model"]
-                  | components["schemas"]["attribute_matches_model"]
-                  | components["schemas"]["element_text_model-Input"]
-                  | components["schemas"]["element_text_is_model"]
-                  | components["schemas"]["element_text_matches_model"]
-                  | components["schemas"]["has_element_with_path_model"]
-                  | components["schemas"]["has_n_elements_with_path_model"]
-                  | components["schemas"]["is_valid_xml_model"]
-                  | components["schemas"]["xml_element_model-Input"]
-                  | components["schemas"]["has_json_property_with_text_model"]
-                  | components["schemas"]["has_json_property_with_value_model"]
-                  | components["schemas"]["has_h5_attribute_model"]
-                  | components["schemas"]["has_h5_keys_model"]
-                  | components["schemas"]["has_archive_member_model-Input"]
-                  | components["schemas"]["has_size_model"]
-                  | components["schemas"]["has_image_center_of_mass_model"]
-                  | components["schemas"]["has_image_channels_model"]
-                  | components["schemas"]["has_image_depth_model"]
-                  | components["schemas"]["has_image_frames_model"]
-                  | components["schemas"]["has_image_height_model"]
-                  | components["schemas"]["has_image_mean_intensity_model"]
-                  | components["schemas"]["has_image_mean_object_size_model"]
-                  | components["schemas"]["has_image_n_labels_model"]
-                  | components["schemas"]["has_image_width_model"]
-              )
-            | components["schemas"]["has_line_model_nested"]
-            | components["schemas"]["has_line_matching_model_nested"]
-            | components["schemas"]["has_n_lines_model_nested"]
-            | components["schemas"]["has_text_model_nested"]
-            | components["schemas"]["has_text_matching_model_nested"]
-            | components["schemas"]["not_has_text_model_nested"]
-            | components["schemas"]["has_n_columns_model_nested"]
-            | components["schemas"]["attribute_is_model_nested"]
-            | components["schemas"]["attribute_matches_model_nested"]
-            | components["schemas"]["element_text_model_nested-Input"]
-            | components["schemas"]["element_text_is_model_nested"]
-            | components["schemas"]["element_text_matches_model_nested"]
-            | components["schemas"]["has_element_with_path_model_nested"]
-            | components["schemas"]["has_n_elements_with_path_model_nested"]
-            | components["schemas"]["is_valid_xml_model_nested"]
-            | components["schemas"]["xml_element_model_nested-Input"]
-            | components["schemas"]["has_json_property_with_text_model_nested"]
-            | components["schemas"]["has_json_property_with_value_model_nested"]
-            | components["schemas"]["has_h5_attribute_model_nested"]
-            | components["schemas"]["has_h5_keys_model_nested"]
-            | components["schemas"]["has_archive_member_model_nested-Input"]
-            | components["schemas"]["has_size_model_nested"]
-            | components["schemas"]["has_image_center_of_mass_model_nested"]
-            | components["schemas"]["has_image_channels_model_nested"]
-            | components["schemas"]["has_image_depth_model_nested"]
-            | components["schemas"]["has_image_frames_model_nested"]
-            | components["schemas"]["has_image_height_model_nested"]
-            | components["schemas"]["has_image_mean_intensity_model_nested"]
-            | components["schemas"]["has_image_mean_object_size_model_nested"]
-            | components["schemas"]["has_image_n_labels_model_nested"]
-            | components["schemas"]["has_image_width_model_nested"]
-        )[];
-        /** assertion_list */
-        "assertion_list-Output": (
-            | (
-                  | components["schemas"]["has_line_model"]
-                  | components["schemas"]["has_line_matching_model"]
-                  | components["schemas"]["has_n_lines_model"]
-                  | components["schemas"]["has_text_model"]
-                  | components["schemas"]["has_text_matching_model"]
-                  | components["schemas"]["not_has_text_model"]
-                  | components["schemas"]["has_n_columns_model"]
-                  | components["schemas"]["attribute_is_model"]
-                  | components["schemas"]["attribute_matches_model"]
-                  | components["schemas"]["element_text_model-Output"]
-                  | components["schemas"]["element_text_is_model"]
-                  | components["schemas"]["element_text_matches_model"]
-                  | components["schemas"]["has_element_with_path_model"]
-                  | components["schemas"]["has_n_elements_with_path_model"]
-                  | components["schemas"]["is_valid_xml_model"]
-                  | components["schemas"]["xml_element_model-Output"]
-                  | components["schemas"]["has_json_property_with_text_model"]
-                  | components["schemas"]["has_json_property_with_value_model"]
-                  | components["schemas"]["has_h5_attribute_model"]
-                  | components["schemas"]["has_h5_keys_model"]
-                  | components["schemas"]["has_archive_member_model-Output"]
-                  | components["schemas"]["has_size_model"]
-                  | components["schemas"]["has_image_center_of_mass_model"]
-                  | components["schemas"]["has_image_channels_model"]
-                  | components["schemas"]["has_image_depth_model"]
-                  | components["schemas"]["has_image_frames_model"]
-                  | components["schemas"]["has_image_height_model"]
-                  | components["schemas"]["has_image_mean_intensity_model"]
-                  | components["schemas"]["has_image_mean_object_size_model"]
-                  | components["schemas"]["has_image_n_labels_model"]
-                  | components["schemas"]["has_image_width_model"]
-              )
-            | components["schemas"]["has_line_model_nested"]
-            | components["schemas"]["has_line_matching_model_nested"]
-            | components["schemas"]["has_n_lines_model_nested"]
-            | components["schemas"]["has_text_model_nested"]
-            | components["schemas"]["has_text_matching_model_nested"]
-            | components["schemas"]["not_has_text_model_nested"]
-            | components["schemas"]["has_n_columns_model_nested"]
-            | components["schemas"]["attribute_is_model_nested"]
-            | components["schemas"]["attribute_matches_model_nested"]
-            | components["schemas"]["element_text_model_nested-Output"]
-            | components["schemas"]["element_text_is_model_nested"]
-            | components["schemas"]["element_text_matches_model_nested"]
-            | components["schemas"]["has_element_with_path_model_nested"]
-            | components["schemas"]["has_n_elements_with_path_model_nested"]
-            | components["schemas"]["is_valid_xml_model_nested"]
-            | components["schemas"]["xml_element_model_nested-Output"]
-            | components["schemas"]["has_json_property_with_text_model_nested"]
-            | components["schemas"]["has_json_property_with_value_model_nested"]
-            | components["schemas"]["has_h5_attribute_model_nested"]
-            | components["schemas"]["has_h5_keys_model_nested"]
-            | components["schemas"]["has_archive_member_model_nested-Output"]
-            | components["schemas"]["has_size_model_nested"]
-            | components["schemas"]["has_image_center_of_mass_model_nested"]
-            | components["schemas"]["has_image_channels_model_nested"]
-            | components["schemas"]["has_image_depth_model_nested"]
-            | components["schemas"]["has_image_frames_model_nested"]
-            | components["schemas"]["has_image_height_model_nested"]
-            | components["schemas"]["has_image_mean_intensity_model_nested"]
-            | components["schemas"]["has_image_mean_object_size_model_nested"]
-            | components["schemas"]["has_image_n_labels_model_nested"]
-            | components["schemas"]["has_image_width_model_nested"]
-        )[];
-        /**
-         * Assert Attribute Is
-         * @description Asserts the XML ``attribute`` for the element (or tag) with the specified
-         *     XPath-like ``path`` is the specified ``text``.
-         *
-         *     For example:
-         *
-         *     ```xml
-         *     <attribute_is path="outerElement/innerElement1" attribute="foo" text="bar" />
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the assertion (on the equality) can be inverted (the
-         *     implicit assertion on the existence of the path is not affected).
-         */
-        attribute_is_model: {
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * Text
-             * @description The expected attribute value to test against on the target XML element
-             */
-            text: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "attribute_is";
-        };
-        /**
-         * Assert Attribute Is (Nested)
-         * @description Nested version of this assertion model.
-         */
-        attribute_is_model_nested: {
-            /** Assert Attribute Is */
-            attribute_is: components["schemas"]["base_attribute_is_model"];
-        };
-        /**
-         * Assert Attribute Matches
-         * @description Asserts the XML ``attribute`` for the element (or tag) with the specified
-         *     XPath-like ``path`` matches the regular expression specified by ``expression``.
-         *
-         *     For example:
-         *
-         *     ```xml
-         *     <attribute_matches path="outerElement/innerElement2" attribute="foo2" expression="bar\d+" />
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the assertion (on the matching) can be inverted (the
-         *     implicit assertion on the existence of the path is not affected).
-         */
-        attribute_matches_model: {
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute: string;
-            /**
-             * Expression
-             * @description The regular expressions to apply against the named attribute on the target XML element.
-             */
-            expression: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "attribute_matches";
-        };
-        /**
-         * Assert Attribute Matches (Nested)
-         * @description Nested version of this assertion model.
-         */
-        attribute_matches_model_nested: {
-            /** Assert Attribute Matches */
-            attribute_matches: components["schemas"]["base_attribute_matches_model"];
-        };
-        /**
-         * base_attribute_is_model
-         * @description base model for attribute_is describing attributes.
-         */
-        base_attribute_is_model: {
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * Text
-             * @description The expected attribute value to test against on the target XML element
-             */
-            text: string;
-        };
-        /**
-         * base_attribute_matches_model
-         * @description base model for attribute_matches describing attributes.
-         */
-        base_attribute_matches_model: {
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute: string;
-            /**
-             * Expression
-             * @description The regular expressions to apply against the named attribute on the target XML element.
-             */
-            expression: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_element_text_is_model
-         * @description base model for element_text_is describing attributes.
-         */
-        base_element_text_is_model: {
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * Text
-             * @description The expected element text (body of the XML tag) to test against on the target XML element
-             */
-            text: string;
-        };
-        /**
-         * base_element_text_matches_model
-         * @description base model for element_text_matches describing attributes.
-         */
-        base_element_text_matches_model: {
-            /**
-             * Expression
-             * @description The regular expressions to apply against the target element.
-             */
-            expression: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_element_text_model
-         * @description base model for element_text describing attributes.
-         */
-        "base_element_text_model-Input": {
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_element_text_model
-         * @description base model for element_text describing attributes.
-         */
-        "base_element_text_model-Output": {
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_has_archive_member_model
-         * @description base model for has_archive_member describing attributes.
-         */
-        "base_has_archive_member_model-Input": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The regular expression specifying the archive member.
-             */
-            path: string;
-        };
-        /**
-         * base_has_archive_member_model
-         * @description base model for has_archive_member describing attributes.
-         */
-        "base_has_archive_member_model-Output": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The regular expression specifying the archive member.
-             */
-            path: string;
-        };
-        /**
-         * base_has_element_with_path_model
-         * @description base model for has_element_with_path describing attributes.
-         */
-        base_has_element_with_path_model: {
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_has_h5_attribute_model
-         * @description base model for has_h5_attribute describing attributes.
-         */
-        base_has_h5_attribute_model: {
-            /**
-             * Key
-             * @description HDF5 attribute to check value of.
-             */
-            key: string;
-            /**
-             * Value
-             * @description Expected value of HDF5 attribute to check.
-             */
-            value: string;
-        };
-        /**
-         * base_has_h5_keys_model
-         * @description base model for has_h5_keys describing attributes.
-         */
-        base_has_h5_keys_model: {
-            /**
-             * Keys
-             * @description HDF5 attributes to check value of as a comma-separated string.
-             */
-            keys: string;
-        };
-        /**
-         * base_has_image_center_of_mass_model
-         * @description base model for has_image_center_of_mass describing attributes.
-         */
-        base_has_image_center_of_mass_model: {
-            /**
-             * Center Of Mass
-             * @description The required center of mass of the image intensities (horizontal and vertical coordinate, separated by a comma).
-             */
-            center_of_mass: string;
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The maximum allowed Euclidean distance to the required center of mass (defaults to ``0.01``).
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-        };
-        /**
-         * base_has_image_channels_model
-         * @description base model for has_image_channels describing attributes.
-         */
-        base_has_image_channels_model: {
-            /**
-             * Channels
-             * @description Expected number of channels of the image.
-             */
-            channels?: number | null;
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of channels (default is 0). The observed number of channels has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Max
-             * @description Maximum allowed number of channels.
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of channels.
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_image_depth_model
-         * @description base model for has_image_depth describing attributes.
-         */
-        base_has_image_depth_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image depth (number of slices, default is 0). The observed depth has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Depth
-             * @description Expected depth of the image (number of slices).
-             */
-            depth?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed depth of the image (number of slices).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed depth of the image (number of slices).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_image_frames_model
-         * @description base model for has_image_frames describing attributes.
-         */
-        base_has_image_frames_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of frames in the image sequence (number of time steps, default is 0). The observed number of frames has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Frames
-             * @description Expected number of frames in the image sequence (number of time steps).
-             */
-            frames?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed number of frames in the image sequence (number of time steps).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of frames in the image sequence (number of time steps).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_image_height_model
-         * @description base model for has_image_height describing attributes.
-         */
-        base_has_image_height_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image height (in pixels, default is 0). The observed height has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Height
-             * @description Expected height of the image (in pixels).
-             */
-            height?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed height of the image (in pixels).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed height of the image (in pixels).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_image_mean_intensity_model
-         * @description base model for has_image_mean_intensity describing attributes.
-         */
-        base_has_image_mean_intensity_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The absolute tolerance to be used for ``value`` (defaults to ``0.01``). The observed mean value of the image intensities has to be in the range ``value +- eps``.
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Max
-             * @description An upper bound of the required mean value of the image intensities.
-             */
-            max?: number | null;
-            /**
-             * Mean Intensity
-             * @description The required mean value of the image intensities.
-             */
-            mean_intensity?: number | null;
-            /**
-             * Min
-             * @description A lower bound of the required mean value of the image intensities.
-             */
-            min?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-        };
-        /**
-         * base_has_image_mean_object_size_model
-         * @description base model for has_image_mean_object_size describing attributes.
-         */
-        base_has_image_mean_object_size_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The absolute tolerance to be used for ``value`` (defaults to ``0.01``). The observed mean size of the uniquely labeled objects has to be in the range ``value +- eps``.
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Exclude Labels
-             * @description List of labels to be excluded from consideration, separated by a comma. The primary usage of this attribute is to exclude the background of a label image. Cannot be used in combination with ``labels``.
-             */
-            exclude_labels?: number[] | null;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Labels
-             * @description List of labels, separated by a comma. Labels *not* on this list will be excluded from consideration. Cannot be used in combination with ``exclude_labels``.
-             */
-            labels?: number[] | null;
-            /**
-             * Max
-             * @description An upper bound of the required mean size of the uniquely labeled objects.
-             */
-            max?: number | null;
-            /**
-             * Mean Object Size
-             * @description The required mean size of the uniquely labeled objects.
-             */
-            mean_object_size?: number | null;
-            /**
-             * Min
-             * @description A lower bound of the required mean size of the uniquely labeled objects.
-             */
-            min?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-        };
-        /**
-         * base_has_image_n_labels_model
-         * @description base model for has_image_n_labels describing attributes.
-         */
-        base_has_image_n_labels_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of labels (default is 0). The observed number of labels has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Exclude Labels
-             * @description List of labels to be excluded from consideration, separated by a comma. The primary usage of this attribute is to exclude the background of a label image. Cannot be used in combination with ``labels``.
-             */
-            exclude_labels?: number[] | null;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Labels
-             * @description List of labels, separated by a comma. Labels *not* on this list will be excluded from consideration. Cannot be used in combination with ``exclude_labels``.
-             */
-            labels?: number[] | null;
-            /**
-             * Max
-             * @description Maximum allowed number of labels.
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of labels.
-             */
-            min?: number | null;
-            /**
-             * N
-             * @description Expected number of labels.
-             */
-            n?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-        };
-        /**
-         * base_has_image_width_model
-         * @description base model for has_image_width describing attributes.
-         */
-        base_has_image_width_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image width (in pixels, default is 0). The observed width has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Max
-             * @description Maximum allowed width of the image (in pixels).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed width of the image (in pixels).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Width
-             * @description Expected width of the image (in pixels).
-             */
-            width?: number | null;
-        };
-        /**
-         * base_has_json_property_with_text_model
-         * @description base model for has_json_property_with_text describing attributes.
-         */
-        base_has_json_property_with_text_model: {
-            /**
-             * Property
-             * @description The property name to search the JSON document for.
-             */
-            property: string;
-            /**
-             * Text
-             * @description The expected text value of the target JSON attribute.
-             */
-            text: string;
-        };
-        /**
-         * base_has_json_property_with_value_model
-         * @description base model for has_json_property_with_value describing attributes.
-         */
-        base_has_json_property_with_value_model: {
-            /**
-             * Property
-             * @description The property name to search the JSON document for.
-             */
-            property: string;
-            /**
-             * Value
-             * @description The expected JSON value of the target JSON attribute (as a JSON encoded string).
-             */
-            value: string;
-        };
-        /**
-         * base_has_line_matching_model
-         * @description base model for has_line_matching describing attributes.
-         */
-        base_has_line_matching_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Expression
-             * @description The regular expressions to attempt match in the output.
-             */
-            expression: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_line_model
-         * @description base model for has_line describing attributes.
-         */
-        base_has_line_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Line
-             * @description The full line of text to search for in the output.
-             */
-            line: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_n_columns_model
-         * @description base model for has_n_columns describing attributes.
-         */
-        base_has_n_columns_model: {
-            /**
-             * Comment
-             * @description Comment character(s) used to skip comment lines (which should not be used for counting columns)
-             * @default
-             */
-            comment: string;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Sep
-             * @description Separator defining columns, default: tab
-             * @default
-             */
-            sep: string;
-        };
-        /**
-         * base_has_n_elements_with_path_model
-         * @description base model for has_n_elements_with_path describing attributes.
-         */
-        base_has_n_elements_with_path_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_has_n_lines_model
-         * @description base model for has_n_lines describing attributes.
-         */
-        base_has_n_lines_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_size_model
-         * @description base model for has_size describing attributes.
-         */
-        base_has_size_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Size
-             * @description Desired size of the output (in bytes), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            size?: string | number | null;
-            /**
-             * Value
-             * @description Deprecated alias for `size`
-             */
-            value?: string | number | null;
-        };
-        /**
-         * base_has_text_matching_model
-         * @description base model for has_text_matching describing attributes.
-         */
-        base_has_text_matching_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Expression
-             * @description The regular expressions to attempt match in the output.
-             */
-            expression: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-        };
-        /**
-         * base_has_text_model
-         * @description base model for has_text describing attributes.
-         */
-        base_has_text_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Text
-             * @description The text to search for in the output.
-             */
-            text: string;
-        };
-        /**
-         * base_is_valid_xml_model
-         * @description base model for is_valid_xml describing attributes.
-         */
-        base_is_valid_xml_model: Record<string, never>;
-        /**
-         * base_not_has_text_model
-         * @description base model for not_has_text describing attributes.
-         */
-        base_not_has_text_model: {
-            /**
-             * Text
-             * @description The text to search for in the output.
-             */
-            text: string;
-        };
-        /**
-         * base_xml_element_model
-         * @description base model for xml_element describing attributes.
-         */
-        "base_xml_element_model-Input": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute?: string | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * base_xml_element_model
-         * @description base model for xml_element describing attributes.
-         */
-        "base_xml_element_model-Output": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute?: string | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-        };
-        /**
-         * Assert Element Text Is
-         * @description Asserts the text of the XML element with the specified XPath-like ``path`` is
-         *     the specified ``text``.
-         *
-         *     For example:
-         *
-         *     ```xml
-         *     <element_text_is path="BlastOutput_program" text="blastp" />
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the assertion (on the equality) can be inverted (the
-         *     implicit assertion on the existence of the path is not affected).
-         */
-        element_text_is_model: {
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * Text
-             * @description The expected element text (body of the XML tag) to test against on the target XML element
-             */
-            text: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "element_text_is";
-        };
-        /**
-         * Assert Element Text Is (Nested)
-         * @description Nested version of this assertion model.
-         */
-        element_text_is_model_nested: {
-            /** Assert Element Text Is */
-            element_text_is: components["schemas"]["base_element_text_is_model"];
-        };
-        /**
-         * Assert Element Text Matches
-         * @description Asserts the text of the XML element with the specified XPath-like ``path``
-         *     matches the regular expression defined by ``expression``.
-         *
-         *     For example:
-         *
-         *     ```xml
-         *     <element_text_matches path="BlastOutput_version" expression="BLASTP\s+2\.2.*"/>
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the assertion (on the matching) can be inverted (the
-         *     implicit assertion on the existence of the path is not affected).
-         */
-        element_text_matches_model: {
-            /**
-             * Expression
-             * @description The regular expressions to apply against the target element.
-             */
-            expression: string;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "element_text_matches";
-        };
-        /**
-         * Assert Element Text Matches (Nested)
-         * @description Nested version of this assertion model.
-         */
-        element_text_matches_model_nested: {
-            /** Assert Element Text Matches */
-            element_text_matches: components["schemas"]["base_element_text_matches_model"];
-        };
-        /**
-         * Assert Element Text
-         * @description This tag allows the developer to recurisively specify additional assertions as
-         *     child elements about just the text contained in the element specified by the
-         *     XPath-like ``path``, e.g.
-         *
-         *     ```xml
-         *     <element_text path="BlastOutput_iterations/Iteration/Iteration_hits/Hit/Hit_def">
-         *       <not_has_text text="EDK72998.1" />
-         *     </element_text>
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the implicit assertions can be inverted.
-         *     The sub-assertions, which have their own ``negate`` attribute, are not affected
-         *     by ``negate``.
-         */
-        "element_text_model-Input": {
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "element_text";
-        };
-        /**
-         * Assert Element Text
-         * @description This tag allows the developer to recurisively specify additional assertions as
-         *     child elements about just the text contained in the element specified by the
-         *     XPath-like ``path``, e.g.
-         *
-         *     ```xml
-         *     <element_text path="BlastOutput_iterations/Iteration/Iteration_hits/Hit/Hit_def">
-         *       <not_has_text text="EDK72998.1" />
-         *     </element_text>
-         *     ```
-         *
-         *     The assertion implicitly also asserts that an element matching ``path`` exists.
-         *     With ``negate`` the result of the implicit assertions can be inverted.
-         *     The sub-assertions, which have their own ``negate`` attribute, are not affected
-         *     by ``negate``.
-         */
-        "element_text_model-Output": {
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "element_text";
-        };
-        /**
-         * Assert Element Text (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "element_text_model_nested-Input": {
-            /** Assert Element Text */
-            element_text: components["schemas"]["base_element_text_model-Input"];
-        };
-        /**
-         * Assert Element Text (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "element_text_model_nested-Output": {
-            /** Assert Element Text */
-            element_text: components["schemas"]["base_element_text_model-Output"];
-        };
-        /**
-         * Assert Has Archive Member
-         * @description This tag allows to check if ``path`` is contained in a compressed file.
-         *
-         *     The path is a regular expression that is matched against the full paths of the objects in
-         *     the compressed file (remember that "matching" means it is checked if a prefix of
-         *     the full path of an archive member is described by the regular expression).
-         *     Valid archive formats include ``.zip``, ``.tar``, and ``.tar.gz``. Note that
-         *     depending on the archive creation method:
-         *
-         *     - full paths of the members may be prefixed with ``./``
-         *     - directories may be treated as empty files
-         *
-         *     ```xml
-         *     <has_archive_member path="./path/to/my-file.txt"/>
-         *     ```
-         *
-         *     With ``n`` and ``delta`` (or ``min`` and ``max``) assertions on the number of
-         *     archive members matching ``path`` can be expressed. The following could be used,
-         *     e.g., to assert an archive containing n&plusmn;1 elements out of which at least
-         *     4 need to have a ``txt`` extension.
-         *
-         *     ```xml
-         *     <has_archive_member path=".*" n="10" delta="1"/>
-         *     <has_archive_member path=".*\.txt" min="4"/>
-         *     ```
-         *
-         *     In addition the tag can contain additional assertions as child elements about
-         *     the first member in the archive matching the regular expression ``path``. For
-         *     instance
-         *
-         *     ```xml
-         *     <has_archive_member path=".*\/my-file.txt">
-         *       <not_has_text text="EDK72998.1"/>
-         *     </has_archive_member>
-         *     ```
-         *
-         *     If the ``all`` attribute is set to ``true`` then all archive members are subject
-         *     to the assertions. Note that, archive members matching the ``path`` are sorted
-         *     alphabetically.
-         *
-         *     The ``negate`` attribute of the ``has_archive_member`` assertion only affects
-         *     the asserts on the presence and number of matching archive members, but not any
-         *     sub-assertions (which can offer the ``negate`` attribute on their own).  The
-         *     check if the file is an archive at all, which is also done by the function, is
-         *     not affected.
-         */
-        "has_archive_member_model-Input": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The regular expression specifying the archive member.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_archive_member";
-        };
-        /**
-         * Assert Has Archive Member
-         * @description This tag allows to check if ``path`` is contained in a compressed file.
-         *
-         *     The path is a regular expression that is matched against the full paths of the objects in
-         *     the compressed file (remember that "matching" means it is checked if a prefix of
-         *     the full path of an archive member is described by the regular expression).
-         *     Valid archive formats include ``.zip``, ``.tar``, and ``.tar.gz``. Note that
-         *     depending on the archive creation method:
-         *
-         *     - full paths of the members may be prefixed with ``./``
-         *     - directories may be treated as empty files
-         *
-         *     ```xml
-         *     <has_archive_member path="./path/to/my-file.txt"/>
-         *     ```
-         *
-         *     With ``n`` and ``delta`` (or ``min`` and ``max``) assertions on the number of
-         *     archive members matching ``path`` can be expressed. The following could be used,
-         *     e.g., to assert an archive containing n&plusmn;1 elements out of which at least
-         *     4 need to have a ``txt`` extension.
-         *
-         *     ```xml
-         *     <has_archive_member path=".*" n="10" delta="1"/>
-         *     <has_archive_member path=".*\.txt" min="4"/>
-         *     ```
-         *
-         *     In addition the tag can contain additional assertions as child elements about
-         *     the first member in the archive matching the regular expression ``path``. For
-         *     instance
-         *
-         *     ```xml
-         *     <has_archive_member path=".*\/my-file.txt">
-         *       <not_has_text text="EDK72998.1"/>
-         *     </has_archive_member>
-         *     ```
-         *
-         *     If the ``all`` attribute is set to ``true`` then all archive members are subject
-         *     to the assertions. Note that, archive members matching the ``path`` are sorted
-         *     alphabetically.
-         *
-         *     The ``negate`` attribute of the ``has_archive_member`` assertion only affects
-         *     the asserts on the presence and number of matching archive members, but not any
-         *     sub-assertions (which can offer the ``negate`` attribute on their own).  The
-         *     check if the file is an archive at all, which is also done by the function, is
-         *     not affected.
-         */
-        "has_archive_member_model-Output": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The regular expression specifying the archive member.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_archive_member";
-        };
-        /**
-         * Assert Has Archive Member (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "has_archive_member_model_nested-Input": {
-            /** Assert Has Archive Member */
-            has_archive_member: components["schemas"]["base_has_archive_member_model-Input"];
-        };
-        /**
-         * Assert Has Archive Member (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "has_archive_member_model_nested-Output": {
-            /** Assert Has Archive Member */
-            has_archive_member: components["schemas"]["base_has_archive_member_model-Output"];
-        };
-        /**
-         * Assert Has Element With Path
-         * @description Asserts the XML output contains at least one element (or tag) with the specified
-         *     XPath-like ``path``, e.g.
-         *
-         *     ```xml
-         *     <has_element_with_path path="BlastOutput_param/Parameters/Parameters_matrix" />
-         *     ```
-         *
-         *     With ``negate`` the result of the assertion can be inverted.
-         */
-        has_element_with_path_model: {
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_element_with_path";
-        };
-        /**
-         * Assert Has Element With Path (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_element_with_path_model_nested: {
-            /** Assert Has Element With Path */
-            has_element_with_path: components["schemas"]["base_has_element_with_path_model"];
-        };
-        /**
-         * Assert Has H5 Attribute
-         * @description Asserts HDF5 output contains the specified ``value`` for an attribute (``key``), e.g.
-         *
-         *     ```xml
-         *     <has_h5_attribute key="nchroms" value="15" />
-         *     ```
-         */
-        has_h5_attribute_model: {
-            /**
-             * Key
-             * @description HDF5 attribute to check value of.
-             */
-            key: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_h5_attribute";
-            /**
-             * Value
-             * @description Expected value of HDF5 attribute to check.
-             */
-            value: string;
-        };
-        /**
-         * Assert Has H5 Attribute (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_h5_attribute_model_nested: {
-            /** Assert Has H5 Attribute */
-            has_h5_attribute: components["schemas"]["base_has_h5_attribute_model"];
-        };
-        /**
-         * Assert Has H5 Keys
-         * @description Asserts the specified HDF5 output has the given keys.
-         */
-        has_h5_keys_model: {
-            /**
-             * Keys
-             * @description HDF5 attributes to check value of as a comma-separated string.
-             */
-            keys: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_h5_keys";
-        };
-        /**
-         * Assert Has H5 Keys (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_h5_keys_model_nested: {
-            /** Assert Has H5 Keys */
-            has_h5_keys: components["schemas"]["base_has_h5_keys_model"];
-        };
-        /**
-         * Assert Has Image Center Of Mass
-         * @description Asserts the specified output is an image and has the specified center of mass.
-         *
-         *     Asserts the output is an image and has a specific center of mass,
-         *     or has an Euclidean distance of ``eps`` or less to that point (e.g.,
-         *     ``<has_image_center_of_mass center_of_mass="511.07, 223.34" />``).
-         */
-        has_image_center_of_mass_model: {
-            /**
-             * Center Of Mass
-             * @description The required center of mass of the image intensities (horizontal and vertical coordinate, separated by a comma).
-             */
-            center_of_mass: string;
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The maximum allowed Euclidean distance to the required center of mass (defaults to ``0.01``).
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_center_of_mass";
-        };
-        /**
-         * Assert Has Image Center Of Mass (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_center_of_mass_model_nested: {
-            /** Assert Has Image Center Of Mass */
-            has_image_center_of_mass: components["schemas"]["base_has_image_center_of_mass_model"];
-        };
-        /**
-         * Assert Has Image Channels
-         * @description Asserts the output is an image and has a specific number of channels.
-         *
-         *     The number of channels is plus/minus ``delta`` (e.g., ``<has_image_channels channels="3" />``).
-         *
-         *     Alternatively the range of the expected number of channels can be specified by ``min`` and/or ``max``.
-         */
-        has_image_channels_model: {
-            /**
-             * Channels
-             * @description Expected number of channels of the image.
-             */
-            channels?: number | null;
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of channels (default is 0). The observed number of channels has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Max
-             * @description Maximum allowed number of channels.
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of channels.
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_channels";
-        };
-        /**
-         * Assert Has Image Channels (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_channels_model_nested: {
-            /** Assert Has Image Channels */
-            has_image_channels: components["schemas"]["base_has_image_channels_model"];
-        };
-        /**
-         * Assert Has Image Depth
-         * @description Asserts the output is an image and has a specific depth (number of slices).
-         *
-         *     The depth is plus/minus ``delta`` (e.g., ``<has_image_depth depth="512" delta="2" />``).
-         *     Alternatively the range of the expected depth can be specified by ``min`` and/or ``max``.
-         */
-        has_image_depth_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image depth (number of slices, default is 0). The observed depth has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Depth
-             * @description Expected depth of the image (number of slices).
-             */
-            depth?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed depth of the image (number of slices).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed depth of the image (number of slices).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_depth";
-        };
-        /**
-         * Assert Has Image Depth (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_depth_model_nested: {
-            /** Assert Has Image Depth */
-            has_image_depth: components["schemas"]["base_has_image_depth_model"];
-        };
-        /**
-         * Assert Has Image Frames
-         * @description Asserts the output is an image and has a specific number of frames (number of time steps).
-         *
-         *     The number of frames is plus/minus ``delta`` (e.g., ``<has_image_frames depth="512" delta="2" />``).
-         *     Alternatively the range of the expected number of frames can be specified by ``min`` and/or ``max``.
-         */
-        has_image_frames_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of frames in the image sequence (number of time steps, default is 0). The observed number of frames has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Frames
-             * @description Expected number of frames in the image sequence (number of time steps).
-             */
-            frames?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed number of frames in the image sequence (number of time steps).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of frames in the image sequence (number of time steps).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_frames";
-        };
-        /**
-         * Assert Has Image Frames (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_frames_model_nested: {
-            /** Assert Has Image Frames */
-            has_image_frames: components["schemas"]["base_has_image_frames_model"];
-        };
-        /**
-         * Assert Has Image Height
-         * @description Asserts the output is an image and has a specific height (in pixels).
-         *
-         *     The height is plus/minus ``delta`` (e.g., ``<has_image_height height="512" delta="2" />``).
-         *     Alternatively the range of the expected height can be specified by ``min`` and/or ``max``.
-         */
-        has_image_height_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image height (in pixels, default is 0). The observed height has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Height
-             * @description Expected height of the image (in pixels).
-             */
-            height?: number | null;
-            /**
-             * Max
-             * @description Maximum allowed height of the image (in pixels).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed height of the image (in pixels).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_height";
-        };
-        /**
-         * Assert Has Image Height (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_height_model_nested: {
-            /** Assert Has Image Height */
-            has_image_height: components["schemas"]["base_has_image_height_model"];
-        };
-        /**
-         * Assert Has Image Mean Intensity
-         * @description Asserts the output is an image and has a specific mean intensity value.
-         *
-         *     The mean intensity value is plus/minus ``eps`` (e.g., ``<has_image_mean_intensity mean_intensity="0.83" />``).
-         *     Alternatively the range of the expected mean intensity value can be specified by ``min`` and/or ``max``.
-         */
-        has_image_mean_intensity_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The absolute tolerance to be used for ``value`` (defaults to ``0.01``). The observed mean value of the image intensities has to be in the range ``value +- eps``.
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Max
-             * @description An upper bound of the required mean value of the image intensities.
-             */
-            max?: number | null;
-            /**
-             * Mean Intensity
-             * @description The required mean value of the image intensities.
-             */
-            mean_intensity?: number | null;
-            /**
-             * Min
-             * @description A lower bound of the required mean value of the image intensities.
-             */
-            min?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_mean_intensity";
-        };
-        /**
-         * Assert Has Image Mean Intensity (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_mean_intensity_model_nested: {
-            /** Assert Has Image Mean Intensity */
-            has_image_mean_intensity: components["schemas"]["base_has_image_mean_intensity_model"];
-        };
-        /**
-         * Assert Has Image Mean Object Size
-         * @description Asserts the output is an image with labeled objects which have the specified mean size (number of pixels),
-         *
-         *     The mean size is plus/minus ``eps`` (e.g., ``<has_image_mean_object_size mean_object_size="111.87" exclude_labels="0" />``).
-         *
-         *     The labels must be unique.
-         */
-        has_image_mean_object_size_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Eps
-             * @description The absolute tolerance to be used for ``value`` (defaults to ``0.01``). The observed mean size of the uniquely labeled objects has to be in the range ``value +- eps``.
-             * @default 0.01
-             */
-            eps: number;
-            /**
-             * Exclude Labels
-             * @description List of labels to be excluded from consideration, separated by a comma. The primary usage of this attribute is to exclude the background of a label image. Cannot be used in combination with ``labels``.
-             */
-            exclude_labels?: number[] | null;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Labels
-             * @description List of labels, separated by a comma. Labels *not* on this list will be excluded from consideration. Cannot be used in combination with ``exclude_labels``.
-             */
-            labels?: number[] | null;
-            /**
-             * Max
-             * @description An upper bound of the required mean size of the uniquely labeled objects.
-             */
-            max?: number | null;
-            /**
-             * Mean Object Size
-             * @description The required mean size of the uniquely labeled objects.
-             */
-            mean_object_size?: number | null;
-            /**
-             * Min
-             * @description A lower bound of the required mean size of the uniquely labeled objects.
-             */
-            min?: number | null;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_mean_object_size";
-        };
-        /**
-         * Assert Has Image Mean Object Size (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_mean_object_size_model_nested: {
-            /** Assert Has Image Mean Object Size */
-            has_image_mean_object_size: components["schemas"]["base_has_image_mean_object_size_model"];
-        };
-        /**
-         * Assert Has Image N Labels
-         * @description Asserts the output is an image and has the specified labels.
-         *
-         *     Labels can be a number of labels or unique values (e.g.,
-         *     ``<has_image_n_labels n="187" exclude_labels="0" />``).
-         *
-         *     The primary usage of this assertion is to verify the number of objects in images with uniquely labeled objects.
-         */
-        has_image_n_labels_model: {
-            /**
-             * Channel
-             * @description Restricts the assertion to a specific channel of the image (where ``0`` corresponds to the first image channel).
-             */
-            channel?: number | null;
-            /**
-             * Delta
-             * @description Maximum allowed difference of the number of labels (default is 0). The observed number of labels has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Exclude Labels
-             * @description List of labels to be excluded from consideration, separated by a comma. The primary usage of this attribute is to exclude the background of a label image. Cannot be used in combination with ``labels``.
-             */
-            exclude_labels?: number[] | null;
-            /**
-             * Frame
-             * @description Restricts the assertion to a specific frame of the image sequence (where ``0`` corresponds to the first image frame).
-             */
-            frame?: number | null;
-            /**
-             * Labels
-             * @description List of labels, separated by a comma. Labels *not* on this list will be excluded from consideration. Cannot be used in combination with ``exclude_labels``.
-             */
-            labels?: number[] | null;
-            /**
-             * Max
-             * @description Maximum allowed number of labels.
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed number of labels.
-             */
-            min?: number | null;
-            /**
-             * N
-             * @description Expected number of labels.
-             */
-            n?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Slice
-             * @description Restricts the assertion to a specific slice of the image (where ``0`` corresponds to the first image slice).
-             */
-            slice?: number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_n_labels";
-        };
-        /**
-         * Assert Has Image N Labels (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_n_labels_model_nested: {
-            /** Assert Has Image N Labels */
-            has_image_n_labels: components["schemas"]["base_has_image_n_labels_model"];
-        };
-        /**
-         * Assert Has Image Width
-         * @description Asserts the output is an image and has a specific width (in pixels).
-         *
-         *     The width is plus/minus ``delta`` (e.g., ``<has_image_width width="512" delta="2" />``).
-         *     Alternatively the range of the expected width can be specified by ``min`` and/or ``max``.
-         */
-        has_image_width_model: {
-            /**
-             * Delta
-             * @description Maximum allowed difference of the image width (in pixels, default is 0). The observed width has to be in the range ``value +- delta``.
-             * @default 0
-             */
-            delta: number;
-            /**
-             * Max
-             * @description Maximum allowed width of the image (in pixels).
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum allowed width of the image (in pixels).
-             */
-            min?: number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_image_width";
-            /**
-             * Width
-             * @description Expected width of the image (in pixels).
-             */
-            width?: number | null;
-        };
-        /**
-         * Assert Has Image Width (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_image_width_model_nested: {
-            /** Assert Has Image Width */
-            has_image_width: components["schemas"]["base_has_image_width_model"];
-        };
-        /**
-         * Assert Has Json Property With Text
-         * @description Asserts the JSON document contains a property or key with the specified text (i.e. string) value.
-         *
-         *     ```xml
-         *     <has_json_property_with_text property="color" text="red" />
-         *     ```
-         */
-        has_json_property_with_text_model: {
-            /**
-             * Property
-             * @description The property name to search the JSON document for.
-             */
-            property: string;
-            /**
-             * Text
-             * @description The expected text value of the target JSON attribute.
-             */
-            text: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_json_property_with_text";
-        };
-        /**
-         * Assert Has Json Property With Text (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_json_property_with_text_model_nested: {
-            /** Assert Has Json Property With Text */
-            has_json_property_with_text: components["schemas"]["base_has_json_property_with_text_model"];
-        };
-        /**
-         * Assert Has Json Property With Value
-         * @description Asserts the JSON document contains a property or key with the specified JSON value.
-         *
-         *     ```xml
-         *     <has_json_property_with_value property="skipped_columns" value="[1, 3, 5]" />
-         *     ```
-         */
-        has_json_property_with_value_model: {
-            /**
-             * Property
-             * @description The property name to search the JSON document for.
-             */
-            property: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_json_property_with_value";
-            /**
-             * Value
-             * @description The expected JSON value of the target JSON attribute (as a JSON encoded string).
-             */
-            value: string;
-        };
-        /**
-         * Assert Has Json Property With Value (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_json_property_with_value_model_nested: {
-            /** Assert Has Json Property With Value */
-            has_json_property_with_value: components["schemas"]["base_has_json_property_with_value_model"];
-        };
-        /**
-         * Assert Has Line Matching
-         * @description Asserts the specified output contains a line matching the
-         *     regular expression specified by the argument expression. If n is given
-         *     the assertion checks for exactly n occurrences.
-         */
-        has_line_matching_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Expression
-             * @description The regular expressions to attempt match in the output.
-             */
-            expression: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_line_matching";
-        };
-        /**
-         * Assert Has Line Matching (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_line_matching_model_nested: {
-            /** Assert Has Line Matching */
-            has_line_matching: components["schemas"]["base_has_line_matching_model"];
-        };
-        /**
-         * Assert Has Line
-         * @description Asserts the specified output contains the line specified by the
-         *     argument line. The exact number of occurrences can be optionally
-         *     specified by the argument n
-         */
-        has_line_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Line
-             * @description The full line of text to search for in the output.
-             */
-            line: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_line";
-        };
-        /**
-         * Assert Has Line (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_line_model_nested: {
-            /** Assert Has Line */
-            has_line: components["schemas"]["base_has_line_model"];
-        };
-        /**
-         * Assert Has N Columns
-         * @description Asserts tabular output  contains the specified
-         *     number (``n``) of columns.
-         *
-         *     For instance, ``<has_n_columns n="3"/>``. The assertion tests only the first line.
-         *     Number of columns can optionally also be specified with ``delta``. Alternatively the
-         *     range of expected occurrences can be specified by ``min`` and/or ``max``.
-         *
-         *     Optionally a column separator (``sep``, default is ``       ``) `and comment character(s)
-         *     can be specified (``comment``, default is empty string). The first non-comment
-         *     line is used for determining the number of columns.
-         */
-        has_n_columns_model: {
-            /**
-             * Comment
-             * @description Comment character(s) used to skip comment lines (which should not be used for counting columns)
-             * @default
-             */
-            comment: string;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Sep
-             * @description Separator defining columns, default: tab
-             * @default
-             */
-            sep: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_n_columns";
-        };
-        /**
-         * Assert Has N Columns (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_n_columns_model_nested: {
-            /** Assert Has N Columns */
-            has_n_columns: components["schemas"]["base_has_n_columns_model"];
-        };
-        /**
-         * Assert Has N Elements With Path
-         * @description Asserts the XML output contains the specified number (``n``, optionally with ``delta``) of elements (or
-         *     tags) with the specified XPath-like ``path``.
-         *
-         *     For example:
-         *
-         *     ```xml
-         *     <has_n_elements_with_path n="9" path="BlastOutput_iterations/Iteration/Iteration_hits/Hit/Hit_num" />
-         *     ```
-         *
-         *     Alternatively to ``n`` and ``delta`` also the ``min`` and ``max`` attributes
-         *     can be used to specify the range of the expected number of occurrences.
-         *     With ``negate`` the result of the assertion can be inverted.
-         */
-        has_n_elements_with_path_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_n_elements_with_path";
-        };
-        /**
-         * Assert Has N Elements With Path (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_n_elements_with_path_model_nested: {
-            /** Assert Has N Elements With Path */
-            has_n_elements_with_path: components["schemas"]["base_has_n_elements_with_path_model"];
-        };
-        /**
-         * Assert Has N Lines
-         * @description Asserts the specified output contains ``n`` lines allowing
-         *     for a difference in the number of lines (delta)
-         *     or relative differebce in the number of lines
-         */
-        has_n_lines_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_n_lines";
-        };
-        /**
-         * Assert Has N Lines (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_n_lines_model_nested: {
-            /** Assert Has N Lines */
-            has_n_lines: components["schemas"]["base_has_n_lines_model"];
-        };
-        /**
-         * Assert Has Size
-         * @description Asserts the specified output has a size of the specified value
-         *
-         *     Attributes size and value or synonyms though value is considered deprecated.
-         *     The size optionally allows for absolute (``delta``) difference.
-         */
-        has_size_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Size
-             * @description Desired size of the output (in bytes), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            size?: string | number | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_size";
-            /**
-             * Value
-             * @description Deprecated alias for `size`
-             */
-            value?: string | number | null;
-        };
-        /**
-         * Assert Has Size (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_size_model_nested: {
-            /** Assert Has Size */
-            has_size: components["schemas"]["base_has_size_model"];
-        };
-        /**
-         * Assert Has Text Matching
-         * @description Asserts the specified output contains text matching the
-         *     regular expression specified by the argument expression.
-         *     If n is given the assertion checks for exactly n (nonoverlapping)
-         *     occurrences.
-         */
-        has_text_matching_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Expression
-             * @description The regular expressions to attempt match in the output.
-             */
-            expression: string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_text_matching";
-        };
-        /**
-         * Assert Has Text Matching (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_text_matching_model_nested: {
-            /** Assert Has Text Matching */
-            has_text_matching: components["schemas"]["base_has_text_matching_model"];
-        };
-        /**
-         * Assert Has Text
-         * @description Asserts specified output contains the substring specified by
-         *     the argument text. The exact number of occurrences can be
-         *     optionally specified by the argument n
-         */
-        has_text_model: {
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Text
-             * @description The text to search for in the output.
-             */
-            text: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "has_text";
-        };
-        /**
-         * Assert Has Text (Nested)
-         * @description Nested version of this assertion model.
-         */
-        has_text_model_nested: {
-            /** Assert Has Text */
-            has_text: components["schemas"]["base_has_text_model"];
-        };
-        /**
-         * Assert Is Valid Xml
-         * @description Asserts the output is a valid XML file (e.g. ``<is_valid_xml />``).
-         */
-        is_valid_xml_model: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "is_valid_xml";
-        };
-        /**
-         * Assert Is Valid Xml (Nested)
-         * @description Nested version of this assertion model.
-         */
-        is_valid_xml_model_nested: {
-            /** Assert Is Valid Xml */
-            is_valid_xml: components["schemas"]["base_is_valid_xml_model"];
-        };
-        /**
-         * Assert Not Has Text
-         * @description Asserts specified output does not contain the substring
-         *     specified by the argument text
-         */
-        not_has_text_model: {
-            /**
-             * Text
-             * @description The text to search for in the output.
-             */
-            text: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "not_has_text";
-        };
-        /**
-         * Assert Not Has Text (Nested)
-         * @description Nested version of this assertion model.
-         */
-        not_has_text_model_nested: {
-            /** Assert Not Has Text */
-            not_has_text: components["schemas"]["base_not_has_text_model"];
-        };
-        /**
-         * Assert Xml Element
-         * @description Assert if the XML file contains element(s) or tag(s) with the specified
-         *     [XPath-like ``path``](https://lxml.de/xpathxslt.html).  If ``n`` and ``delta``
-         *     or ``min`` and ``max`` are given also the number of occurrences is checked.
-         *
-         *     ```xml
-         *     <assert_contents>
-         *       <xml_element path="./elem"/>
-         *       <xml_element path="./elem/more[2]"/>
-         *       <xml_element path=".//more" n="3" delta="1"/>
-         *     </assert_contents>
-         *     ```
-         *
-         *     With ``negate="true"`` the outcome of the assertions wrt the presence and number
-         *     of ``path`` can be negated. If there are any sub assertions then check them against
-         *
-         *     - the content of the attribute ``attribute``
-         *     - the element's text if no attribute is given
-         *
-         *     ```xml
-         *     <assert_contents>
-         *       <xml_element path="./elem/more[2]" attribute="name">
-         *         <has_text_matching expression="foo$"/>
-         *       </xml_element>
-         *     </assert_contents>
-         *     ```
-         *
-         *     Sub-assertions are not subject to the ``negate`` attribute of ``xml_element``.
-         *     If ``all`` is ``true`` then the sub assertions are checked for all occurrences.
-         *
-         *     Note that all other XML assertions can be expressed by this assertion (Galaxy
-         *     also implements the other assertions by calling this one).
-         */
-        "xml_element_model-Input": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute?: string | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Input"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "xml_element";
-        };
-        /**
-         * Assert Xml Element
-         * @description Assert if the XML file contains element(s) or tag(s) with the specified
-         *     [XPath-like ``path``](https://lxml.de/xpathxslt.html).  If ``n`` and ``delta``
-         *     or ``min`` and ``max`` are given also the number of occurrences is checked.
-         *
-         *     ```xml
-         *     <assert_contents>
-         *       <xml_element path="./elem"/>
-         *       <xml_element path="./elem/more[2]"/>
-         *       <xml_element path=".//more" n="3" delta="1"/>
-         *     </assert_contents>
-         *     ```
-         *
-         *     With ``negate="true"`` the outcome of the assertions wrt the presence and number
-         *     of ``path`` can be negated. If there are any sub assertions then check them against
-         *
-         *     - the content of the attribute ``attribute``
-         *     - the element's text if no attribute is given
-         *
-         *     ```xml
-         *     <assert_contents>
-         *       <xml_element path="./elem/more[2]" attribute="name">
-         *         <has_text_matching expression="foo$"/>
-         *       </xml_element>
-         *     </assert_contents>
-         *     ```
-         *
-         *     Sub-assertions are not subject to the ``negate`` attribute of ``xml_element``.
-         *     If ``all`` is ``true`` then the sub assertions are checked for all occurrences.
-         *
-         *     Note that all other XML assertions can be expressed by this assertion (Galaxy
-         *     also implements the other assertions by calling this one).
-         */
-        "xml_element_model-Output": {
-            /**
-             * All
-             * @description Check the sub-assertions for all paths matching the path. Default: false, i.e. only the first
-             * @default false
-             */
-            all: boolean | string;
-            /** Asserts */
-            asserts?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Attribute
-             * @description The XML attribute name to test against from the target XML element.
-             */
-            attribute?: string | null;
-            /** Children */
-            children?: components["schemas"]["assertion_list-Output"] | null;
-            /**
-             * Delta
-             * @description Allowed difference with respect to n (default: 0), can be suffixed by ``(k|M|G|T|P|E)i?``
-             * @default 0
-             */
-            delta: number | string;
-            /**
-             * Max
-             * @description Maximum number (default: infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            max?: string | number | null;
-            /**
-             * Min
-             * @description Minimum number (default: -infinity), can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            min?: string | number | null;
-            /**
-             * N
-             * @description Desired number, can be suffixed by ``(k|M|G|T|P|E)i?``
-             */
-            n?: string | number | null;
-            /**
-             * Negate
-             * @description A boolean that can be set to true to negate the outcome of the assertion.
-             * @default false
-             */
-            negate: boolean | string;
-            /**
-             * Path
-             * @description The Python xpath-like expression to find the target element.
-             */
-            path: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            that: "xml_element";
-        };
-        /**
-         * Assert Xml Element (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "xml_element_model_nested-Input": {
-            /** Assert Xml Element */
-            xml_element: components["schemas"]["base_xml_element_model-Input"];
-        };
-        /**
-         * Assert Xml Element (Nested)
-         * @description Nested version of this assertion model.
-         */
-        "xml_element_model_nested-Output": {
-            /** Assert Xml Element */
-            xml_element: components["schemas"]["base_xml_element_model-Output"];
         };
     };
     responses: never;
@@ -33594,132 +29377,6 @@ export interface operations {
                         [key: string]: unknown;
                     };
                 };
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    subscribe_history_viewer_api_events_history_subscriptions_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HistoryViewerSubscriptionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    unsubscribe_history_viewer_api_events_history_subscriptions_delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HistoryViewerSubscriptionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    stream_events_api_events_stream_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "Last-Event-ID"?: string | null;
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Request Error */
             "4XX": {
@@ -39161,155 +34818,6 @@ export interface operations {
             };
         };
     };
-    extract_workflow_from_history_api_histories__history_id__extract_workflow_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path: {
-                /** @description The encoded database identifier of the History. */
-                history_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkflowExtractionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowExtractionResult"];
-                };
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    extraction_summary_api_histories__history_id__extraction_summary_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path: {
-                /** @description The encoded database identifier of the History. */
-                history_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowExtractionSummary"];
-                };
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    graph_api_histories__history_id__graph_get: {
-        parameters: {
-            query?: {
-                /** @description Maximum number of nodes. Applied at history scope. */
-                limit?: number;
-                /** @description Include deleted datasets and collections. */
-                include_deleted?: boolean;
-                /** @description Optional: focus on subgraph reachable from this node (e.g. d<encoded_id>). */
-                seed?: string | null;
-                /** @description Direction for seed-based subgraph extraction. */
-                direction?: "backward" | "forward" | "both";
-                /** @description Max depth for seed-based subgraph extraction. */
-                depth?: number;
-                /** @description Center the selection window on this item. Format: d{encoded_id} or c{encoded_id}. */
-                seed_scope?: string | null;
-            };
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path: {
-                /** @description The encoded database identifier of the History. */
-                history_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HistoryGraphResponse"];
-                };
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
     index_jobs_summary_api_histories__history_id__jobs_summary_get: {
         parameters: {
             query?: {
@@ -42510,6 +38018,51 @@ export interface operations {
             };
         };
     };
+    create_api_metrics_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMetricsPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
     get_user_notifications_api_notifications_get: {
         parameters: {
             query?: {
@@ -45144,14 +40697,7 @@ export interface operations {
     };
     index_api_roles_get: {
         parameters: {
-            query?: {
-                /** @description Search by role name or user email (for private roles). */
-                search?: string | null;
-                /** @description The maximum number of roles to return. */
-                limit?: number | null;
-                /** @description Number of roles to skip. */
-                offset?: number | null;
-            };
+            query?: never;
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
                 "run-as"?: string | null;
@@ -46962,7 +42508,7 @@ export interface operations {
                         | components["schemas"]["CwlNullParameterModel"]
                         | components["schemas"]["CwlFileParameterModel"]
                         | components["schemas"]["CwlDirectoryParameterModel"]
-                        | components["schemas"]["CwlUnionParameterModel"]
+                        | components["schemas"]["CwlUnionParameterModel-Output"]
                         | components["schemas"]["TextParameterModel"]
                         | components["schemas"]["IntegerParameterModel"]
                         | components["schemas"]["FloatParameterModel"]
@@ -46974,14 +42520,14 @@ export interface operations {
                         | components["schemas"]["DataColumnParameterModel"]
                         | components["schemas"]["DirectoryUriParameterModel"]
                         | components["schemas"]["RulesParameterModel"]
-                        | components["schemas"]["DrillDownParameterModel"]
+                        | components["schemas"]["DrillDownParameterModel-Output"]
                         | components["schemas"]["GroupTagParameterModel"]
                         | components["schemas"]["BaseUrlParameterModel"]
                         | components["schemas"]["GenomeBuildParameterModel"]
                         | components["schemas"]["ColorParameterModel"]
-                        | components["schemas"]["ConditionalParameterModel"]
-                        | components["schemas"]["RepeatParameterModel"]
-                        | components["schemas"]["SectionParameterModel"]
+                        | components["schemas"]["ConditionalParameterModel-Output"]
+                        | components["schemas"]["RepeatParameterModel-Output"]
+                        | components["schemas"]["SectionParameterModel-Output"]
                     )[];
                 };
             };
@@ -47586,10 +43132,6 @@ export interface operations {
                 f_name?: string | null;
                 /** @description Filter on username OR email */
                 f_any?: string | null;
-                /** @description Maximum number of users to return. */
-                limit?: number | null;
-                /** @description Number of users to skip. */
-                offset?: number | null;
             };
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
@@ -48738,6 +44280,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeletedCustomBuild"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    set_favorite_order_api_users__user_id__favorites_order_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The ID of the user. */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FavoriteOrderPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteObjectsSummary"];
                 };
             };
             /** @description Request Error */

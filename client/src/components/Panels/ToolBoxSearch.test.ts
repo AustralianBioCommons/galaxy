@@ -288,7 +288,9 @@ describe("ToolBox search", () => {
             userStore.currentPreferences = {
                 favorites: {
                     tools: userStore.currentPreferences?.favorites.tools ?? [],
-                    tags: (userStore.currentPreferences?.favorites.tags ?? []).filter((currentTag) => currentTag !== tag),
+                    tags: (userStore.currentPreferences?.favorites.tags ?? []).filter(
+                        (currentTag) => currentTag !== tag,
+                    ),
                 },
             };
         });
@@ -330,16 +332,16 @@ describe("ToolBox search", () => {
 
         expect(wrapper.findAll(".toolSectionTitle .name svg").length).toBeGreaterThan(0);
 
-        const removeFavoriteTagButton = genomeCoordinatesSection?.find('[data-description="favorite-tag-section-button"]');
+        const removeFavoriteTagButton = genomeCoordinatesSection?.find(
+            '[data-description="favorite-tag-section-button"]',
+        );
         expect(removeFavoriteTagButton?.exists()).toBe(true);
         await removeFavoriteTagButton?.trigger("click");
         await flushPromises();
 
         expect(userStore.removeFavoriteTag).toHaveBeenCalledWith("genome_coordinates");
         expect(
-            wrapper
-                .findAll(".toolSectionTitle")
-                .wrappers.some((item) => item.text().includes("genome_coordinates")),
+            wrapper.findAll(".toolSectionTitle").wrappers.some((item) => item.text().includes("genome_coordinates")),
         ).toBe(false);
     });
 
@@ -504,9 +506,7 @@ describe("ToolBox search", () => {
 
         expect(wrapper.find(".tool-panel-empty").exists()).toBe(false);
         expect(
-            wrapper
-                .findAll(".toolSectionTitle .name")
-                .wrappers.some((item) => item.text().trim() === "data_cleanup"),
+            wrapper.findAll(".toolSectionTitle .name").wrappers.some((item) => item.text().trim() === "data_cleanup"),
         ).toBe(true);
     });
 
@@ -608,7 +608,9 @@ describe("ToolBox search", () => {
             email: "test@example.org",
             isAnonymous: false,
         } as any;
-        userStore.currentPreferences = { favorites: { tools: [], tags: [], edam_operations: [], edam_topics: ["topic_0091"] } };
+        userStore.currentPreferences = {
+            favorites: { tools: [], tags: [], edam_operations: [], edam_topics: ["topic_0091"] },
+        };
         vi.spyOn(userStore, "removeFavoriteEdamTopic").mockImplementation(async (topicId: string) => {
             userStore.currentPreferences = {
                 favorites: {
@@ -634,7 +636,9 @@ describe("ToolBox search", () => {
 
         await flushPromises();
 
-        const topicSection = wrapper.findAll(".toolSectionTitle").wrappers.find((item) => item.text().includes("Data formats"));
+        const topicSection = wrapper
+            .findAll(".toolSectionTitle")
+            .wrappers.find((item) => item.text().includes("Data formats"));
         expect(topicSection).toBeTruthy();
         expect(topicSection?.find(".favorite-edam-topic-section-icon").exists()).toBe(true);
 

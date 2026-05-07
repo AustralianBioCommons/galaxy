@@ -305,25 +305,25 @@ async function onFavoriteSectionToggle() {
             class="toolSectionTitle tool-panel-divider"
             :title="props.category.description || undefined">
             <a
-                :class="['title-link', 'tool-panel-divider-link', { 'favorite-top-level-drag-target': props.showDragHandle }]"
+                :class="[
+                    'title-link',
+                    'tool-panel-divider-link',
+                    { 'favorite-top-level-drag-target': props.showDragHandle },
+                ]"
                 href="javascript:void(0)"
                 role="button"
                 :aria-expanded="opened"
                 :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null"
                 @click="toggleMenu()">
-                    <span class="tool-panel-divider-text">
-                        <span class="name">
-                            <FontAwesomeIcon
-                                v-if="favoriteSectionIcon"
-                                :icon="favoriteSectionIcon"
-                                fixed-width
-                                :class="[
-                                    'mr-1',
-                                    favoriteSectionIconClass,
-                                    { [favoriteSectionIconOpenClass]: opened },
-                                ]" />
+                <span class="tool-panel-divider-text">
+                    <span class="name">
+                        <FontAwesomeIcon
+                            v-if="favoriteSectionIcon"
+                            :icon="favoriteSectionIcon"
+                            fixed-width
+                            :class="['mr-1', favoriteSectionIconClass, { [favoriteSectionIconOpenClass]: opened }]" />
                         {{ props.category.title || props.category.name }}
-                        </span>
+                    </span>
                     <ToolPanelLinks v-if="props.category.links" :links="props.category.links" />
                     <button
                         v-if="props.hasFilterButton"

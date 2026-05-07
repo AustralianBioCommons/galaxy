@@ -70,7 +70,10 @@ function quoteToolTagValue(tag: string | string[]): string | string[] {
 }
 
 function normalizeInlineFilterValue(value: string) {
-    const normalized = value.trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+    const normalized = value
+        .trim()
+        .replace(/^"(.*)"$/, "$1")
+        .replace(/^'(.*)'$/, "$1");
     return /[\s,]/.test(normalized) ? `"${normalized.replace(/"/g, '\\"')}"` : normalized;
 }
 
@@ -211,7 +214,11 @@ function normalizePropsToFilterSettings(routeProps: Props): FilterSettings {
         }
     }
 
-    const tags = Array.isArray(routeProps.tag) ? routeProps.tag.filter(Boolean) : routeProps.tag ? [routeProps.tag] : [];
+    const tags = Array.isArray(routeProps.tag)
+        ? routeProps.tag.filter(Boolean)
+        : routeProps.tag
+          ? [routeProps.tag]
+          : [];
     if (tags.length > 0) {
         filters.tag = tags;
     }
@@ -238,7 +245,9 @@ function normalizeFilterSettings(settings: FilterSettings): FilterSettings {
 
 /** The filters derived from the `filterText` via the `Filtering` class. */
 const filterSettings = computed<FilterSettings>(() =>
-    normalizeFilterSettings(Object.fromEntries(ToolFilters.value.getFiltersForText(filterText.value)) as FilterSettings),
+    normalizeFilterSettings(
+        Object.fromEntries(ToolFilters.value.getFiltersForText(filterText.value)) as FilterSettings,
+    ),
 );
 
 // `FilterMenu` Component Props
@@ -283,10 +292,11 @@ const shouldPreserveRawSearchText = computed(
 
 /** The backend whoosh query based on the current filters (if they can be derived from the text;
  * otherwise the raw search text itself). */
-const whooshQuery = computed(() =>
-    translatedBooleanWhooshQuery.value ||
-    mixedStructuredWhooshQuery.value ||
-    (Object.keys(filterSettings.value).length ? createWhooshQuery(filterSettings.value) : filterText.value.trim()),
+const whooshQuery = computed(
+    () =>
+        translatedBooleanWhooshQuery.value ||
+        mixedStructuredWhooshQuery.value ||
+        (Object.keys(filterSettings.value).length ? createWhooshQuery(filterSettings.value) : filterText.value.trim()),
 );
 
 /** The tools loaded from the store based on the `whooshQuery`. */

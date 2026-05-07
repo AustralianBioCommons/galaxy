@@ -100,7 +100,8 @@ const closestTerm = ref<string | null>(null);
 
 const toolStore = useToolStore();
 
-const { currentPanelView, currentToolSections, defaultPanelView, toolSections, toolTagsLoaded } = storeToRefs(toolStore);
+const { currentPanelView, currentToolSections, defaultPanelView, toolSections, toolTagsLoaded } =
+    storeToRefs(toolStore);
 const hasResults = computed(() => results.value.length > 0);
 const queryTooShort = computed(() => query.value && query.value.length < 3);
 const queryFinished = computed(() => query.value && queryPending.value != true);
@@ -233,12 +234,8 @@ const showEmptyFavorites = computed(
         favoriteEdamTopicSections.value.length === 0,
 );
 
-const recentToolsLabel = computed(() =>
-    buildToolLabel(PANEL_LABEL_IDS.RECENT_TOOLS_LABEL, localize("Recent tools")),
-);
-const favoritesLabel = computed(() =>
-    buildToolLabel(PANEL_LABEL_IDS.FAVORITES_LABEL, localize("Favorites")),
-);
+const recentToolsLabel = computed(() => buildToolLabel(PANEL_LABEL_IDS.RECENT_TOOLS_LABEL, localize("Recent tools")));
+const favoritesLabel = computed(() => buildToolLabel(PANEL_LABEL_IDS.FAVORITES_LABEL, localize("Favorites")));
 
 const resultsSet = computed(() => new Set(results.value));
 const nonFavoriteResultsSet = computed(() => new Set(nonFavoriteResults.value));
@@ -541,7 +538,12 @@ watch(
 );
 
 watch(
-    () => [props.favoritesDefault, favoriteEdamOperations.value.join("\0"), Boolean(toolSections.value["ontology:edam_operations"])] as const,
+    () =>
+        [
+            props.favoritesDefault,
+            favoriteEdamOperations.value.join("\0"),
+            Boolean(toolSections.value["ontology:edam_operations"]),
+        ] as const,
     async ([favoritesDefault, serializedFavoriteEdamOperations, hasOntologySections]) => {
         if (!favoritesDefault || !serializedFavoriteEdamOperations || hasOntologySections) {
             return;
@@ -552,7 +554,12 @@ watch(
 );
 
 watch(
-    () => [props.favoritesDefault, favoriteEdamTopics.value.join("\0"), Boolean(toolSections.value["ontology:edam_topics"])] as const,
+    () =>
+        [
+            props.favoritesDefault,
+            favoriteEdamTopics.value.join("\0"),
+            Boolean(toolSections.value["ontology:edam_topics"]),
+        ] as const,
     async ([favoritesDefault, serializedFavoriteEdamTopics, hasOntologySections]) => {
         if (!favoritesDefault || !serializedFavoriteEdamTopics || hasOntologySections) {
             return;
@@ -627,11 +634,17 @@ const favoritesDefaultPanel = computed<Record<string, ToolPanelItem> | null>(() 
             ]);
         } else {
             entries.push(...buildToolEntries(favorites, localToolsById.value));
-            entries.push(...favoriteTagSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]));
             entries.push(
-                ...favoriteEdamOperationSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]),
+                ...favoriteTagSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]),
             );
-            entries.push(...favoriteEdamTopicSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]));
+            entries.push(
+                ...favoriteEdamOperationSections.value.map(
+                    (section) => [section.id, section] as [string, ToolPanelItem],
+                ),
+            );
+            entries.push(
+                ...favoriteEdamTopicSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]),
+            );
         }
     }
     return Object.fromEntries(entries);
