@@ -1018,7 +1018,6 @@ class StorageOperationRunExecutor:
 
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
         source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
-        target_proxy: Optional[DatasetObjectStoreProxy] = None
         extra_files_path_name = dataset.extra_files_path_name
         if not self._source_dataset_exists(source_proxy):
             self._record_transfer_failure(
