@@ -944,6 +944,7 @@ class StorageOperationRunExecutor:
     def _execute(self, resolved_dataset_ids: list[int]) -> tuple[int, int, int, int]:
         for dataset_id in resolved_dataset_ids:
             self._process_dataset(dataset_id)
+            self._persist_run_progress()
         return self.succeeded_count, self.failed_count, self.skipped_count, self.total_bytes_processed
 
     def _process_dataset(self, dataset_id: int):
@@ -1106,6 +1107,14 @@ class StorageOperationRunExecutor:
             state="failed",
             reason_code=reason_code,
         )
+
+    def _persist_run_progress(self) -> None:
+        self.run.succeeded_count = self.succeeded_count
+        self.run.failed_count = self.failed_count
+        self.run.skipped_count = self.skipped_count
+        self.run.total_bytes_processed = self.total_bytes_processed
+        self.sa_session.add(self.run)
+        self.sa_session.commit()
 
     def _add_run_item(
         self,
