@@ -838,7 +838,6 @@ class DatasetStorageOperationRunManager:
                 reason_code=(
                     DatasetStorageOperationFailureReasonCode(run_item.reason_code) if run_item.reason_code else None
                 ),
-                attempt_count=run_item.attempt_count,
                 bytes_processed=run_item.bytes_processed,
                 create_time=run_item.create_time,
                 update_time=run_item.update_time,

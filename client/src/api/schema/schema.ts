@@ -22819,8 +22819,6 @@ export interface components {
         StorageOperationRunItemState: "pending" | "running" | "succeeded" | "failed" | "skipped";
         /** StorageOperationRunItemStatus */
         StorageOperationRunItemStatus: {
-            /** Attempt Count */
-            attempt_count: number;
             /** Bytes Processed */
             bytes_processed: number;
             /**
