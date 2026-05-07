@@ -20,6 +20,7 @@ function createTestRun(runId: string, historyId: string, startedAt?: Date | stri
         succeeded_count: 0,
         failed_count: 0,
         skipped_count: 0,
+        total_bytes_processed: 0,
     };
 }
 
@@ -84,6 +85,7 @@ describe("storageOperationsStore", () => {
             succeeded_count: 10,
             failed_count: 0,
             skipped_count: 0,
+            total_bytes_processed: 123,
             update_time: new Date(now.getTime() + 1000).toISOString(),
         });
 
@@ -95,6 +97,7 @@ describe("storageOperationsStore", () => {
             expect(isTerminalRunState(completedRun.state)).toBe(true);
             expect(completedRun.state).toBe("completed");
             expect(completedRun.succeeded_count).toBe(10);
+            expect(completedRun.total_bytes_processed).toBe(123);
         }
 
         vi.useRealTimers();

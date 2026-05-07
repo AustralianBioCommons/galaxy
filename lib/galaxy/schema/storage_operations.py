@@ -131,6 +131,7 @@ class StorageOperationRunSummary(Model):
     succeeded_count: int
     failed_count: int
     skipped_count: int
+    total_bytes_processed: int
     task_id: Optional[UUID4] = None
 
 

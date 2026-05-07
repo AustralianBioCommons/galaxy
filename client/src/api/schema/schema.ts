@@ -22877,6 +22877,8 @@ export interface components {
             target_object_store_id: string;
             /** Task Id */
             task_id?: string | null;
+            /** Total Bytes Processed */
+            total_bytes_processed: number;
             /** Total Count */
             total_count: number;
             /**

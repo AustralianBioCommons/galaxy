@@ -41,6 +41,7 @@ const EXECUTE_RESPONSE: StorageOperationExecuteResponse = {
         succeeded_count: 0,
         failed_count: 0,
         skipped_count: 0,
+        total_bytes_processed: 0,
     },
 };
 
@@ -54,6 +55,7 @@ const RUN_COMPLETED_RESPONSE: StorageOperationRunResponse = {
         ...EXECUTE_RESPONSE.run,
         state: "completed",
         succeeded_count: 1,
+        total_bytes_processed: 42,
     },
     items: [
         {
@@ -72,6 +74,7 @@ const RUN_FAILED_RESPONSE: StorageOperationRunResponse = {
         ...EXECUTE_RESPONSE.run,
         state: "completed",
         failed_count: 1,
+        total_bytes_processed: 0,
     },
     items: [
         {

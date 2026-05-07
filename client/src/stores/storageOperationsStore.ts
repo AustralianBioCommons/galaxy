@@ -13,6 +13,7 @@ export type RunStatusUpdate = {
     failed_count?: StorageOperationRunSummary["failed_count"];
     skipped_count?: StorageOperationRunSummary["skipped_count"];
     total_count?: StorageOperationRunSummary["total_count"];
+    total_bytes_processed?: StorageOperationRunSummary["total_bytes_processed"];
     update_time?: StorageOperationRunSummary["update_time"];
 };
 

@@ -118,6 +118,7 @@ export function useStorageHistoryRunsWatcher(historyId: string, options?: Storag
                     succeeded_count: summary.succeeded_count,
                     failed_count: summary.failed_count,
                     skipped_count: summary.skipped_count,
+                    total_bytes_processed: summary.total_bytes_processed,
                     update_time: summary.update_time,
                 });
             }

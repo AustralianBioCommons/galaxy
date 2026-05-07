@@ -12763,6 +12763,7 @@ class DatasetStorageOperationRun(Base):
     succeeded_count: Mapped[int] = mapped_column(default=0)
     failed_count: Mapped[int] = mapped_column(default=0)
     skipped_count: Mapped[int] = mapped_column(default=0)
+    total_bytes_processed: Mapped[int] = mapped_column(default=0)
     create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
     update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, nullable=True)
 

@@ -754,6 +754,7 @@ class DatasetStorageOperationRunManager:
             succeeded_count=run.succeeded_count,
             failed_count=run.failed_count,
             skipped_count=run.skipped_count,
+            total_bytes_processed=run.total_bytes_processed,
             task_id=UUID(str(run.task_id)) if run.task_id is not None else None,
         )
 
@@ -896,6 +897,7 @@ class StorageOperationRunExecutor:
         self.succeeded_count = 0
         self.failed_count = 0
         self.skipped_count = 0
+        self.total_bytes_processed = 0
 
     def execute_run(self, snapshot: Optional[DatasetStorageOperationSnapshot]) -> StorageOperationExecutionResult:
         """Validate snapshot, drive state transitions, execute all datasets, and return execution outcome."""
@@ -910,13 +912,14 @@ class StorageOperationRunExecutor:
         self.sa_session.commit()
 
         resolved_dataset_ids = snapshot.resolved_dataset_ids
-        succeeded_count, failed_count, skipped_count = self._execute(resolved_dataset_ids)
+        succeeded_count, failed_count, skipped_count, total_bytes_processed = self._execute(resolved_dataset_ids)
 
         self.run.state = "completed"
         self.run.total_count = len(resolved_dataset_ids)
         self.run.succeeded_count = succeeded_count
         self.run.failed_count = failed_count
         self.run.skipped_count = skipped_count
+        self.run.total_bytes_processed = total_bytes_processed
         self.sa_session.add(self.run)
         self.sa_session.commit()
 
@@ -937,10 +940,10 @@ class StorageOperationRunExecutor:
             message=message,
         )
 
-    def _execute(self, resolved_dataset_ids: list[int]) -> tuple[int, int, int]:
+    def _execute(self, resolved_dataset_ids: list[int]) -> tuple[int, int, int, int]:
         for dataset_id in resolved_dataset_ids:
             self._process_dataset(dataset_id)
-        return self.succeeded_count, self.failed_count, self.skipped_count
+        return self.succeeded_count, self.failed_count, self.skipped_count, self.total_bytes_processed
 
     def _process_dataset(self, dataset_id: int):
         dataset = self.sa_session.get(Dataset, dataset_id)
@@ -1035,6 +1038,7 @@ class StorageOperationRunExecutor:
 
             self.additional_target_usage += quota_delta
             self.succeeded_count += 1
+            self.total_bytes_processed += bytes_processed
             self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
             self._notify_dataset_update(dataset)
         except ChecksumVerificationError as exc:
