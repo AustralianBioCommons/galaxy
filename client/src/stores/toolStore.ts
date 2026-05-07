@@ -31,9 +31,6 @@ export interface FilterSettings {
     tag?: string[];
 }
 
-export interface FetchToolsOptions {
-    includeToolTags?: boolean;
-}
 
 export interface Panel {
     id: string;
@@ -251,8 +248,7 @@ export const useToolStore = defineStore("toolStore", () => {
         }
     }
 
-    async function fetchTools(q?: string, options: FetchToolsOptions = {}) {
-        const includeToolTags = Boolean(options.includeToolTags);
+    async function fetchTools(q?: string) {
         try {
             loading.value = true;
             // Backend search
@@ -265,20 +261,42 @@ export const useToolStore = defineStore("toolStore", () => {
                 }
             }
 
-            // Fetch all tools by IDs if not already fetched, or rehydrate once with curated tags when needed.
-            if (Object.keys(toolsById.value).length === 0 || (includeToolTags && !toolTagsLoaded.value)) {
-                const { data } = await axios.get(`${getAppRoot()}api/tools`, {
-                    params: {
-                        in_panel: false,
-                        ...(includeToolTags ? { include_tool_tags: true } : {}),
-                    },
-                });
-                saveAllTools(data as Tool[], { includeToolTags });
+            // Fetch all tools by IDs if not already fetched.
+            if (Object.keys(toolsById.value).length === 0) {
+                const { data } = await axios.get(`${getAppRoot()}api/tools`, { params: { in_panel: false } });
+                saveAllTools(data as Tool[]);
             }
         } catch (e) {
             rethrowSimple(e);
         } finally {
             loading.value = false;
+        }
+    }
+
+    /**
+     * Fetch the curated `{tool_id: [tag, ...]}` mapping from `/api/tools/tags`
+     * and merge it into `toolsById`. Idempotent: subsequent calls are no-ops
+     * once the mapping has been loaded for the current toolbox.
+     *
+     * Kept separate from `fetchTools` so the bulk `/api/tools` payload doesn't
+     * carry per-tool `tool_tags` — the mapping is only consumed by the My
+     * Tools panel, while every tool-list consumer pays the bandwidth cost.
+     */
+    async function fetchToolTagsMapping() {
+        if (toolTagsLoaded.value) {
+            return;
+        }
+        try {
+            const { data } = await axios.get(`${getAppRoot()}api/tools/tags`);
+            const mapping = (data ?? {}) as Record<string, string[]>;
+            const merged: Record<string, Tool> = {};
+            for (const [id, tool] of Object.entries(toolsById.value)) {
+                merged[id] = { ...tool, tool_tags: mapping[id] ?? tool.tool_tags ?? [] };
+            }
+            toolsById.value = merged;
+            toolTagsLoaded.value = true;
+        } catch (e) {
+            rethrowSimple(e);
         }
     }
 
@@ -325,21 +343,17 @@ export const useToolStore = defineStore("toolStore", () => {
         }
     }
 
-    function saveAllTools(toolsData: Tool[], options: FetchToolsOptions = {}) {
+    function saveAllTools(toolsData: Tool[]) {
         toolsById.value = toolsData.reduce(
             (acc, item) => {
-                const existingItem = toolsById.value[item.id];
-                const nextItem = { ...item };
-                if (!options.includeToolTags && toolTagsLoaded.value && existingItem?.tool_tags && !item.tool_tags) {
-                    nextItem.tool_tags = existingItem.tool_tags;
-                }
-                acc[item.id] = nextItem;
+                acc[item.id] = item;
                 return acc;
             },
             {} as Record<string, Tool>,
         );
-        toolTagsLoaded.value =
-            toolTagsLoaded.value || options.includeToolTags || toolsData.some((item) => item.tool_tags !== undefined);
+        // The bulk /api/tools payload doesn't carry tool_tags; reset the loaded
+        // flag so the next mount of the My Tools panel re-fetches the mapping.
+        toolTagsLoaded.value = false;
     }
 
     function saveToolSections(panelView: string, newPanel: { [id: string]: ToolPanelItem }) {
@@ -376,6 +390,7 @@ export const useToolStore = defineStore("toolStore", () => {
         fetchPanels,
         fetchToolForId,
         fetchTools,
+        fetchToolTagsMapping,
         getLinkById,
         getTargetById,
         helpDataCached,

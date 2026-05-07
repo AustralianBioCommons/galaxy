@@ -2987,7 +2987,7 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
             os.remove(temp_file)
         return tarball_archive
 
-    def to_dict(self, trans, link_details=False, io_details=False, tool_help=False, include_tool_tags=True):
+    def to_dict(self, trans, link_details=False, io_details=False, tool_help=False):
         """Returns dict of tool."""
 
         # Basic information
@@ -2996,8 +2996,6 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
         tool_dict["icon"] = self.icon
         tool_dict["edam_operations"] = self.edam_operations
         tool_dict["edam_topics"] = self.edam_topics
-        if include_tool_tags:
-            tool_dict["tool_tags"] = self.tool_tags
         tool_dict["hidden"] = self.hidden
         tool_dict["is_workflow_compatible"] = self.is_workflow_compatible
         tool_dict["xrefs"] = self.xrefs

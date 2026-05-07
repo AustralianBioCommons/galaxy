@@ -77,6 +77,7 @@ describe("Tool tag favorites integration", () => {
 
         const fetchToolsMock = vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
         vi.spyOn(toolStore, "fetchToolSections").mockResolvedValue();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         vi.spyOn(toolStore, "fetchHelpForId").mockResolvedValue();
 
         const userStore = useUserStore();
@@ -121,7 +122,6 @@ describe("Tool tag favorites integration", () => {
             createWhooshQuery({
                 tag: ["collection_ops"],
             }),
-            { includeToolTags: true },
         );
 
         const tagCardWrapper = mount(ToolsListCard as object, {

@@ -78,6 +78,7 @@ describe("ToolsList", () => {
         toolStore.toolsById = toToolsById(toolsList);
         fetchToolsMock = vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
         vi.spyOn(toolStore, "fetchToolSections").mockResolvedValue();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         vi.spyOn(toolStore, "fetchHelpForId").mockResolvedValue();
 
         // Clear the router mock between tests
@@ -96,7 +97,7 @@ describe("ToolsList", () => {
         });
 
         // By default, no search text, fetch tools is still called but without a query
-        expect(fetchToolsMock).toHaveBeenCalledWith("", { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenCalledWith("");
 
         expect(wrapper.find("[data-description='toggle advanced search']").exists()).toBe(true);
 
@@ -129,7 +130,7 @@ describe("ToolsList", () => {
             propsData: FILTER_SETTINGS,
         });
 
-        expect(fetchToolsMock).toHaveBeenCalledWith(WHOOSH_QUERY, { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenCalledWith(WHOOSH_QUERY);
     });
 
     it("detects repeated tag filters in the route and searches the backend", async () => {
@@ -140,7 +141,7 @@ describe("ToolsList", () => {
             propsData: TAG_FILTER_SETTINGS,
         });
 
-        expect(fetchToolsMock).toHaveBeenCalledWith(TAG_WHOOSH_QUERY, { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenCalledWith(TAG_WHOOSH_QUERY);
     });
 
     it("emits repeated tag filters to the router query", async () => {
@@ -163,7 +164,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: TAG_FILTER_SETTINGS,
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(TAG_WHOOSH_QUERY, { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(TAG_WHOOSH_QUERY);
     });
 
     it("autocompletes multi-word tags in the main search bar", async () => {
@@ -197,9 +198,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { tag: ["data cleanup"] },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }), {
-            includeToolTags: true,
-        });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }));
     });
 
     it("does not re-open autocomplete for a complete multi-word tag missing only the closing quote", async () => {
@@ -247,9 +246,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { tag: ["data cleanup"] },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }), {
-            includeToolTags: true,
-        });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }));
     });
 
     it("renders route-provided multi-word tags with quotes in the search bar", async () => {
@@ -304,7 +301,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { search: RAW_TAG_SEARCH },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(RAW_TAG_WHOOSH_QUERY, { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(RAW_TAG_WHOOSH_QUERY);
     });
 
     it("preserves mixed quoted-tag and free-text input as raw search text", async () => {
@@ -327,7 +324,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { search: MIXED_TAG_SEARCH },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(MIXED_TAG_WHOOSH_QUERY, { includeToolTags: true });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(MIXED_TAG_WHOOSH_QUERY);
     });
 
     it("translates mixed tag and ontology search into a valid whoosh query", async () => {
@@ -350,8 +347,6 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: MIXED_TAG_AND_ONTOLOGY_FILTER_SETTINGS,
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(MIXED_TAG_AND_ONTOLOGY_WHOOSH_QUERY, {
-            includeToolTags: true,
-        });
+        expect(fetchToolsMock).toHaveBeenLastCalledWith(MIXED_TAG_AND_ONTOLOGY_WHOOSH_QUERY);
     });
 });

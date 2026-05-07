@@ -345,7 +345,10 @@ watch(
 // The component mounts with the whooshQuery already generated; perform fetch!
 searchTools(whooshQuery.value);
 async function searchTools(query: string) {
-    await toolStore.fetchTools(query, { includeToolTags: true });
+    await toolStore.fetchTools(query);
+    // Curated tags are fetched lazily out-of-band so tag chips on result cards
+    // and the `tag:` autocomplete work without bloating /api/tools.
+    await toolStore.fetchToolTagsMapping();
 }
 
 function applyFilter(filter: string, value: string | string[]) {

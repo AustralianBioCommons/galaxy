@@ -142,7 +142,7 @@ class TestToolBox(BaseToolBoxTestCase):
             as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
             assert as_dict[0]["id"] == "test_tool"
 
-    def test_to_dict_omits_tool_tags_by_default_and_splits_cache_by_tag_inclusion(self):
+    def test_to_dict_omits_tool_tags(self):
         self._init_tool_in_section()
         mapper = routes.Mapper()
         mapper.connect("tool_runner", "/test/tool_runner")
@@ -150,15 +150,23 @@ class TestToolBox(BaseToolBoxTestCase):
         tool = self.toolbox.get_tool("test_tool")
         tool.tool_tags = ["curated_tag"]
 
+        # The bulk /api/tools payload never carries `tool_tags`; clients pull
+        # them from /api/tools/tags via `curated_tool_tags_by_id`.
         as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
         assert as_dict[0]["id"] == "test_tool"
         assert "tool_tags" not in as_dict[0]
 
-        tagged_dict = self.toolbox.to_dict(mock_trans(), in_panel=False, include_tool_tags=True)
-        assert tagged_dict[0]["tool_tags"] == ["curated_tag"]
+    def test_curated_tool_tags_by_id_returns_loaded_mapping(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
 
-        cached_tag_free_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
-        assert "tool_tags" not in cached_tag_free_dict[0]
+        tool = self.toolbox.get_tool("test_tool")
+        tool.tool_tags = ["curated_tag", "another_tag"]
+        # Re-register so the curated id caches pick up the mutation.
+        self.toolbox.register_tool(tool)
+
+        assert self.toolbox.curated_tool_tags_by_id == {"test_tool": ["curated_tag", "another_tag"]}
 
     def test_to_panel_view_omits_tool_tags_by_default(self):
         self._init_tool_in_section()
@@ -197,15 +205,12 @@ class TestToolBox(BaseToolBoxTestCase):
         mapper = routes.Mapper()
         mapper.connect("tool_runner", "/test/tool_runner")
 
-        # Populate the to_dict cache for both include_tool_tags variants.
+        # Populate the to_dict cache.
         self.toolbox.to_dict(mock_trans(), in_panel=False)
-        self.toolbox.to_dict(mock_trans(), in_panel=False, include_tool_tags=True)
-        assert ("test_tool", False) in self.toolbox._tool_to_dict_cache
-        assert ("test_tool", True) in self.toolbox._tool_to_dict_cache
+        assert "test_tool" in self.toolbox._tool_to_dict_cache
 
         self.toolbox.remove_tool_by_id("test_tool")
-        assert ("test_tool", False) not in self.toolbox._tool_to_dict_cache
-        assert ("test_tool", True) not in self.toolbox._tool_to_dict_cache
+        assert "test_tool" not in self.toolbox._tool_to_dict_cache
 
     def test_my_tools_panel_view_is_registered(self):
         self._init_tool_in_section()

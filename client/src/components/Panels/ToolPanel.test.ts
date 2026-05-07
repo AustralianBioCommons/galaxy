@@ -243,11 +243,20 @@ describe("ToolPanel", () => {
 
     it("does not request tool tags during default tool panel startup", async () => {
         let toolsRequestUrl: URL | undefined;
+        let toolTagsRequested = false;
+        // Default tool panel mount must not pull the curated tag mapping —
+        // that's My-Tools-only and is fetched via /api/tools/tags on demand.
+        server.use(
+            http.untyped.get("/api/tools/tags", () => {
+                toolTagsRequested = true;
+                return HttpResponse.json({});
+            }),
+        );
         await createWrapper("", false, (url) => {
             toolsRequestUrl = url;
         });
 
         expect(toolsRequestUrl?.searchParams.get("in_panel")).toBe("false");
-        expect(toolsRequestUrl?.searchParams.get("include_tool_tags")).toBeNull();
+        expect(toolTagsRequested).toBe(false);
     });
 });

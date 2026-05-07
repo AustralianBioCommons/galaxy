@@ -63,6 +63,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -98,6 +99,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -135,6 +137,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -181,6 +184,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -225,6 +229,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -265,6 +270,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -350,6 +356,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -397,6 +404,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -451,6 +459,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -484,6 +493,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(toolsList);
         toolStore.toolSections = { default: toolsListInPanel };
         toolStore.defaultPanelView = "default";
@@ -515,6 +525,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(withFavoriteEdamOperationTool(toolsList));
         toolStore.toolSections = {
             default: toolsListInPanel,
@@ -586,6 +597,7 @@ describe("ToolBox search", () => {
         setActivePinia(pinia);
 
         const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
         toolStore.toolsById = toToolsById(withFavoriteEdamTopicTool(toolsList));
         toolStore.toolSections = {
             default: toolsListInPanel,
@@ -655,7 +667,7 @@ describe("ToolBox search", () => {
         expect(wrapper.text()).not.toContain("Data formats");
     });
 
-    it("loads tag-enriched tools in My Tools when favorite tags exist and the catalog is tag-free", async () => {
+    it("loads the curated tag mapping in My Tools when favorite tags exist", async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
 
@@ -665,7 +677,8 @@ describe("ToolBox search", () => {
         toolStore.defaultPanelView = "default";
         toolStore.currentPanelView = "my_panel";
 
-        const fetchToolsMock = vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
+        const fetchToolTagsMappingMock = vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
+        vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
 
         const userStore = useUserStore();
         userStore.currentPreferences = { favorites: { tools: [], tags: ["data_cleanup"] } };
@@ -682,10 +695,10 @@ describe("ToolBox search", () => {
 
         await flushPromises();
 
-        expect(fetchToolsMock).toHaveBeenCalledWith(undefined, { includeToolTags: true });
+        expect(fetchToolTagsMappingMock).toHaveBeenCalled();
     });
 
-    it("does not load tag-enriched tools in My Tools when no favorite tags exist", async () => {
+    it("does not load the curated tag mapping in My Tools when no favorite tags exist", async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
 
@@ -695,7 +708,8 @@ describe("ToolBox search", () => {
         toolStore.defaultPanelView = "default";
         toolStore.currentPanelView = "my_panel";
 
-        const fetchToolsMock = vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
+        const fetchToolTagsMappingMock = vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
+        vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
 
         const userStore = useUserStore();
         userStore.currentPreferences = { favorites: { tools: [], tags: [] } };
@@ -712,6 +726,6 @@ describe("ToolBox search", () => {
 
         await flushPromises();
 
-        expect(fetchToolsMock).not.toHaveBeenCalled();
+        expect(fetchToolTagsMappingMock).not.toHaveBeenCalled();
     });
 });

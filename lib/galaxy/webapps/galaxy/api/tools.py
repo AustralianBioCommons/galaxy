@@ -422,6 +422,16 @@ class FetchTools:
             inputs,
         )
 
+    @router.get(
+        "/api/tools/tags",
+        operation_id="tools__tags",
+        summary="Return the curated tool-id to tag-name mapping for currently-loaded tools.",
+    )
+    def tool_tags(self, trans: ProvidesHistoryContext = DependsOnTrans) -> dict[str, list[str]]:
+        # Sidecar for the My Tools panel: keeps `tool_tags` out of the bulk
+        # /api/tools payload and out of its toolbox-level cache key.
+        return trans.app.toolbox.curated_tool_tags_by_id
+
 
 class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
     """
@@ -447,7 +457,6 @@ class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
         :param q: if present search on the given query will be performed
         :param tool_id: if present the given tool_id will be searched for
                         all installed versions
-        :param include_tool_tags: if true, include curated tool tags in bulk tool payloads
         """
 
         # Read params.
@@ -455,7 +464,6 @@ class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
         q = kwds.get("q", "")
         tool_id = kwds.get("tool_id", "")
         tool_help = util.string_as_bool(kwds.get("tool_help", "False"))
-        include_tool_tags = util.string_as_bool(kwds.get("include_tool_tags", "False"))
         view = kwds.get("view", None)
 
         # Find whether to search.
@@ -488,13 +496,7 @@ class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
 
         # Return everything.
         try:
-            return self.app.toolbox.to_dict(
-                trans,
-                in_panel=in_panel,
-                tool_help=tool_help,
-                view=view,
-                include_tool_tags=include_tool_tags,
-            )
+            return self.app.toolbox.to_dict(trans, in_panel=in_panel, tool_help=tool_help, view=view)
         except exceptions.MessageException:
             raise
         except Exception:
