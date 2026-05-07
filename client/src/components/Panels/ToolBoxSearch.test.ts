@@ -181,6 +181,58 @@ describe("ToolBox search", () => {
         );
     });
 
+    it("treats #favorites as a filter token for both explicit AND and shorthand searches", async () => {
+        const pinia = createPinia();
+        setActivePinia(pinia);
+
+        const toolStore = useToolStore();
+        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
+        toolStore.toolsById = toToolsById(toolsList);
+        toolStore.toolSections = { default: toolsListInPanel };
+        toolStore.defaultPanelView = "default";
+        toolStore.currentPanelView = "my_panel";
+
+        const userStore = useUserStore();
+        userStore.currentPreferences = {
+            favorites: { tools: ["__FILTER_FAILED_DATASETS__", "__ZIP_COLLECTION__"] },
+        };
+
+        const wrapper = mount(ToolBox as object, {
+            pinia,
+            localVue,
+            router,
+            propsData: {
+                favoritesDefault: true,
+                useSearchWorker: false,
+            },
+        });
+
+        await flushPromises();
+
+        const input = wrapper.find("input.search-query");
+
+        await input.setValue("#favorites AND Filter");
+        vi.advanceTimersByTime(250);
+        await flushPromises();
+
+        let toolIds = wrapper.findAll("a[data-tool-id]").wrappers.map((item) => item.attributes("data-tool-id"));
+        expect(toolIds).toEqual(["__FILTER_FAILED_DATASETS__"]);
+
+        await input.setValue("#favorites Filter");
+        vi.advanceTimersByTime(250);
+        await flushPromises();
+
+        toolIds = wrapper.findAll("a[data-tool-id]").wrappers.map((item) => item.attributes("data-tool-id"));
+        expect(toolIds).toEqual(["__FILTER_FAILED_DATASETS__"]);
+
+        await input.setValue("#favorites");
+        vi.advanceTimersByTime(250);
+        await flushPromises();
+
+        toolIds = wrapper.findAll("a[data-tool-id]").wrappers.map((item) => item.attributes("data-tool-id"));
+        expect(toolIds).toEqual(["__FILTER_FAILED_DATASETS__", "__ZIP_COLLECTION__"]);
+    });
+
     it("collapses favorite results during search in My panel", async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
