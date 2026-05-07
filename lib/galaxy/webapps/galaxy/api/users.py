@@ -167,10 +167,12 @@ def _normalize_favorites(favorites: dict[str, Any]) -> dict[str, Any]:
     for raw_entry in favorites.get("order") or []:
         if not isinstance(raw_entry, dict):
             continue
-        object_type = raw_entry.get("object_type")
-        object_id = raw_entry.get("object_id")
-        if not isinstance(object_type, str) or not isinstance(object_id, str):
+        raw_object_type = raw_entry.get("object_type")
+        raw_object_id = raw_entry.get("object_id")
+        if not isinstance(raw_object_type, str) or not isinstance(raw_object_id, str):
             continue
+        object_type = raw_object_type
+        object_id = raw_object_id
         entry_key = (object_type, object_id)
         if (
             object_type in FAVORITE_OBJECT_TYPE_VALUES
@@ -202,7 +204,10 @@ def _resolve_favorite_tool_id(trans: ProvidesUserContext, user: User, raw_object
     # the canonical id) can always render the favorite. Without this, posting
     # an alias like `cat1/1.0.0` would be accepted, stored verbatim, and then
     # silently dropped from the My Tools panel because `localToolsById` has
-    # no `cat1/1.0.0` entry.
+    # no `cat1/1.0.0` entry. `Tool.id` is typed Optional only because tools
+    # mid-construction may not yet have one; a fully-loaded toolbox tool
+    # always does.
+    assert tool.id is not None
     return tool.id
 
 
