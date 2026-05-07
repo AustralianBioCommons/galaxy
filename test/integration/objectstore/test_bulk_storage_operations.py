@@ -30,6 +30,7 @@ from datetime import timedelta
 from typing import (
     Any,
     cast,
+    Optional,
 )
 from unittest.mock import patch
 
@@ -312,6 +313,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         succeeded: int,
         failed: int,
         skipped: int,
+        total_bytes_processed: Optional[int] = None,
         state: str = "completed",
         mode: str = "move",
     ) -> None:
@@ -321,6 +323,8 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         assert run["failed_count"] == failed
         assert run["skipped_count"] == skipped
         assert run["total_count"] == succeeded + failed + skipped
+        if total_bytes_processed is not None:
+            assert run["total_bytes_processed"] == total_bytes_processed
 
     def _assert_dataset_store_and_content(
         self,
@@ -579,6 +583,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             self._assert_run_counts(final["run"], succeeded=1, failed=0, skipped=0)
             assert final["items"][0]["state"] == "succeeded"
             assert final["items"][0]["bytes_processed"] > 0
+            assert final["run"]["total_bytes_processed"] > 0
             self._assert_dataset_store_and_content(
                 history_id,
                 hda["id"],
@@ -937,6 +942,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             )
             first_run_status = self.dataset_populator.storage_run_status(history_id, first_run_id)
             self._assert_run_counts(first_run_status["run"], succeeded=0, failed=1, skipped=0)
+            assert first_run_status["run"]["total_bytes_processed"] == 0
 
             first_run_items = self._run_items(history_id, first_run_id)
             assert len(first_run_items) == 1
@@ -961,6 +967,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             second_run_id = self._execute_snapshot_sync(sa_session, snapshot, skip_ineligible=False)
             second_run_status = self.dataset_populator.storage_run_status(history_id, second_run_id)
             self._assert_run_counts(second_run_status["run"], succeeded=1, failed=0, skipped=0)
+            assert second_run_status["run"]["total_bytes_processed"] > 0
 
             second_run_items = self._run_items(history_id, second_run_id)
             assert len(second_run_items) == 1
