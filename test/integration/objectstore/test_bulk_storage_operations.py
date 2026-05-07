@@ -146,6 +146,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     @classmethod
     def handle_galaxy_config_kwds(cls, config):
         config["new_user_dataset_access_role_default_private"] = True
+        config["enable_quotas"] = True
         cls._configure_object_store(DISTRIBUTED_OBJECT_STORE_CONFIG_TEMPLATE, config, format="yml")
 
     def setUp(self):
@@ -392,6 +393,35 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 and transfer["bytes"] > 0
                 for transfer in transfers
             )
+
+    def test_preview_marks_eligible_items_ineligible_when_target_quota_projection_fails(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="quota-failure", wait=True)
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-other-quota",
+                    "description": "Small quota for bulk storage preview target quota coverage.",
+                    "amount": "1 bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                    "quota_source_label": "other_quota",
+                }
+            )
+
+            try:
+                preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+                eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
+                item = eligibility["items"][0]
+                assert item["state"] == "ineligible"
+                assert item["reason_code"] == "target_quota_exceeded"
+                assert item["message"] == "Operation would exceed the target quota before execution."
+                assert item["message"] in preview["warnings"]
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
 
     def test_preview_warns_on_private_to_shareable_move(self):
         with self.dataset_populator.test_history() as history_id:
