@@ -378,8 +378,7 @@ watch(
 // Same lazy-load idiom for EDAM operation/topic panel sections — only fetched
 // once the user has any favorited operations/topics.
 watch(
-    () =>
-        [favoriteEdamOperations.value.join("\0"), Boolean(toolSections.value["ontology:edam_operations"])] as const,
+    () => [favoriteEdamOperations.value.join("\0"), Boolean(toolSections.value["ontology:edam_operations"])] as const,
     async ([serializedFavoriteEdamOperations, hasOntologySections]) => {
         if (!serializedFavoriteEdamOperations || hasOntologySections) {
             return;

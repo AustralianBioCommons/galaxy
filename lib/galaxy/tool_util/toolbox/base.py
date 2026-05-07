@@ -57,7 +57,11 @@ from .views.edam import (
     EdamPanelMode,
     EdamToolPanelView,
 )
-from .views.favorites import MyToolsToolPanelView
+from .views.favorites import (
+    MY_TOOLS_PANEL_SECTION_ID,
+    MY_TOOLS_PANEL_VIEW_ID,
+    MyToolsToolPanelView,
+)
 from .views.interface import (
     ToolBoxRegistry,
     ToolPanelView,
@@ -1470,11 +1474,20 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         if view not in self._tool_panel_view_rendered:
             raise RequestParameterInvalidException(f"No panel view {view} found.")
         filter_method = self._build_filter_method(trans)
-        rendered_panel = self._tool_panel_view_rendered[view]
-        tool_panel_view = self._tool_panel_views[view]
-        for _, item_type, elt in rendered_panel.panel_items_iter():
-            if tool_panel_view.should_filter_element(elt, item_type):
-                elt = filter_method(elt, item_type)
+        tool_panel_view = self._tool_panel_view_rendered[view]
+        for _, item_type, elt in tool_panel_view.panel_items_iter():
+            # The My Tools view's Favorites section is intentionally empty
+            # server-side — its tools are rendered client-side from the user's
+            # preferences. `_filter_for_panel` prunes empty sections, so yield
+            # this one verbatim and let the client populate it.
+            if (
+                view == MY_TOOLS_PANEL_VIEW_ID
+                and item_type == panel_item_types.SECTION
+                and getattr(elt, "id", None) == MY_TOOLS_PANEL_SECTION_ID
+            ):
+                yield elt
+                continue
+            elt = filter_method(elt, item_type)
             if elt:
                 yield elt
 
