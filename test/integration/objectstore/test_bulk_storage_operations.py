@@ -132,6 +132,7 @@ EXPIRABLE_OBJECT_STORE_ID = "expirable_store"
 PRIVATE_OBJECT_STORE_ID = "private_store"
 FAILED_OR_SKIPPED_SEARCH = "state:failed state:skipped"
 TARGET_EXPIRATION_IMMINENT_REASON_CODE = "target_expiration_imminent"
+ALREADY_IN_TARGET_REASON_CODE = "already_in_target"
 EXPIRABLE_TARGET_WARNING = "Datasets in the target storage expire based on their original creation date, so they may expire sooner than expected after moving. "
 PRIVACY_DOWNGRADE_WARNING = (
     "Some selected datasets would move from private storage to shareable storage. "
@@ -287,7 +288,22 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         eligibility = preview["eligibility"]
         assert eligibility["eligible_count"] == eligible
         assert eligibility["ineligible_count"] == ineligible
+        assert isinstance(eligibility["reasons"], list)
         return eligibility
+
+    def _assert_eligibility_reason(
+        self,
+        eligibility: dict[str, Any],
+        *,
+        reason_code: str,
+        count: int,
+    ) -> None:
+        """Assert that a specific reason code is present with the expected count."""
+        for reason in eligibility["reasons"]:
+            if reason["reason_code"] == reason_code:
+                assert reason["count"] == count
+                return
+        raise AssertionError(f"Expected reason code '{reason_code}' not found in eligibility reasons.")
 
     def _assert_run_counts(
         self,
@@ -350,7 +366,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert "snapshot_id" in preview
             assert "expires_at" in preview
             eligibility = self._assert_eligibility(preview, eligible=1, ineligible=0)
-            assert eligibility["items"][0]["state"] == "eligible"
+            assert eligibility["reasons"] == []
             assert preview["selection_counts"]["selected_items_count"] == 1
             assert preview["selection_counts"]["expanded_leaf_count"] == 1
             assert preview["selection_counts"]["unique_dataset_count"] == 1
@@ -363,9 +379,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             preview = self._preview_move(history_id, DEFAULT_OBJECT_STORE_ID, [self._item(hda["id"])])
 
             eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
-            item = eligibility["items"][0]
-            assert item["state"] == "ineligible"
-            assert item["reason_code"] == "already_in_target"
+            self._assert_eligibility_reason(eligibility, reason_code=ALREADY_IN_TARGET_REASON_CODE, count=1)
 
     def test_preview_move_allows_cross_device(self):
         """Move mode should allow cross-device targets (copy-then-cutover strategy)."""
@@ -414,11 +428,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(hda["id"])])
 
                 eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
-                item = eligibility["items"][0]
-                assert item["state"] == "ineligible"
-                assert item["reason_code"] == "target_quota_exceeded"
-                assert item["message"] == "Operation would exceed the target quota before execution."
-                assert item["message"] in preview["warnings"]
+                self._assert_eligibility_reason(eligibility, reason_code="target_quota_exceeded", count=1)
             finally:
                 self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
                 self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
@@ -449,9 +459,11 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             preview = self._preview_move(history_id, EXPIRABLE_OBJECT_STORE_ID, [self._item(hda["id"])])
 
             eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
-            item = eligibility["items"][0]
-            assert item["state"] == "ineligible"
-            assert item["reason_code"] == TARGET_EXPIRATION_IMMINENT_REASON_CODE
+            self._assert_eligibility_reason(
+                eligibility,
+                reason_code=TARGET_EXPIRATION_IMMINENT_REASON_CODE,
+                count=1,
+            )
 
     def test_preview_eligible_when_target_expiration_threshold_not_crossed(self):
         with self.dataset_populator.test_history() as history_id:
@@ -461,7 +473,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             preview = self._preview_move(history_id, EXPIRABLE_OBJECT_STORE_ID, [self._item(hda["id"])])
 
             eligibility = self._assert_eligibility(preview, eligible=1, ineligible=0)
-            assert eligibility["items"][0]["state"] == "eligible"
+            assert eligibility["reasons"] == []
 
     def test_preview_ineligible_invalid_target(self):
         """A non-existent target store returns invalid_target_object_store."""
@@ -471,7 +483,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             preview = self._preview_move(history_id, "does_not_exist", [self._item(hda["id"])])
 
             eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
-            assert eligibility["items"][0]["reason_code"] == "invalid_target_object_store"
+            self._assert_eligibility_reason(eligibility, reason_code="invalid_target_object_store", count=1)
 
     def test_preview_mixed_eligibility(self):
         """Preview handles a mix of eligible and ineligible items in one request."""
@@ -499,7 +511,8 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 ],
             )
 
-            self._assert_eligibility(preview, eligible=1, ineligible=1)
+            eligibility = self._assert_eligibility(preview, eligible=1, ineligible=1)
+            self._assert_eligibility_reason(eligibility, reason_code=ALREADY_IN_TARGET_REASON_CODE, count=1)
 
     # ------------------------------------------------------------------ execute / run lifecycle
 
@@ -618,17 +631,17 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert len(final["items"]) == 1
             assert final["items"][0]["dataset_id"] == to_skip["id"]
             assert final["items"][0]["state"] == "skipped"
-            assert final["items"][0]["reason_code"] == "already_in_target"
+            assert final["items"][0]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
             filtered_items = self._run_items(
                 history_id,
                 run["run_id"],
-                search=f"state:skipped dataset_id:{to_skip['id']} reason_code:already_in_target",
+                search=f"state:skipped dataset_id:{to_skip['id']} reason_code:{ALREADY_IN_TARGET_REASON_CODE}",
             )
             assert len(filtered_items) == 1
             assert filtered_items[0]["dataset_id"] == to_skip["id"]
             assert filtered_items[0]["state"] == "skipped"
-            assert filtered_items[0]["reason_code"] == "already_in_target"
+            assert filtered_items[0]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
     @requires_celery
     def test_run_items_search_filters_by_reason_code(self):
@@ -654,7 +667,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert len(reason_filtered_items) == 1
             assert reason_filtered_items[0]["dataset_id"] == ineligible["id"]
             assert reason_filtered_items[0]["state"] == "skipped"
-            assert reason_filtered_items[0]["reason_code"] == "already_in_target"
+            assert reason_filtered_items[0]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
     @requires_celery
     def test_skip_ineligible_false_fails_ineligible_item(self):
@@ -676,7 +689,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             self._assert_run_counts(final["run"], succeeded=0, failed=1, skipped=0)
             assert len(final["items"]) == 1
             assert final["items"][0]["state"] == "failed"
-            assert final["items"][0]["reason_code"] == "already_in_target"
+            assert final["items"][0]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
     @requires_celery
     def test_skip_ineligible_true_skips_target_expiration_imminent(self):
@@ -734,7 +747,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             # Two elements means two leaf datasets, all eligible.
             eligibility = self._assert_eligibility(preview, eligible=2, ineligible=0)
-            assert all(item["state"] == "eligible" for item in eligibility["items"])
+            assert eligibility["reasons"] == []
             assert preview["selection_counts"]["selected_items_count"] == 1
             assert preview["selection_counts"]["expanded_leaf_count"] == 2
             assert preview["selection_counts"]["unique_dataset_count"] == 2
@@ -751,8 +764,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._collection_item(hdca["id"])])
 
             eligibility = self._assert_eligibility(preview, eligible=1, ineligible=1)
-            ineligible_item = next(i for i in eligibility["items"] if i["state"] == "ineligible")
-            assert ineligible_item["reason_code"] == "already_in_target"
+            self._assert_eligibility_reason(eligibility, reason_code=ALREADY_IN_TARGET_REASON_CODE, count=1)
 
     @requires_celery
     def test_run_collection_move_completes(self):
@@ -844,7 +856,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert first_items_by_dataset[to_move["id"]]["state"] == "succeeded"
             assert first_items_by_dataset[to_move["id"]]["reason_code"] is None
             assert first_items_by_dataset[becomes_ineligible["id"]]["state"] == "skipped"
-            assert first_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == "already_in_target"
+            assert first_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
             first_default_count, first_separate_count = self._store_file_counts()
             assert first_default_count == baseline_default_count - 1
@@ -875,9 +887,9 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             second_items_by_dataset = self._run_items_by_dataset_id(second_run["items"])
             assert second_items_by_dataset[to_move["id"]]["state"] == "skipped"
-            assert second_items_by_dataset[to_move["id"]]["reason_code"] == "already_in_target"
+            assert second_items_by_dataset[to_move["id"]]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
             assert second_items_by_dataset[becomes_ineligible["id"]]["state"] == "skipped"
-            assert second_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == "already_in_target"
+            assert second_items_by_dataset[becomes_ineligible["id"]]["reason_code"] == ALREADY_IN_TARGET_REASON_CODE
 
             second_default_count, second_separate_count = self._store_file_counts()
             assert second_default_count == first_default_count
