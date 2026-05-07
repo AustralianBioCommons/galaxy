@@ -102,6 +102,21 @@ describe("test helpers in tool searching utilities", () => {
         expect(createWhooshQuery({ section: '"Get Data"' })).toEqual('(section:("Get Data"))');
     });
 
+    it("lowercases tag clauses to match the Whoosh field analyzer", async () => {
+        // Whoosh indexes tool_tags lowercased; lowercase the search clause too.
+        expect(createWhooshQuery({ tag: ["Get Data"] })).toEqual('(tool_tags:("get data"))');
+        expect(createWhooshQuery({ tag: ["Collection_Ops"] })).toEqual("(tool_tags:(collection_ops))");
+    });
+
+    it("escapes backslashes and quotes in quoted tag clauses", async () => {
+        // A tag containing both a backslash and a double quote must be escaped
+        // so the resulting Whoosh phrase is well-formed (CodeQL: incomplete
+        // string escaping). Backslash must be escaped before the quote.
+        expect(createWhooshQuery({ tag: ['weird \\ "tag"'] })).toEqual(
+            '(tool_tags:("weird \\\\ \\"tag\\""))',
+        );
+    });
+
     it("test tool search helper that searches for tools given keys", async () => {
         const searches: {
             q: string;

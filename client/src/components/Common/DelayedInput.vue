@@ -121,8 +121,13 @@ function getAutocompleteMatch(query: string): AutocompleteMatch | null {
     };
 }
 
+function escapeQuotedToken(value: string) {
+    // Escape backslashes first to avoid double-escaping a quote we later add.
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function formatAutocompleteValue(value: string) {
-    return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+    return /\s/.test(value) ? `"${escapeQuotedToken(value)}"` : value;
 }
 
 const autocompleteMatch = computed(() => getAutocompleteMatch(queryInput.value ?? ""));

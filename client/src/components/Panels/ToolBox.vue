@@ -386,6 +386,12 @@ type FavoriteTopLevelItem = {
     panelItem: Tool | ToolSectionType;
 };
 
+// Convention: favorite ids are stored on the server in raw form (e.g. "Get Data"
+// or an EDAM URI containing a colon). For client-side identity — Vue `:key`
+// values, section ids built with FAVORITE_*_SECTION_PREFIX, and Map lookups
+// — we URI-encode the id so the type:id separator and any ":" inside the id
+// don't collide. DOM `data-favorite-id` attributes use the raw id; only
+// internal lookup keys are encoded.
 function favoriteEntryKey(orderEntry: FavoriteOrderEntry) {
     return `${orderEntry.object_type}:${encodeURIComponent(orderEntry.object_id)}`;
 }
@@ -515,11 +521,11 @@ async function onFavoriteDragEnd() {
 
     try {
         await userStore.reorderFavorites(mergedOrder);
-        ariaAlert("favorites reordered");
+        ariaAlert(localize("favorites reordered"));
     } catch {
         draggableFavoriteItems.value = [...visibleFavoriteTopLevelItems.value];
-        Toast.error("Failed to reorder favorites.");
-        ariaAlert("failed to reorder favorites");
+        Toast.error(localize("Failed to reorder favorites."));
+        ariaAlert(localize("failed to reorder favorites"));
     }
 }
 

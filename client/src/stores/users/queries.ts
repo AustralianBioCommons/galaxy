@@ -1,7 +1,4 @@
-import axios from "axios";
-
 import { type AnyUser, GalaxyApi, toAnyUser } from "@/api";
-import { getAppRoot } from "@/onload/loadConfig";
 import { rethrowSimple } from "@/utils/simple-error";
 
 export type FavoriteObjectTypeValue = "tools" | "tags" | "edam_operations" | "edam_topics";
@@ -167,13 +164,14 @@ export async function removeFavoriteEdamTopicQuery(userId: string, topicId: stri
 }
 
 export async function updateFavoriteOrderQuery(userId: string, order: FavoriteOrderEntry[]) {
-    try {
-        const { data } = await axios.put(`${getAppRoot()}api/users/${userId}/favorites/order`, {
-            order,
-        });
-        return data as FavoriteSummary;
-    } catch (error) {
+    const { data, error } = await GalaxyApi().PUT("/api/users/{user_id}/favorites/order", {
+        params: { path: { user_id: userId } },
+        body: { order },
+    });
+
+    if (error) {
         rethrowSimple(error);
-        throw error;
     }
+
+    return data as FavoriteSummary;
 }

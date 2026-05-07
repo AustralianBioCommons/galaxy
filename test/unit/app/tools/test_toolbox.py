@@ -172,6 +172,41 @@ class TestToolBox(BaseToolBoxTestCase):
         assert panel_view["t"]["id"] == "t"
         assert panel_view["t"]["tools"] == ["test_tool"]
 
+    def test_curated_id_caches_invalidate_on_tool_change(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        tool = self.toolbox.get_tool("test_tool")
+        # First access populates the cached id sets.
+        assert "curated_tag" not in self.toolbox.curated_tool_tags
+
+        tool.tool_tags = ["curated_tag"]
+        tool.edam_operations = ["operation_0224"]
+        tool.edam_topics = ["topic_3173"]
+        # Re-registering the tool must drop the stale id-set caches; otherwise the
+        # favorite-validation API rejects newly-introduced curated tags / EDAM ids.
+        self.toolbox.register_tool(tool)
+
+        assert "curated_tag" in self.toolbox.curated_tool_tags
+        assert "operation_0224" in self.toolbox.tool_edam_operations
+        assert "topic_3173" in self.toolbox.tool_edam_topics
+
+    def test_to_dict_cache_drops_when_tool_removed(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        # Populate the to_dict cache for both include_tool_tags variants.
+        self.toolbox.to_dict(mock_trans(), in_panel=False)
+        self.toolbox.to_dict(mock_trans(), in_panel=False, include_tool_tags=True)
+        assert ("test_tool", False) in self.toolbox._tool_to_dict_cache
+        assert ("test_tool", True) in self.toolbox._tool_to_dict_cache
+
+        self.toolbox.remove_tool_by_id("test_tool")
+        assert ("test_tool", False) not in self.toolbox._tool_to_dict_cache
+        assert ("test_tool", True) not in self.toolbox._tool_to_dict_cache
+
     def test_my_tools_panel_view_is_registered(self):
         self._init_tool_in_section()
         mapper = routes.Mapper()

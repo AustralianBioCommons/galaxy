@@ -85,10 +85,19 @@ export const UNSECTIONED_SECTION: ToolSection = {
     description: "Tools that don't appear under any section in the unsearched panel",
 } as const;
 
+// Whoosh's `tool_tags` field analyzer lowercases at index time
+// (KeywordAnalyzer(lowercase=True, commas=True) — see lib/galaxy/tools/search/__init__.py).
+// We lowercase the search clause too so a query for `tag:"Get Data"` matches an
+// indexed `get data` regardless of how the parser handles case folding.
+function escapeQuotedWhooshToken(value: string) {
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function normalizeToolTagQueryValue(tag: string): string {
     const trimmedTag = tag.trim();
     const unquotedTag = trimmedTag.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
-    return /\s/.test(unquotedTag) ? `"${unquotedTag}"` : unquotedTag;
+    const lowered = unquotedTag.toLowerCase();
+    return /\s/.test(lowered) ? `"${escapeQuotedWhooshToken(lowered)}"` : lowered;
 }
 
 export function buildToolTagClause(tag: string): string {

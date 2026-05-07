@@ -266,6 +266,24 @@ describe("ToolsList", () => {
         expect((input.element as HTMLInputElement).value).toBe('tag:"data cleanup"');
     });
 
+    it("treats legacy ?section= URLs as tag filters for backwards compatibility", async () => {
+        // Old links from before the section-to-tag migration shouldn't render an
+        // empty page. We fold `section=Get Data` into the tag filter; if no tag
+        // exists with that name the result is empty (same as today), otherwise
+        // the link keeps working.
+        const wrapper = mount(ToolsList as object, {
+            localVue,
+            pinia,
+            router,
+            propsData: { section: "Get Data" },
+        });
+
+        await flushPromises();
+
+        const input = wrapper.find("input.search-query");
+        expect((input.element as HTMLInputElement).value).toBe('tag:"Get Data"');
+    });
+
     it("passes explicit boolean tag expressions through as raw search", async () => {
         vi.useFakeTimers();
 

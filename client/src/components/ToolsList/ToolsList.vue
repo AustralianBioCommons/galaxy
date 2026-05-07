@@ -25,6 +25,12 @@ interface Props {
     owner?: string;
     help?: string;
     tag?: string | string[];
+    /**
+     * Deprecated: `?section=` URLs from before tools-as-tags. Treated as an
+     * additional `tag:` filter so existing bookmarks still resolve. Will be
+     * removed in a future release once admins have time to update saved links.
+     */
+    section?: string | string[];
     search?: string;
 }
 
@@ -57,6 +63,13 @@ const tagAutocompleteValues = computed(() =>
     ),
 );
 
+// Escape backslashes first so a backslash in user input never combines with the
+// quote we add to form an unintended escape (and to keep CodeQL's incomplete
+// string escaping rule satisfied).
+function escapeQuotedWhooshToken(value: string) {
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function normalizeToolTagValue(tag: string | string[]) {
     return String(tag)
         .trim()
@@ -66,7 +79,7 @@ function normalizeToolTagValue(tag: string | string[]) {
 
 function quoteToolTagValue(tag: string | string[]): string | string[] {
     const normalizedValue = normalizeToolTagValue(tag);
-    return /\s/.test(normalizedValue) ? `"${normalizedValue.replace(/"/g, '\\"')}"` : normalizedValue;
+    return /\s/.test(normalizedValue) ? `"${escapeQuotedWhooshToken(normalizedValue)}"` : normalizedValue;
 }
 
 function normalizeInlineFilterValue(value: string) {
@@ -74,7 +87,7 @@ function normalizeInlineFilterValue(value: string) {
         .trim()
         .replace(/^"(.*)"$/, "$1")
         .replace(/^'(.*)'$/, "$1");
-    return /[\s,]/.test(normalized) ? `"${normalized.replace(/"/g, '\\"')}"` : normalized;
+    return /[\s,]/.test(normalized) ? `"${escapeQuotedWhooshToken(normalized)}"` : normalized;
 }
 
 function buildInlineWhooshClause(key: string, value: string) {
@@ -214,11 +227,13 @@ function normalizePropsToFilterSettings(routeProps: Props): FilterSettings {
         }
     }
 
-    const tags = Array.isArray(routeProps.tag)
-        ? routeProps.tag.filter(Boolean)
-        : routeProps.tag
-          ? [routeProps.tag]
-          : [];
+    const collectStrings = (raw: string | string[] | undefined) =>
+        Array.isArray(raw) ? raw.filter(Boolean) : raw ? [raw] : [];
+
+    // Old `?section=…` URLs predate the section→tag migration. Fold them into
+    // the `tag` filter so existing bookmarks keep working; if no tag of that
+    // name exists the page renders empty just like today.
+    const tags = [...collectStrings(routeProps.tag), ...collectStrings(routeProps.section)];
     if (tags.length > 0) {
         filters.tag = tags;
     }
