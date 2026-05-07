@@ -26,6 +26,7 @@ from pydantic import (
     Tag,
     ValidationError,
 )
+from pydantic_core import PydanticCustomError
 from typing_extensions import (
     Annotated,
     Literal,
@@ -194,21 +195,32 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
     @classmethod
     def _reject_blank_strings(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
-            raise ValueError("must not be empty or whitespace")
+            raise PydanticCustomError(
+                "dynamic_tool.blank_string",
+                "must not be empty or whitespace",
+            )
         return v
 
     @model_validator(mode="after")
-    def _check_input_refs_and_outputs(self) -> "_DynamicToolSourceBase":
+    def _check_input_refs(self) -> "_DynamicToolSourceBase":
         declared_inputs: Set[str] = {param.root.name for param in self.inputs}
-
         referenced: Set[str] = _command_input_refs(self.shell_command)
         for configfile in self.configfiles or []:
             referenced |= _command_input_refs(configfile.content)
+        undeclared = sorted(referenced - declared_inputs)
+        if undeclared:
+            joined = "; ".join(
+                f"references inputs.{name} but no input named '{name}' is declared" for name in undeclared
+            )
+            raise PydanticCustomError(
+                "dynamic_tool.undeclared_input_ref",
+                joined,
+            )
+        return self
 
+    @model_validator(mode="after")
+    def _check_output_claims(self) -> "_DynamicToolSourceBase":
         errors: List[str] = []
-        for name in sorted(referenced - declared_inputs):
-            errors.append(f"references inputs.{name} but no input named '{name}' is declared")
-
         for output in self.outputs:
             if isinstance(output, IncomingToolOutputDataset):
                 if not output.from_work_dir and not output.discover_datasets:
@@ -222,9 +234,11 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
                         f"output collection '{output.name}' must set 'structure.discover_datasets' "
                         "(otherwise no elements will be claimed from the working directory)"
                     )
-
         if errors:
-            raise ValueError("; ".join(errors))
+            raise PydanticCustomError(
+                "dynamic_tool.output_unclaimed",
+                "; ".join(errors),
+            )
         return self
 
 
@@ -238,7 +252,10 @@ class UserToolSource(_DynamicToolSourceBase):
     @classmethod
     def _reject_blank_container(cls, value: str) -> str:
         if not value or not value.strip():
-            raise ValueError("container must not be empty")
+            raise PydanticCustomError(
+                "dynamic_tool.blank_container",
+                "container must not be empty",
+            )
         return value
 
 

@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
     with_config,
 )
+from pydantic_core import PydanticCustomError
 from typing_extensions import (
     Annotated,
     Literal,
@@ -161,22 +162,36 @@ class Citation(ToolSourceBaseModel):
     def _check_citation_shape(self) -> "Citation":
         content = (self.content or "").strip()
         if not content:
-            raise ValueError("citation content must not be empty")
+            raise PydanticCustomError(
+                "dynamic_tool.citation_empty",
+                "citation content must not be empty",
+            )
         citation_type = (self.type or "").strip().lower()
         if citation_type == "doi":
             if not DOI_RE.match(content):
-                raise ValueError(f"declared as DOI but '{content}' does not match DOI shape (^10\\.\\d{{4,9}}/.+$)")
+                raise PydanticCustomError(
+                    "dynamic_tool.citation_doi_invalid",
+                    "declared as DOI but '{content}' does not match DOI shape (^10\\.\\d{{4,9}}/.+$)",
+                    {"content": content},
+                )
             return self
         if citation_type == "bibtex":
             if not BIBTEX_RE.search(content):
-                raise ValueError("declared as bibtex but content does not start with '@<type>{'")
+                raise PydanticCustomError(
+                    "dynamic_tool.citation_bibtex_invalid",
+                    "declared as bibtex but content does not start with '@<type>{{'",
+                )
             return self
         # Type wasn't explicitly doi/bibtex -- accept if the content shape is
         # one of the two known forms. Lets a slightly mis-typed entry through
         # instead of fighting models that emit type='reference' or similar.
         if DOI_RE.match(content) or BIBTEX_RE.search(content):
             return self
-        raise ValueError(f"citation (type={self.type!r}) is neither a recognizable DOI nor a BibTeX entry")
+        raise PydanticCustomError(
+            "dynamic_tool.citation_unrecognized",
+            "citation (type={ctype}) is neither a recognizable DOI nor a BibTeX entry",
+            {"ctype": repr(self.type)},
+        )
 
 
 class HelpContent(ToolSourceBaseModel):

@@ -40,7 +40,7 @@ class ContainerImageShape(Linter):
     """
 
     @classmethod
-    def lint(cls, tool_source: "ToolSource", lint_ctx: "LintContext"):
+    def lint(cls, tool_source: "ToolSource", lint_ctx: "LintContext") -> None:
         for identifier in _iter_container_identifiers(tool_source):
             stripped = identifier.strip()
             if stripped.startswith(CONTAINER_PREFIXES):
