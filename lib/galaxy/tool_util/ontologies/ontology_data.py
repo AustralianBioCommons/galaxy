@@ -49,10 +49,15 @@ EDAM_TOPIC_MAPPING: Dict[str, List[str]] = _multi_dict_mapping(EDAM_TOPIC_MAPPIN
 
 
 def _load_tool_tag_mapping(content: str) -> Dict[str, List[str]]:
-    return cast(
+    raw = cast(
         Dict[str, List[str]],
         (yaml.safe_load(content) or {}).get("tool_tags", {}),
     )
+    # Galaxy lowercases tool ids when constructing `Tool.all_ids` (see
+    # `Tool._setup_id`), so the curated mapping must use lowercase keys to
+    # be looked up successfully. Normalize at load time so admin-supplied
+    # YAML files don't have to worry about case.
+    return {tool_id.lower(): tags for tool_id, tags in raw.items()}
 
 
 TOOL_TAG_MAPPING_CONTENT = _read_ontology_data_text(TOOL_TAG_MAPPING_FILENAME)

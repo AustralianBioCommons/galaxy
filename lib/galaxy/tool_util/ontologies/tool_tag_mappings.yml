@@ -10,28 +10,17 @@
 # own integration tests. Production sites should override it via the
 # `tool_tag_mappings_file` config option (galaxy.yml). A snapshot for the
 # usegalaxy.eu instance — and a script to regenerate one for any Galaxy
-# server — lives at scripts/extract_tool_sections_from_api.py.
+# server — lives at scripts/extract_tool_sections_from_api.py, which uses
+# the human-readable section names ("Get Data", "Collection Operations",
+# …) as tags.
 tool_tags:
-  __UNZIP_COLLECTION__:
-    - collection_ops
-    - dataset_collections
+  __unzip_collection__:
     - Collection Operations
-  __ZIP_COLLECTION__:
-    - collection_ops
-    - dataset_collections
+  __zip_collection__:
     - Collection Operations
-  __FILTER_FAILED_DATASETS__:
-    - collection_ops
-    - dataset_collections
-    - data_cleanup
-    - data cleanup
+  __filter_failed_datasets__:
     - Collection Operations
-  __FILTER_EMPTY_DATASETS__:
-    - collection_ops
-    - dataset_collections
-    - data_cleanup
-    - data cleanup
+  __filter_empty_datasets__:
     - Collection Operations
-  liftOver1:
-    - genome_coordinates
+  liftover1:
     - Convert Formats
