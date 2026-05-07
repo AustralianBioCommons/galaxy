@@ -1,30 +1,18 @@
 <script setup lang="ts">
 import { faEye, faEyeSlash } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BBadge } from "bootstrap-vue";
+import { BBadge } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
-import draggable from "vuedraggable";
 
-import { isTool, isToolSection } from "@/api/tools";
 import { useGlobalUploadModal } from "@/composables/globalUploadModal";
 import { useToolRouting } from "@/composables/route";
-import { useToast } from "@/composables/toast";
 import { useFavoriteSearchResults, useToolPanelFavorites } from "@/composables/toolPanelFavorites";
 import type { Tool, ToolPanelItem, ToolSection as ToolSectionType, ToolSectionLabel } from "@/stores/toolStore";
 import { useToolStore } from "@/stores/toolStore";
-import type { FavoriteOrderEntry } from "@/stores/users/queries";
-import { useUserStore } from "@/stores/userStore";
-import ariaAlert from "@/utils/ariaAlert";
 import localize from "@/utils/localization";
 
-import {
-    FAVORITE_EDAM_OPERATION_SECTION_PREFIX,
-    FAVORITE_EDAM_TOPIC_SECTION_PREFIX,
-    FAVORITE_TAG_SECTION_PREFIX,
-    MY_PANEL_VIEW_ID,
-    PANEL_LABEL_IDS,
-} from "./panelViews";
+import { MY_PANEL_VIEW_ID, PANEL_LABEL_IDS } from "./panelViews";
 import {
     buildToolEntries,
     buildToolLabel,
@@ -39,19 +27,15 @@ import {
 } from "./utilities";
 
 import GButton from "../BaseComponents/GButton.vue";
-import ToolItem from "./Common/Tool.vue";
-import ToolPanelLabel from "./Common/ToolPanelLabel.vue";
+import MyToolsLanding from "./MyToolsLanding.vue";
 import ToolSearch from "./Common/ToolSearch.vue";
 import ToolSection from "./Common/ToolSection.vue";
 
-const LOGIN_ROUTE = "/login/start";
 /** Section IDs that are only valid for the workflow editor toolbox, and should be excluded from the regular toolbox. */
 const WORKFLOW_ONLY_SECTION_IDS = ["expression_tools"];
-const TOOLS_LIST_ROUTE = "/tools/list";
 
 const { openGlobalUploadModal } = useGlobalUploadModal();
 const { routeToTool } = useToolRouting();
-const Toast = useToast();
 
 const emit = defineEmits<{
     (e: "update:show-favorites", value: boolean): void;
@@ -88,9 +72,6 @@ const props = withDefaults(defineProps<Props>(), {
     favoritesDefault: false,
 });
 
-const userStore = useUserStore();
-const { isAnonymous } = storeToRefs(userStore);
-
 const query = ref("");
 const queryPending = ref(false);
 const showSections = ref(props.workflow);
@@ -100,7 +81,7 @@ const closestTerm = ref<string | null>(null);
 
 const toolStore = useToolStore();
 
-const { currentPanelView, currentToolSections, defaultPanelView, toolSections, toolTagsLoaded } =
+const { currentPanelView, currentToolSections, defaultPanelView, toolSections } =
     storeToRefs(toolStore);
 const hasResults = computed(() => results.value.length > 0);
 const queryTooShort = computed(() => query.value && query.value.length < 3);
@@ -199,42 +180,15 @@ const defaultSectionsById = computed<Record<string, ToolPanelItem> | null>(() =>
     return Object.keys(validSections).length > 0 ? validSections : null;
 });
 
-// Use composable for favorites and recent tools management
-const {
-    favoritesCollapsed,
-    recentToolsCollapsed,
-    favoriteTags,
-    favoriteEdamOperations,
-    favoriteEdamTopics,
-    favoriteOrder,
-    favoriteToolIdSet,
-    favoriteToolIdsInPanel,
-    recentToolIdsToShow,
-    recentToolIdsToShowSet,
-} = useToolPanelFavorites(localToolsById);
+// Use composable for favorites and recent tools — we only need the bits that
+// drive the search-results split (favorites get their own section in mixed
+// results). The full My-Tools landing state lives inside `MyToolsLanding.vue`.
+const { favoritesCollapsed, favoriteToolIdSet, recentToolIdsToShowSet } = useToolPanelFavorites(localToolsById);
 
 // Use composable for search results filtering
 const { favoriteResults, nonFavoriteResults, hasMixedResults } = useFavoriteSearchResults(results, favoriteToolIdSet);
 
 const toolsCount = computed(() => toolsList.value.length);
-
-/** Whether to show the "empty favorites" alert:
- *  - If the current panel is the `My Tools` panel
- *  - There is no search query
- *  - The user has no favorite tools
- */
-const showEmptyFavorites = computed(
-    () =>
-        props.favoritesDefault &&
-        !query.value &&
-        favoriteToolIdsInPanel.value.length === 0 &&
-        favoriteTagSections.value.length === 0 &&
-        favoriteEdamOperationSections.value.length === 0 &&
-        favoriteEdamTopicSections.value.length === 0,
-);
-
-const recentToolsLabel = computed(() => buildToolLabel(PANEL_LABEL_IDS.RECENT_TOOLS_LABEL, localize("Recent tools")));
-const favoritesLabel = computed(() => buildToolLabel(PANEL_LABEL_IDS.FAVORITES_LABEL, localize("Favorites")));
 
 const resultsSet = computed(() => new Set(results.value));
 const nonFavoriteResultsSet = computed(() => new Set(nonFavoriteResults.value));
@@ -263,316 +217,6 @@ const searchPanelSections = computed(() => {
 });
 
 const toolsList = computed(() => Object.values(localToolsById.value));
-const recentToolsInPanel = computed(() =>
-    recentToolIdsToShow.value
-        .map((toolId) => localToolsById.value[toolId])
-        .filter((tool): tool is Tool => Boolean(tool)),
-);
-
-const orderedToolIds = computed(() => {
-    const ordered: string[] = [];
-    const seen = new Set<string>();
-    const panelsToFlatten = [defaultSectionsById.value, localSectionsById.value];
-
-    const appendToolId = (toolId: string) => {
-        if (localToolsById.value[toolId] && !seen.has(toolId)) {
-            seen.add(toolId);
-            ordered.push(toolId);
-        }
-    };
-
-    for (const panel of panelsToFlatten) {
-        if (!panel) {
-            continue;
-        }
-        for (const item of Object.values(panel)) {
-            if ("tools" in item && item.tools) {
-                item.tools.forEach((toolOrLabel) => {
-                    if (typeof toolOrLabel === "string") {
-                        appendToolId(toolOrLabel);
-                    }
-                });
-            } else if ("id" in item && "name" in item && !("text" in item)) {
-                appendToolId(item.id);
-            }
-        }
-    }
-
-    Object.keys(localToolsById.value).forEach(appendToolId);
-    return ordered;
-});
-
-const favoriteTagSections = computed(() =>
-    favoriteTags.value
-        .map((tag) => {
-            const matchingToolIds = orderedToolIds.value.filter((toolId) =>
-                localToolsById.value[toolId]?.tool_tags?.includes(tag),
-            );
-            return matchingToolIds.length > 0
-                ? buildToolSection(`${FAVORITE_TAG_SECTION_PREFIX}${encodeURIComponent(tag)}`, tag, matchingToolIds)
-                : null;
-        })
-        .filter((section): section is ToolSectionType => section !== null),
-);
-
-const edamOperationDefinitions = computed(() => {
-    const operations = toolStore.panelSections("ontology:edam_operations");
-    return operations.reduce(
-        (acc, operation) => {
-            acc[operation.id] = operation;
-            return acc;
-        },
-        {} as Record<string, ToolSectionType>,
-    );
-});
-
-const edamTopicDefinitions = computed(() => {
-    const topics = toolStore.panelSections("ontology:edam_topics");
-    return topics.reduce(
-        (acc, topic) => {
-            acc[topic.id] = topic;
-            return acc;
-        },
-        {} as Record<string, ToolSectionType>,
-    );
-});
-
-const favoriteEdamOperationSections = computed<ToolSectionType[]>(() =>
-    favoriteEdamOperations.value.flatMap((operationId) => {
-        const matchingToolIds = orderedToolIds.value.filter((toolId) =>
-            localToolsById.value[toolId]?.edam_operations?.includes(operationId),
-        );
-        if (matchingToolIds.length === 0) {
-            return [];
-        }
-        const operation = edamOperationDefinitions.value[operationId];
-        const section = buildToolSection(
-            `${FAVORITE_EDAM_OPERATION_SECTION_PREFIX}${encodeURIComponent(operationId)}`,
-            operation?.name || operationId,
-            matchingToolIds,
-        );
-        if (operation?.description) {
-            section.description = operation.description;
-        }
-        return [section];
-    }),
-);
-
-const favoriteEdamTopicSections = computed<ToolSectionType[]>(() =>
-    favoriteEdamTopics.value.flatMap((topicId) => {
-        const matchingToolIds = orderedToolIds.value.filter((toolId) =>
-            localToolsById.value[toolId]?.edam_topics?.includes(topicId),
-        );
-        if (matchingToolIds.length === 0) {
-            return [];
-        }
-        const topic = edamTopicDefinitions.value[topicId];
-        const section = buildToolSection(
-            `${FAVORITE_EDAM_TOPIC_SECTION_PREFIX}${encodeURIComponent(topicId)}`,
-            topic?.name || topicId,
-            matchingToolIds,
-        );
-        if (topic?.description) {
-            section.description = topic.description;
-        }
-        return [section];
-    }),
-);
-
-type FavoriteTopLevelItem = {
-    favoriteKey: string;
-    orderEntry: FavoriteOrderEntry;
-    panelItem: Tool | ToolSectionType;
-};
-
-// Convention: favorite ids are stored on the server in raw form (e.g. "Get Data"
-// or an EDAM URI containing a colon). For client-side identity — Vue `:key`
-// values, section ids built with FAVORITE_*_SECTION_PREFIX, and Map lookups
-// — we URI-encode the id so the type:id separator and any ":" inside the id
-// don't collide. DOM `data-favorite-id` attributes use the raw id; only
-// internal lookup keys are encoded.
-function favoriteEntryKey(orderEntry: FavoriteOrderEntry) {
-    return `${orderEntry.object_type}:${encodeURIComponent(orderEntry.object_id)}`;
-}
-
-const visibleFavoriteTopLevelItems = computed<FavoriteTopLevelItem[]>(() => {
-    const favoriteItemsByKey = new Map<string, FavoriteTopLevelItem>();
-
-    for (const toolId of favoriteToolIdsInPanel.value) {
-        const tool = localToolsById.value[toolId];
-        if (tool) {
-            const orderEntry: FavoriteOrderEntry = { object_type: "tools", object_id: toolId };
-            favoriteItemsByKey.set(favoriteEntryKey(orderEntry), {
-                favoriteKey: favoriteEntryKey(orderEntry),
-                orderEntry,
-                panelItem: tool,
-            });
-        }
-    }
-
-    for (const section of favoriteTagSections.value) {
-        const tagName = decodeURIComponent(section.id.slice(FAVORITE_TAG_SECTION_PREFIX.length));
-        const orderEntry: FavoriteOrderEntry = { object_type: "tags", object_id: tagName };
-        favoriteItemsByKey.set(favoriteEntryKey(orderEntry), {
-            favoriteKey: favoriteEntryKey(orderEntry),
-            orderEntry,
-            panelItem: section,
-        });
-    }
-
-    for (const section of favoriteEdamOperationSections.value) {
-        const operationId = decodeURIComponent(section.id.slice(FAVORITE_EDAM_OPERATION_SECTION_PREFIX.length));
-        const orderEntry: FavoriteOrderEntry = { object_type: "edam_operations", object_id: operationId };
-        favoriteItemsByKey.set(favoriteEntryKey(orderEntry), {
-            favoriteKey: favoriteEntryKey(orderEntry),
-            orderEntry,
-            panelItem: section,
-        });
-    }
-
-    for (const section of favoriteEdamTopicSections.value) {
-        const topicId = decodeURIComponent(section.id.slice(FAVORITE_EDAM_TOPIC_SECTION_PREFIX.length));
-        const orderEntry: FavoriteOrderEntry = { object_type: "edam_topics", object_id: topicId };
-        favoriteItemsByKey.set(favoriteEntryKey(orderEntry), {
-            favoriteKey: favoriteEntryKey(orderEntry),
-            orderEntry,
-            panelItem: section,
-        });
-    }
-
-    const ordered: FavoriteTopLevelItem[] = [];
-    const seenKeys = new Set<string>();
-    for (const orderEntry of favoriteOrder.value) {
-        const key = favoriteEntryKey(orderEntry);
-        const panelItem = favoriteItemsByKey.get(key);
-        if (panelItem && !seenKeys.has(key)) {
-            seenKeys.add(key);
-            ordered.push(panelItem);
-        }
-    }
-
-    for (const [key, panelItem] of favoriteItemsByKey.entries()) {
-        if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            ordered.push(panelItem);
-        }
-    }
-
-    return ordered;
-});
-
-const draggableFavoriteItems = ref<FavoriteTopLevelItem[]>([]);
-const syncingFavoriteOrder = ref(false);
-
-watch(
-    () => visibleFavoriteTopLevelItems.value,
-    (newItems) => {
-        if (!syncingFavoriteOrder.value) {
-            draggableFavoriteItems.value = [...newItems];
-        }
-    },
-    { immediate: true },
-);
-
-function mergeFavoriteOrder(updatedVisibleOrder: FavoriteOrderEntry[]) {
-    const visibleKeys = new Set(visibleFavoriteTopLevelItems.value.map((item) => favoriteEntryKey(item.orderEntry)));
-    const reorderedQueue = [...updatedVisibleOrder];
-    const mergedOrder: FavoriteOrderEntry[] = [];
-
-    for (const entry of favoriteOrder.value) {
-        if (visibleKeys.has(favoriteEntryKey(entry))) {
-            const reorderedEntry = reorderedQueue.shift();
-            if (reorderedEntry) {
-                mergedOrder.push(reorderedEntry);
-            }
-        } else {
-            mergedOrder.push(entry);
-        }
-    }
-
-    for (const remainingEntry of reorderedQueue) {
-        mergedOrder.push(remainingEntry);
-    }
-
-    return mergedOrder;
-}
-
-async function onFavoriteDragStart() {
-    syncingFavoriteOrder.value = true;
-}
-
-async function onFavoriteDragEnd() {
-    const reorderedVisibleOrder = draggableFavoriteItems.value.map((item) => item.orderEntry);
-    const mergedOrder = mergeFavoriteOrder(reorderedVisibleOrder);
-    const sameOrder =
-        mergedOrder.length === favoriteOrder.value.length &&
-        mergedOrder.every(
-            (entry, index) =>
-                entry.object_type === favoriteOrder.value[index]?.object_type &&
-                entry.object_id === favoriteOrder.value[index]?.object_id,
-        );
-
-    syncingFavoriteOrder.value = false;
-
-    if (sameOrder) {
-        return;
-    }
-
-    try {
-        await userStore.reorderFavorites(mergedOrder);
-        ariaAlert(localize("favorites reordered"));
-    } catch {
-        draggableFavoriteItems.value = [...visibleFavoriteTopLevelItems.value];
-        Toast.error(localize("Failed to reorder favorites."));
-        ariaAlert(localize("failed to reorder favorites"));
-    }
-}
-
-watch(
-    () => [props.favoritesDefault, favoriteTags.value.join("\0"), toolTagsLoaded.value] as const,
-    async ([favoritesDefault, serializedFavoriteTags, tagsLoaded]) => {
-        const catalogAlreadyHasToolTags =
-            Object.keys(toolStore.toolsById).length > 0 &&
-            Object.values(toolStore.toolsById).every((tool) => tool.tool_tags !== undefined);
-        if (!favoritesDefault || !serializedFavoriteTags || tagsLoaded || catalogAlreadyHasToolTags) {
-            return;
-        }
-        await toolStore.fetchTools(undefined, { includeToolTags: true });
-    },
-    { immediate: true },
-);
-
-watch(
-    () =>
-        [
-            props.favoritesDefault,
-            favoriteEdamOperations.value.join("\0"),
-            Boolean(toolSections.value["ontology:edam_operations"]),
-        ] as const,
-    async ([favoritesDefault, serializedFavoriteEdamOperations, hasOntologySections]) => {
-        if (!favoritesDefault || !serializedFavoriteEdamOperations || hasOntologySections) {
-            return;
-        }
-        await toolStore.fetchToolSections("ontology:edam_operations");
-    },
-    { immediate: true },
-);
-
-watch(
-    () =>
-        [
-            props.favoritesDefault,
-            favoriteEdamTopics.value.join("\0"),
-            Boolean(toolSections.value["ontology:edam_topics"]),
-        ] as const,
-    async ([favoritesDefault, serializedFavoriteEdamTopics, hasOntologySections]) => {
-        if (!favoritesDefault || !serializedFavoriteEdamTopics || hasOntologySections) {
-            return;
-        }
-        await toolStore.fetchToolSections("ontology:edam_topics");
-    },
-    { immediate: true },
-);
 
 /**
  * For search results, this creates a panel which - if results are not mixed between favorite
@@ -601,57 +245,6 @@ const flatResultsPanel = computed<Record<string, Tool | ToolSectionLabel> | null
         buildToolLabel(PANEL_LABEL_IDS.SEARCH_RESULTS_LABEL, localize("Search results")),
     ]);
     entries.push(...buildToolEntries(nonFavoriteResults.value, localToolsById.value));
-    return Object.fromEntries(entries);
-});
-
-/**
- * The custom/client built `My Tools` panel when `props.favoritesDefault` is true.
- * This panel shows favorite and recent tools when there is no search query.
- *
- * Unlike panel views returned by the `toolStore`, this panel is built here on the client side.
- */
-const favoritesDefaultPanel = computed<Record<string, ToolPanelItem> | null>(() => {
-    if (!props.favoritesDefault || query.value) {
-        return null;
-    }
-    const entries: Array<[string, ToolPanelItem]> = [];
-    const recents = recentToolIdsToShow.value;
-    const favorites = favoriteToolIdsInPanel.value;
-
-    if (recents.length > 0) {
-        entries.push([
-            PANEL_LABEL_IDS.RECENT_TOOLS_LABEL,
-            buildToolLabel(PANEL_LABEL_IDS.RECENT_TOOLS_LABEL, localize("Recent tools")),
-        ]);
-        if (!recentToolsCollapsed.value) {
-            entries.push(...buildToolEntries(recents, localToolsById.value));
-        }
-    }
-    entries.push([
-        PANEL_LABEL_IDS.FAVORITES_LABEL,
-        buildToolLabel(PANEL_LABEL_IDS.FAVORITES_LABEL, localize("Favorites")),
-    ]);
-    if (!favoritesCollapsed.value) {
-        if (showEmptyFavorites.value) {
-            entries.push([
-                PANEL_LABEL_IDS.FAVORITES_EMPTY_ALERT,
-                buildToolLabel(PANEL_LABEL_IDS.FAVORITES_EMPTY_ALERT, ""),
-            ]);
-        } else {
-            entries.push(...buildToolEntries(favorites, localToolsById.value));
-            entries.push(
-                ...favoriteTagSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]),
-            );
-            entries.push(
-                ...favoriteEdamOperationSections.value.map(
-                    (section) => [section.id, section] as [string, ToolPanelItem],
-                ),
-            );
-            entries.push(
-                ...favoriteEdamTopicSections.value.map((section) => [section.id, section] as [string, ToolPanelItem]),
-            );
-        }
-    }
     return Object.fromEntries(entries);
 });
 
@@ -700,10 +293,9 @@ const sectionedResultsPanel = computed<Record<string, ToolPanelItem> | null>(() 
  * based on whether `showSections` is true or false
  */
 const localPanel = computed<Record<string, ToolPanelItem> | null>(() => {
-    // We are in the `My Tools` panel and there is no search query, show the custom `My Tools` panel with favorites and recents sections
-    if (props.favoritesDefault && !query.value) {
-        return favoritesDefaultPanel.value || {};
-    }
+    // The "My Tools" landing page is rendered by <MyToolsLanding> directly
+    // (mounted on `showMyToolsLanding`); this computed only feeds the default
+    // / workflow panels and the search-results pane.
 
     // There is a search query and results, show the search results panel (sectioned or flat based on `showSections`)
     if (hasResults.value) {
@@ -776,13 +368,15 @@ function onToggle() {
     showSections.value = !showSections.value;
 }
 
-/** Stores the localStorage state of collapsed labels for the favorites and recents sections in the `My Tools` panel. */
+/**
+ * The favorites-results header (split section in mixed search results) honours
+ * the same collapsed state as the My Tools landing's Favorites label, so the
+ * user's preference carries between landing and search-result views.
+ */
 const collapsedLabels = computed(() => {
     if (props.favoritesDefault) {
         return {
-            [PANEL_LABEL_IDS.FAVORITES_LABEL]: favoritesCollapsed.value,
             [PANEL_LABEL_IDS.FAVORITES_RESULTS_LABEL]: favoritesCollapsed.value,
-            [PANEL_LABEL_IDS.RECENT_TOOLS_LABEL]: recentToolsCollapsed.value,
         };
     }
     return null;
@@ -794,8 +388,6 @@ function onLabelToggle(labelId: string) {
     }
     if (labelId === PANEL_LABEL_IDS.FAVORITES_LABEL || labelId === PANEL_LABEL_IDS.FAVORITES_RESULTS_LABEL) {
         favoritesCollapsed.value = !favoritesCollapsed.value;
-    } else if (labelId === PANEL_LABEL_IDS.RECENT_TOOLS_LABEL) {
-        recentToolsCollapsed.value = !recentToolsCollapsed.value;
     }
 }
 </script>
@@ -839,137 +431,33 @@ function onLabelToggle(labelId: string) {
         </div>
         <div class="unified-panel-body">
             <div class="toolMenuContainer">
-                <div v-if="showMyToolsLanding" class="toolMenu">
-                    <ToolPanelLabel
-                        v-if="recentToolIdsToShow.length > 0"
-                        :definition="recentToolsLabel"
-                        :collapsed="collapsedLabels?.[PANEL_LABEL_IDS.RECENT_TOOLS_LABEL]"
-                        @toggle="onLabelToggle" />
-                    <template v-if="recentToolIdsToShow.length > 0 && !recentToolsCollapsed">
-                        <ToolItem
-                            v-for="tool in recentToolsInPanel"
-                            :key="`recent-tool-${tool.id}`"
-                            :tool="tool"
-                            show-favorite-button
-                            @onClick="onToolClick" />
-                    </template>
-
-                    <ToolPanelLabel
-                        :definition="favoritesLabel"
-                        :collapsed="collapsedLabels?.[PANEL_LABEL_IDS.FAVORITES_LABEL]"
-                        @toggle="onLabelToggle" />
-                    <div v-if="!favoritesCollapsed">
-                        <div v-if="showEmptyFavorites" class="tool-panel-empty">
-                            <BAlert variant="info" show>
-                                <template v-if="!isAnonymous">
-                                    You haven't favorited any tools yet. Search the toolbox or use
-                                    <GButton
-                                        class="ml-1"
-                                        size="small"
-                                        color="blue"
-                                        :to="TOOLS_LIST_ROUTE"
-                                        data-description="discover-tools">
-                                        Discover Tools
-                                    </GButton>
-                                    to explore {{ toolsCount }} community curated tools.
-                                </template>
-                                <template v-else>
-                                    You need to
-                                    <GButton
-                                        class="ml-1"
-                                        size="small"
-                                        color="blue"
-                                        :to="LOGIN_ROUTE"
-                                        data-description="login button">
-                                        Login
-                                    </GButton>
-                                    to favorite tools and have them appear in this section.
-                                </template>
-                            </BAlert>
-                        </div>
-                        <draggable
-                            v-else
-                            v-model="draggableFavoriteItems"
-                            data-description="favorites-top-level-list"
-                            :disabled="isAnonymous"
-                            :force-fallback="true"
-                            handle=".favorite-top-level-drag-target"
-                            ghost-class="favorite-top-level-ghost"
-                            drag-class="favorite-top-level-drag"
-                            chosen-class="favorite-top-level-chosen"
-                            @start="onFavoriteDragStart"
-                            @end="onFavoriteDragEnd">
-                            <div
-                                v-for="favoriteItem in draggableFavoriteItems"
-                                :key="favoriteItem.favoriteKey"
-                                class="favorite-top-level-item"
-                                :data-description="`favorite-top-level-item-${favoriteItem.orderEntry.object_type}`"
-                                :data-favorite-type="favoriteItem.orderEntry.object_type"
-                                :data-favorite-id="favoriteItem.orderEntry.object_id">
-                                <ToolSection
-                                    v-if="isToolSection(favoriteItem.panelItem)"
-                                    :category="favoriteItem.panelItem"
-                                    :collapsed-labels="collapsedLabels"
-                                    show-drag-handle
-                                    @onClick="onToolClick"
-                                    @onFilter="onSectionFilter"
-                                    @onLabelToggle="onLabelToggle" />
-                                <ToolItem
-                                    v-else-if="isTool(favoriteItem.panelItem)"
-                                    :tool="favoriteItem.panelItem"
-                                    show-drag-handle
-                                    @onClick="onToolClick" />
-                            </div>
-                        </draggable>
-                    </div>
-                </div>
+                <MyToolsLanding
+                    v-if="showMyToolsLanding"
+                    :local-tools-by-id="localToolsById"
+                    :default-sections-by-id="defaultSectionsById"
+                    :local-sections-by-id="localSectionsById"
+                    :tools-count="toolsCount"
+                    @onClick="onToolClick"
+                    @onFilter="onSectionFilter"
+                    @onLabelToggle="onLabelToggle" />
                 <div v-else-if="localPanel" class="toolMenu">
-                    <div v-for="(panelItem, key) in localPanel" :key="key">
-                        <div v-if="panelItem?.id === PANEL_LABEL_IDS.FAVORITES_EMPTY_ALERT" class="tool-panel-empty">
-                            <BAlert variant="info" show>
-                                <template v-if="!isAnonymous">
-                                    You haven't favorited any tools yet. Search the toolbox or use
-                                    <GButton
-                                        class="ml-1"
-                                        size="small"
-                                        color="blue"
-                                        :to="TOOLS_LIST_ROUTE"
-                                        data-description="discover-tools">
-                                        Discover Tools
-                                    </GButton>
-                                    to explore {{ toolsCount }} community curated tools.
-                                </template>
-                                <template v-else>
-                                    You need to
-                                    <GButton
-                                        class="ml-1"
-                                        size="small"
-                                        color="blue"
-                                        :to="LOGIN_ROUTE"
-                                        data-description="login button">
-                                        Login
-                                    </GButton>
-                                    to favorite tools and have them appear in this section.
-                                </template>
-                            </BAlert>
-                        </div>
-                        <ToolSection
-                            v-else-if="panelItem"
-                            :category="panelItem"
-                            :query-filter="hasResults ? query : undefined"
-                            :has-filter-button="
-                                hasResults &&
-                                currentPanelView === 'default' &&
-                                panelItem.id !== PANEL_LABEL_IDS.FAVORITES_RESULTS_SECTION &&
-                                panelItem.id !== UNSECTIONED_SECTION.id
-                            "
-                            :search-active="hasResults"
-                            :show-favorite-button="recentToolIdsToShowSet.has(panelItem.id)"
-                            :collapsed-labels="collapsedLabels"
-                            @onClick="onToolClick"
-                            @onFilter="onSectionFilter"
-                            @onLabelToggle="onLabelToggle" />
-                    </div>
+                    <ToolSection
+                        v-for="(panelItem, key) in localPanel"
+                        :key="key"
+                        :category="panelItem"
+                        :query-filter="hasResults ? query : undefined"
+                        :has-filter-button="
+                            hasResults &&
+                            currentPanelView === 'default' &&
+                            panelItem.id !== PANEL_LABEL_IDS.FAVORITES_RESULTS_SECTION &&
+                            panelItem.id !== UNSECTIONED_SECTION.id
+                        "
+                        :search-active="hasResults"
+                        :show-favorite-button="recentToolIdsToShowSet.has(panelItem.id)"
+                        :collapsed-labels="collapsedLabels"
+                        @onClick="onToolClick"
+                        @onFilter="onSectionFilter"
+                        @onLabelToggle="onLabelToggle" />
                 </div>
             </div>
         </div>
