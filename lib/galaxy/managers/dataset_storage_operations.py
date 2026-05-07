@@ -64,6 +64,7 @@ log = get_logger(__name__)
 
 
 MINIMUM_DAYS_TO_EXPIRATION = 10
+TRANSFER_RETRY_ATTEMPTS = 3
 
 StorageOperationContent = Union[HistoryDatasetAssociation, HistoryDatasetCollectionAssociation]
 DatasetMoveValidationFailure = tuple[DatasetStorageOperationFailureReasonCode, str]
@@ -1025,38 +1026,64 @@ class StorageOperationRunExecutor:
             )
             return
 
-        try:
-            bytes_processed = 0
-            if self.storage_operation_manager.requires_data_transfer(dataset, self.run.target_object_store_id):
-                target_proxy = self._dataset_proxy(dataset, self.run.target_object_store_id)
-                bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
-                self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
-                self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
-                self._cleanup_source_dataset_data(source_proxy, extra_files_path_name)
-            else:
-                self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
+        requires_data_transfer = self.storage_operation_manager.requires_data_transfer(
+            dataset, self.run.target_object_store_id
+        )
 
-            self.additional_target_usage += quota_delta
-            self.succeeded_count += 1
-            self.total_bytes_processed += bytes_processed
-            self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
-            self._notify_dataset_update(dataset)
-        except ChecksumVerificationError as exc:
-            log.warning("Integrity verification failed for run %s dataset %s: %s", self.run.id, dataset.id, exc)
-            if target_proxy is not None:
-                self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
-            self._record_transfer_failure(
-                dataset_id,
-                DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
-            )
-        except Exception:
-            log.exception("Storage operation execution error for run %s dataset %s", self.run.id, dataset.id)
-            if target_proxy is not None:
-                self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
-            self._record_transfer_failure(
-                dataset_id,
-                DatasetStorageOperationFailureReasonCode.execution_error,
-            )
+        for attempt in range(1, TRANSFER_RETRY_ATTEMPTS + 1):
+            target_proxy: Optional[DatasetObjectStoreProxy] = None
+            try:
+                bytes_processed = 0
+                if requires_data_transfer:
+                    target_proxy = self._dataset_proxy(dataset, self.run.target_object_store_id)
+                    bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
+                    self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
+                    self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
+                    self._cleanup_source_dataset_data(source_proxy, extra_files_path_name)
+                else:
+                    self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
+
+                self.additional_target_usage += quota_delta
+                self.succeeded_count += 1
+                self.total_bytes_processed += bytes_processed
+                self._add_run_item(dataset_id=dataset_id, state="succeeded", bytes_processed=bytes_processed)
+                self._notify_dataset_update(dataset)
+                return
+            except ChecksumVerificationError as exc:
+                log.warning(
+                    "Integrity verification failed for run %s dataset %s (attempt %s/%s): %s",
+                    self.run.id,
+                    dataset.id,
+                    attempt,
+                    TRANSFER_RETRY_ATTEMPTS,
+                    exc,
+                )
+                if target_proxy is not None:
+                    self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
+                if attempt < TRANSFER_RETRY_ATTEMPTS and requires_data_transfer:
+                    continue
+                self._record_transfer_failure(
+                    dataset_id,
+                    DatasetStorageOperationFailureReasonCode.checksum_verification_failed,
+                )
+                return
+            except Exception:
+                log.exception(
+                    "Storage operation execution error for run %s dataset %s (attempt %s/%s)",
+                    self.run.id,
+                    dataset.id,
+                    attempt,
+                    TRANSFER_RETRY_ATTEMPTS,
+                )
+                if target_proxy is not None:
+                    self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
+                if attempt < TRANSFER_RETRY_ATTEMPTS and requires_data_transfer:
+                    continue
+                self._record_transfer_failure(
+                    dataset_id,
+                    DatasetStorageOperationFailureReasonCode.execution_error,
+                )
+                return
 
     def _source_dataset_exists(self, source_proxy: DatasetObjectStoreProxy) -> bool:
         try:
