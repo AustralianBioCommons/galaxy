@@ -106,7 +106,7 @@ function formatQuotaDelta(delta: number) {
             <BBadge variant="success" class="mr-2 mb-1 px-2 py-1">
                 {{ preview.eligibility.eligible_count }} eligible
             </BBadge>
-            <BBadge :variant="hasIneligible ? 'warning' : 'secondary'" class="mr-3 mb-1 px-2 py-1">
+            <BBadge :variant="hasIneligible ? 'danger' : 'secondary'" class="mr-3 mb-1 px-2 py-1">
                 {{ preview.eligibility.ineligible_count }} ineligible
             </BBadge>
             <span class="text-muted small mb-1">Estimated transfer: {{ transferEstimate }}</span>
@@ -150,7 +150,7 @@ function formatQuotaDelta(delta: number) {
                     v-for="reason in ineligibleReasonBreakdown"
                     :key="reason.code"
                     class="px-0 py-2 d-flex align-items-start border-0">
-                    <BBadge variant="warning" class="mr-2 mt-1 flex-shrink-0">{{ reason.count }}</BBadge>
+                    <BBadge variant="danger" class="mr-2 mt-1 flex-shrink-0">{{ reason.count }}</BBadge>
                     <div>
                         <div class="font-weight-bold small">
                             {{ getIneligibleReasonDescription(reason.code).label }}
