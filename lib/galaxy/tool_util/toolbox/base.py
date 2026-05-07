@@ -1283,10 +1283,13 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
             # if newer.
             if self._newer_tool(tool, related_tool):
                 self._tools_by_id[tool_id] = tool
-                self._invalidate_tool_caches(tool_id)
         else:
             self._tools_by_id[tool_id] = tool
-            self._invalidate_tool_caches(tool_id)
+        # Always drop stale caches: callers re-register on reload (same id, new
+        # object) and may also mutate `tool_tags` / `edam_*` on the existing
+        # tool before re-registering. Invalidating unconditionally keeps the
+        # to_dict + curated-id-set caches consistent with the live tool.
+        self._invalidate_tool_caches(tool_id)
         old_id = tool.old_id
         if old_id:
             if old_id not in self._tools_by_old_id:

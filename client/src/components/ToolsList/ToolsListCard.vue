@@ -18,6 +18,7 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 
 import { useFormattedToolHelp } from "@/composables/formattedToolHelp";
+import { useToast } from "@/composables/toast";
 import { useToolStore } from "@/stores/toolStore";
 import { useUserStore } from "@/stores/userStore";
 import ariaAlert from "@/utils/ariaAlert";
@@ -26,9 +27,8 @@ import type { CardBadge } from "../Common/GCard.types";
 import { useToolsListCardActions } from "./useToolsListCardActions";
 
 import GButton from "../BaseComponents/GButton.vue";
-import GLink from "@/components/BaseComponents/GLink.vue";
 import GCard from "../Common/GCard.vue";
-import { useToast } from "@/composables/toast";
+import GLink from "@/components/BaseComponents/GLink.vue";
 
 type OntologyBadge = {
     id: string;

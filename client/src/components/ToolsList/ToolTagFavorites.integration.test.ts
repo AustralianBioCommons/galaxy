@@ -4,7 +4,6 @@ import flushPromises from "flush-promises";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import ToolBox from "@/components/Panels/ToolBox.vue";
 import { createWhooshQuery } from "@/components/Panels/utilities";
 import toolsListUntyped from "@/components/ToolsView/testData/toolsList.json";
 import toolsListInPanelUntyped from "@/components/ToolsView/testData/toolsListInPanel.json";
@@ -12,8 +11,9 @@ import { setMockConfig } from "@/composables/__mocks__/config";
 import { type Tool, type ToolSection, useToolStore } from "@/stores/toolStore";
 import { useUserStore } from "@/stores/userStore";
 
-import ToolsListCard from "./ToolsListCard.vue";
 import ToolsList from "./ToolsList.vue";
+import ToolsListCard from "./ToolsListCard.vue";
+import ToolBox from "@/components/Panels/ToolBox.vue";
 
 vi.mock("@/composables/config");
 

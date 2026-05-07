@@ -112,9 +112,7 @@ describe("test helpers in tool searching utilities", () => {
         // A tag containing both a backslash and a double quote must be escaped
         // so the resulting Whoosh phrase is well-formed (CodeQL: incomplete
         // string escaping). Backslash must be escaped before the quote.
-        expect(createWhooshQuery({ tag: ['weird \\ "tag"'] })).toEqual(
-            '(tool_tags:("weird \\\\ \\"tag\\""))',
-        );
+        expect(createWhooshQuery({ tag: ['weird \\ "tag"'] })).toEqual('(tool_tags:("weird \\\\ \\"tag\\""))');
     });
 
     it("test tool search helper that searches for tools given keys", async () => {

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
 import { faFilter, faSitemap, faStar, faTags } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useEventBus } from "@vueuse/core";
+import { storeToRefs } from "pinia";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { isTool, isToolSection, isToolSectionLabel } from "@/api/tools";
@@ -132,13 +132,19 @@ const favoriteSectionKind = computed<"tag" | "edam_operation" | "edam_topic" | n
     if (!isToolSection(props.category)) {
         return null;
     }
-    if (props.category.id.startsWith(FAVORITE_TAG_SECTION_PREFIX)) {
+    // `category.id` is optional on the type — guard against fixtures or panel
+    // entries that omit it (e.g. unit-test fixtures, anonymous sections).
+    const id = props.category.id;
+    if (typeof id !== "string") {
+        return null;
+    }
+    if (id.startsWith(FAVORITE_TAG_SECTION_PREFIX)) {
         return "tag";
     }
-    if (props.category.id.startsWith(FAVORITE_EDAM_OPERATION_SECTION_PREFIX)) {
+    if (id.startsWith(FAVORITE_EDAM_OPERATION_SECTION_PREFIX)) {
         return "edam_operation";
     }
-    if (props.category.id.startsWith(FAVORITE_EDAM_TOPIC_SECTION_PREFIX)) {
+    if (id.startsWith(FAVORITE_EDAM_TOPIC_SECTION_PREFIX)) {
         return "edam_topic";
     }
     return null;

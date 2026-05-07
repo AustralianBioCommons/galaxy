@@ -6,8 +6,8 @@ import { setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import toolsListUntyped from "@/components/ToolsView/testData/toolsList.json";
-import { useToolStore } from "@/stores/toolStore";
 import type { Tool } from "@/stores/toolStore";
+import { useToolStore } from "@/stores/toolStore";
 
 import { createWhooshQuery } from "../Panels/utilities";
 
@@ -34,9 +34,9 @@ const TAG_FILTER_SETTINGS = {
 };
 const TAG_WHOOSH_QUERY = createWhooshQuery(TAG_FILTER_SETTINGS);
 const RAW_TAG_SEARCH = 'tag:"data cleanup" OR tag:collection_ops';
-const RAW_TAG_WHOOSH_QUERY = 'tool_tags:"data cleanup" OR tool_tags:(collection_ops)';
+const RAW_TAG_WHOOSH_QUERY = 'tool_tags:("data cleanup") OR tool_tags:(collection_ops)';
 const MIXED_TAG_SEARCH = 'tag:"data cleanup" trim';
-const MIXED_TAG_WHOOSH_QUERY = '(trim) AND (tool_tags:"data cleanup")';
+const MIXED_TAG_WHOOSH_QUERY = '(trim) AND (tool_tags:("data cleanup"))';
 const MIXED_TAG_AND_ONTOLOGY_SEARCH = 'tag:"Join, Subtract and Group" ontology:"operation_3695"';
 const MIXED_TAG_AND_ONTOLOGY_FILTER_SETTINGS = {
     tag: ["Join, Subtract and Group"],

@@ -101,8 +101,11 @@ function normalizeToolTagQueryValue(tag: string): string {
 }
 
 export function buildToolTagClause(tag: string): string {
+    // Always wrap in parens — Whoosh accepts both `field:"phrase"` and
+    // `field:("phrase")`, but the consistent grouped form composes cleanly
+    // when the clause is concatenated with `AND` siblings.
     const normalizedTag = normalizeToolTagQueryValue(tag);
-    return normalizedTag.startsWith(`"`) ? `tool_tags:${normalizedTag}` : `tool_tags:(${normalizedTag})`;
+    return `tool_tags:(${normalizedTag})`;
 }
 
 export interface SearchCommonKeys {

@@ -9,12 +9,12 @@ import draggable from "vuedraggable";
 import { isTool, isToolSection } from "@/api/tools";
 import { useGlobalUploadModal } from "@/composables/globalUploadModal";
 import { useToolRouting } from "@/composables/route";
-import { useFavoriteSearchResults, useToolPanelFavorites } from "@/composables/toolPanelFavorites";
 import { useToast } from "@/composables/toast";
+import { useFavoriteSearchResults, useToolPanelFavorites } from "@/composables/toolPanelFavorites";
 import type { Tool, ToolPanelItem, ToolSection as ToolSectionType, ToolSectionLabel } from "@/stores/toolStore";
 import { useToolStore } from "@/stores/toolStore";
-import { useUserStore } from "@/stores/userStore";
 import type { FavoriteOrderEntry } from "@/stores/users/queries";
+import { useUserStore } from "@/stores/userStore";
 import ariaAlert from "@/utils/ariaAlert";
 import localize from "@/utils/localization";
 
@@ -39,9 +39,9 @@ import {
 } from "./utilities";
 
 import GButton from "../BaseComponents/GButton.vue";
-import ToolSearch from "./Common/ToolSearch.vue";
 import ToolItem from "./Common/Tool.vue";
 import ToolPanelLabel from "./Common/ToolPanelLabel.vue";
+import ToolSearch from "./Common/ToolSearch.vue";
 import ToolSection from "./Common/ToolSection.vue";
 
 const LOGIN_ROUTE = "/login/start";
@@ -203,7 +203,6 @@ const defaultSectionsById = computed<Record<string, ToolPanelItem> | null>(() =>
 const {
     favoritesCollapsed,
     recentToolsCollapsed,
-    favoriteToolIds,
     favoriteTags,
     favoriteEdamOperations,
     favoriteEdamTopics,
