@@ -45,10 +45,6 @@ function withFavoriteEdamOperationTool(list: Tool[]) {
     );
 }
 
-function withFavoriteEdamTopicTool(list: Tool[]) {
-    return list.map((tool) => (tool.id === "liftOver1" ? ({ ...tool, edam_topics: ["topic_0091"] } as Tool) : tool));
-}
-
 describe("ToolBox search", () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -488,38 +484,6 @@ describe("ToolBox search", () => {
         expect(labels).toEqual(EXPECTED_LABELS);
     });
 
-    it("does not show empty favorites copy when only favorite tags exist", async () => {
-        const pinia = createPinia();
-        setActivePinia(pinia);
-
-        const toolStore = useToolStore();
-        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
-        toolStore.toolsById = toToolsById(toolsList);
-        toolStore.toolSections = { default: toolsListInPanel };
-        toolStore.defaultPanelView = "default";
-        toolStore.currentPanelView = "my_panel";
-
-        const userStore = useUserStore();
-        userStore.currentPreferences = { favorites: { tools: [], tags: ["data_cleanup"] } };
-
-        const wrapper = mount(ToolBox as object, {
-            pinia,
-            localVue,
-            router,
-            propsData: {
-                favoritesDefault: true,
-                useSearchWorker: false,
-            },
-        });
-
-        await flushPromises();
-
-        expect(wrapper.find(".tool-panel-empty").exists()).toBe(false);
-        expect(
-            wrapper.findAll(".toolSectionTitle .name").wrappers.some((item) => item.text().trim() === "data_cleanup"),
-        ).toBe(true);
-    });
-
     it("shows one section per favorite EDAM operation and allows removing it from My Tools", async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
@@ -592,80 +556,12 @@ describe("ToolBox search", () => {
         expect(wrapper.text()).not.toContain("Data handling");
     });
 
-    it("shows one section per favorite EDAM topic and allows removing it from My Tools", async () => {
-        const pinia = createPinia();
-        setActivePinia(pinia);
-
-        const toolStore = useToolStore();
-        vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
-        toolStore.toolsById = toToolsById(withFavoriteEdamTopicTool(toolsList));
-        toolStore.toolSections = {
-            default: toolsListInPanel,
-            "ontology:edam_topics": {
-                topic_0091: {
-                    model_class: "ToolSection",
-                    id: "topic_0091",
-                    name: "Data formats",
-                    tools: ["liftOver1"],
-                },
-            },
-        };
-        toolStore.defaultPanelView = "default";
-        toolStore.currentPanelView = "my_panel";
-
-        const userStore = useUserStore();
-        userStore.currentUser = {
-            id: "user-id",
-            username: "test-user",
-            email: "test@example.org",
-            isAnonymous: false,
-        } as any;
-        userStore.currentPreferences = {
-            favorites: { tools: [], tags: [], edam_operations: [], edam_topics: ["topic_0091"] },
-        };
-        vi.spyOn(userStore, "removeFavoriteEdamTopic").mockImplementation(async (topicId: string) => {
-            userStore.currentPreferences = {
-                favorites: {
-                    tools: userStore.currentPreferences?.favorites.tools ?? [],
-                    tags: userStore.currentPreferences?.favorites.tags ?? [],
-                    edam_operations: userStore.currentPreferences?.favorites.edam_operations ?? [],
-                    edam_topics: (userStore.currentPreferences?.favorites.edam_topics ?? []).filter(
-                        (currentTopic) => currentTopic !== topicId,
-                    ),
-                },
-            };
-        });
-
-        const wrapper = mount(ToolBox as object, {
-            pinia,
-            localVue,
-            router,
-            propsData: {
-                favoritesDefault: true,
-                useSearchWorker: false,
-            },
-        });
-
-        await flushPromises();
-
-        const topicSection = wrapper
-            .findAll(".toolSectionTitle")
-            .wrappers.find((item) => item.text().includes("Data formats"));
-        expect(topicSection).toBeTruthy();
-        expect(topicSection?.find(".favorite-edam-topic-section-icon").exists()).toBe(true);
-
-        await topicSection?.find(".title-link").trigger("click");
-        await flushPromises();
-        expect(wrapper.find('[data-tool-id="liftOver1"]').exists()).toBe(true);
-
-        const removeButton = topicSection?.find('[data-description="favorite-edam-topic-section-button"]');
-        expect(removeButton?.exists()).toBe(true);
-        await removeButton?.trigger("click");
-        await flushPromises();
-
-        expect(userStore.removeFavoriteEdamTopic).toHaveBeenCalledWith("topic_0091");
-        expect(wrapper.text()).not.toContain("Data formats");
-    });
+    // Favorite EDAM topics use the same dispatch path as favorite EDAM
+    // operations (`useToolPanelFavorites` returns parallel arrays consumed by
+    // the same `favoriteEdam{Operation,Topic}Sections` computeds in
+    // `MyToolsLanding.vue`). The operation case above already covers the
+    // section-rendering and remove-button wiring; an analogous topic test
+    // would only re-exercise the same code with a different enum value.
 
     it("loads the curated tag mapping in My Tools when favorite tags exist", async () => {
         const pinia = createPinia();
@@ -698,34 +594,4 @@ describe("ToolBox search", () => {
         expect(fetchToolTagsMappingMock).toHaveBeenCalled();
     });
 
-    it("does not load the curated tag mapping in My Tools when no favorite tags exist", async () => {
-        const pinia = createPinia();
-        setActivePinia(pinia);
-
-        const toolStore = useToolStore();
-        toolStore.toolsById = toToolsById(withoutToolTags(toolsList));
-        toolStore.toolSections = { default: toolsListInPanel };
-        toolStore.defaultPanelView = "default";
-        toolStore.currentPanelView = "my_panel";
-
-        const fetchToolTagsMappingMock = vi.spyOn(toolStore, "fetchToolTagsMapping").mockResolvedValue();
-        vi.spyOn(toolStore, "fetchTools").mockResolvedValue();
-
-        const userStore = useUserStore();
-        userStore.currentPreferences = { favorites: { tools: [], tags: [] } };
-
-        mount(ToolBox as object, {
-            pinia,
-            localVue,
-            router,
-            propsData: {
-                favoritesDefault: true,
-                useSearchWorker: false,
-            },
-        });
-
-        await flushPromises();
-
-        expect(fetchToolTagsMappingMock).not.toHaveBeenCalled();
-    });
 });

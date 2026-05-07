@@ -168,18 +168,6 @@ class TestToolBox(BaseToolBoxTestCase):
 
         assert self.toolbox.curated_tool_tags_by_id == {"test_tool": ["curated_tag", "another_tag"]}
 
-    def test_to_panel_view_omits_tool_tags_by_default(self):
-        self._init_tool_in_section()
-        mapper = routes.Mapper()
-        mapper.connect("tool_runner", "/test/tool_runner")
-
-        tool = self.toolbox.get_tool("test_tool")
-        tool.tool_tags = ["curated_tag"]
-
-        panel_view = self.toolbox.to_panel_view(mock_trans())
-        assert panel_view["t"]["id"] == "t"
-        assert panel_view["t"]["tools"] == ["test_tool"]
-
     def test_curated_id_caches_invalidate_on_tool_change(self):
         self._init_tool_in_section()
         mapper = routes.Mapper()

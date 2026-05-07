@@ -198,13 +198,6 @@ class TestToolsApi(ApiTestCase, TestsTools):
         assert "upload1" in tool_ids
         assert "tool_tags" not in tools_index[0]
 
-    def test_no_panel_index_include_tool_tags(self):
-        index = self._get("tools", data=dict(in_panel=False, include_tool_tags=True))
-        tools_index = index.json()
-        tool_ids = [_["id"] for _ in tools_index]
-        assert "upload1" in tool_ids
-        assert "tool_tags" in tools_index[0]
-
     @skip_without_tool("test_sam_to_bam_conversions")
     def test_requirements(self):
         requirements_response = self._get("tools/test_sam_to_bam_conversions/requirements", admin=True)

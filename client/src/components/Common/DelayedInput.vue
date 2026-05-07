@@ -236,6 +236,7 @@ function onKeydown(event: KeyboardEvent) {
             event.preventDefault();
             showSuggestions.value = false;
             selectedSuggestionIndex.value = 0;
+            clearBox(event);
             return;
         }
     }

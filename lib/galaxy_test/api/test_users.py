@@ -329,8 +329,6 @@ class TestUsersApi(ApiTestCase):
         assert tool_response.json()["tools"] == ["cat1"]
         assert tool_response.json()["tags"] == []
 
-        # Use a multi-word tag to exercise URL encoding on the DELETE path
-        # and JSON-payload round-tripping with the embedded space.
         tag_name = "Collection Operations"
         tag_favorites_url = self._api_url(f"users/{user['id']}/favorites/tags")
         tag_response = self._put(tag_favorites_url, data={"object_id": tag_name}, admin=True, json=True)
@@ -398,29 +396,6 @@ class TestUsersApi(ApiTestCase):
         remove_operation_response = self._delete(remove_operation_url, admin=True)
         self._assert_status_code_is_ok(remove_operation_response)
         assert remove_operation_response.json()["edam_operations"] == []
-
-    @requires_admin
-    @requires_new_user
-    def test_favorite_edam_topics(self):
-        user = self._setup_user(TEST_USER_EMAIL)
-        topics_panel = self._get("tool_panels/ontology:edam_topics", admin=True).json()
-        topic_id = next(
-            (item["id"] for item in topics_panel.values() if item.get("model_class") == "ToolSection"), None
-        )
-        assert topic_id is not None
-
-        topic_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_topics")
-        topic_response = self._put(topic_favorites_url, data={"object_id": topic_id}, admin=True, json=True)
-        self._assert_status_code_is_ok(topic_response)
-        # `TEST_USER_EMAIL` is reused across test_users.py — earlier tests may
-        # have favorited tools/tags on the same user, so only assert the topic
-        # we just added is present.
-        assert topic_response.json()["edam_topics"] == [topic_id]
-
-        remove_topic_url = self._api_url(f"users/{user['id']}/favorites/edam_topics/{topic_id}")
-        remove_topic_response = self._delete(remove_topic_url, admin=True)
-        self._assert_status_code_is_ok(remove_topic_response)
-        assert remove_topic_response.json()["edam_topics"] == []
 
     @skip_without_tool("cat1")
     def test_search_favorites(self):

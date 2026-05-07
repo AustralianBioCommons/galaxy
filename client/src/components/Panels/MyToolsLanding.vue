@@ -204,8 +204,16 @@ const favoriteEdamTopicSections = computed<ToolSectionType[]>(() =>
     }),
 );
 
+const favoriteMetadataPending = computed(
+    () =>
+        (favoriteTags.value.length > 0 && !toolTagsLoaded.value) ||
+        (favoriteEdamOperations.value.length > 0 && !toolSections.value["ontology:edam_operations"]) ||
+        (favoriteEdamTopics.value.length > 0 && !toolSections.value["ontology:edam_topics"]),
+);
+
 const showEmptyFavorites = computed(
     () =>
+        !favoriteMetadataPending.value &&
         favoriteToolIdsInPanel.value.length === 0 &&
         favoriteTagSections.value.length === 0 &&
         favoriteEdamOperationSections.value.length === 0 &&
