@@ -22644,19 +22644,20 @@ export interface components {
             /** Total Item Count */
             total_item_count: number;
         };
-        /**
-         * StorageOperationEligibilityState
-         * @enum {string}
-         */
-        StorageOperationEligibilityState: "eligible" | "ineligible";
+        /** StorageOperationEligibilityReasonSummary */
+        StorageOperationEligibilityReasonSummary: {
+            /** Count */
+            count: number;
+            reason_code: components["schemas"]["DatasetStorageOperationFailureReasonCode"];
+        };
         /** StorageOperationEligibilitySummary */
         StorageOperationEligibilitySummary: {
             /** Eligible Count */
             eligible_count: number;
             /** Ineligible Count */
             ineligible_count: number;
-            /** Items */
-            items: components["schemas"]["StorageOperationPreviewItemResult"][];
+            /** Reasons */
+            reasons?: components["schemas"]["StorageOperationEligibilityReasonSummary"][];
         };
         /** StorageOperationEstimateSummary */
         StorageOperationEstimateSummary: {
@@ -22768,18 +22769,6 @@ export interface components {
              * @description Total datasets in the run.
              */
             total_count: number;
-        };
-        /** StorageOperationPreviewItemResult */
-        StorageOperationPreviewItemResult: {
-            /**
-             * Dataset Id
-             * @example 0123456789ABCDEF
-             */
-            dataset_id: string;
-            /** Message */
-            message?: string | null;
-            reason_code?: components["schemas"]["DatasetStorageOperationFailureReasonCode"] | null;
-            state: components["schemas"]["StorageOperationEligibilityState"];
         };
         /** StorageOperationPreviewRequest */
         StorageOperationPreviewRequest: {

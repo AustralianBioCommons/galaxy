@@ -44,19 +44,11 @@ const quotaGains = computed(() => quotaAvailabilityEntries.value.filter((entry) 
 const quotaLosses = computed(() => quotaAvailabilityEntries.value.filter((entry) => entry.availableQuotaDelta < 0));
 
 const ineligibleReasonBreakdown = computed(() => {
-    const items = props.preview.eligibility?.items ?? [];
-    const byReason = new Map<string, number>();
-
-    for (const item of items) {
-        if (item.state !== "ineligible") {
-            continue;
-        }
-        const reason = item.reason_code ?? "unknown";
-        byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
-    }
-
-    return Array.from(byReason.entries())
-        .map(([code, count]) => ({ code, count }))
+    return (props.preview.eligibility?.reasons ?? [])
+        .map((reason) => ({
+            code: reason.reason_code,
+            count: reason.count,
+        }))
         .sort((a, b) => b.count - a.count);
 });
 

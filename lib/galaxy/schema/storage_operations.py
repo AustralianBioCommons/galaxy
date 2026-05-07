@@ -37,11 +37,6 @@ class StorageOperationMode(str, Enum):
     move = "move"
 
 
-class StorageOperationEligibilityState(str, Enum):
-    eligible = "eligible"
-    ineligible = "ineligible"
-
-
 class StorageOperationRunState(str, Enum):
     pending = "pending"
     running = "running"
@@ -77,23 +72,21 @@ class StorageOperationPreviewRequest(Model):
     items: Optional[list[dict[str, Any]]] = None
 
 
-class StorageOperationPreviewItemResult(Model):
-    dataset_id: EncodedDatabaseIdField
-    state: StorageOperationEligibilityState
-    reason_code: Optional[DatasetStorageOperationFailureReasonCode] = None
-    message: Optional[str] = None
-
-
 class StorageOperationSelectionCounts(Model):
     selected_items_count: int
     expanded_leaf_count: int
     unique_dataset_count: int
 
 
+class StorageOperationEligibilityReasonSummary(Model):
+    reason_code: DatasetStorageOperationFailureReasonCode
+    count: int
+
+
 class StorageOperationEligibilitySummary(Model):
     eligible_count: int
     ineligible_count: int
-    items: list[StorageOperationPreviewItemResult]
+    reasons: list[StorageOperationEligibilityReasonSummary] = Field(default_factory=list)
 
 
 class StorageOperationQuotaDeltaTransfer(Model):

@@ -35,12 +35,11 @@ from galaxy.quota import QuotaAgent
 from galaxy.schema.fields import EncodedDatabaseIdField
 from galaxy.schema.storage_operations import (
     DatasetStorageOperationFailureReasonCode,
-    StorageOperationEligibilityState,
+    StorageOperationEligibilityReasonSummary,
     StorageOperationEligibilitySummary,
     StorageOperationEstimateSummary,
     StorageOperationExecutionResult,
     StorageOperationMode,
-    StorageOperationPreviewItemResult,
     StorageOperationPreviewResponse,
     StorageOperationQuotaDeltaTransfer,
     StorageOperationRunItemState,
@@ -94,7 +93,7 @@ def _as_encoded_database_id(value: int) -> EncodedDatabaseIdField:
 @dataclass
 class StorageOperationPreviewComputation:
     eligible_dataset_ids: list[int]
-    eligibility_items: list[StorageOperationPreviewItemResult]
+    eligibility_reasons: list[StorageOperationEligibilityReasonSummary]
     eligible_count: int
     ineligible_count: int
     bytes_to_transfer: int
@@ -538,7 +537,7 @@ class DatasetStorageOperationPreviewBuilder:
             eligibility=StorageOperationEligibilitySummary(
                 eligible_count=preview.eligible_count,
                 ineligible_count=preview.ineligible_count,
-                items=preview.eligibility_items,
+                reasons=preview.eligibility_reasons,
             ),
             estimates=StorageOperationEstimateSummary(
                 bytes_to_transfer=preview.bytes_to_transfer,
@@ -558,8 +557,7 @@ class DatasetStorageOperationPreviewBuilder:
         target_object_store_id: str,
     ) -> StorageOperationPreviewComputation:
         eligible_dataset_ids: list[int] = []
-        eligibility_items: list[StorageOperationPreviewItemResult] = []
-        eligible_items: list[StorageOperationPreviewItemResult] = []
+        eligibility_reason_counts: dict[DatasetStorageOperationFailureReasonCode, int] = {}
         eligible_count = 0
         ineligible_count = 0
         bytes_to_transfer = 0
@@ -583,13 +581,6 @@ class DatasetStorageOperationPreviewBuilder:
                 if self.storage_operation_manager.requires_data_transfer(dataset, target_object_store_id):
                     bytes_to_transfer += dataset_size
 
-                item = StorageOperationPreviewItemResult(
-                    dataset_id=_as_encoded_database_id(dataset_id),
-                    state=StorageOperationEligibilityState.eligible,
-                )
-                eligibility_items.append(item)
-                eligible_items.append(item)
-
                 old_label = quota_source_map.get_quota_source_label(dataset.object_store_id) or "default"
                 new_label = quota_source_map.get_quota_source_label(target_object_store_id) or "default"
                 if old_label != new_label:
@@ -609,15 +600,8 @@ class DatasetStorageOperationPreviewBuilder:
                     privacy_downgrade_count += 1
             else:
                 ineligible_count += 1
-                reason_code, message = reason
-                eligibility_items.append(
-                    StorageOperationPreviewItemResult(
-                        dataset_id=_as_encoded_database_id(dataset_id),
-                        state=StorageOperationEligibilityState.ineligible,
-                        reason_code=reason_code,
-                        message=message,
-                    )
-                )
+                reason_code, _ = reason
+                self._increment_eligibility_reason(eligibility_reason_counts, reason_code)
 
         quota_delta_transfers = [
             StorageOperationQuotaDeltaTransfer(
@@ -636,20 +620,24 @@ class DatasetStorageOperationPreviewBuilder:
             target_quota_delta,
         )
         if target_quota_projection and target_quota_projection.exceeds_quota:
-            target_quota_message = self.storage_operation_manager.target_quota_exceeded_message(
-                phase_label="before execution"
+            self._increment_eligibility_reason(
+                eligibility_reason_counts,
+                DatasetStorageOperationFailureReasonCode.target_quota_exceeded,
+                count=eligible_count,
             )
-            for item in eligible_items:
-                item.state = StorageOperationEligibilityState.ineligible
-                item.reason_code = DatasetStorageOperationFailureReasonCode.target_quota_exceeded
-                item.message = target_quota_message
             eligible_dataset_ids = []
             ineligible_count += eligible_count
             eligible_count = 0
 
         return StorageOperationPreviewComputation(
             eligible_dataset_ids=eligible_dataset_ids,
-            eligibility_items=eligibility_items,
+            eligibility_reasons=[
+                StorageOperationEligibilityReasonSummary(
+                    reason_code=reason_code,
+                    count=count,
+                )
+                for reason_code, count in eligibility_reason_counts.items()
+            ],
             eligible_count=eligible_count,
             ineligible_count=ineligible_count,
             bytes_to_transfer=bytes_to_transfer,
@@ -658,6 +646,17 @@ class DatasetStorageOperationPreviewBuilder:
             privacy_downgrade_count=privacy_downgrade_count,
             target_quota_projection=target_quota_projection,
         )
+
+    def _increment_eligibility_reason(
+        self,
+        eligibility_reason_counts: dict[DatasetStorageOperationFailureReasonCode, int],
+        reason_code: DatasetStorageOperationFailureReasonCode,
+        *,
+        count: int = 1,
+    ) -> None:
+        if count <= 0:
+            return
+        eligibility_reason_counts[reason_code] = eligibility_reason_counts.get(reason_code, 0) + count
 
     def resolve_unique_datasets_from_contents(
         self, contents: list[StorageOperationContent]
