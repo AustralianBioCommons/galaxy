@@ -299,6 +299,23 @@ class TestUsersApi(ApiTestCase):
 
     @requires_admin
     @requires_new_user
+    @skip_without_tool("Remove beginning1")
+    def test_favorites_whitespace_tool_id(self):
+        user = self._setup_user(TEST_USER_EMAIL)
+        tool_id = "Remove beginning1"
+
+        add_url = self._api_url(f"users/{user['id']}/favorites/tools")
+        add_response = self._put(add_url, data={"object_id": tool_id}, admin=True, json=True)
+        self._assert_status_code_is_ok(add_response)
+        assert add_response.json()["tools"] == [tool_id]
+
+        remove_url = self._api_url(f"users/{user['id']}/favorites/tools/{tool_id}")
+        remove_response = self._delete(remove_url, admin=True)
+        self._assert_status_code_is_ok(remove_response)
+        assert remove_response.json()["tools"] == []
+
+    @requires_admin
+    @requires_new_user
     @skip_without_tool("cat1")
     @skip_without_tool("__ZIP_COLLECTION__")
     def test_favorite_tags(self):
@@ -311,12 +328,12 @@ class TestUsersApi(ApiTestCase):
         assert tool_response.json()["tags"] == []
 
         tag_favorites_url = self._api_url(f"users/{user['id']}/favorites/tags")
-        tag_response = self._put(tag_favorites_url, data={"object_id": "collection_ops"}, admin=True, json=True)
+        tag_response = self._put(tag_favorites_url, data={"object_id": "Statistics"}, admin=True, json=True)
         self._assert_status_code_is_ok(tag_response)
         assert tag_response.json()["tools"] == ["cat1"]
-        assert tag_response.json()["tags"] == ["collection_ops"]
+        assert tag_response.json()["tags"] == ["Statistics"]
 
-        remove_tag_url = self._api_url(f"users/{user['id']}/favorites/tags/collection_ops")
+        remove_tag_url = self._api_url(f"users/{user['id']}/favorites/tags/Statistics")
         remove_tag_response = self._delete(remove_tag_url, admin=True)
         self._assert_status_code_is_ok(remove_tag_response)
         assert remove_tag_response.json()["tools"] == ["cat1"]
@@ -333,7 +350,7 @@ class TestUsersApi(ApiTestCase):
         self._assert_status_code_is_ok(tool_response)
 
         tag_favorites_url = self._api_url(f"users/{user['id']}/favorites/tags")
-        tag_response = self._put(tag_favorites_url, data={"object_id": "collection_ops"}, admin=True, json=True)
+        tag_response = self._put(tag_favorites_url, data={"object_id": "Statistics"}, admin=True, json=True)
         self._assert_status_code_is_ok(tag_response)
 
         order_url = self._api_url(f"users/{user['id']}/favorites/order")
@@ -341,7 +358,7 @@ class TestUsersApi(ApiTestCase):
             order_url,
             data={
                 "order": [
-                    {"object_type": "tags", "object_id": "collection_ops"},
+                    {"object_type": "tags", "object_id": "Statistics"},
                     {"object_type": "tools", "object_id": "cat1"},
                 ]
             },
@@ -350,11 +367,11 @@ class TestUsersApi(ApiTestCase):
         )
         self._assert_status_code_is_ok(reorder_response)
         assert reorder_response.json()["order"] == [
-            {"object_type": "tags", "object_id": "collection_ops"},
+            {"object_type": "tags", "object_id": "Statistics"},
             {"object_type": "tools", "object_id": "cat1"},
         ]
         assert reorder_response.json()["tools"] == ["cat1"]
-        assert reorder_response.json()["tags"] == ["collection_ops"]
+        assert reorder_response.json()["tags"] == ["Statistics"]
 
     @requires_admin
     @requires_new_user
@@ -369,8 +386,9 @@ class TestUsersApi(ApiTestCase):
         operation_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_operations")
         operation_response = self._put(operation_favorites_url, data={"object_id": operation_id}, admin=True, json=True)
         self._assert_status_code_is_ok(operation_response)
-        assert operation_response.json()["tools"] == []
-        assert operation_response.json()["tags"] == []
+        # `TEST_USER_EMAIL` is reused across test_users.py — earlier tests may
+        # have favorited tools/tags on the same user, so only assert the
+        # operation we just added is present.
         assert operation_response.json()["edam_operations"] == [operation_id]
 
         remove_operation_url = self._api_url(f"users/{user['id']}/favorites/edam_operations/{operation_id}")
@@ -391,9 +409,9 @@ class TestUsersApi(ApiTestCase):
         topic_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_topics")
         topic_response = self._put(topic_favorites_url, data={"object_id": topic_id}, admin=True, json=True)
         self._assert_status_code_is_ok(topic_response)
-        assert topic_response.json()["tools"] == []
-        assert topic_response.json()["tags"] == []
-        assert topic_response.json()["edam_operations"] == []
+        # `TEST_USER_EMAIL` is reused across test_users.py — earlier tests may
+        # have favorited tools/tags on the same user, so only assert the topic
+        # we just added is present.
         assert topic_response.json()["edam_topics"] == [topic_id]
 
         remove_topic_url = self._api_url(f"users/{user['id']}/favorites/edam_topics/{topic_id}")

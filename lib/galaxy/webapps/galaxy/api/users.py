@@ -197,7 +197,13 @@ def _resolve_favorite_tool_id(trans: ProvidesUserContext, user: User, raw_object
         raise exceptions.ObjectNotFound(f"Could not find tool with id '{raw_object_id}'.")
     if not tool.allow_user_access(user):
         raise exceptions.AuthenticationFailed(f"Access denied for tool with id '{raw_object_id}'.")
-    return raw_object_id
+    # `get_tool` resolves aliases, old_ids, and versioned ids; persist the
+    # canonical `tool.id` so the client (which keys `toolStore.toolsById` by
+    # the canonical id) can always render the favorite. Without this, posting
+    # an alias like `cat1/1.0.0` would be accepted, stored verbatim, and then
+    # silently dropped from the My Tools panel because `localToolsById` has
+    # no `cat1/1.0.0` entry.
+    return tool.id
 
 
 def _resolve_favorite_against_set(
@@ -540,8 +546,11 @@ class FastAPIUsers:
             json.loads(user.preferences["favorites"]) if "favorites" in user.preferences else {}
         )
 
+        # `Model` (base of `FavoriteOrderItem`) sets `use_enum_values=True`, so
+        # pydantic stores `object_type` as the string value of the enum at
+        # deserialization — accessing `.value` on it would AttributeError.
         requested_order = [
-            _favorite_order_entry(order_item.object_type.value, order_item.object_id) for order_item in payload.order
+            _favorite_order_entry(order_item.object_type, order_item.object_id) for order_item in payload.order
         ]
         expected_keys = {(entry["object_type"], entry["object_id"]) for entry in favorites["order"]}
         requested_keys = {(entry["object_type"], entry["object_id"]) for entry in requested_order}
