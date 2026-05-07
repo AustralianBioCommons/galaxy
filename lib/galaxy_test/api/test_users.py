@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from galaxy_test.api._framework import ApiTestCase
 from galaxy_test.base.api_asserts import assert_object_id_error
 from galaxy_test.base.decorators import (
@@ -327,13 +329,16 @@ class TestUsersApi(ApiTestCase):
         assert tool_response.json()["tools"] == ["cat1"]
         assert tool_response.json()["tags"] == []
 
+        # Use a multi-word tag to exercise URL encoding on the DELETE path
+        # and JSON-payload round-tripping with the embedded space.
+        tag_name = "Collection Operations"
         tag_favorites_url = self._api_url(f"users/{user['id']}/favorites/tags")
-        tag_response = self._put(tag_favorites_url, data={"object_id": "Statistics"}, admin=True, json=True)
+        tag_response = self._put(tag_favorites_url, data={"object_id": tag_name}, admin=True, json=True)
         self._assert_status_code_is_ok(tag_response)
         assert tag_response.json()["tools"] == ["cat1"]
-        assert tag_response.json()["tags"] == ["Statistics"]
+        assert tag_response.json()["tags"] == [tag_name]
 
-        remove_tag_url = self._api_url(f"users/{user['id']}/favorites/tags/Statistics")
+        remove_tag_url = self._api_url(f"users/{user['id']}/favorites/tags/{quote(tag_name)}")
         remove_tag_response = self._delete(remove_tag_url, admin=True)
         self._assert_status_code_is_ok(remove_tag_response)
         assert remove_tag_response.json()["tools"] == ["cat1"]
@@ -349,8 +354,9 @@ class TestUsersApi(ApiTestCase):
         tool_response = self._put(tool_favorites_url, data={"object_id": "cat1"}, admin=True, json=True)
         self._assert_status_code_is_ok(tool_response)
 
+        tag_name = "Collection Operations"
         tag_favorites_url = self._api_url(f"users/{user['id']}/favorites/tags")
-        tag_response = self._put(tag_favorites_url, data={"object_id": "Statistics"}, admin=True, json=True)
+        tag_response = self._put(tag_favorites_url, data={"object_id": tag_name}, admin=True, json=True)
         self._assert_status_code_is_ok(tag_response)
 
         order_url = self._api_url(f"users/{user['id']}/favorites/order")
@@ -358,7 +364,7 @@ class TestUsersApi(ApiTestCase):
             order_url,
             data={
                 "order": [
-                    {"object_type": "tags", "object_id": "Statistics"},
+                    {"object_type": "tags", "object_id": tag_name},
                     {"object_type": "tools", "object_id": "cat1"},
                 ]
             },
@@ -367,11 +373,11 @@ class TestUsersApi(ApiTestCase):
         )
         self._assert_status_code_is_ok(reorder_response)
         assert reorder_response.json()["order"] == [
-            {"object_type": "tags", "object_id": "Statistics"},
+            {"object_type": "tags", "object_id": tag_name},
             {"object_type": "tools", "object_id": "cat1"},
         ]
         assert reorder_response.json()["tools"] == ["cat1"]
-        assert reorder_response.json()["tags"] == ["Statistics"]
+        assert reorder_response.json()["tags"] == [tag_name]
 
     @requires_admin
     @requires_new_user
@@ -386,9 +392,6 @@ class TestUsersApi(ApiTestCase):
         operation_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_operations")
         operation_response = self._put(operation_favorites_url, data={"object_id": operation_id}, admin=True, json=True)
         self._assert_status_code_is_ok(operation_response)
-        # `TEST_USER_EMAIL` is reused across test_users.py — earlier tests may
-        # have favorited tools/tags on the same user, so only assert the
-        # operation we just added is present.
         assert operation_response.json()["edam_operations"] == [operation_id]
 
         remove_operation_url = self._api_url(f"users/{user['id']}/favorites/edam_operations/{operation_id}")
