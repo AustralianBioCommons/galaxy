@@ -42,6 +42,7 @@ function enrichRunWithSummary(run: StorageRun) {
     const failedCount = summary?.failed_count ?? run.failed_count;
     const skippedCount = summary?.skipped_count ?? run.skipped_count;
     const totalCount = summary?.total_count ?? run.total_count;
+    const totalBytesProcessed = summary?.total_bytes_processed ?? run.total_bytes_processed;
     const updateTime = summary?.update_time ?? run.update_time;
     const processed = succeededCount + failedCount + skippedCount;
     const progressPercent = totalCount > 0 ? Math.min(100, Math.round((processed / totalCount) * 100)) : 0;
@@ -52,6 +53,7 @@ function enrichRunWithSummary(run: StorageRun) {
         succeeded_count: succeededCount,
         failed_count: failedCount,
         skipped_count: skippedCount,
+        total_bytes_processed: totalBytesProcessed,
         update_time: updateTime,
         progressPercent,
     };

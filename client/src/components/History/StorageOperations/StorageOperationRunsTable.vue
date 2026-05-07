@@ -9,6 +9,7 @@ import { useObjectStoreStore } from "@/stores/objectStoreStore";
 import type { StorageRun } from "@/stores/storageOperationsStore";
 import localize from "@/utils/localization";
 import { isTerminalRunState } from "@/utils/storageOperations";
+import { bytesToString } from "@/utils/utils";
 
 import GButton from "@/components/BaseComponents/GButton.vue";
 import GButtonGroup from "@/components/BaseComponents/GButtonGroup.vue";
@@ -52,6 +53,7 @@ const fields: TableField[] = [
     { key: "mode", label: localize("Mode"), sortable: false, width: "80px" },
     { key: "target_object_store_id", label: localize("Target store"), sortable: true },
     { key: "total_count", label: localize("Datasets"), sortable: true, align: "center", width: "120px" },
+    { key: "total_bytes_processed", label: localize("Data transferred"), sortable: true, width: "160px" },
     { key: "progressPercent", label: localize("Progress"), sortable: true, width: "220px" },
     { key: "create_time", label: localize("Started"), sortable: true, width: "180px" },
     { key: "update_time", label: localize("Completed"), sortable: true, width: "180px" },
@@ -74,6 +76,13 @@ function dismissStorageRun(runId: string) {
 
 function getTargetStoreDisplayName(targetObjectStoreId: string) {
     return objectStoreStore.getObjectStoreNameById(targetObjectStoreId) ?? targetObjectStoreId;
+}
+
+function formatDataCopied(totalBytesProcessed: number, succeededCount: number) {
+    if (totalBytesProcessed === 0 && succeededCount > 0) {
+        return localize("No data transfer required");
+    }
+    return bytesToString(totalBytesProcessed);
 }
 </script>
 
@@ -109,6 +118,10 @@ function getTargetStoreDisplayName(targetObjectStoreId: string) {
 
             <template v-slot:cell(target_object_store_id)="slot">
                 {{ getTargetStoreDisplayName(slot.item.target_object_store_id) }}
+            </template>
+
+            <template v-slot:cell(total_bytes_processed)="slot">
+                <span>{{ formatDataCopied(slot.item.total_bytes_processed, slot.item.succeeded_count) }}</span>
             </template>
 
             <template v-slot:cell(progressPercent)="slot">

@@ -14,6 +14,7 @@ import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
 import Filtering, { contains } from "@/utils/filtering";
 import localize from "@/utils/localization";
 import { getIneligibleReasonDescription, toTrackedStorageRun } from "@/utils/storageOperations";
+import { bytesToString } from "@/utils/utils";
 
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
 import DatasetPopoverLink from "@/components/Common/DatasetPopoverLink.vue";
@@ -81,6 +82,14 @@ const tableFields: TableField[] = [
 
 const failedOrSkippedCount = computed(() => (run.value?.failed_count ?? 0) + (run.value?.skipped_count ?? 0));
 const displayItems = computed(() => pageItems.value);
+const totalDataCopiedDisplay = computed(() => {
+    const totalBytesProcessed = run.value?.total_bytes_processed ?? 0;
+    const succeededCount = run.value?.succeeded_count ?? 0;
+    if (totalBytesProcessed === 0 && succeededCount > 0) {
+        return localize("No data transfer required");
+    }
+    return bytesToString(totalBytesProcessed);
+});
 
 const failedItemsEmptyStateMessage = computed(() => {
     if (!isTerminal.value) {
@@ -222,6 +231,8 @@ onBeforeUnmount(() => {
                 <strong>{{ localize("Failed:") }}</strong> {{ run.failed_count }}
                 <span class="mx-2">|</span>
                 <strong>{{ localize("Skipped:") }}</strong> {{ run.skipped_count }}
+                <span class="mx-2">|</span>
+                <strong>{{ localize("Data transferred:") }}</strong> {{ totalDataCopiedDisplay }}
             </div>
 
             <div class="mb-3">
