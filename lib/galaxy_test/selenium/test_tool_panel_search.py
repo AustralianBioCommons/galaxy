@@ -1,7 +1,6 @@
 import json
 
 from galaxy_test.base.populators import skip_without_tool
-
 from .framework import (
     playwright_only,
     selenium_test,

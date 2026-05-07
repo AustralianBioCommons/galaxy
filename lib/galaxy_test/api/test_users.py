@@ -361,7 +361,9 @@ class TestUsersApi(ApiTestCase):
     def test_favorite_edam_operations(self):
         user = self._setup_user(TEST_USER_EMAIL)
         operations_panel = self._get("tool_panels/ontology:edam_operations", admin=True).json()
-        operation_id = next((item["id"] for item in operations_panel.values() if item.get("model_class") == "ToolSection"), None)
+        operation_id = next(
+            (item["id"] for item in operations_panel.values() if item.get("model_class") == "ToolSection"), None
+        )
         assert operation_id is not None
 
         operation_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_operations")
@@ -381,7 +383,9 @@ class TestUsersApi(ApiTestCase):
     def test_favorite_edam_topics(self):
         user = self._setup_user(TEST_USER_EMAIL)
         topics_panel = self._get("tool_panels/ontology:edam_topics", admin=True).json()
-        topic_id = next((item["id"] for item in topics_panel.values() if item.get("model_class") == "ToolSection"), None)
+        topic_id = next(
+            (item["id"] for item in topics_panel.values() if item.get("model_class") == "ToolSection"), None
+        )
         assert topic_id is not None
 
         topic_favorites_url = self._api_url(f"users/{user['id']}/favorites/edam_topics")

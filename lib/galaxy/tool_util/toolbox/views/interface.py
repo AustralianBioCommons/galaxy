@@ -65,6 +65,17 @@ class ToolPanelView:
     def to_model(self) -> ToolPanelViewModel:
         """Convert abstract description to dictionary description to emit via the API."""
 
+    def should_filter_element(self, elt, item_type) -> bool:
+        """Whether this element should pass through the user's tool filters when iterating panel contents.
+
+        Returning ``False`` yields the element raw — used by views that must
+        always surface a particular element regardless of the active filters
+        (e.g. the My Tools panel's Favorites section, which is rendered
+        client-side from per-user state and should not be hidden by toolbox
+        filters). The default policy is to filter every element.
+        """
+        return True
+
 
 def walk_loaded_tools(tool_panel: ToolPanelElements, toolbox_registry: ToolBoxRegistry):
     for key, item_type, val in tool_panel.panel_items_iter():

@@ -57,11 +57,7 @@ from .views.edam import (
     EdamPanelMode,
     EdamToolPanelView,
 )
-from .views.favorites import (
-    MY_TOOLS_PANEL_SECTION_ID,
-    MY_TOOLS_PANEL_VIEW_ID,
-    MyToolsToolPanelView,
-)
+from .views.favorites import MyToolsToolPanelView
 from .views.interface import (
     ToolBoxRegistry,
     ToolPanelView,
@@ -202,14 +198,18 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         self._workflows_by_id: Dict[str, Workflow] = {}
         # Cache for tool's to_dict calls specific to toolbox. Invalidated on toolbox reload
         # and whenever a single tool is reloaded/removed (see _invalidate_tool_caches).
-        self._tool_to_dict_cache: Dict[Tuple[str, bool], Dict[str, Any]] = {}
-        self._tool_to_dict_cache_admin: Dict[Tuple[str, bool], Dict[str, Any]] = {}
+        self._tool_to_dict_cache: Dict[str, Dict[str, Any]] = {}
+        self._tool_to_dict_cache_admin: Dict[str, Dict[str, Any]] = {}
         # Lazily-built sets of curated/edam ids drawn from the loaded tools, used to
         # validate favorite-tag / favorite-EDAM additions in O(1) rather than walking
         # the full tool list per request.
         self._curated_tool_tags: Optional[FrozenSet[str]] = None
         self._tool_edam_operations: Optional[FrozenSet[str]] = None
         self._tool_edam_topics: Optional[FrozenSet[str]] = None
+        # Lazy {tool_id -> [tag, ...]} mapping for tools that carry curated tags.
+        # Served verbatim from the /api/tools/tags endpoint to keep tool_tags
+        # out of the bulk /api/tools payload (and out of its cache key).
+        self._curated_tool_tags_by_id: Optional[Dict[str, List[str]]] = None
         # In-memory dictionary that defines the layout of the tool panel.
         self._tool_panel = ToolPanelElements()
         self._index = 0
@@ -1306,12 +1306,12 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
             self._tool_to_dict_cache.clear()
             self._tool_to_dict_cache_admin.clear()
         else:
-            for cache_key in ((tool_id, False), (tool_id, True)):
-                self._tool_to_dict_cache.pop(cache_key, None)
-                self._tool_to_dict_cache_admin.pop(cache_key, None)
+            self._tool_to_dict_cache.pop(tool_id, None)
+            self._tool_to_dict_cache_admin.pop(tool_id, None)
         self._curated_tool_tags = None
         self._tool_edam_operations = None
         self._tool_edam_topics = None
+        self._curated_tool_tags_by_id = None
 
     def _collect_tool_attribute_set(self, attribute: str) -> FrozenSet[str]:
         values: set = set()
@@ -1340,6 +1340,23 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         if self._tool_edam_topics is None:
             self._tool_edam_topics = self._collect_tool_attribute_set("edam_topics")
         return self._tool_edam_topics
+
+    @property
+    def curated_tool_tags_by_id(self) -> Dict[str, List[str]]:
+        """Mapping of tool id -> curated tag names for tools that carry any.
+
+        Served from the /api/tools/tags endpoint so the My Tools panel can
+        fetch the curated tag mapping out-of-band, instead of bloating
+        /api/tools.
+        """
+        if self._curated_tool_tags_by_id is None:
+            mapping: Dict[str, List[str]] = {}
+            for _, tool in self.tools():
+                tags = getattr(tool, "tool_tags", None)
+                if tags:
+                    mapping[tool.id] = list(tags)
+            self._curated_tool_tags_by_id = mapping
+        return self._curated_tool_tags_by_id
 
     def package_tool(self, trans, tool_id):
         """
@@ -1453,47 +1470,35 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         if view not in self._tool_panel_view_rendered:
             raise RequestParameterInvalidException(f"No panel view {view} found.")
         filter_method = self._build_filter_method(trans)
-        tool_panel_view = self._tool_panel_view_rendered[view]
-        for _, item_type, elt in tool_panel_view.panel_items_iter():
-            if (
-                view == MY_TOOLS_PANEL_VIEW_ID
-                and item_type == panel_item_types.SECTION
-                and getattr(elt, "id", None) == MY_TOOLS_PANEL_SECTION_ID
-            ):
-                yield elt
-                continue
-            elt = filter_method(elt, item_type)
+        rendered_panel = self._tool_panel_view_rendered[view]
+        tool_panel_view = self._tool_panel_views[view]
+        for _, item_type, elt in rendered_panel.panel_items_iter():
+            if tool_panel_view.should_filter_element(elt, item_type):
+                elt = filter_method(elt, item_type)
             if elt:
                 yield elt
 
-    def get_tool_to_dict(
-        self, trans, tool: "Tool", tool_help: bool = False, include_tool_tags: bool = False
-    ) -> Dict[str, Any]:
+    def get_tool_to_dict(self, trans, tool: "Tool", tool_help: bool = False) -> Dict[str, Any]:
         """Return tool's to_dict.
         Use cache if present, store to cache otherwise.
         Note: The cached tool's to_dict is specific to the calls from toolbox.
         """
         to_dict = None
         assert tool.id
-        cache_key = (tool.id, include_tool_tags)
         if not trans.user_is_admin:
             if not tool_help:
-                to_dict = self._tool_to_dict_cache.get(cache_key)
+                to_dict = self._tool_to_dict_cache.get(tool.id)
             if not to_dict:
-                to_dict = tool.to_dict(
-                    trans, link_details=True, tool_help=tool_help, include_tool_tags=include_tool_tags
-                )
+                to_dict = tool.to_dict(trans, link_details=True, tool_help=tool_help)
                 if not tool_help:
-                    self._tool_to_dict_cache[cache_key] = to_dict
+                    self._tool_to_dict_cache[tool.id] = to_dict
         else:
             if not tool_help:
-                to_dict = self._tool_to_dict_cache_admin.get(cache_key)
+                to_dict = self._tool_to_dict_cache_admin.get(tool.id)
             if not to_dict:
-                to_dict = tool.to_dict(
-                    trans, link_details=True, tool_help=tool_help, include_tool_tags=include_tool_tags
-                )
+                to_dict = tool.to_dict(trans, link_details=True, tool_help=tool_help)
                 if not tool_help:
-                    self._tool_to_dict_cache_admin[cache_key] = to_dict
+                    self._tool_to_dict_cache_admin[tool.id] = to_dict
         return to_dict
 
     def to_dict(
@@ -1502,7 +1507,6 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         in_panel: bool = True,
         tool_help: bool = False,
         view: Optional[str] = None,
-        include_tool_tags: bool = False,
         **kwds,
     ) -> List[Dict[str, Any]]:
         """
@@ -1515,14 +1519,7 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
             for elt in panel_elts:
                 # Only use cache for objects that are Tools.
                 if hasattr(elt, "tool_type"):
-                    rval.append(
-                        self.get_tool_to_dict(
-                            trans,
-                            elt,
-                            tool_help=tool_help,
-                            include_tool_tags=include_tool_tags,
-                        )
-                    )
+                    rval.append(self.get_tool_to_dict(trans, elt, tool_help=tool_help))
                 else:
                     kwargs = dict(trans=trans, link_details=True, tool_help=tool_help, toolbox=self)
                     rval.append(elt.to_dict(**kwargs))
@@ -1532,17 +1529,10 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
                 tool = filter_method(tool, panel_item_types.TOOL)
                 if not tool:
                     continue
-                rval.append(
-                    self.get_tool_to_dict(
-                        trans,
-                        tool,
-                        tool_help=tool_help,
-                        include_tool_tags=include_tool_tags,
-                    )
-                )
+                rval.append(self.get_tool_to_dict(trans, tool, tool_help=tool_help))
         return rval
 
-    def to_panel_view(self, trans, view="default_panel_view", include_tool_tags: bool = False, **kwds):
+    def to_panel_view(self, trans, view="default_panel_view", **kwds):
         """
         Create a panel view representation of the toolbox.
         Uses the structure:
@@ -1555,9 +1545,7 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         for elt in panel_elts:
             # Only use cache for objects that are Tools.
             if hasattr(elt, "tool_type"):
-                view_contents[elt.id] = self.get_tool_to_dict(
-                    trans, elt, tool_help=False, include_tool_tags=include_tool_tags
-                )
+                view_contents[elt.id] = self.get_tool_to_dict(trans, elt, tool_help=False)
             else:
                 kwargs = dict(trans=trans, link_details=True, tool_help=False, toolbox=self, only_ids=True)
                 view_contents[elt.id] = elt.to_dict(**kwargs)

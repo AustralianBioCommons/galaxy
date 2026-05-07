@@ -448,10 +448,14 @@ class FavoriteObjectType(str, Enum):
 
 class FavoriteOrderItem(Model):
     object_type: FavoriteObjectType = Field(
-        default=..., title="Favorite object type", description="The type of favorite object in the ordered favorites list."
+        default=...,
+        title="Favorite object type",
+        description="The type of favorite object in the ordered favorites list.",
     )
     object_id: str = Field(
-        default=..., title="Favorite object ID", description="The ID of the favorite object in the ordered favorites list."
+        default=...,
+        title="Favorite object ID",
+        description="The ID of the favorite object in the ordered favorites list.",
     )
 
 

@@ -5,6 +5,7 @@ from .interface import (
     ToolPanelViewModelType,
 )
 from ..panel import (
+    panel_item_types,
     ToolPanelElements,
     ToolSection,
 )
@@ -33,3 +34,10 @@ class MyToolsToolPanelView(ToolPanelView):
             view_type=ToolPanelViewModelType.favorites,
             searchable=True,
         )
+
+    def should_filter_element(self, elt, item_type) -> bool:
+        # The Favorites section is populated client-side from the user's
+        # favorites; the user's tool filters never need to redact it.
+        if item_type == panel_item_types.SECTION and getattr(elt, "id", None) == MY_TOOLS_PANEL_SECTION_ID:
+            return False
+        return True
