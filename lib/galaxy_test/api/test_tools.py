@@ -154,44 +154,40 @@ class TestToolsApi(ApiTestCase, TestsTools):
 
     @skip_without_tool("__FILTER_EMPTY_DATASETS__")
     @skip_without_tool("liftOver1")
+    @skip_without_tool("upload1")
+    @skip_without_tool("export_remote")
     def test_search_curated_tool_tags(self):
-        # Bundled mapping (lib/galaxy/tool_util/ontologies/tool_tag_mappings.yml)
-        # tags the four __*_COLLECTION__/__FILTER_*__DATASETS__ tools with
-        # "Collection Operations" and liftOver1 with "Convert Formats".
-        # Search the lowercase phrase the client emits — Whoosh's
-        # KeywordAnalyzer(lowercase=True) on the `tool_tags` field accepts
-        # mixed-case queries via the schema-aware parser too, asserted below.
-        collection_tools = {
-            "__UNZIP_COLLECTION__",
-            "__ZIP_COLLECTION__",
-            "__FILTER_FAILED_DATASETS__",
-            "__FILTER_EMPTY_DATASETS__",
-        }
+        # The bundled mapping (lib/galaxy/tool_util/ontologies/tool_tag_mappings.yml)
+        # tags every tool from `tool_conf.xml.sample` with the section name it
+        # lives under. Verify the sidecar API and the Whoosh-backed search
+        # both respect the mapping.
 
         # /api/tools/tags exposes the raw mapping consumed by the My Tools panel.
         tag_map = self._get("tools/tags").json()
-        for tool_id in collection_tools:
-            assert tag_map.get(tool_id) == ["Collection Operations"], tag_map.get(tool_id)
-        assert tag_map.get("liftOver1") == ["Convert Formats"], tag_map.get("liftOver1")
+        assert tag_map.get("__UNZIP_COLLECTION__") == ["Collection Operations"]
+        assert tag_map.get("liftOver1") == ["Lift-Over"]
+        assert tag_map.get("upload1") == ["Get Data"]
+        assert tag_map.get("export_remote") == ["Send Data"]
 
         # Multi-word phrase, lowercase as the client emits it.
-        response = self._get("tools", data=dict(q='tool_tags:"collection operations"')).json()
-        assert set(response) == collection_tools
+        response = self._get("tools", data=dict(q='tool_tags:"send data"')).json()
+        assert set(response) == {"export_remote"}
 
         # Same query, title-case — schema-aware parser lowercases at query time.
-        response = self._get("tools", data=dict(q='tool_tags:"Collection Operations"')).json()
-        assert set(response) == collection_tools
+        response = self._get("tools", data=dict(q='tool_tags:"Send Data"')).json()
+        assert set(response) == {"export_remote"}
 
-        # Different tag, isolating liftOver1.
-        response = self._get("tools", data=dict(q='tool_tags:"convert formats"')).json()
-        assert set(response) == {"liftOver1"}
+        # A tag that fans out: every Collection Operations tool should be hit.
+        response = self._get("tools", data=dict(q='tool_tags:"collection operations"')).json()
+        for expected in ("__UNZIP_COLLECTION__", "__ZIP_COLLECTION__", "__APPLY_RULES__"):
+            assert expected in response, expected
 
         # Boolean OR across two tags should union the matches.
         response = self._get(
             "tools",
-            data=dict(q='tool_tags:"collection operations" OR tool_tags:"convert formats"'),
+            data=dict(q='tool_tags:"send data" OR tool_tags:"lift-over"'),
         ).json()
-        assert set(response) == collection_tools | {"liftOver1"}
+        assert set(response) == {"export_remote", "liftOver1"}
 
     def test_no_panel_index(self):
         index = self._get("tools", data=dict(in_panel=False))
