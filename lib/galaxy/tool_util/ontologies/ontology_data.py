@@ -47,11 +47,44 @@ EDAM_OPERATION_MAPPING: Dict[str, List[str]] = _multi_dict_mapping(EDAM_OPERATIO
 EDAM_TOPIC_MAPPING_CONTENT = _read_ontology_data_text(EDAM_TOPIC_MAPPING_FILENAME)
 EDAM_TOPIC_MAPPING: Dict[str, List[str]] = _multi_dict_mapping(EDAM_TOPIC_MAPPING_CONTENT)
 
+
+def _load_tool_tag_mapping(content: str) -> Dict[str, List[str]]:
+    return cast(
+        Dict[str, List[str]],
+        (yaml.safe_load(content) or {}).get("tool_tags", {}),
+    )
+
+
 TOOL_TAG_MAPPING_CONTENT = _read_ontology_data_text(TOOL_TAG_MAPPING_FILENAME)
-TOOL_TAG_MAPPING = cast(
-    Dict[str, List[str]],
-    (yaml.safe_load(TOOL_TAG_MAPPING_CONTENT) or {}).get("tool_tags", {}),
-)
+TOOL_TAG_MAPPING: Dict[str, List[str]] = _load_tool_tag_mapping(TOOL_TAG_MAPPING_CONTENT)
+
+
+def configure_tool_tag_mapping(file_path: Optional[str]) -> None:
+    """Replace the in-memory curated tool → tag mapping.
+
+    Galaxy calls this once at startup with the value of the
+    ``tool_tag_mappings_file`` config option. If ``file_path`` is empty or
+    ``None``, the bundled minimal mapping (see ``tool_tag_mappings.yml``) is
+    retained. Missing or unreadable files are logged and the in-memory
+    mapping is left untouched so a typo in ``galaxy.yml`` doesn't take down
+    tool loading.
+    """
+    if not file_path:
+        return
+    try:
+        with open(file_path, encoding="utf-8") as fh:
+            new_mapping = _load_tool_tag_mapping(fh.read())
+    except OSError:
+        # Surface the failure but keep the bundled fallback active.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Could not read tool_tag_mappings_file %s; falling back to bundled mapping.",
+            file_path,
+        )
+        return
+    global TOOL_TAG_MAPPING
+    TOOL_TAG_MAPPING = new_mapping
 
 
 class OntologyData(NamedTuple):

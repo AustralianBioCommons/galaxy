@@ -385,6 +385,13 @@ class MinimalGalaxyApplication(BasicSharedApp, HaltableContainer, SentryClientMi
         self.citations_manager = self._register_singleton(CitationsManager, CitationsManager(self))
         self.biotools_metadata_source = get_galaxy_biotools_metadata_source(self.config)
 
+        # Apply the optional admin override of the curated tool→tag mapping
+        # before any Tool is constructed, so the first tool load sees the
+        # right TOOL_TAG_MAPPING.
+        from galaxy.tool_util.ontologies.ontology_data import configure_tool_tag_mapping
+
+        configure_tool_tag_mapping(getattr(self.config, "tool_tag_mappings_file", None))
+
         self.dynamic_tool_manager = DynamicToolManager(self)
         self._toolbox_lock = threading.RLock()
         self._toolbox = tools.ToolBox(self.config.tool_configs, self.config.tool_path, self)
