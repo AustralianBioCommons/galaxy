@@ -227,13 +227,12 @@ function onKeydown(event: KeyboardEvent) {
                 autocompleteSuggestions.value.length;
             return;
         }
-        if ((event.key === "Enter" || event.key === "Tab") && activeSuggestion.value) {
+        if (event.key === "Enter" && activeSuggestion.value) {
             event.preventDefault();
             void applySuggestion(activeSuggestion.value);
             return;
         }
         if (event.key === "Escape") {
-            event.preventDefault();
             showSuggestions.value = false;
             selectedSuggestionIndex.value = 0;
             clearBox(event);

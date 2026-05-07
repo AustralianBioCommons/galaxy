@@ -43,9 +43,9 @@ interface Props {
     showFavoriteButton?: boolean;
     showDragHandle?: boolean;
     collapsedLabels?: {
-        [PANEL_LABEL_IDS.FAVORITES_LABEL]: boolean;
-        [PANEL_LABEL_IDS.FAVORITES_RESULTS_LABEL]: boolean;
-        [PANEL_LABEL_IDS.RECENT_TOOLS_LABEL]: boolean;
+        [PANEL_LABEL_IDS.FAVORITES_LABEL]?: boolean;
+        [PANEL_LABEL_IDS.FAVORITES_RESULTS_LABEL]?: boolean;
+        [PANEL_LABEL_IDS.RECENT_TOOLS_LABEL]?: boolean;
     } | null;
 }
 

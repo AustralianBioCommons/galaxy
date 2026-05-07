@@ -27,9 +27,9 @@ import {
 } from "./utilities";
 
 import GButton from "../BaseComponents/GButton.vue";
-import MyToolsLanding from "./MyToolsLanding.vue";
 import ToolSearch from "./Common/ToolSearch.vue";
 import ToolSection from "./Common/ToolSection.vue";
+import MyToolsLanding from "./MyToolsLanding.vue";
 
 /** Section IDs that are only valid for the workflow editor toolbox, and should be excluded from the regular toolbox. */
 const WORKFLOW_ONLY_SECTION_IDS = ["expression_tools"];

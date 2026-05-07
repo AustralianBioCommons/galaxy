@@ -6,7 +6,6 @@ import axios, { type AxiosResponse } from "axios";
 import { defineStore } from "pinia";
 import Vue, { computed, type Ref, ref, shallowRef } from "vue";
 
-import { GalaxyApi } from "@/api";
 import {
     MY_PANEL_VIEW_DESCRIPTION,
     MY_PANEL_VIEW_ID,
@@ -286,18 +285,18 @@ export const useToolStore = defineStore("toolStore", () => {
         if (toolTagsLoaded.value) {
             return;
         }
-        const { data, error } = await GalaxyApi().GET("/api/tools/tags");
-        if (error) {
-            rethrowSimple(error);
-            return;
+        try {
+            const { data } = await axios.get(`${getAppRoot()}api/tools/tags`);
+            const mapping = (data ?? {}) as Record<string, string[]>;
+            const merged: Record<string, Tool> = {};
+            for (const [id, tool] of Object.entries(toolsById.value)) {
+                merged[id] = { ...tool, tool_tags: mapping[id] ?? tool.tool_tags ?? [] };
+            }
+            toolsById.value = merged;
+            toolTagsLoaded.value = true;
+        } catch (e) {
+            rethrowSimple(e);
         }
-        const mapping = (data ?? {}) as Record<string, string[]>;
-        const merged: Record<string, Tool> = {};
-        for (const [id, tool] of Object.entries(toolsById.value)) {
-            merged[id] = { ...tool, tool_tags: mapping[id] ?? tool.tool_tags ?? [] };
-        }
-        toolsById.value = merged;
-        toolTagsLoaded.value = true;
     }
 
     async function fetchHelpForId(toolId: string) {

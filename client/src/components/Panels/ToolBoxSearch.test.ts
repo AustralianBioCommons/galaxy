@@ -54,7 +54,7 @@ describe("ToolBox search", () => {
         vi.useRealTimers();
     });
 
-    it("searches across toolbox when favorites are the default view", async () => {
+    it("searches across toolbox when favorites are the default view and clears the query with Escape", async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
 
@@ -88,6 +88,12 @@ describe("ToolBox search", () => {
         await flushPromises();
 
         expect(wrapper.find('[data-tool-id="__ZIP_COLLECTION__"]').exists()).toBe(true);
+
+        await input.trigger("keydown", { key: "Escape" });
+        await flushPromises();
+
+        expect((input.element as HTMLInputElement).value).toBe("");
+        expect(wrapper.find('[data-tool-id="liftOver1"]').exists()).toBe(true);
     });
 
     it("shows empty favorites copy in My panel when no favorites are set", async () => {
@@ -593,5 +599,4 @@ describe("ToolBox search", () => {
 
         expect(fetchToolTagsMappingMock).toHaveBeenCalled();
     });
-
 });
