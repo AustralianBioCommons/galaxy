@@ -126,7 +126,11 @@ function parseFavoritesQuery(query: string) {
         return null;
     }
 
-    const remainder = trimmedQuery.slice(favoritesToken.length).trim().replace(/^AND\s+/i, "").trim();
+    const remainder = trimmedQuery
+        .slice(favoritesToken.length)
+        .trim()
+        .replace(/^AND\s+/i, "")
+        .trim();
     return {
         isFavoritesOnly: remainder.length === 0,
         remainder,
