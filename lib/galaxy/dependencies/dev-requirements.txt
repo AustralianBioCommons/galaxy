@@ -97,7 +97,7 @@ matplotlib==3.10.9
 mdit-py-plugins==0.5.0
 mdurl==0.1.2
 mirakuru==3.0.2
-mistune==3.2.0
+mistune==3.2.1
 more-itertools==11.0.2 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
 msgpack==1.1.2
 multidict==6.7.1
