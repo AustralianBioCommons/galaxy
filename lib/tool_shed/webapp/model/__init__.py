@@ -387,13 +387,14 @@ class Repository(Base, Dictifiable):
     user = relationship("User", back_populates="active_repositories")
     downloadable_revisions = relationship(
         "RepositoryMetadata",
-        primaryjoin=lambda: (Repository.id == RepositoryMetadata.repository_id) & (RepositoryMetadata.downloadable == true()),  # type: ignore[has-type]
+        primaryjoin=lambda: (Repository.id == RepositoryMetadata.repository_id)
+        & (RepositoryMetadata.downloadable == true()),
         viewonly=True,
-        order_by=lambda: desc(RepositoryMetadata.update_time),  # type: ignore[attr-defined]
+        order_by=lambda: desc(RepositoryMetadata.update_time),
     )
     metadata_revisions = relationship(
         "RepositoryMetadata",
-        order_by=lambda: desc(RepositoryMetadata.update_time),  # type: ignore[attr-defined]
+        order_by=lambda: desc(RepositoryMetadata.update_time),
         back_populates="repository",
     )
     roles = relationship("RepositoryRoleAssociation", back_populates="repository")
@@ -702,10 +703,26 @@ class Tag(Base):
 
 
 class RepositoryMetadata(Dictifiable):
-    repository: "Repository"
+    # Annotations only — runtime attributes are installed by
+    # mapper_registry.map_imperatively below.
+    id: Mapped[Optional[int]]
+    create_time: Mapped[Optional[datetime]]
+    update_time: Mapped[Optional[datetime]]
+    repository_id: Mapped[Optional[int]]
+    changeset_revision: Mapped[Optional[str]]
+    numeric_revision: Mapped[Optional[int]]
+    metadata: Mapped[Any]
+    tool_versions: Mapped[Any]
+    malicious: Mapped[Optional[bool]]
+    downloadable: Mapped[Optional[bool]]
+    missing_test_components: Mapped[Optional[bool]]
+    has_repository_dependencies: Mapped[Optional[bool]]
+    includes_datatypes: Mapped[Optional[bool]]
+    includes_tools: Mapped[Optional[bool]]
+    includes_tool_dependencies: Mapped[Optional[bool]]
+    includes_workflows: Mapped[Optional[bool]]
+    repository: Mapped["Repository"]
 
-    # Once the class has been mapped, all Column items in this table will be available
-    # as instrumented class attributes on RepositoryMetadata.
     table = Table(
         "repository_metadata",
         mapper_registry.metadata,

@@ -91,12 +91,10 @@ def test_get_repositories_for_indexing_orders_by_last_revision_create_time(shed_
     base = datetime(2026, 1, 1, 12, 0, 0)
     rm_a = RepositoryMetadata(repository_id=repo_a.id, changeset_revision="a", downloadable=True)
     rm_b = RepositoryMetadata(repository_id=repo_b.id, changeset_revision="b", downloadable=True)
-    # setattr — RepositoryMetadata is imperatively mapped, so create_time /
-    # update_time aren't visible to the static type checker.
-    setattr(rm_a, "create_time", base)
-    setattr(rm_a, "update_time", base)
-    setattr(rm_b, "create_time", base + timedelta(hours=1))
-    setattr(rm_b, "update_time", base + timedelta(hours=1))
+    rm_a.create_time = base
+    rm_a.update_time = base
+    rm_b.create_time = base + timedelta(hours=1)
+    rm_b.update_time = base + timedelta(hours=1)
     session.add_all([rm_a, rm_b])
     # Make repo_a's row look "recently updated" — under the old ORDER BY this
     # surfaced repo_a first even though repo_b has the newer downloadable
