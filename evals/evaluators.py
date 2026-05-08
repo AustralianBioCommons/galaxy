@@ -57,6 +57,29 @@ class MustMentionAny(Evaluator[Any, Any, dict]):
 
 
 @dataclass
+class OrchestratorPlanIncludes(Evaluator[Any, Any, dict]):
+    """Score 1.0 if orchestrator's plan (``agents_used``) intersects metadata['expected_agents_any'].
+
+    Reads ``agents_used`` from ctx.output -- the dict produced by
+    :func:`tasks.make_orchestrator_plan_task`. Also checks
+    ``ctx.output['agent_type'] == 'orchestrator'`` so a router that
+    answers directly (or hands off to a single agent) without invoking
+    the orchestrator scores 0.0 even if the response text mentions the
+    expected agents by name.
+    """
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Any, dict]) -> float:
+        expected = (ctx.metadata or {}).get("expected_agents_any") or []
+        if not expected:
+            return 1.0
+        output = ctx.output if isinstance(ctx.output, dict) else {}
+        if output.get("agent_type") != "orchestrator":
+            return 0.0
+        used = {a for a in (output.get("agents_used") or []) if isinstance(a, str)}
+        return 1.0 if any(name in used for name in expected) else 0.0
+
+
+@dataclass
 class ToolCallMatch(Evaluator[Any, Any, dict]):
     """Score 1.0 if the model called any tool named in metadata['expected_tool_calls'].
 

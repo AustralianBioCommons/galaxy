@@ -20,6 +20,7 @@ from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
     bioinformatics_workflows_dataset,
     error_analysis_dataset,
+    orchestrator_planning_dataset,
     router_tool_use_dataset,
     routing_dataset,
     tool_recommendation_dataset,
@@ -28,10 +29,12 @@ from .evaluators import (
     HandoffMatch,
     MustMention,
     MustMentionAny,
+    OrchestratorPlanIncludes,
     ToolCallMatch,
 )
 from .tasks import (
     make_error_analysis_task,
+    make_orchestrator_plan_task,
     make_router_content_task,
     make_router_inspect_task,
     make_router_task,
@@ -127,10 +130,27 @@ def build_bioinformatics_workflows(
     )
 
 
+def build_orchestrator_planning(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    dataset = orchestrator_planning_dataset(only=only)
+    dataset.add_evaluator(OrchestratorPlanIncludes())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_orchestrator_plan_task(deps, usage_buffer=usage_buffer),
+        primary_score="OrchestratorPlanIncludes",
+    )
+
+
 SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing": build_routing,
     "error_analysis": build_error_analysis,
     "tool_recommendation": build_tool_recommendation,
     "router_tool_use": build_router_tool_use,
     "bioinformatics_workflows": build_bioinformatics_workflows,
+    "orchestrator_planning": build_orchestrator_planning,
 }

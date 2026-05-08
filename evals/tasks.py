@@ -199,6 +199,44 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
     return calls
 
 
+def make_orchestrator_plan_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
+) -> Callable[[str], Awaitable[dict[str, Any]]]:
+    """Build an async callable: query -> {"agent_type": str, "agents_used": list[str]}.
+
+    Routes through the QueryRouterAgent. When the router hands off to the
+    orchestrator we then call ``_get_agent_plan`` directly to capture the
+    intended sub-agent list -- the orchestrator's normal response path
+    only records ``agents_used`` after sub-agents successfully execute,
+    which fails under mocked deps even when the plan itself is correct.
+    Scoring the plan rather than execution lets us evaluate orchestrator
+    routing quality without a live Galaxy.
+    """
+    from galaxy.agents.orchestrator import WorkflowOrchestratorAgent
+
+    async def orchestrator_plan_task(query: str) -> dict[str, Any]:
+        router = QueryRouterAgent(deps)
+        response = await router.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
+        agent_type = getattr(response, "agent_type", "")
+        agents_used: list[str] = []
+        if agent_type == "orchestrator":
+            try:
+                orchestrator = WorkflowOrchestratorAgent(deps)
+                plan = await orchestrator._get_agent_plan(query)
+                agents_used = list(getattr(plan, "agents", []) or [])
+            except Exception:
+                agents_used = []
+        return {
+            "agent_type": agent_type,
+            "agents_used": agents_used,
+        }
+
+    return orchestrator_plan_task
+
+
 def make_router_inspect_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
