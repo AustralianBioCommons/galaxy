@@ -17,6 +17,14 @@
 #   proxy_url: http://localhost:4000/v1/
 #   api_key: sk-local-test-master-key
 
+# Local LM Studio (OpenAI-compatible) -- default port is 1234. The model
+# name must match what's loaded in LM Studio. Bump the per-model context
+# length in LM Studio's UI before running; the harness prompts overflow
+# the default 4k window.
+# google/gemma-4-e4b:
+#   proxy_url: http://localhost:1234/v1/
+#   api_key: lm-studio
+
 # TACC SambaNova proxy with env-var key.
 # Llama-4-Maverick-17B-128E-Instruct:
 #   proxy_url: https://ai.tejas.tacc.utexas.edu/v1/
