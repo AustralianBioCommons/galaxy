@@ -24,8 +24,10 @@ from sqlalchemy import (
     DateTime,
     desc,
     ForeignKey,
+    func,
     Integer,
     not_,
+    select,
     String,
     Table,
     text,
@@ -33,6 +35,7 @@ from sqlalchemy import (
     true,
     UniqueConstraint,
 )
+from sqlalchemy.ext import hybrid
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -436,11 +439,24 @@ class Repository(Base, Dictifiable):
         self.name = self.name or "Unnamed repository"
         self.user = user
 
-    @property
+    @hybrid.hybrid_property
     def last_updated_time(self):
         if downloadable_revisions := self.downloadable_revisions:
             return downloadable_revisions[0].create_time
         return self.create_time
+
+    @last_updated_time.expression  # type: ignore[no-redef]
+    def last_updated_time(cls):
+        last_revision_create_time = (
+            select(RepositoryMetadata.create_time)
+            .where(RepositoryMetadata.repository_id == cls.id)
+            .where(RepositoryMetadata.downloadable == true())
+            .order_by(RepositoryMetadata.update_time.desc())
+            .limit(1)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+        return func.coalesce(last_revision_create_time, cls.create_time)
 
     @property
     def hg_repo(self):
