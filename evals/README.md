@@ -45,7 +45,10 @@ evals/
   specs.py                 # DatasetSpec registry: dataset -> task + evaluators
   tasks.py                 # Wraps agents as pydantic-evals task callables
   run_evals.py             # CLI
-  results/                 # Markdown reports, checked in so we can diff over time
+  results/                 # Local-only run artifacts (gitignored). Baselines
+                           # live in ~/work/brain/plans/galaxy-agent-evals-baselines/
+                           # so the JSON sidecars don't bloat the repo. Filenames
+                           # encode the repo SHA so any baseline pairs back to a commit.
 ```
 
 ## Running
@@ -66,9 +69,15 @@ to restrict to a subset.
 
 ### Diffing against a previous run
 
+Baselines live in `~/work/brain/plans/galaxy-agent-evals-baselines/`
+(not in the repo -- the JSON sidecars are noisy). Filenames encode the
+repo SHA they were generated from, so any baseline file pairs back to a
+specific commit. See that directory's `README.md` for an index of past
+runs.
+
 ```bash
 python -m evals.run_evals \
-    --baseline evals/results/2026-05-01-080419-routing+error_analysis-5693106ee00.md
+    --baseline ~/work/brain/plans/galaxy-agent-evals-baselines/2026-05-08-121624-bioinformatics_workflows+orchestrator_planning+tool_recommendation+router_tool_use-db9b1cb0799.md
 ```
 
 `--baseline` looks for the JSON sidecar next to the markdown (each run writes
