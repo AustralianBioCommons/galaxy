@@ -27,25 +27,32 @@ Tests cover:
 import os
 import string
 from datetime import timedelta
+from types import SimpleNamespace
 from typing import (
     Any,
     cast,
     Optional,
 )
 from unittest.mock import patch
+from uuid import uuid4
 
+from galaxy.celery.tasks import recover_stale_storage_operation_runs
 from galaxy.managers.dataset_storage_operations import (
     DatasetStorageOperationManager,
     StorageOperationRunExecutor,
 )
 from galaxy.managers.datasets import DatasetManager
 from galaxy.model import (
+    Dataset,
+    DatasetStorageOperationRun,
+    DatasetStorageOperationRunItem,
     DatasetStorageOperationSnapshot,
     HistoryDatasetAssociation,
     User,
 )
 from galaxy.model.orm.now import now
 from galaxy.model.scoped_session import galaxy_scoped_session
+from galaxy.schema.storage_operations import StorageOperationRunState
 from galaxy_test.base.decorators import requires_celery
 from galaxy_test.base.populators import (
     DatasetCollectionPopulator,
@@ -985,4 +992,238 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 hda["id"],
                 SEPARATE_DEVICE_OBJECT_STORE_ID,
                 "checksum-guard\n",
+            )
+
+    @requires_celery
+    def test_recover_stale_run_requeues_and_resumes_remaining_datasets(self):
+        with self.dataset_populator.test_history() as history_id:
+            first = self.dataset_populator.new_dataset(history_id, content="first", wait=True)
+            second = self.dataset_populator.new_dataset(history_id, content="second", wait=True)
+
+            preview = self._preview_move(
+                history_id,
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                [self._item(first["id"]), self._item(second["id"])],
+            )
+
+            sa_session = cast(galaxy_scoped_session, self._app.model.session)
+            snapshot_id = self._app.security.decode_id(preview["snapshot_id"])
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot_id)
+            assert snapshot is not None
+
+            storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
+            dataset_manager = DatasetManager(self._app)
+            user = sa_session.get(User, snapshot.user_id)
+            assert user is not None
+
+            run, _ = storage_operation_manager.create_run_and_summary(
+                sa_session=sa_session,
+                snapshot=snapshot,
+                skip_ineligible=False,
+            )
+            run.task_id = uuid4()
+            sa_session.add(run)
+            sa_session.commit()
+
+            crashed_dataset_id = snapshot.resolved_dataset_ids[1]
+            original_execute_dataset_transfer = StorageOperationRunExecutor._execute_dataset_transfer
+
+            def crash_during_second_dataset(executor_self, dataset, dataset_id, quota_delta):
+                if dataset_id == crashed_dataset_id:
+                    executor_self._mark_run_item_running(dataset_id)
+                    raise RuntimeError("simulated worker death")
+                return original_execute_dataset_transfer(executor_self, dataset, dataset_id, quota_delta)
+
+            with self.assertRaisesRegex(RuntimeError, "simulated worker death"):
+                with patch.object(
+                    StorageOperationRunExecutor,
+                    "_execute_dataset_transfer",
+                    autospec=True,
+                    side_effect=crash_during_second_dataset,
+                ):
+                    executor = storage_operation_manager.create_run_executor(
+                        sa_session=sa_session,
+                        dataset_manager=dataset_manager,
+                        app=self._app,
+                        run=run,
+                        user=user,
+                    )
+                    executor.execute_run(snapshot)
+
+            sa_session.expire_all()
+            reloaded_run = cast(DatasetStorageOperationRun, sa_session.get(DatasetStorageOperationRun, run.id))
+            assert reloaded_run is not None
+            assert reloaded_run.state == StorageOperationRunState.running.value
+            reloaded_run.update_time = now() - timedelta(minutes=10)
+            sa_session.add(reloaded_run)
+            sa_session.commit()
+
+            run_items = (
+                sa_session.query(DatasetStorageOperationRunItem)
+                .filter(DatasetStorageOperationRunItem.run_id == reloaded_run.id)
+                .order_by(DatasetStorageOperationRunItem.dataset_id)
+                .all()
+            )
+            assert len(run_items) == 2
+            assert run_items[0].state == "succeeded"
+            assert run_items[1].state == "running"
+
+            recovered_task_result = SimpleNamespace(id=str(uuid4()))
+            inspect_response = SimpleNamespace(active=lambda: {})
+            with patch("galaxy.celery.tasks.celery_app.control.inspect", return_value=inspect_response):
+                with patch("galaxy.celery.tasks.bulk_move_storage.delay", return_value=recovered_task_result) as delay:
+                    recover_stale_storage_operation_runs(sa_session, stale_threshold_minutes=0)
+
+            sa_session.expire_all()
+            recovered_run = cast(
+                DatasetStorageOperationRun,
+                sa_session.get(DatasetStorageOperationRun, reloaded_run.id),
+            )
+            assert recovered_run is not None
+            assert recovered_run.state == StorageOperationRunState.pending.value
+            assert str(recovered_run.task_id) == recovered_task_result.id
+            delay.assert_called_once_with(run_db_id=recovered_run.id, task_user_id=user.id, notify_on_completion=True)
+
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot.id)
+            assert snapshot is not None
+            executor = storage_operation_manager.create_run_executor(
+                sa_session=sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=recovered_run,
+                user=user,
+                current_task_id=recovered_task_result.id,
+            )
+            result = executor.execute_run(snapshot)
+            assert result.state == StorageOperationRunState.completed
+
+            encoded_run_id = self._app.security.encode_id(recovered_run.id)
+            final = self.dataset_populator.storage_run_status(history_id, encoded_run_id)
+            self._assert_run_counts(final["run"], succeeded=2, failed=0, skipped=0)
+
+            items = self._run_items(history_id, encoded_run_id)
+            assert len(items) == 2
+            assert all(item["state"] == "succeeded" for item in items)
+
+            item_count = (
+                sa_session.query(DatasetStorageOperationRunItem)
+                .filter(DatasetStorageOperationRunItem.run_id == recovered_run.id)
+                .count()
+            )
+            assert item_count == 2
+
+            self._assert_dataset_store_and_content(
+                history_id,
+                first["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "first\n",
+            )
+            self._assert_dataset_store_and_content(
+                history_id,
+                second["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "second\n",
+            )
+
+    @requires_celery
+    def test_recover_stale_run_finalizes_completed_move_without_committed_db_update(self):
+        with self.dataset_populator.test_history() as history_id:
+            new_hda = self.dataset_populator.new_dataset(history_id, content="late-commit", wait=True)
+
+            preview = self._preview_move(
+                history_id,
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                [self._item(new_hda["id"])],
+            )
+
+            sa_session = cast(galaxy_scoped_session, self._app.model.session)
+            snapshot_id = self._app.security.decode_id(preview["snapshot_id"])
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot_id)
+            assert snapshot is not None
+
+            storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
+            dataset_manager = DatasetManager(self._app)
+            user = sa_session.get(User, snapshot.user_id)
+            assert user is not None
+
+            run, _ = storage_operation_manager.create_run_and_summary(
+                sa_session=sa_session,
+                snapshot=snapshot,
+                skip_ineligible=False,
+            )
+            run.task_id = uuid4()
+            run.state = StorageOperationRunState.running.value
+            sa_session.add(run)
+            sa_session.commit()
+
+            executor = storage_operation_manager.create_run_executor(
+                sa_session=sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=run,
+                user=user,
+            )
+
+            hda = sa_session.get(HistoryDatasetAssociation, self._app.security.decode_id(new_hda["id"]))
+            assert hda is not None
+            dataset = hda.dataset
+            assert dataset is not None
+
+            source_proxy = executor._dataset_proxy(dataset, str(dataset.object_store_id))
+            target_proxy = executor._dataset_proxy(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._mark_run_item_running(dataset.id)
+            executor._copy_dataset_to_target_store(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._verify_copied_dataset_integrity(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._cleanup_source_dataset_data(source_proxy, dataset.extra_files_path_name)
+            sa_session.expire_all()
+
+            reloaded_run = cast(DatasetStorageOperationRun, sa_session.get(DatasetStorageOperationRun, run.id))
+            assert reloaded_run is not None
+            reloaded_run.update_time = now() - timedelta(minutes=10)
+            sa_session.add(reloaded_run)
+            sa_session.commit()
+
+            dataset = sa_session.get(Dataset, dataset.id)
+            assert dataset is not None
+            assert dataset.object_store_id == DEFAULT_OBJECT_STORE_ID
+            assert not self._app.object_store.exists(source_proxy)
+            assert self._app.object_store.exists(target_proxy)
+
+            recovered_task_result = SimpleNamespace(id=str(uuid4()))
+            inspect_response = SimpleNamespace(active=lambda: {})
+            with patch("galaxy.celery.tasks.celery_app.control.inspect", return_value=inspect_response):
+                with patch("galaxy.celery.tasks.bulk_move_storage.delay", return_value=recovered_task_result):
+                    recover_stale_storage_operation_runs(sa_session, stale_threshold_minutes=0)
+
+            sa_session.expire_all()
+            recovered_run = cast(DatasetStorageOperationRun, sa_session.get(DatasetStorageOperationRun, run.id))
+            assert recovered_run is not None
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot.id)
+            assert snapshot is not None
+            executor = storage_operation_manager.create_run_executor(
+                sa_session=sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=recovered_run,
+                user=user,
+                current_task_id=recovered_task_result.id,
+            )
+            result = executor.execute_run(snapshot)
+            assert result.state == StorageOperationRunState.completed
+
+            encoded_run_id = self._app.security.encode_id(recovered_run.id)
+            final = self.dataset_populator.storage_run_status(history_id, encoded_run_id)
+            self._assert_run_counts(final["run"], succeeded=1, failed=0, skipped=0)
+
+            items = self._run_items(history_id, encoded_run_id)
+            assert len(items) == 1
+            assert items[0]["state"] == "succeeded"
+
+            dataset_details = self.dataset_populator.get_history_dataset_details(history_id, dataset_id=new_hda["id"])
+            assert dataset_details["object_store_id"] == SEPARATE_DEVICE_OBJECT_STORE_ID
+            self._assert_dataset_store_and_content(
+                history_id,
+                new_hda["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "late-commit\n",
             )
