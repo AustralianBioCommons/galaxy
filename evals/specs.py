@@ -18,6 +18,7 @@ from pydantic_evals import Dataset
 
 from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
+    bioinformatics_workflows_dataset,
     error_analysis_dataset,
     router_tool_use_dataset,
     routing_dataset,
@@ -31,6 +32,7 @@ from .evaluators import (
 )
 from .tasks import (
     make_error_analysis_task,
+    make_router_content_task,
     make_router_inspect_task,
     make_router_task,
     make_tool_recommendation_task,
@@ -102,9 +104,24 @@ def build_router_tool_use(
     )
 
 
+def build_bioinformatics_workflows(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+) -> BuiltDataset:
+    dataset = bioinformatics_workflows_dataset(judge_model=judge_model, only=only)
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_content_task(deps),
+        primary_score="LLMJudge",
+    )
+
+
 SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing": build_routing,
     "error_analysis": build_error_analysis,
     "tool_recommendation": build_tool_recommendation,
     "router_tool_use": build_router_tool_use,
+    "bioinformatics_workflows": build_bioinformatics_workflows,
 }

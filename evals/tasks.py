@@ -33,7 +33,7 @@ def make_deps(
     api_key: str,
     base_url: str,
     temperature: float = 0.7,
-    max_tokens: int = 2000,
+    max_tokens: int = 4000,
 ) -> GalaxyAgentDependencies:
     """Build minimal GalaxyAgentDependencies pointing at a single model.
 
@@ -84,6 +84,26 @@ def make_router_task(
         return response.agent_type
 
     return router_task
+
+
+def make_router_content_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+) -> Callable[[str], Awaitable[str]]:
+    """Build an async callable: query -> router final response content.
+
+    Same as ``make_router_task`` but returns the response text instead of
+    the routing decision. Use for datasets that score response quality
+    (LLMJudge against a rubric) regardless of which downstream agent the
+    router picked.
+    """
+
+    async def router_content_task(query: str) -> str:
+        router = QueryRouterAgent(deps)
+        response = await router.process(query, context=context)
+        return response.content
+
+    return router_content_task
 
 
 def make_error_analysis_task(

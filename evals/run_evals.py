@@ -155,13 +155,14 @@ def _case_outcomes(
 ) -> dict[str, dict[str, Any]]:
     """Reduce a DatasetResult's per-case rows to {case_name: {ok, errored, primary, judge}}."""
     out: dict[str, dict[str, Any]] = {}
+    pass_threshold = 0.7 if result.primary_score == "LLMJudge" else 1.0
     for case in result.report.cases:
         base = _base_case_name(case.name)
         if not base:
             continue
         scores = case.scores or {}
         primary = scores.get(result.primary_score)
-        ok = primary is not None and float(primary.value) >= 1.0
+        ok = primary is not None and float(primary.value) >= pass_threshold
         bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "judge": []})
         if ok:
             bucket["ok"] += 1
@@ -258,10 +259,11 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
             ok_count = 0
             judge_values: list[float] = []
             wrong_sample: Optional[str] = None
+            pass_threshold = 0.7 if r.primary_score == "LLMJudge" else 1.0
             for case in cases:
                 scores = case.scores or {}
                 primary_score = scores.get(r.primary_score)
-                ok = primary_score is not None and float(primary_score.value) >= 1.0
+                ok = primary_score is not None and float(primary_score.value) >= pass_threshold
                 if ok:
                     ok_count += 1
                 elif wrong_sample is None and case.output is not None:
