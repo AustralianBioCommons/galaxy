@@ -121,12 +121,43 @@ def _load_model_config(path: Optional[str]) -> tuple[str, dict[str, Any]]:
     return candidate, data
 
 
+_INCONCLUSIVE_PATTERNS = (
+    "connection error",
+    "rate limit",
+    "ratelimit",
+    "429",
+    "timeout",
+    "503",
+    "502",
+    "504",
+)
+
+
+def _is_inconclusive_failure(error_message: str) -> bool:
+    """Return True for transient/proxy errors that shouldn't count as model regressions.
+
+    Inconclusive: rate limits, network blips, gateway timeouts -- these say
+    nothing about the model's quality and should be re-run, not counted.
+    Real ERROR: token-limit overruns, context-size violations, 400 bad
+    requests -- these reflect either prompt issues or actual model failures
+    and belong in the score.
+    """
+    msg = (error_message or "").lower()
+    return any(pat in msg for pat in _INCONCLUSIVE_PATTERNS)
+
+
 def _score_pass_count(
     report: EvaluationReport[Any, Any, Any], score_name: str, threshold: float = 1.0
 ) -> tuple[int, int]:
-    """Count cases where the named score met or exceeded threshold. Failures count as wrong."""
+    """Count cases where the named score met or exceeded threshold.
+
+    Real failures (token-limit, parse errors, etc.) count toward the
+    denominator; inconclusive failures (rate limit, timeout) are skipped
+    so they don't masquerade as model regressions.
+    """
     passed = 0
-    total = len(report.cases) + len(report.failures)
+    real_failures = sum(1 for f in report.failures if not _is_inconclusive_failure(f.error_message))
+    total = len(report.cases) + real_failures
     for case in report.cases:
         scores = case.scores or {}
         match = scores.get(score_name)
@@ -179,7 +210,7 @@ def _case_outcomes(
         scores = case.scores or {}
         primary = scores.get(result.primary_score)
         ok = primary is not None and float(primary.value) >= pass_threshold
-        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "judge": []})
+        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "inconclusive": 0, "judge": []})
         if ok:
             bucket["ok"] += 1
         else:
@@ -194,19 +225,25 @@ def _case_outcomes(
         base = _base_case_name(failure.name)
         if not base:
             continue
-        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "judge": []})
-        bucket["errored"] += 1
+        bucket = out.setdefault(base, {"ok": 0, "wrong": 0, "errored": 0, "inconclusive": 0, "judge": []})
+        if _is_inconclusive_failure(failure.error_message):
+            bucket["inconclusive"] += 1
+        else:
+            bucket["errored"] += 1
     return out
 
 
 def _outcome_label(bucket: dict[str, Any]) -> str:
-    """Single-line summary of a case bucket: 'OK', 'WRONG', 'ERROR', or 'OK 2/3'."""
-    runs = bucket["ok"] + bucket["wrong"] + bucket["errored"]
+    """Single-line summary of a case bucket: 'OK', 'WRONG', 'ERROR', 'INCONCLUSIVE', or 'OK 2/3'."""
+    inconclusive = bucket.get("inconclusive", 0)
+    runs = bucket["ok"] + bucket["wrong"] + bucket["errored"] + inconclusive
     if runs == 0:
         return "?"
     if runs == 1:
         if bucket["errored"]:
             return "ERROR"
+        if inconclusive:
+            return "INCONCLUSIVE"
         return "OK" if bucket["ok"] else "WRONG"
     parts = [f"OK {bucket['ok']}/{runs}"]
     if bucket["errored"]:
@@ -301,13 +338,17 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
                         judge_values.append(float(judge.value))
                     except (TypeError, ValueError):
                         pass
+            inconclusive = [f for f in failures if _is_inconclusive_failure(f.error_message)]
+            real_failures = [f for f in failures if f not in inconclusive]
             if runs == 1:
                 if ok_count == 1:
                     if judge_values:
                         row.append(f"OK (judge {judge_values[0]:.2f})")
                     else:
                         row.append("OK")
-                elif failures:
+                elif inconclusive and not real_failures:
+                    row.append("INCONCLUSIVE")
+                elif real_failures:
                     row.append("ERROR")
                 else:
                     row.append(f"WRONG ({wrong_sample or '?'})")
@@ -316,8 +357,10 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
                 if judge_values:
                     avg = sum(judge_values) / len(judge_values)
                     cell += f" (judge {avg:.2f})"
-                if failures:
-                    cell += f" [+{len(failures)} ERR]"
+                if real_failures:
+                    cell += f" [+{len(real_failures)} ERR]"
+                if inconclusive:
+                    cell += f" [+{len(inconclusive)} INC]"
                 row.append(cell)
         lines.append("| " + " | ".join(row) + " |")
 
