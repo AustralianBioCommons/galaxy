@@ -21,7 +21,10 @@ import asyncio
 import os
 import statistics
 import sys
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    field,
+)
 from datetime import datetime
 from pathlib import Path
 from typing import (
@@ -36,6 +39,7 @@ from pydantic_evals.reporting import (
 )
 
 from .judge import build_judge_model
+from .pricing import model_cost
 from .specs import SPECS
 from .tasks import make_deps
 
@@ -49,6 +53,18 @@ class DatasetResult:
     model: str
     primary_score: str
     report: EvaluationReport[str, str, dict[str, Any]]
+    usage: list[dict[str, int]] = field(default_factory=list)
+
+
+def _usage_totals(usage: list[dict[str, int]]) -> dict[str, int]:
+    total_in = sum(u.get("input_tokens", 0) for u in usage)
+    total_out = sum(u.get("output_tokens", 0) for u in usage)
+    return {
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "total_tokens": total_in + total_out,
+        "calls": len(usage),
+    }
 
 
 def _git_sha() -> str:
@@ -226,6 +242,17 @@ def _render_dataset_section(results: list[DatasetResult]) -> str:
         med = _median_duration_s(r.report)
         latency_row.append(f"{med:.2f}" if med is not None else "-")
     lines.append("| " + " | ".join(latency_row) + " |")
+
+    if any(r.usage for r in results):
+        tokens_row = ["total tokens (in/out)"]
+        cost_row = ["est. cost ($)"]
+        for r in results:
+            totals = _usage_totals(r.usage)
+            tokens_row.append(f"{totals['input_tokens']}/{totals['output_tokens']}" if r.usage else "-")
+            cost = sum(model_cost(r.model, u.get("input_tokens", 0), u.get("output_tokens", 0)) for u in r.usage)
+            cost_row.append(f"{cost:.4f}" if r.usage else "-")
+        lines.append("| " + " | ".join(tokens_row) + " |")
+        lines.append("| " + " | ".join(cost_row) + " |")
     lines.append("")
 
     lines += ["### Per-case detail", ""]
@@ -381,12 +408,19 @@ def _serialize_results(all_results: list["DatasetResult"]) -> str:
     """Dump per-(dataset, model) reports as JSON for later diffing."""
     payload = []
     for r in all_results:
+        totals = _usage_totals(r.usage)
+        cost = sum(model_cost(r.model, u.get("input_tokens", 0), u.get("output_tokens", 0)) for u in r.usage)
         payload.append(
             {
                 "dataset": r.dataset,
                 "model": r.model,
                 "primary_score": r.primary_score,
                 "report": EvaluationReportAdapter.dump_python(r.report, mode="json"),
+                "usage": {
+                    "per_call": r.usage,
+                    "totals": totals,
+                    "estimated_cost_usd": round(cost, 6),
+                },
             }
         )
     import json
@@ -515,11 +549,13 @@ async def amain() -> int:
             proxy_url, api_key = _resolve_model_endpoint(model, model_config)
             print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
             deps = make_deps(model=model, api_key=api_key, base_url=proxy_url)
+            usage_buffer: list[dict[str, int]] = []
             built = spec_fn(
                 deps,
                 judge_model=judge_model,
                 only=only,
                 include_galaxy_required=args.include_galaxy_required,
+                usage_buffer=usage_buffer,
             )
             report = await built.dataset.evaluate(
                 built.task,
@@ -534,6 +570,7 @@ async def amain() -> int:
                     model=model,
                     primary_score=built.primary_score,
                     report=report,
+                    usage=usage_buffer,
                 )
             )
 

@@ -18,12 +18,42 @@ from unittest.mock import MagicMock
 
 from galaxy.agents.base import (
     extract_result_content,
+    extract_usage_info,
     GalaxyAgentDependencies,
 )
 from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
 from galaxy.agents.tools import ToolRecommendationAgent
+
+UsageBuffer = Optional[list[dict[str, int]]]
+
+
+def _record_response_usage(buffer: UsageBuffer, response: Any) -> None:
+    """Append (input_tokens, output_tokens) from an AgentResponse.metadata if buffer is set."""
+    if buffer is None:
+        return
+    md = getattr(response, "metadata", None) or {}
+    buffer.append(
+        {
+            "input_tokens": int(md.get("input_tokens", 0) or 0),
+            "output_tokens": int(md.get("output_tokens", 0) or 0),
+        }
+    )
+
+
+def _record_result_usage(buffer: UsageBuffer, result: Any) -> None:
+    """Append usage info from a raw pydantic-ai result if buffer is set."""
+    if buffer is None:
+        return
+    info = extract_usage_info(result)
+    buffer.append(
+        {
+            "input_tokens": int(info.get("input_tokens", 0) or 0),
+            "output_tokens": int(info.get("output_tokens", 0) or 0),
+        }
+    )
+
 
 _registry = build_default_registry()
 
@@ -75,12 +105,14 @@ def make_deps(
 def make_router_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
 ) -> Callable[[str], Awaitable[str]]:
     """Build an async callable: query -> router's chosen agent_type."""
 
     async def router_task(query: str) -> str:
         router = QueryRouterAgent(deps)
         response = await router.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
         return response.agent_type
 
     return router_task
@@ -89,6 +121,7 @@ def make_router_task(
 def make_router_content_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
 ) -> Callable[[str], Awaitable[str]]:
     """Build an async callable: query -> router final response content.
 
@@ -101,6 +134,7 @@ def make_router_content_task(
     async def router_content_task(query: str) -> str:
         router = QueryRouterAgent(deps)
         response = await router.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
         return response.content
 
     return router_content_task
@@ -109,12 +143,14 @@ def make_router_content_task(
 def make_error_analysis_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
 ) -> Callable[[str], Awaitable[str]]:
     """Build an async callable: query -> error-analysis response content."""
 
     async def error_analysis_task(query: str) -> str:
         agent = ErrorAnalysisAgent(deps)
         response = await agent.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
         return response.content
 
     return error_analysis_task
@@ -123,6 +159,7 @@ def make_error_analysis_task(
 def make_tool_recommendation_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
 ) -> Callable[[str], Awaitable[str]]:
     """Build an async callable: query -> tool-recommendation response content.
 
@@ -137,6 +174,7 @@ def make_tool_recommendation_task(
     async def tool_recommendation_task(query: str) -> str:
         agent = ToolRecommendationAgent(deps)
         response = await agent.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
         return response.content
 
     return tool_recommendation_task
@@ -164,6 +202,7 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
 def make_router_inspect_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
 ) -> Callable[[str], Awaitable[dict[str, Any]]]:
     """Build an async callable: query -> {"content": str, "tool_calls": list}.
 
@@ -176,6 +215,7 @@ def make_router_inspect_task(
         router = QueryRouterAgent(deps)
         message_history = router._extract_message_history(context)
         result = await router._run_with_retry(query, message_history=message_history)
+        _record_result_usage(usage_buffer, result)
         return {
             "content": extract_result_content(result),
             "tool_calls": _extract_tool_calls(result),

@@ -53,10 +53,15 @@ def build_routing(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = routing_dataset(include_galaxy_required=include_galaxy_required, only=only)
     dataset.add_evaluator(HandoffMatch())
-    return BuiltDataset(dataset=dataset, task=make_router_task(deps), primary_score="HandoffMatch")
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_task(deps, usage_buffer=usage_buffer),
+        primary_score="HandoffMatch",
+    )
 
 
 def build_error_analysis(
@@ -64,12 +69,13 @@ def build_error_analysis(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = error_analysis_dataset(judge_model=judge_model, only=only)
     dataset.add_evaluator(MustMention())
     return BuiltDataset(
         dataset=dataset,
-        task=make_error_analysis_task(deps),
+        task=make_error_analysis_task(deps, usage_buffer=usage_buffer),
         primary_score="MustMention",
     )
 
@@ -79,12 +85,13 @@ def build_tool_recommendation(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = tool_recommendation_dataset(judge_model=judge_model, only=only)
     dataset.add_evaluator(MustMentionAny())
     return BuiltDataset(
         dataset=dataset,
-        task=make_tool_recommendation_task(deps),
+        task=make_tool_recommendation_task(deps, usage_buffer=usage_buffer),
         primary_score="MustMentionAny",
     )
 
@@ -94,12 +101,13 @@ def build_router_tool_use(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = router_tool_use_dataset(only=only)
     dataset.add_evaluator(ToolCallMatch())
     return BuiltDataset(
         dataset=dataset,
-        task=make_router_inspect_task(deps),
+        task=make_router_inspect_task(deps, usage_buffer=usage_buffer),
         primary_score="ToolCallMatch",
     )
 
@@ -109,11 +117,12 @@ def build_bioinformatics_workflows(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = bioinformatics_workflows_dataset(judge_model=judge_model, only=only)
     return BuiltDataset(
         dataset=dataset,
-        task=make_router_content_task(deps),
+        task=make_router_content_task(deps, usage_buffer=usage_buffer),
         primary_score="LLMJudge",
     )
 
