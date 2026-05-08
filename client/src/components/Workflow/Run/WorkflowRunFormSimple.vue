@@ -176,9 +176,18 @@ const formInputs = computed(() => {
                         if (stepType === "data_input" || stepType === "data_collection_input") {
                             // Note: This is different from workflow landings because `WorkflowInvocationRequestModel`
                             //       does not provide an object with `values` property.
-                            stepAsInput.value = {
-                                values: !Array.isArray(value) ? [value] : value,
-                            };
+                            // Optional data inputs left empty on the original run come back as `null` (or
+                            // arrays containing `null`). Filter those out so we don't poison FormData with
+                            // `{values: [null]}`, which crashes its `onMounted` hook on `"src" in null` and
+                            // leaves the bad wrapper in formData to be sent to the server.
+                            const valuesArray = (Array.isArray(value) ? value : [value]).filter(
+                                (v) => v !== null && v !== undefined,
+                            );
+                            if (valuesArray.length > 0) {
+                                stepAsInput.value = {
+                                    values: valuesArray,
+                                };
+                            }
                         } else {
                             stepAsInput.value = value;
                         }
