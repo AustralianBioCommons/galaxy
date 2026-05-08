@@ -621,7 +621,7 @@ def prune_kombu_sqla_transport(config: GalaxyAppConfiguration):
     engine = create_engine(sa_url)
     try:
         with engine.begin() as conn:
-            result = conn.execute(text("DELETE FROM kombu_message WHERE visible = false"))
+            result = conn.execute(text("DELETE FROM kombu_message WHERE visible IS FALSE"))
             log.info("kombu cleanup: deleted %s consumed messages", result.rowcount)
     except Exception:
         log.exception("kombu cleanup: failed to prune kombu_message")
