@@ -54,9 +54,11 @@ tools:
 # Docker-based minicondor container tests
 # ---------------------------------------------------------------------------
 
-# Override with GALAXY_TEST_HTCONDOR_IMAGE to pin a specific version, e.g.
-# "htcondor/mini:23-el9".
-HTCONDOR_MINI_IMAGE = os.environ.get("GALAXY_TEST_HTCONDOR_IMAGE", "htcondor/mini:el9")
+# Override with GALAXY_TEST_HTCONDOR_IMAGE to use a different image.
+HTCONDOR_MINI_IMAGE = os.environ.get(
+    "GALAXY_TEST_HTCONDOR_IMAGE",
+    "htcondor/mini:el9@sha256:32eae7e6dd294e52668045ce4a7f58a550fa9de29930e7c920ee6c4856eb2030",
+)
 
 # Seconds to wait for the schedd to become reachable after container start.
 HTCONDOR_STARTUP_TIMEOUT = 120
