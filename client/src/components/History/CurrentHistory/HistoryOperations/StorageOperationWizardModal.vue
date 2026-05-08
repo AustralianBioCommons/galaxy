@@ -12,6 +12,7 @@ import { bulkStorageExecute, bulkStoragePreview } from "@/components/History/mod
 import { useConfig } from "@/composables/config";
 import { Toast } from "@/composables/toast";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
 import { errorMessageAsString } from "@/utils/simple-error";
 import { toTrackedStorageRun } from "@/utils/storageOperations";
@@ -38,6 +39,7 @@ const emit = defineEmits<{
 }>();
 
 const objectStoreStore = useObjectStoreStore();
+const quotaUsageStore = useQuotaUsageStore();
 const storageOperationsStore = useStorageOperationsStore();
 const { loading: objectStoresLoading, loadErrorMessage } = storeToRefs(objectStoreStore);
 const { config, isConfigLoaded } = useConfig(true);
@@ -124,6 +126,12 @@ function onTargetStoreChanged() {
     previewError.value = null;
     executionError.value = null;
 }
+
+watch(dropdownOpen, (isOpen) => {
+    if (isOpen) {
+        void quotaUsageStore.loadQuotaUsages(true);
+    }
+});
 
 function onTargetStoreSelected(target: UserConcreteObjectStoreModel | null) {
     selectedTargetObjectStoreId.value = target?.object_store_id ?? null;
