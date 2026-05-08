@@ -142,6 +142,7 @@ class FtpFileSourceTemplateConfiguration(StrictModel):
     user: Optional[Union[str, TemplateExpansion]] = None
     passwd: Optional[Union[str, TemplateExpansion]] = None
     writable: Union[bool, TemplateExpansion] = False
+    tls: Union[bool, TemplateExpansion] = False
     template_start: Optional[str] = None
     template_end: Optional[str] = None
 
@@ -153,6 +154,7 @@ class FtpFileSourceConfiguration(StrictModel):
     user: Optional[str] = None
     passwd: Optional[str] = None
     writable: bool = False
+    tls: bool = False
 
 
 class AzureFileSourceTemplateConfiguration(StrictModel):
