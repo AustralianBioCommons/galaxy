@@ -322,7 +322,7 @@ def bulk_move_storage(
     app: MinimalManagerApp,
     run_db_id: int,
     task_user_id: Optional[int] = None,
-    notify_on_completion: bool = True,
+    notify_on_completion: Optional[bool] = None,
 ):
     run = sa_session.get(DatasetStorageOperationRun, run_db_id)
     if run is None:
@@ -365,7 +365,11 @@ def bulk_move_storage(
     if execution_result.state not in (StorageOperationRunState.completed, StorageOperationRunState.failed):
         return
 
-    if not notify_on_completion or user is None:
+    run_notify_on_completion = notify_on_completion
+    if run_notify_on_completion is None:
+        run_notify_on_completion = run.notify_on_completion
+
+    if not run_notify_on_completion or user is None:
         return
 
     try:
@@ -918,7 +922,7 @@ def recover_stale_storage_operation_runs(
             task_result = bulk_move_storage.delay(
                 run_db_id=run.id,
                 task_user_id=run.user_id,
-                notify_on_completion=True,
+                notify_on_completion=run.notify_on_completion,
             )
             run.state = StorageOperationRunState.pending.value
             run.task_id = str(task_result.id)

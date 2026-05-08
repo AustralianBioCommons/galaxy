@@ -796,6 +796,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             sa_session=trans.sa_session,
             snapshot=snapshot,
             skip_ineligible=payload.execution_policy.skip_ineligible,
+            notify_on_completion=payload.notify_on_completion,
         )
 
         task_result = bulk_move_storage.delay(

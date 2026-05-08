@@ -12758,6 +12758,7 @@ class DatasetStorageOperationRun(Base):
     target_object_store_id: Mapped[str] = mapped_column(String(255))
     state: Mapped[str] = mapped_column(String(32), index=True)
     skip_ineligible: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_on_completion: Mapped[bool] = mapped_column(Boolean, default=True)
     task_id: Mapped[Optional[Union[UUID, str]]] = mapped_column(UUIDType(), index=True)
     total_count: Mapped[int] = mapped_column(default=0)
     succeeded_count: Mapped[int] = mapped_column(default=0)

@@ -331,6 +331,7 @@ class DatasetStorageOperationManager:
         sa_session: galaxy_scoped_session,
         snapshot: DatasetStorageOperationSnapshot,
         skip_ineligible: bool,
+        notify_on_completion: bool = True,
     ) -> DatasetStorageOperationRun:
         run = DatasetStorageOperationRun(
             snapshot_id=snapshot.id,
@@ -340,6 +341,7 @@ class DatasetStorageOperationManager:
             target_object_store_id=snapshot.target_object_store_id,
             state=StorageOperationRunState.pending.value,
             skip_ineligible=skip_ineligible,
+            notify_on_completion=notify_on_completion,
         )
         run.total_count = len(snapshot.resolved_dataset_ids)
         sa_session.add(run)
@@ -390,11 +392,13 @@ class DatasetStorageOperationManager:
         sa_session: galaxy_scoped_session,
         snapshot: DatasetStorageOperationSnapshot,
         skip_ineligible: bool,
+        notify_on_completion: bool = True,
     ) -> tuple[DatasetStorageOperationRun, StorageOperationRunSummary]:
         return self._run_manager.create_run_and_summary(
             sa_session=sa_session,
             snapshot=snapshot,
             skip_ineligible=skip_ineligible,
+            notify_on_completion=notify_on_completion,
         )
 
     def get_run(
@@ -707,11 +711,13 @@ class DatasetStorageOperationRunManager:
         sa_session: galaxy_scoped_session,
         snapshot: DatasetStorageOperationSnapshot,
         skip_ineligible: bool,
+        notify_on_completion: bool = True,
     ) -> tuple[DatasetStorageOperationRun, StorageOperationRunSummary]:
         run = self.storage_operation_manager.create_operation_run(
             sa_session=sa_session,
             snapshot=snapshot,
             skip_ineligible=skip_ineligible,
+            notify_on_completion=notify_on_completion,
         )
         return run, self.to_run_summary(run)
 

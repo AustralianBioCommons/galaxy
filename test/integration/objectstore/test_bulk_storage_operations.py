@@ -1020,6 +1020,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 sa_session=sa_session,
                 snapshot=snapshot,
                 skip_ineligible=False,
+                notify_on_completion=False,
             )
             run.task_id = uuid4()
             sa_session.add(run)
@@ -1082,7 +1083,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert recovered_run is not None
             assert recovered_run.state == StorageOperationRunState.pending.value
             assert str(recovered_run.task_id) == recovered_task_result.id
-            delay.assert_called_once_with(run_db_id=recovered_run.id, task_user_id=user.id, notify_on_completion=True)
+            delay.assert_called_once_with(run_db_id=recovered_run.id, task_user_id=user.id, notify_on_completion=False)
 
             snapshot = sa_session.get(DatasetStorageOperationSnapshot, snapshot.id)
             assert snapshot is not None
