@@ -58,18 +58,33 @@ def _parse_submit_field(submit_description: str, field: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def _create_job_log(submit_description: str) -> str | None:
+    log_path = _parse_submit_field(submit_description, "log")
+    if not log_path:
+        return None
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "w") as fh:
+        fh.write("fake condor log\n")
+    return log_path
+
+
+def _mark_job_pending(submit_description: str, cluster_id: int) -> None:
+    log_path = _create_job_log(submit_description)
+    if log_path:
+        JobEventLog.events_by_log[log_path] = [
+            FakeJobEvent(cluster_id, 0, JobEventType.SUBMIT),
+            FakeJobEvent(cluster_id, 0, JobEventType.EXECUTE),
+        ]
+
+
 def _auto_complete_job(submit_description: str, cluster_id: int) -> None:
     """Execute the job and inject completion events so the monitor can finish the job."""
-    log_path = _parse_submit_field(submit_description, "log")
+    log_path = _create_job_log(submit_description)
     if not log_path:
         return
     executable = _parse_submit_field(submit_description, "executable")
     stdout_path = _parse_submit_field(submit_description, "output")
     stderr_path = _parse_submit_field(submit_description, "error")
-
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "w") as fh:
-        fh.write("fake condor log\n")
 
     # Actually run the job so that output files are produced.
     if executable and os.path.isfile(executable):
@@ -194,6 +209,8 @@ class Schedd:
         )
         if os.environ.get("GALAXY_TEST_FAKE_HTCONDOR_AUTO_COMPLETE"):
             _auto_complete_job(description.description, cluster_id)
+        else:
+            _mark_job_pending(description.description, cluster_id)
         return SubmitResult(cluster_id)
 
     def act(self, action, job_spec, reason=None):

@@ -9,6 +9,7 @@ import tempfile
 import textwrap
 import threading
 import time
+import uuid
 from queue import Queue
 from typing import ClassVar
 
@@ -130,7 +131,7 @@ def _two_cluster_job_conf(
 ) -> str:
     """Job config routing tools across two independent HTCondor clusters.
 
-    All tools default to cluster A.  ``create_2`` is explicitly routed to
+    All tools default to cluster A.  ``checksum`` is explicitly routed to
     cluster B so ``test_htcondor_docker_job_cluster_b`` can verify that each
     cluster receives its own jobs independently.
     """
@@ -284,20 +285,24 @@ def start_htcondor_docker(container_name: str, jobs_directory: str) -> tuple[str
 
 def stop_htcondor_docker(
     container_name: str,
-    container_config_path: str,
-    host_config_path: str,
-    token_dir: str,
+    container_config_path: str | None = None,
+    host_config_path: str | None = None,
+    token_dir: str | None = None,
 ) -> None:
     """Stop the minicondor container and clean up temporary config files."""
-    subprocess.call(["docker", "rm", "-f", container_name])
-    with contextlib.suppress(OSError):
-        os.remove(container_config_path)
-    with contextlib.suppress(OSError):
-        os.remove(host_config_path)
-    with contextlib.suppress(OSError):
-        os.remove(os.path.join(token_dir, "galaxy_test"))
-    with contextlib.suppress(OSError):
-        os.rmdir(token_dir)
+    if container_name:
+        subprocess.call(["docker", "rm", "-f", container_name])
+    if container_config_path:
+        with contextlib.suppress(OSError):
+            os.remove(container_config_path)
+    if host_config_path:
+        with contextlib.suppress(OSError):
+            os.remove(host_config_path)
+    if token_dir:
+        with contextlib.suppress(OSError):
+            os.remove(os.path.join(token_dir, "galaxy_test"))
+        with contextlib.suppress(OSError):
+            os.rmdir(token_dir)
 
 
 def _condor_history_count(container_name: str) -> int:
@@ -353,7 +358,7 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
     Environment variables
     ---------------------
     ``GALAXY_TEST_HTCONDOR_IMAGE``
-        Override the Docker image (default: ``htcondor/mini:el9``).
+        Override the Docker image (default: pinned ``htcondor/mini:el9`` digest).
     """
 
     framework_tool_and_types = True
@@ -372,6 +377,9 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        suffix = f"{os.getpid()}_{uuid.uuid4().hex[:8]}"
+        cls._container_name = f"galaxy_htcondor_integration_test_{suffix}"
+        cls._container_name_b = f"galaxy_htcondor_integration_test_b_{suffix}"
         cls._jobs_directory = tempfile.mkdtemp(prefix="htcondor_container_jobs_")
         os.chmod(cls._jobs_directory, 0o777)
         for sub in ("files", "new_files"):
@@ -399,6 +407,7 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
             t.join()
 
         if _errors:
+            cls._cleanup_htcondor_resources()
             raise RuntimeError(f"HTCondor container startup failed: {_errors}")
 
         (
@@ -419,25 +428,36 @@ class TestHTCondorContainerJob(integration_util.IntegrationTestCase):
         if LIVE_FAKE_MODULE_PATH in sys.path:
             sys.path.remove(LIVE_FAKE_MODULE_PATH)
 
-        super().setUpClass()
+        try:
+            super().setUpClass()
+        except BaseException:
+            cls._cleanup_htcondor_resources()
+            raise
 
     @classmethod
     def tearDownClass(cls) -> None:
         try:
             super().tearDownClass()
         finally:
+            cls._cleanup_htcondor_resources()
+
+    @classmethod
+    def _cleanup_htcondor_resources(cls) -> None:
+        if hasattr(cls, "_container_name"):
             stop_htcondor_docker(
                 cls._container_name,
-                cls._container_config_path,
-                cls._host_config_path,
-                cls._token_dir,
+                getattr(cls, "_container_config_path", None),
+                getattr(cls, "_host_config_path", None),
+                getattr(cls, "_token_dir", None),
             )
+        if hasattr(cls, "_container_name_b"):
             stop_htcondor_docker(
                 cls._container_name_b,
-                cls._container_config_path_b,
-                cls._host_config_path_b,
-                cls._token_dir_b,
+                getattr(cls, "_container_config_path_b", None),
+                getattr(cls, "_host_config_path_b", None),
+                getattr(cls, "_token_dir_b", None),
             )
+        if hasattr(cls, "_jobs_directory"):
             shutil.rmtree(cls._jobs_directory, ignore_errors=True)
 
     def setUp(self) -> None:
