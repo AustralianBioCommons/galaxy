@@ -1,7 +1,7 @@
 """add page history columns
 
 Revision ID: b75f0f4dbcd4
-Revises: f5e9e4bca542
+Revises: b8d5e2f9a1c7
 Create Date: 2025-01-06
 
 """
@@ -21,7 +21,7 @@ from galaxy.model.migrations.util import (
 
 # revision identifiers, used by Alembic.
 revision = "b75f0f4dbcd4"
-down_revision = "f5e9e4bca542"
+down_revision = "b8d5e2f9a1c7"
 branch_labels = None
 depends_on = None
 
