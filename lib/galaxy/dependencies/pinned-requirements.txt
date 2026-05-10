@@ -102,7 +102,7 @@ groq==1.2.0
 grpcio==1.80.0
 grpcio-status==1.80.0
 gunicorn==26.0.0
-gxformat2==0.26.0
+gxformat2==0.24.0
 h11==0.16.0
 h5grove==4.0.0
 h5py==3.16.0
