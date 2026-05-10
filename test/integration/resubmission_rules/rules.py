@@ -20,3 +20,39 @@ def dynamic_resubmit_once(resource_params) -> JobDestination:
             )
         ],
     )
+
+
+def dynamic_resubmit_initial() -> JobDestination:
+    """First link of a chained dynamic destination: fail and resubmit to the second link."""
+    return JobDestination(
+        runner="failure_runner",
+        resubmit=[
+            dict(
+                condition="any_failure",
+                environment="secondary_destination",
+            )
+        ],
+    )
+
+
+def dynamic_resubmit_secondary() -> JobDestination:
+    """Second link: fail and resubmit to the third link.
+
+    Reaching this rule on the *second* resubmit-attempt requires that the
+    chain re-evaluates from the persisted dynamic intent rather than from
+    the cached resolved destination of the previous attempt.
+    """
+    return JobDestination(
+        runner="failure_runner",
+        resubmit=[
+            dict(
+                condition="any_failure",
+                environment="tertiary_destination",
+            )
+        ],
+    )
+
+
+def dynamic_resubmit_tertiary() -> JobDestination:
+    """Third link: succeed on the local runner."""
+    return JobDestination(runner="local")
