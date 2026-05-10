@@ -90,6 +90,14 @@ def _handle_resubmit_definitions(
         # the job is picked up from the queue. This is what enables multiple
         # resubmits through chained dynamic destinations (refs galaxyproject/galaxy#7118,
         # galaxyproject/galaxy#15208).
+        #
+        # Carry the prior attempt's destination_params forward so dynamic rules
+        # that branch on prior context (e.g. TPV reading job.destination_params
+        # to escalate memory across retries) keep working. The static
+        # dispatcher's params (function, rules_module, type, ...) take
+        # precedence on conflicts so the chain re-walk picks up the right rule.
+        prior_destination_params = (job_state.job_wrapper.get_job().destination_params or {}).copy()
+        new_destination.params = {**prior_destination_params, **new_destination.params}
         # Reset job state
         job_state.job_wrapper.clear_working_directory()
         job = job_state.job_wrapper.get_job()
