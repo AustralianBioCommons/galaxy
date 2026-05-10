@@ -2427,7 +2427,7 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
 
         def check_count(driver=None):
             count = len(self.find_elements_by_selector(".window-manager-window"))
-            return count == expected_count
+            return True if count == expected_count else None
 
         self._wait_on(check_count, f"window count to be {expected_count}")
 
@@ -2435,7 +2435,8 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         """Wait until at least minimum window manager windows exist."""
 
         def check_count(driver=None):
-            return len(self.find_elements_by_selector(".window-manager-window")) >= minimum
+            count = len(self.find_elements_by_selector(".window-manager-window"))
+            return True if count >= minimum else None
 
         self._wait_on(check_count, f"window count to be at least {minimum}")
 
@@ -2447,14 +2448,18 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
             with self.window_manager_frame(0):
                 self.wait_for_selector_visible(".dataset-view")
         """
+        captured: list = []
 
         def has_enough_iframes(driver=None):
-            return len(self.find_elements_by_selector(".window-manager-window iframe")) > index
+            elements = self.find_elements_by_selector(".window-manager-window iframe")
+            if len(elements) > index:
+                captured[:] = elements
+                return True
+            return None
 
         self._wait_on(has_enough_iframes, f"at least {index + 1} window manager iframes")
-        iframes = self.find_elements_by_selector(".window-manager-window iframe")
         try:
-            self.switch_to_frame(iframes[index])
+            self.switch_to_frame(captured[index])
             yield
         finally:
             self.switch_to_default_content()
