@@ -232,9 +232,20 @@ class TestJobResubmissionDynamicMultipleIntegration(_BaseResubmissionIntegration
     Three dynamic destinations form a chain: initial -> secondary -> tertiary.
     Each link uses ``failure_runner`` and resubmits to the next link via its
     ``resubmit.environment``; the last link routes to ``local`` (which passes).
-    The job only passes if every resubmit re-walks the chain from the
-    persisted dynamic intent rather than reusing the cached resolved
-    destination of the previous attempt.
+
+    Each rule also reads ``job.destination_params["chain_attempt"]`` set by
+    the prior link and asserts on its value, so the test simultaneously
+    verifies that:
+
+    1. Every resubmit re-walks the chain from the persisted dynamic intent
+       rather than reusing the cached resolved destination of the previous
+       attempt (chain re-walk).
+    2. Prior attempt's ``destination_params`` survive the resubmit handler
+       and are visible to the rule on the next pickup (params carry-forward).
+
+    A regression in either property surfaces as a ``JobMappingException``
+    raised inside the rule rather than a silently-wrong destination, so the
+    job fails the test instead of passing with the wrong behaviour.
     """
 
     framework_tool_and_types = True
@@ -244,7 +255,7 @@ class TestJobResubmissionDynamicMultipleIntegration(_BaseResubmissionIntegration
         super().handle_galaxy_config_kwds(config)
         config["job_config_file"] = JOB_RESUBMISSION_DYNAMIC_MULTIPLE_JOB_CONFIG_FILE
 
-    def test_chained_dynamic_resubmission(self):
+    def test_chained_dynamic_resubmission_with_params_carry_forward(self):
         self._assert_job_passes()
 
 
