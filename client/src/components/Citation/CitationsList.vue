@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { faCopy, faDownload } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BButton, BCard, BNav, BNavItem, BSpinner } from "bootstrap-vue";
+import { BAlert, BButton, BCard, BNav, BNavItem } from "bootstrap-vue";
 import { computed, onMounted, onUpdated, ref, toRef } from "vue";
 
 import { getCitations } from "@/components/Citation/services";
@@ -15,6 +15,7 @@ import { Cite } from "./cite";
 import GCollapse from "@/components/BaseComponents/GCollapse.vue";
 import CitationItem from "@/components/Citation/CitationItem.vue";
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
+import LoadingSpan from "@/components/LoadingSpan.vue";
 
 const outputFormats = Object.freeze({
     CITATION: "bibliography",
@@ -132,8 +133,7 @@ function citationsToBibtexAsText() {
         <BreadcrumbHeading :items="breadcrumbItems" />
 
         <div v-if="isLoading" class="text-center">
-            <BSpinner />
-            <p class="ml-2">Loading references...</p>
+            <LoadingSpan message="Loading references" />
         </div>
         <div v-else>
             <BCard v-if="!simple" class="citation-card" header-tag="nav">
