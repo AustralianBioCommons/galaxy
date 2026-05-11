@@ -1,4 +1,5 @@
 from galaxy.jobs.job_destination import JobDestination
+from galaxy.jobs.mapper import JobMappingException
 
 DEFAULT_INITIAL_ENVIRONMENT = "fail_first_try"
 
@@ -32,8 +33,6 @@ def _expected_chain_attempt(job, expected: int) -> None:
     rule sees them on re-entry. Raising here surfaces a regression as a
     JobMappingException rather than silently producing a wrong result.
     """
-    from galaxy.jobs.mapper import JobMappingException
-
     actual = int((job.destination_params or {}).get("chain_attempt", 0))
     if actual != expected:
         raise JobMappingException(f"chain_attempt carry-forward broken: expected {expected}, got {actual}")
