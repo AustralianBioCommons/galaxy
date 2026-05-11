@@ -56,6 +56,8 @@
             <b-dropdown-item
                 v-if="isCeleryEnabled && hasSelectableObjectStores"
                 data-description="storage operation"
+                :disabled="isAnonymous"
+                :title="storageOperationTitle"
                 @click="openStorageOperationModal">
                 <span v-localize>Manage Storage Location</span>
             </b-dropdown-item>
@@ -172,6 +174,7 @@ import { useConfig } from "@/composables/config";
 import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useCollectionBuilderItemSelection } from "@/stores/collectionBuilderItemsStore";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
+import { useUserStore } from "@/stores/userStore";
 
 import StorageOperationWizardModal from "./StorageOperationWizardModal.vue";
 import GModal from "@/components/BaseComponents/GModal.vue";
@@ -203,6 +206,7 @@ export default {
         const { config, isConfigLoaded } = useConfig(true);
         const { confirm } = useConfirmDialog();
         const objectStoreStore = useObjectStoreStore();
+        const { isAnonymous } = useUserStore();
 
         // Modals for selection operations
         const showChangeDbKeyModal = ref(false);
@@ -224,6 +228,7 @@ export default {
         return {
             config,
             confirm,
+            isAnonymous,
             isConfigLoaded,
             objectStoreStore,
             showChangeDbKeyModal,
@@ -345,6 +350,12 @@ export default {
         },
         isAnyDeletedStateAllowed() {
             return HistoryFilters.checkFilter(this.filterText, "deleted", "any");
+        },
+        storageOperationTitle() {
+            if (this.isAnonymous) {
+                return this.localize("Log in to") + " " + this.localize("Manage Storage Location");
+            }
+            return this.localize("Manage Storage Location");
         },
     },
     watch: {
