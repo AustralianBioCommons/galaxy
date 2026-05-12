@@ -167,6 +167,16 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
     # ------------------------------------------------------------------ helpers
 
+    @property
+    def _sa_session(self) -> galaxy_scoped_session:
+        return cast(galaxy_scoped_session, self._app.model.session)
+
+    def _decode_id(self, encoded_id: str) -> int:
+        return self._app.security.decode_id(encoded_id)
+
+    def _encode_id(self, decoded_id: int) -> str:
+        return self._app.security.encode_id(decoded_id)
+
     def _preview_move(
         self,
         history_id: str,
@@ -261,7 +271,6 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         )
 
         if force_checksum_mismatch:
-            # Simulate corruption by forcing source/target checksums to differ during verify step.
             with patch.object(
                 StorageOperationRunExecutor,
                 "_sha256",
@@ -355,15 +364,68 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         return dataset
 
     def _set_dataset_create_time_days_ago(self, hda_id: str, days_ago: int) -> None:
-        sa_session = cast(galaxy_scoped_session, self._app.model.session)
-        decoded_hda_id = self._app.security.decode_id(hda_id)
-        hda = sa_session.get(HistoryDatasetAssociation, decoded_hda_id)
+        """Simulate a dataset having been created many days ago (for expiration checks)."""
+        hda = self._sa_session.get(HistoryDatasetAssociation, self._decode_id(hda_id))
         assert hda is not None
         dataset = hda.dataset
         assert dataset is not None
         dataset.create_time = now() - timedelta(days=days_ago)
-        sa_session.add(dataset)
-        sa_session.commit()
+        self._sa_session.add(dataset)
+        self._sa_session.commit()
+
+    def _expire_snapshot(self, snapshot_id: str) -> None:
+        """Simulate snapshot expiration by setting expires_at to the past."""
+        snapshot = self._sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(snapshot_id))
+        assert snapshot is not None
+        snapshot.expires_at = now() - timedelta(minutes=1)
+        self._sa_session.add(snapshot)
+        self._sa_session.commit()
+
+    def _age_run_past_retention(self, run_id: str, days: int = 31) -> None:
+        """Simulate a run having aged past the retention window by setting update_time far in the past."""
+        run = self._sa_session.get(DatasetStorageOperationRun, self._decode_id(run_id))
+        assert run is not None
+        run.update_time = now() - timedelta(days=days)
+        self._sa_session.add(run)
+        self._sa_session.commit()
+
+    def _prune_expired_storage_operations(self) -> None:
+        """Run the prune task against the real database."""
+        prune_expired_storage_operations(self._sa_session, self._app.object_store)
+
+    def _snapshot_has_been_pruned(self, snapshot_id: str) -> bool:
+        """Check whether a snapshot has been pruned by attempting to retrieve it from the database."""
+        snapshot = self._sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(snapshot_id))
+        return snapshot is None
+
+    def _run_has_been_pruned(self, history_id: str, run_id: str) -> bool:
+        """Check via the API whether a run has been pruned (returns 404 when gone)."""
+        response = self.dataset_populator.bulk_storage_operation_run_status_raw(history_id, run_id, expected_status=404)
+        return response.status_code == 404
+
+    def _preview_and_execute_sync(
+        self,
+        history_id: str,
+        target_object_store_id: str,
+        items: list[dict[str, Any]],
+        *,
+        skip_ineligible: bool = True,
+        force_checksum_mismatch: bool = False,
+    ) -> tuple[dict[str, Any], str]:
+        """Preview a move and execute the resulting snapshot synchronously.
+
+        Returns (preview, encoded_run_id).
+        """
+        preview = self._preview_move(history_id, target_object_store_id, items)
+        snapshot = self._sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(preview["snapshot_id"]))
+        assert snapshot is not None
+        run_id = self._execute_snapshot_sync(
+            self._sa_session,
+            snapshot,
+            skip_ineligible=skip_ineligible,
+            force_checksum_mismatch=force_checksum_mismatch,
+        )
+        return preview, run_id
 
     def _unknown_encoded_id(self) -> str:
         return self._app.security.encode_id(999999999)
