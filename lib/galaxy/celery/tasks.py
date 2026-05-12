@@ -721,6 +721,22 @@ def cleanup_expired_notifications(notification_manager: NotificationManager):
     )
 
 
+@galaxy_task(action="prune expired storage operations")
+def prune_expired_storage_operations(
+    sa_session: galaxy_scoped_session,
+    object_store: BaseObjectStore,
+):
+    storage_operation_manager = DatasetStorageOperationManager(object_store)
+    deleted_run_count = storage_operation_manager.prune_completed_runs(sa_session)
+    deleted_snapshot_count = storage_operation_manager.prune_expired_snapshots(sa_session)
+    if deleted_run_count or deleted_snapshot_count:
+        log.info(
+            "Pruned %s completed storage operation runs and %s expired storage operation snapshots",
+            deleted_run_count,
+            deleted_snapshot_count,
+        )
+
+
 @galaxy_task(action="prune object store cache directories")
 def clean_object_store_caches(object_store: BaseObjectStore):
     check_caches(object_store.cache_targets())
