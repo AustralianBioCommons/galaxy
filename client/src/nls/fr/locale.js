@@ -282,7 +282,7 @@ export default {
     // ---------------------------------------------------------------------------- library-librarytoolbar-view
     "Create New Library": "Créer une nouvelle bibliothèque",
     // ---------------------------------------------------------------------------- tours
-    Tours: "Visite",
+    Tours: "Visites",
     // ---------------------------------------------------------------------------- user-preferences
     "Click here to sign out of all sessions.": "Cliquez ici pour vous déconnecter de toutes les sessions.",
     "Add or remove custom builds using history datasets.":
@@ -312,12 +312,12 @@ export default {
     // ---------------------------------------------------------------------------- repository-queue-view
     "Repository Queue": "File d'attente du référentiel",
     // ---------------------------------------------------------------------------- repo-status-view
-    "Repository Status": "Status du référentiel",
+    "Repository Status": "Statut du référentiel",
     // ---------------------------------------------------------------------------- workflows-view
-    "Workflows Missing Tools": "Outils manquant des workflows",
+    "Workflows Missing Tools": "Workflows aux outils manquants",
     // ---------------------------------------------------------------------------- tool-form-base
     "See in Tool Shed": "Voir dans le Tool Shed",
-    Requirements: "Exigences",
+    Requirements: "Prérequis",
     Download: "Téléchargement",
     Share: "Partager",
     Search: "Rechercher",
@@ -325,7 +325,7 @@ export default {
     "Workflow submission failed": "La soumission du workflow a échoué",
     "Run workflow": "Exécuter le workflow",
     // ---------------------------------------------------------------------------- tool-form
-    "Job submission failed": "La soumission du calcul a échoué",
+    "Job submission failed": "La soumission de la tâche a échoué",
     Execute: "Exécuter",
     "Tool request failed": "La requête de l'outil a échoué",
     // ---------------------------------------------------------------------------- workflow
@@ -349,7 +349,7 @@ export default {
     "Download from web or upload from disk": "Télécharger depuis le web ou charger depuis le disque",
     Collection: "Collection",
     Composite: "Composite",
-    Regular: "Régulier",
+    Regular: "Standard",
     // ---------------------------------------------------------------------------- default-row
     "Upload configuration": "Télécharger la configuration",
     // ---------------------------------------------------------------------------- default-view
@@ -362,7 +362,7 @@ export default {
     // ---------------------------------------------------------------------------- collection-view
     Build: "Construire",
     "Choose FTP files": "Choisissez des fichiers FTP",
-    "Choose local files": "Choisissez de fichiers locaux",
+    "Choose local files": "Choisissez des fichiers locaux",
     // ---------------------------------------------------------------------------- composite-row
     Select: "Sélectionner",
     // ---------------------------------------------------------------------------- list-of-pairs-collection-creator
@@ -380,14 +380,14 @@ export default {
     "Manage tools": "Gérer les outils",
     "Monitor installation": "Contrôler l'installation",
     "Install new tools": "Installer de nouveaux outils",
-    "Tool Management": "Gestion de l'outil",
+    "Tool Management": "Gestion des outils",
     Forms: "Formulaires",
     Roles: "Rôles",
     Groups: "Groupes",
     Quotas: "Quotas",
     Users: "Utilisateurs",
-    "User Management": "Gestion utilisateur",
-    "Manage jobs": "Gérer les calculs",
+    "User Management": "Gestion des utilisateurs",
+    "Manage jobs": "Gérer les tâches",
     "Display applications": "Afficher les applications",
     "Data tables": "Tableaux de données",
     "Data types": "Types de données",
@@ -396,7 +396,7 @@ export default {
     "Could Not Save": "Sauvegarde impossible",
     "Saving...": "Sauvegarde...",
     Settings: "Paramètres",
-    "Add tracks": "Ajouter une piste",
+    "Add tracks": "Ajouter des pistes",
     // ---------------------------------------------------------------------------- trackster
     "New Visualization": "Nouvelle Visualisation",
     "Add Data to Saved Visualization": "Ajouter des données dans une visualisation sauvegardée",
@@ -409,7 +409,7 @@ export default {
     "Add parameter to tree": "Ajouter le paramètre à l'arbre",
     Remove: "Supprimer",
     // ---------------------------------------------------------------------------- visualization
-    "Select datasets for new tracks": "Sélectionner les jeux de données pour une nouvelle piste",
+    "Select datasets for new tracks": "Sélectionner les jeux de données pour de nouvelles pistes",
     Libraries: "Bibliothèques",
     // ---------------------------------------------------------------------------- phyloviz
     "Zoom out": "Dézoomer",
@@ -439,9 +439,9 @@ export default {
     // ---------------------------------------------------------------------------- ui_tests
     title: "titre",
     // ---------------------------------------------------------------------------- user-custom-builds
-    "Create new Build": "Créer un nouveau génome de réference",
+    "Create new Build": "Créer un nouveau génome de référence",
     "Delete custom build.": "Supprimer un génome de référence personnalisé.",
-    "Provide the data source.": "Fournir la source de données",
+    "Provide the data source.": "Fournir la source de données.",
     // ---------------------------------------------------------------------------- Window Manager
     "Next in History": "Suivant dans l'historique",
     "Previous in History": "Précédent dans l'historique",
