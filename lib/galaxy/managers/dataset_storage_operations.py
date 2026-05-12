@@ -15,6 +15,8 @@ from typing import (
 from uuid import UUID
 
 from sqlalchemy import (
+    delete,
+    exists,
     false,
     or_,
     select,
@@ -67,16 +69,22 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-MINIMUM_DAYS_TO_EXPIRATION = 10
+DATASET_MINIMUM_DAYS_TO_EXPIRATION = 10
+RUN_RETENTION_AFTER_COMPLETION_DAYS = 30
+SNAPSHOT_EXPIRES_AFTER_DAYS = 1
 TRANSFER_RETRY_ATTEMPTS = 3
 PROGRESS_COMMIT_INTERVAL_SMALL_RUN = 1
 PROGRESS_COMMIT_INTERVAL_MEDIUM_RUN = 5
 PROGRESS_COMMIT_INTERVAL_LARGE_RUN = 25
 PROGRESS_COMMIT_INTERVAL_XL_RUN = 50
-FINAL_RUN_ITEM_STATES = {
+TERMINAL_RUN_ITEM_STATES = {
     StorageOperationRunItemState.succeeded.value,
     StorageOperationRunItemState.failed.value,
     StorageOperationRunItemState.skipped.value,
+}
+TERMINAL_RUN_STATES = {
+    StorageOperationRunState.completed.value,
+    StorageOperationRunState.failed.value,
 }
 
 StorageOperationContent = Union[HistoryDatasetAssociation, HistoryDatasetCollectionAssociation]
@@ -253,7 +261,7 @@ class DatasetStorageOperationManager:
         remaining_lifetime = self._target_remaining_lifetime(dataset, target_object_store_id)
         if remaining_lifetime is None:
             return False
-        return remaining_lifetime < timedelta(days=MINIMUM_DAYS_TO_EXPIRATION)
+        return remaining_lifetime < timedelta(days=DATASET_MINIMUM_DAYS_TO_EXPIRATION)
 
     def is_cross_device_move(self, dataset: Dataset, target_object_store_id: str) -> bool:
         source_object_store_id = dataset.object_store_id
@@ -348,6 +356,48 @@ class DatasetStorageOperationManager:
         sa_session.commit()
         return run
 
+    def prune_expired_snapshots(self, sa_session: galaxy_scoped_session) -> int:
+        snapshot_run_exists = (
+            select(DatasetStorageOperationRun.id)
+            .where(
+                DatasetStorageOperationRun.snapshot_id == DatasetStorageOperationSnapshot.id,
+            )
+            .correlate(DatasetStorageOperationSnapshot)
+        )
+        deleted_snapshot_ids = sa_session.scalars(
+            delete(DatasetStorageOperationSnapshot)
+            .where(
+                DatasetStorageOperationSnapshot.expires_at <= now(),
+                ~exists(snapshot_run_exists),
+            )
+            .returning(DatasetStorageOperationSnapshot.id)
+        ).all()
+        deleted_count = len(deleted_snapshot_ids)
+        sa_session.commit()
+        return deleted_count
+
+    def prune_completed_runs(self, sa_session: galaxy_scoped_session) -> int:
+        completion_cutoff = now() - timedelta(days=RUN_RETENTION_AFTER_COMPLETION_DAYS)
+        deleted_run_ids = sa_session.scalars(
+            delete(DatasetStorageOperationRun)
+            .where(
+                DatasetStorageOperationRun.state.in_(TERMINAL_RUN_STATES),
+                DatasetStorageOperationRun.update_time <= completion_cutoff,
+            )
+            .returning(DatasetStorageOperationRun.id)
+        ).all()
+        deleted_count = len(deleted_run_ids)
+        sa_session.commit()
+        return deleted_count
+
+    def can_prune_expired_snapshot(self, sa_session: galaxy_scoped_session, snapshot_id: int) -> bool:
+        snapshot_run_exists = sa_session.execute(
+            select(DatasetStorageOperationRun.id).where(
+                DatasetStorageOperationRun.snapshot_id == snapshot_id,
+            )
+        ).first()
+        return snapshot_run_exists is None
+
     def build_preview_response(
         self,
         *,
@@ -358,7 +408,7 @@ class DatasetStorageOperationManager:
         user: User,
         contents: list[StorageOperationContent],
         target_object_store_id: str,
-        snapshot_ttl: timedelta,
+        snapshot_ttl: timedelta = timedelta(days=SNAPSHOT_EXPIRES_AFTER_DAYS),
         query_based_selection: bool,
     ) -> StorageOperationPreviewResponse:
         preview_builder = self._require_preview_builder()
@@ -688,8 +738,9 @@ class DatasetStorageOperationRunManager:
         if snapshot is None:
             raise exceptions.ObjectNotFound("Storage operation snapshot not found.")
         if snapshot.expires_at <= now():
-            sa_session.delete(snapshot)
-            sa_session.commit()
+            if self.storage_operation_manager.can_prune_expired_snapshot(sa_session, snapshot.id):
+                sa_session.delete(snapshot)
+                sa_session.commit()
             raise exceptions.RequestParameterInvalidException("Storage operation snapshot has expired.")
         return snapshot
 
@@ -1083,7 +1134,7 @@ class StorageOperationRunExecutor:
         remaining_dataset_ids = []
         for dataset_id in resolved_dataset_ids:
             run_item = run_items_by_dataset_id.get(dataset_id)
-            if run_item is None or run_item.state not in FINAL_RUN_ITEM_STATES:
+            if run_item is None or run_item.state not in TERMINAL_RUN_ITEM_STATES:
                 remaining_dataset_ids.append(dataset_id)
         return remaining_dataset_ids
 
@@ -1091,7 +1142,7 @@ class StorageOperationRunExecutor:
         if self.current_task_id is None:
             return True
         self.sa_session.refresh(self.run)
-        if self.run.state in (StorageOperationRunState.completed.value, StorageOperationRunState.failed.value):
+        if self.run.state in TERMINAL_RUN_STATES:
             return False
         if self.run.task_id is None:
             return False
