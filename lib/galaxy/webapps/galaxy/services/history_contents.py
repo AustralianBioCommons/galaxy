@@ -772,11 +772,10 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             user=user,
             contents=contents,
             target_object_store_id=payload.target_object_store_id,
-            snapshot_ttl=self._storage_snapshot_ttl,
             query_based_selection=not payload.items,
         )
 
-    def storage_operation_execute(
+    def bulk_storage_operation_execute(
         self,
         trans: ProvidesHistoryContext,
         history_id: DecodedDatabaseIdField,
