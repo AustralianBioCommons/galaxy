@@ -20850,7 +20850,7 @@ export interface components {
              *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              */
-            cores_max?: number | null;
+            cores_max?: number | string | null;
             /**
              * Cores Min
              * @description Minimum reserved number of CPU cores.
@@ -20858,41 +20858,41 @@ export interface components {
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              * @default 1
              */
-            cores_min: number | null;
+            cores_min: number | string | null;
             /** Cuda Compute Capability */
-            cuda_compute_capability?: number | null;
+            cuda_compute_capability?: number | string | null;
             /** Cuda Device Count Max */
-            cuda_device_count_max?: number | null;
+            cuda_device_count_max?: number | string | null;
             /** Cuda Device Count Min */
-            cuda_device_count_min?: number | null;
+            cuda_device_count_min?: number | string | null;
             /** Cuda Version Min */
-            cuda_version_min?: number | null;
+            cuda_version_min?: number | string | null;
             /** Gpu Memory Min */
-            gpu_memory_min?: number | null;
+            gpu_memory_min?: number | string | null;
             /**
              * Ram Max
              * @description Maximum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              */
-            ram_max?: number | null;
+            ram_max?: number | string | null;
             /**
              * Ram Min
              * @description Minimum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              * @default 256
              */
-            ram_min: number | null;
+            ram_min: number | string | null;
             /** Shm Size */
-            shm_size?: number | null;
+            shm_size?: number | string | null;
             /**
              * Timelimit
              * @description Maximum time in seconds the tool is allowed to run. Job will be terminated if exceeded.
              */
-            timelimit?: number | null;
+            timelimit?: number | string | null;
             /** Tmpdir Max */
-            tmpdir_max?: number | null;
+            tmpdir_max?: number | string | null;
             /** Tmpdir Min */
-            tmpdir_min?: number | null;
+            tmpdir_min?: number | string | null;
             /**
              * Type
              * @constant

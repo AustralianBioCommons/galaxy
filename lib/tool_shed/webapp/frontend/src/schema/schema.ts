@@ -1395,6 +1395,16 @@ export interface components {
                 | components["schemas"]["SectionParameterModel"]
             )[]
         }
+        /** Container */
+        Container: {
+            /** Container Id */
+            container_id: string
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "docker" | "singularity"
+        }
         /** CreateCategoryRequest */
         CreateCategoryRequest: {
             /** Description */
@@ -2454,6 +2464,16 @@ export interface components {
             /** Tool Config */
             tool_config: string
         }
+        /** JavascriptRequirement */
+        JavascriptRequirement: {
+            /** Expression Lib */
+            expression_lib: string[] | null
+            /**
+             * Type
+             * @constant
+             */
+            type: "javascript"
+        }
         /** LabelValue */
         LabelValue: {
             /** Label */
@@ -2531,6 +2551,18 @@ export interface components {
              * @example https://example.com
              */
             url: string
+        }
+        /** PackageRequirement */
+        PackageRequirement: {
+            /** Name */
+            name: string
+            /**
+             * Type
+             * @constant
+             */
+            type: "package"
+            /** Version */
+            version?: string | null
         }
         /** PaginatedRepositoryIndexResults */
         PaginatedRepositoryIndexResults: {
@@ -2993,6 +3025,63 @@ export interface components {
             /** Stop Time */
             stop_time: string
         }
+        /** ResourceRequirement */
+        ResourceRequirement: {
+            /**
+             * Cores Max
+             * @description Maximum reserved number of CPU cores.
+             *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
+             *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
+             */
+            cores_max?: number | string | null
+            /**
+             * Cores Min
+             * @description Minimum reserved number of CPU cores.
+             *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
+             *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
+             * @default 1
+             */
+            cores_min: number | string | null
+            /** Cuda Compute Capability */
+            cuda_compute_capability?: number | string | null
+            /** Cuda Device Count Max */
+            cuda_device_count_max?: number | string | null
+            /** Cuda Device Count Min */
+            cuda_device_count_min?: number | string | null
+            /** Cuda Version Min */
+            cuda_version_min?: number | string | null
+            /** Gpu Memory Min */
+            gpu_memory_min?: number | string | null
+            /**
+             * Ram Max
+             * @description Maximum reserved RAM in mebibytes (2**20).
+             *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
+             */
+            ram_max?: number | string | null
+            /**
+             * Ram Min
+             * @description Minimum reserved RAM in mebibytes (2**20).
+             *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
+             * @default 256
+             */
+            ram_min: number | string | null
+            /** Shm Size */
+            shm_size?: number | string | null
+            /**
+             * Timelimit
+             * @description Maximum time in seconds the tool is allowed to run. Job will be terminated if exceeded.
+             */
+            timelimit?: number | string | null
+            /** Tmpdir Max */
+            tmpdir_max?: number | string | null
+            /** Tmpdir Min */
+            tmpdir_min?: number | string | null
+            /**
+             * Type
+             * @constant
+             */
+            type: "resource"
+        }
         /** RulesParameterModel */
         RulesParameterModel: {
             /**
@@ -3266,10 +3355,22 @@ export interface components {
              */
             version: string
         }
+        /** SetEnvironmentRequirement */
+        SetEnvironmentRequirement: {
+            /** Environment */
+            environment: string
+            /**
+             * Type
+             * @constant
+             */
+            type: "set_environment"
+        }
         /** ShedParsedTool */
         ShedParsedTool: {
             /** Citations */
             citations: components["schemas"]["Citation"][]
+            /** Containers */
+            containers?: components["schemas"]["Container"][]
             /** Description */
             description: string | null
             /** Edam Operations */
@@ -3325,10 +3426,49 @@ export interface components {
             /** Profile */
             profile: string | null
             repository_revision?: components["schemas"]["RepositoryRevisionMetadata"] | null
+            /** Requirements */
+            requirements?: (
+                | components["schemas"]["PackageRequirement"]
+                | components["schemas"]["SetEnvironmentRequirement"]
+                | components["schemas"]["ResourceRequirement"]
+                | components["schemas"]["JavascriptRequirement"]
+            )[]
+            stdio?: components["schemas"]["Stdio"]
             /** Version */
             version: string | null
             /** Xrefs */
             xrefs: components["schemas"]["XrefDict"][]
+        }
+        /** Stdio */
+        Stdio: {
+            /** Exit Codes */
+            exit_codes?: components["schemas"]["StdioExitCode"][]
+            /** Regexes */
+            regexes?: components["schemas"]["StdioRegex"][]
+        }
+        /** StdioExitCode */
+        StdioExitCode: {
+            /** Desc */
+            desc?: string | null
+            /** Error Level */
+            error_level: number
+            /** Range End */
+            range_end: number | ("-inf" | "inf")
+            /** Range Start */
+            range_start: number | ("-inf" | "inf")
+        }
+        /** StdioRegex */
+        StdioRegex: {
+            /** Desc */
+            desc?: string | null
+            /** Error Level */
+            error_level: number
+            /** Match */
+            match: string
+            /** Stderr Match */
+            stderr_match: boolean
+            /** Stdout Match */
+            stdout_match: boolean
         }
         /** TextParameterModel */
         TextParameterModel: {
