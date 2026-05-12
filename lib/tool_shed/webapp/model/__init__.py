@@ -24,8 +24,10 @@ from sqlalchemy import (
     DateTime,
     desc,
     ForeignKey,
+    func,
     Integer,
     not_,
+    select,
     String,
     Table,
     text,
@@ -33,6 +35,7 @@ from sqlalchemy import (
     true,
     UniqueConstraint,
 )
+from sqlalchemy.ext import hybrid
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -384,13 +387,14 @@ class Repository(Base, Dictifiable):
     user = relationship("User", back_populates="active_repositories")
     downloadable_revisions = relationship(
         "RepositoryMetadata",
-        primaryjoin=lambda: (Repository.id == RepositoryMetadata.repository_id) & (RepositoryMetadata.downloadable == true()),  # type: ignore[has-type]
+        primaryjoin=lambda: (Repository.id == RepositoryMetadata.repository_id)
+        & (RepositoryMetadata.downloadable == true()),
         viewonly=True,
-        order_by=lambda: desc(RepositoryMetadata.update_time),  # type: ignore[attr-defined]
+        order_by=lambda: desc(RepositoryMetadata.update_time),
     )
     metadata_revisions = relationship(
         "RepositoryMetadata",
-        order_by=lambda: desc(RepositoryMetadata.update_time),  # type: ignore[attr-defined]
+        order_by=lambda: desc(RepositoryMetadata.update_time),
         back_populates="repository",
     )
     roles = relationship("RepositoryRoleAssociation", back_populates="repository")
@@ -436,11 +440,24 @@ class Repository(Base, Dictifiable):
         self.name = self.name or "Unnamed repository"
         self.user = user
 
-    @property
+    @hybrid.hybrid_property
     def last_updated_time(self):
         if downloadable_revisions := self.downloadable_revisions:
             return downloadable_revisions[0].create_time
         return self.create_time
+
+    @last_updated_time.expression  # type: ignore[no-redef]
+    def last_updated_time(cls):
+        last_revision_create_time = (
+            select(RepositoryMetadata.create_time)
+            .where(RepositoryMetadata.repository_id == cls.id)
+            .where(RepositoryMetadata.downloadable == true())
+            .order_by(RepositoryMetadata.update_time.desc())
+            .limit(1)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+        return func.coalesce(last_revision_create_time, cls.create_time)
 
     @property
     def hg_repo(self):
@@ -686,10 +703,26 @@ class Tag(Base):
 
 
 class RepositoryMetadata(Dictifiable):
-    repository: "Repository"
+    # Annotations only — runtime attributes are installed by
+    # mapper_registry.map_imperatively below.
+    id: Mapped[Optional[int]]
+    create_time: Mapped[Optional[datetime]]
+    update_time: Mapped[Optional[datetime]]
+    repository_id: Mapped[Optional[int]]
+    changeset_revision: Mapped[Optional[str]]
+    numeric_revision: Mapped[Optional[int]]
+    metadata: Mapped[Any]
+    tool_versions: Mapped[Any]
+    malicious: Mapped[Optional[bool]]
+    downloadable: Mapped[Optional[bool]]
+    missing_test_components: Mapped[Optional[bool]]
+    has_repository_dependencies: Mapped[Optional[bool]]
+    includes_datatypes: Mapped[Optional[bool]]
+    includes_tools: Mapped[Optional[bool]]
+    includes_tool_dependencies: Mapped[Optional[bool]]
+    includes_workflows: Mapped[Optional[bool]]
+    repository: Mapped["Repository"]
 
-    # Once the class has been mapped, all Column items in this table will be available
-    # as instrumented class attributes on RepositoryMetadata.
     table = Table(
         "repository_metadata",
         mapper_registry.metadata,
