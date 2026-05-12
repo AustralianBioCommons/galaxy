@@ -1295,3 +1295,52 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 SEPARATE_DEVICE_OBJECT_STORE_ID,
                 "late-commit\n",
             )
+
+    def test_prune_expired_unused_snapshot(self):
+        with self.dataset_populator.test_history() as history_id:
+            dataset = self.dataset_populator.new_dataset(history_id, content="test", wait=False, fetch_data=False)
+            preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(dataset["id"])])
+
+            self._expire_snapshot(preview["snapshot_id"])
+
+            self._prune_expired_storage_operations()
+            assert self._snapshot_has_been_pruned(preview["snapshot_id"])
+
+    def test_prune_expired_snapshot_with_completed_run_keeps_run_related_data(self):
+        with self.dataset_populator.test_history() as history_id:
+            dataset = self.dataset_populator.new_dataset(history_id, content="test", wait=False, fetch_data=False)
+            preview, run_id = self._preview_and_execute_sync(
+                history_id, DEFAULT_OBJECT_STORE_ID, [self._item(dataset["id"])], skip_ineligible=True
+            )
+
+            run_status = self.dataset_populator.bulk_storage_operation_run_status(history_id, run_id)
+            assert run_status["run"]["state"] == "completed"
+            original_item_count = len(self._run_items(history_id, run_id))
+            assert original_item_count > 0
+
+            self._expire_snapshot(preview["snapshot_id"])
+            self._prune_expired_storage_operations()
+
+            # Expired snapshot will not be pruned since it has an associated run
+            assert not self._snapshot_has_been_pruned(preview["snapshot_id"])
+            run_status_after_prune = self.dataset_populator.bulk_storage_operation_run_status(history_id, run_id)
+            assert run_status_after_prune["run"]["state"] == "completed"
+            assert len(self._run_items(history_id, run_id)) == original_item_count
+
+    def test_prune_completed_runs_older_than_retention_also_prunes_expired_snapshots(self):
+        with self.dataset_populator.test_history() as history_id:
+            dataset = self.dataset_populator.new_dataset(history_id, content="test", wait=False, fetch_data=False)
+            preview, run_id = self._preview_and_execute_sync(
+                history_id, DEFAULT_OBJECT_STORE_ID, [self._item(dataset["id"])], skip_ineligible=True
+            )
+
+            run_status = self.dataset_populator.bulk_storage_operation_run_status(history_id, run_id)
+            assert run_status["run"]["state"] == "completed"
+            assert len(self._run_items(history_id, run_id)) > 0
+
+            self._expire_snapshot(preview["snapshot_id"])
+            self._age_run_past_retention(run_id)
+
+            self._prune_expired_storage_operations()
+            assert self._snapshot_has_been_pruned(preview["snapshot_id"])
+            assert self._run_has_been_pruned(history_id, run_id)
