@@ -36,7 +36,10 @@ from typing import (
 from unittest.mock import patch
 from uuid import uuid4
 
-from galaxy.celery.tasks import recover_stale_storage_operation_runs
+from galaxy.celery.tasks import (
+    prune_expired_storage_operations,
+    recover_stale_storage_operation_runs,
+)
 from galaxy.managers.dataset_storage_operations import (
     DatasetStorageOperationManager,
     StorageOperationRunExecutor,
@@ -171,7 +174,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         items: list[dict[str, Any]],
         expected_status: int = 200,
     ) -> dict[str, Any]:
-        return self.dataset_populator.storage_preview(
+        return self.dataset_populator.bulk_storage_operation_preview(
             history_id,
             {
                 "mode": "move",
@@ -188,7 +191,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         skip_ineligible: bool = True,
         expected_status: int = 200,
     ) -> dict[str, Any]:
-        return self.dataset_populator.storage_execute(
+        return self.dataset_populator.bulk_storage_operation_execute(
             history_id,
             {
                 "snapshot_id": snapshot_id,
@@ -213,7 +216,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             skip_ineligible=skip_ineligible,
         )
         run = execute_result["run"]
-        final = self.dataset_populator.wait_for_storage_run(
+        final = self.dataset_populator.wait_for_bulk_storage_operation_run(
             history_id,
             run["run_id"],
             include_items_on_terminal=include_items_on_terminal,
@@ -222,7 +225,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         return preview, run, final
 
     def _run_items(self, history_id: str, run_id: str, search: str | None = None) -> list[dict[str, Any]]:
-        return self.dataset_populator.storage_run_items(history_id, run_id, search=search)
+        return self.dataset_populator.bulk_storage_operation_run_items(history_id, run_id, search=search)
 
     def _run_items_by_dataset_id(self, items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         return {item["dataset_id"]: item for item in items}
@@ -269,7 +272,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         else:
             executor.execute_run(snapshot)
 
-        return self._app.security.encode_id(run.id)
+        return self._encode_id(run.id)
 
     def _item(self, hda_id: str) -> dict[str, Any]:
         return {"id": hda_id, "history_content_type": "dataset"}
@@ -746,7 +749,9 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def test_get_run_unknown_id_returns_404(self):
         """GET on an unknown run_id returns HTTP 404."""
         with self.dataset_populator.test_history() as history_id:
-            self.dataset_populator.storage_run_status(history_id, self._unknown_encoded_id(), expected_status=404)
+            self.dataset_populator.bulk_storage_operation_run_status(
+                history_id, self._unknown_encoded_id(), expected_status=404
+            )
 
     # ------------------------------------------------------------------ collection (HDCA) tests
 
@@ -819,7 +824,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 skip_ineligible=False,
             )
             run = execute_result["run"]
-            final = self.dataset_populator.wait_for_storage_run(
+            final = self.dataset_populator.wait_for_bulk_storage_operation_run(
                 history_id,
                 run["run_id"],
                 include_items_on_terminal=True,
@@ -857,7 +862,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             baseline_default_count, baseline_separate_count = self._store_file_counts()
 
             first_execute = self._execute_snapshot(history_id, preview["snapshot_id"], skip_ineligible=True)
-            first_run = self.dataset_populator.wait_for_storage_run(
+            first_run = self.dataset_populator.wait_for_bulk_storage_operation_run(
                 history_id,
                 first_execute["run"]["run_id"],
                 include_items_on_terminal=True,
@@ -889,7 +894,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             self._assert_dataset_store_and_content(history_id, control["id"], DEFAULT_OBJECT_STORE_ID, "control\n")
 
             second_execute = self._execute_snapshot(history_id, preview["snapshot_id"], skip_ineligible=True)
-            second_run = self.dataset_populator.wait_for_storage_run(
+            second_run = self.dataset_populator.wait_for_bulk_storage_operation_run(
                 history_id,
                 second_execute["run"]["run_id"],
                 include_items_on_terminal=True,
@@ -947,7 +952,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 skip_ineligible=False,
                 force_checksum_mismatch=True,
             )
-            first_run_status = self.dataset_populator.storage_run_status(history_id, first_run_id)
+            first_run_status = self.dataset_populator.bulk_storage_operation_run_status(history_id, first_run_id)
             self._assert_run_counts(first_run_status["run"], succeeded=0, failed=1, skipped=0)
             assert first_run_status["run"]["total_bytes_processed"] == 0
 
@@ -972,7 +977,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             # Re-run same snapshot without forced corruption; move should now succeed.
             second_run_id = self._execute_snapshot_sync(sa_session, snapshot, skip_ineligible=False)
-            second_run_status = self.dataset_populator.storage_run_status(history_id, second_run_id)
+            second_run_status = self.dataset_populator.bulk_storage_operation_run_status(history_id, second_run_id)
             self._assert_run_counts(second_run_status["run"], succeeded=1, failed=0, skipped=0)
             assert second_run_status["run"]["total_bytes_processed"] > 0
 
@@ -1099,7 +1104,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert result.state == StorageOperationRunState.completed
 
             encoded_run_id = self._app.security.encode_id(recovered_run.id)
-            final = self.dataset_populator.storage_run_status(history_id, encoded_run_id)
+            final = self.dataset_populator.bulk_storage_operation_run_status(history_id, encoded_run_id)
             self._assert_run_counts(final["run"], succeeded=2, failed=0, skipped=0)
 
             items = self._run_items(history_id, encoded_run_id)
@@ -1213,7 +1218,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert result.state == StorageOperationRunState.completed
 
             encoded_run_id = self._app.security.encode_id(recovered_run.id)
-            final = self.dataset_populator.storage_run_status(history_id, encoded_run_id)
+            final = self.dataset_populator.bulk_storage_operation_run_status(history_id, encoded_run_id)
             self._assert_run_counts(final["run"], succeeded=1, failed=0, skipped=0)
 
             items = self._run_items(history_id, encoded_run_id)

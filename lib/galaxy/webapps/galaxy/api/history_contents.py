@@ -842,44 +842,44 @@ class FastAPIHistoryContents:
         "/api/histories/{history_id}/contents/bulk/storage/preview",
         summary="Previews a storage bulk operation for selected history contents.",
     )
-    def storage_operation_preview(
+    def bulk_storage_operation_preview(
         self,
         history_id: HistoryIDPathParam,
         trans: ProvidesHistoryContext = DependsOnTrans,
         filter_query_params: ValueFilterQueryParams = Depends(get_value_filter_query_params),
         payload: StorageOperationPreviewRequest = Body(...),
     ) -> StorageOperationPreviewResponse:
-        return self.service.storage_operation_preview(trans, history_id, filter_query_params, payload)
+        return self.service.bulk_storage_operation_preview(trans, history_id, filter_query_params, payload)
 
     @router.post(
         "/api/histories/{history_id}/contents/bulk/storage/execute",
         summary="Executes a previously previewed storage bulk operation snapshot.",
     )
-    def storage_operation_execute(
+    def bulk_storage_operation_execute(
         self,
         history_id: HistoryIDPathParam,
         trans: ProvidesHistoryContext = DependsOnTrans,
         payload: StorageOperationExecuteRequest = Body(...),
     ) -> StorageOperationExecuteResponse:
-        return self.service.storage_operation_execute(trans, history_id, payload)
+        return self.service.bulk_storage_operation_execute(trans, history_id, payload)
 
     @router.get(
         "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}",
         summary="Returns run status summary for a storage bulk operation.",
     )
-    def storage_operation_run(
+    def bulk_storage_operation_run(
         self,
         history_id: HistoryIDPathParam,
         run_id: DecodedDatabaseIdField,
         trans: ProvidesHistoryContext = DependsOnTrans,
     ) -> StorageOperationRunResponse:
-        return self.service.storage_operation_run(trans, history_id, run_id)
+        return self.service.bulk_storage_operation_run(trans, history_id, run_id)
 
     @router.get(
         "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items",
         summary="Returns paginated per-item details for a storage bulk operation run.",
     )
-    def storage_operation_run_items(
+    def bulk_storage_operation_run_items(
         self,
         history_id: HistoryIDPathParam,
         run_id: DecodedDatabaseIdField,
@@ -889,7 +889,7 @@ class FastAPIHistoryContents:
         limit: int = StorageRunLimitQueryParam,
         search: Optional[str] = StorageRunSearchQueryParam,
     ) -> list[StorageOperationRunItemStatus]:
-        run_items, total_matches = self.service.storage_operation_run_items(
+        run_items, total_matches = self.service.bulk_storage_operation_run_items(
             trans,
             history_id,
             run_id,

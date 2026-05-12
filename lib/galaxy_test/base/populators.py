@@ -1504,7 +1504,9 @@ class BaseDatasetPopulator(BasePopulator):
         get_storage_response = self._get(storage_url)
         return get_storage_response
 
-    def storage_preview_raw(self, history_id: str, payload: dict[str, Any], expected_status: int = 200) -> Response:
+    def bulk_storage_operation_preview_raw(
+        self, history_id: str, payload: dict[str, Any], expected_status: int = 200
+    ) -> Response:
         response = self._post(
             f"histories/{history_id}/contents/bulk/storage/preview",
             data=payload,
@@ -1513,10 +1515,14 @@ class BaseDatasetPopulator(BasePopulator):
         api_asserts.assert_status_code_is(response, expected_status)
         return response
 
-    def storage_preview(self, history_id: str, payload: dict[str, Any], expected_status: int = 200) -> dict[str, Any]:
-        return self.storage_preview_raw(history_id, payload, expected_status=expected_status).json()
+    def bulk_storage_operation_preview(
+        self, history_id: str, payload: dict[str, Any], expected_status: int = 200
+    ) -> dict[str, Any]:
+        return self.bulk_storage_operation_preview_raw(history_id, payload, expected_status=expected_status).json()
 
-    def storage_execute_raw(self, history_id: str, payload: dict[str, Any], expected_status: int = 200) -> Response:
+    def bulk_storage_operation_execute_raw(
+        self, history_id: str, payload: dict[str, Any], expected_status: int = 200
+    ) -> Response:
         response = self._post(
             f"histories/{history_id}/contents/bulk/storage/execute",
             data=payload,
@@ -1525,15 +1531,25 @@ class BaseDatasetPopulator(BasePopulator):
         api_asserts.assert_status_code_is(response, expected_status)
         return response
 
-    def storage_execute(self, history_id: str, payload: dict[str, Any], expected_status: int = 200) -> dict[str, Any]:
-        return self.storage_execute_raw(history_id, payload, expected_status=expected_status).json()
+    def bulk_storage_operation_execute(
+        self, history_id: str, payload: dict[str, Any], expected_status: int = 200
+    ) -> dict[str, Any]:
+        return self.bulk_storage_operation_execute_raw(history_id, payload, expected_status=expected_status).json()
 
-    def storage_run_status(self, history_id: str, run_id: str, expected_status: int = 200) -> dict[str, Any]:
+    def bulk_storage_operation_run_status_raw(
+        self, history_id: str, run_id: str, expected_status: int = 200
+    ) -> Response:
         response = self._get(f"histories/{history_id}/contents/bulk/storage/runs/{run_id}")
         api_asserts.assert_status_code_is(response, expected_status)
+        return response
+
+    def bulk_storage_operation_run_status(
+        self, history_id: str, run_id: str, expected_status: int = 200
+    ) -> dict[str, Any]:
+        response = self.bulk_storage_operation_run_status_raw(history_id, run_id, expected_status=expected_status)
         return response.json()
 
-    def storage_run_items(
+    def bulk_storage_operation_run_items(
         self,
         history_id: str,
         run_id: str,
@@ -1552,7 +1568,7 @@ class BaseDatasetPopulator(BasePopulator):
         api_asserts.assert_status_code_is(response, expected_status)
         return response.json()
 
-    def wait_for_storage_run(
+    def wait_for_bulk_storage_operation_run(
         self,
         history_id: str,
         run_id: str,
@@ -1561,14 +1577,14 @@ class BaseDatasetPopulator(BasePopulator):
         timeout: timeout_type = DEFAULT_TIMEOUT,
     ) -> dict[str, Any]:
         def is_terminal():
-            run_data = self.storage_run_status(history_id, run_id)
+            run_data = self.bulk_storage_operation_run_status(history_id, run_id)
             if run_data["run"]["state"] in ("completed", "failed"):
                 if include_items_on_terminal:
-                    run_data["items"] = self.storage_run_items(history_id, run_id, search=search)
+                    run_data["items"] = self.bulk_storage_operation_run_items(history_id, run_id, search=search)
                 return run_data
             return None
 
-        return wait_on(is_terminal, "storage run completion", timeout=timeout)
+        return wait_on(is_terminal, "bulk storage operation run completion", timeout=timeout)
 
     def get_roles(self) -> list:
         using_requirement("admin")

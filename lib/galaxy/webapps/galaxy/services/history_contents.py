@@ -750,7 +750,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         success_count = len(contents) - len(errors)
         return HistoryContentBulkOperationResult(success_count=success_count, errors=errors)
 
-    def storage_operation_preview(
+    def bulk_storage_operation_preview(
         self,
         trans: ProvidesHistoryContext,
         history_id: DecodedDatabaseIdField,
@@ -809,7 +809,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         trans.sa_session.commit()
         return StorageOperationExecuteResponse(run=self.storage_operation_manager.to_run_summary(run))
 
-    def storage_operation_run(
+    def bulk_storage_operation_run(
         self,
         trans: ProvidesHistoryContext,
         history_id: DecodedDatabaseIdField,
@@ -826,7 +826,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         summary = self.storage_operation_manager.to_run_summary(run)
         return StorageOperationRunResponse(run=summary)
 
-    def storage_operation_run_items(
+    def bulk_storage_operation_run_items(
         self,
         trans: ProvidesHistoryContext,
         history_id: DecodedDatabaseIdField,
