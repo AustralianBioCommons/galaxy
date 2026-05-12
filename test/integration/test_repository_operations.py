@@ -61,6 +61,15 @@ class TestRepositoryInstallIntegrationTestCase(integration_util.IntegrationTestC
         self.install_repository(*repo)
         self.uninstall_repository(*repo)
 
+    def test_non_data_manager_install_skips_data_table_registration(self):
+        """Non-Data-Manager repos must not register data tables on install."""
+        non_dm_repo = ("devteam", "bwa", "051eba708f43")
+        non_dm_table_names = {"bwa_indexes", "bwa_mem_indexes"}
+        self.install_repository(*non_dm_repo)
+        registered = set(self._app.tool_data_tables.data_tables.keys())
+        leaked = non_dm_table_names & registered
+        assert not leaked, f"Unexpected data tables registered by non-DM repo: {sorted(leaked)}"
+
     def test_repository_update(self):
         response = self._install_repository(revision=REVISION_4, version="0.0.3", allow_upgraded=True)[0]
         assert int(response["ctx_rev"]) >= 4
