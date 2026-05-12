@@ -8,6 +8,10 @@ from typing import (
 
 from galaxy.tool_shed.galaxy_install.client import InstallationTarget
 from galaxy.tool_shed.util import hg_util
+from galaxy.tool_util.data import (
+    DataTableColumnMismatch,
+    DataTableFileConflict,
+)
 from galaxy.util import (
     Element,
     SubElement,
@@ -23,6 +27,16 @@ log = logging.getLogger(__name__)
 
 
 RequiredAppT = Union["BasicSharedApp", InstallationTarget]
+
+
+def _parse_table_columns(table_elem: Element) -> dict[str, int]:
+    """Parse a ``<table>`` element's column spec into a name->index mapping."""
+    from galaxy.tool_util.data import TabularToolDataTable
+
+    columns, _, _ = TabularToolDataTable.parse_column_spec_element(table_elem)
+    if "value" in columns and "name" not in columns:
+        columns["name"] = columns["value"]
+    return columns
 
 
 class BaseShedToolDataTableManager:
@@ -151,28 +165,36 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
         TOOL_DATA_TABLE_FILE_SAMPLE_NAME = f"{TOOL_DATA_TABLE_FILE_NAME}.sample"
         SAMPLE_SUFFIX = ".sample"
         SAMPLE_SUFFIX_OFFSET = -len(SAMPLE_SUFFIX)
+        LOC_SAMPLE_SUFFIX = ".loc.sample"
         target_dir, tool_path, relative_target_dir = self.get_target_install_dir(tool_shed_repository)
+        # .loc files are shared across DM revisions: install at the root of tool_data_path.
+        shared_loc_dir = self.app.config.tool_data_path
         for sample_file in tool_index_sample_files:
             path, filename = os.path.split(sample_file)
             target_filename = filename
             if target_filename.endswith(SAMPLE_SUFFIX):
                 target_filename = target_filename[:SAMPLE_SUFFIX_OFFSET]
             source_file = os.path.join(tool_path, sample_file)
+            if filename.endswith(LOC_SAMPLE_SUFFIX):
+                target_path_filename = os.path.join(shared_loc_dir, target_filename)
+                install_dest_dir = shared_loc_dir
+            else:
+                target_path_filename = os.path.join(target_dir, target_filename)
+                install_dest_dir = target_dir
             # We're not currently uninstalling index files, do not overwrite existing files.
-            target_path_filename = os.path.join(target_dir, target_filename)
             if not os.path.exists(target_path_filename) or target_filename == TOOL_DATA_TABLE_FILE_NAME:
                 shutil.copy2(source_file, target_path_filename)
             else:
                 log.debug(
                     "Did not copy sample file '%s' to install directory '%s' because file already exists.",
                     filename,
-                    target_dir,
+                    install_dest_dir,
                 )
             # For provenance and to simplify introspection, let's keep the original data table sample file around.
             if filename == TOOL_DATA_TABLE_FILE_SAMPLE_NAME:
                 shutil.copy2(source_file, os.path.join(target_dir, filename))
         tool_data_table_conf_filename = os.path.join(target_dir, TOOL_DATA_TABLE_FILE_NAME)
-        elems = []
+        elems: list = []
         if os.path.exists(tool_data_table_conf_filename):
             tree, error_message = xml_util.parse_xml(tool_data_table_conf_filename)
             if tree:
@@ -191,20 +213,36 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
                 tool_data_table_conf_filename,
                 TOOL_DATA_TABLE_FILE_SAMPLE_NAME,
             )
+        registered_tables = self.app.tool_data_tables.data_tables
+        kept_elems: list = []
         for elem in elems:
-            if elem.tag == "table":
-                for file_elem in elem.findall("file"):
-                    path = file_elem.get("path", None)
-                    if path:
-                        file_elem.set("path", os.path.normpath(os.path.join(target_dir, os.path.split(path)[1])))
-                # Store repository info in the table tag set for trace-ability.
-                self.generate_repository_info_elem_from_repository(tool_shed_repository, parent_elem=elem)
-        if elems:
+            if elem.tag != "table":
+                kept_elems.append(elem)
+                continue
+            candidate_file_paths: list[str] = []
+            for file_elem in elem.findall("file"):
+                path = file_elem.get("path", None)
+                if path:
+                    new_path = os.path.normpath(os.path.join(shared_loc_dir, os.path.split(path)[1]))
+                    file_elem.set("path", new_path)
+                    candidate_file_paths.append(new_path)
+            table_name = elem.get("name") or ""
+            incoming_columns = _parse_table_columns(elem)
+            self.app.tool_data_tables.assert_data_table_consistency(table_name, incoming_columns, candidate_file_paths)
+            existing = registered_tables.get(table_name) if table_name else None
+            if existing is not None and getattr(existing, "columns", None) is not None:
+                # Already registered with matching columns; skip to avoid duplicate <table> entry.
+                continue
+            # Store repository info in the table tag set for trace-ability.
+            self.generate_repository_info_elem_from_repository(tool_shed_repository, parent_elem=elem)
+            kept_elems.append(elem)
+        if kept_elems:
             # Remove old data_table
-            os.unlink(tool_data_table_conf_filename)
+            if os.path.exists(tool_data_table_conf_filename):
+                os.unlink(tool_data_table_conf_filename)
             # Persist new data_table content.
-            self.app.tool_data_tables.to_xml_file(tool_data_table_conf_filename, elems)
-        return tool_data_table_conf_filename, elems
+            self.app.tool_data_tables.to_xml_file(tool_data_table_conf_filename, kept_elems)
+        return tool_data_table_conf_filename, kept_elems
 
 
 # For backwards compatibility with exisiting data managers
@@ -212,6 +250,8 @@ ToolDataTableManager = ShedToolDataTableManager
 
 
 __all__ = (
+    "DataTableColumnMismatch",
+    "DataTableFileConflict",
     "ToolDataTableManager",
     "ShedToolDataTableManager",
 )
