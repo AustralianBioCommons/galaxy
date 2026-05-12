@@ -270,8 +270,6 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
     and pydantic models to declare its parameters and return types.
     """
 
-    _storage_snapshot_ttl = timedelta(hours=24)
-
     def __init__(
         self,
         security: IdEncodingHelper,
