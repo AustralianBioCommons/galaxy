@@ -29,19 +29,17 @@ def fetch_uses_authorization_header(request: dict[str, Any], file_sources, user_
     return False
 
 
-def staged_fetch_token_expiration(
-    user: User | None, request: dict[str, Any], file_sources, user_context
-) -> datetime | None:
+def compute_token_expiry_for_provider(user: User | None, provider: str) -> datetime | None:
+    """Return the expiry for a specific OIDC provider's token, if available."""
     if user is None or not user.social_auth:
         return None
-    if not fetch_uses_authorization_header(request, file_sources, user_context):
-        return None
-    expiration_times = []
     for auth in user.social_auth:
+        if auth.provider != provider:
+            continue
         extra_data = auth.extra_data or {}
         auth_time = extra_data.get("auth_time")
         expires = locate_token_expiration(extra_data)
         if auth_time is None or expires is None:
-            continue
-        expiration_times.append(datetime.fromtimestamp(int(auth_time) + int(expires), tz=timezone.utc))
-    return min(expiration_times) if expiration_times else None
+            return None
+        return datetime.fromtimestamp(int(auth_time) + int(expires), tz=timezone.utc)
+    return None
