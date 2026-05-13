@@ -2349,7 +2349,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Executes a previously previewed storage bulk operation snapshot. */
-        post: operations["storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post"];
+        post: operations["bulk_storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2366,7 +2366,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Previews a storage bulk operation for selected history contents. */
-        post: operations["storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post"];
+        post: operations["bulk_storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2381,7 +2381,7 @@ export interface paths {
             cookie?: never;
         };
         /** Returns run status summary for a storage bulk operation. */
-        get: operations["storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get"];
+        get: operations["bulk_storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2398,7 +2398,7 @@ export interface paths {
             cookie?: never;
         };
         /** Returns paginated per-item details for a storage bulk operation run. */
-        get: operations["storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get"];
+        get: operations["bulk_storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -38119,7 +38119,7 @@ export interface operations {
             };
         };
     };
-    storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post: {
+    bulk_storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post: {
         parameters: {
             query?: never;
             header?: {
@@ -38167,7 +38167,7 @@ export interface operations {
             };
         };
     };
-    storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post: {
+    bulk_storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post: {
         parameters: {
             query?: {
                 /** @description Generally a property name to filter by followed by an (often optional) hyphen and operator string. */
@@ -38220,7 +38220,7 @@ export interface operations {
             };
         };
     };
-    storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get: {
+    bulk_storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get: {
         parameters: {
             query?: never;
             header?: {
@@ -38265,7 +38265,7 @@ export interface operations {
             };
         };
     };
-    storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get: {
+    bulk_storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get: {
         parameters: {
             query?: {
                 /** @description The offset for paginated per-item run details. */
