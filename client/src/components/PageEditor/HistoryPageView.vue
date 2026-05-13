@@ -116,13 +116,23 @@ function handleBack() {
 
 <template>
     <div class="history-page-view d-flex flex-column h-100" data-description="history page view">
+        <!--
+          Error alert is owned by PageEditorView while it is mounted (edit mode).
+          Render it here only for list view and display-only mode, otherwise the
+          same store.error renders twice.
+        -->
+        <BAlert
+            v-if="store.error && (!pageId || displayOnly)"
+            variant="danger"
+            show
+            dismissible
+            @dismissed="store.error = null">
+            {{ store.error }}
+        </BAlert>
+
         <BAlert v-if="store.isLoadingList" variant="info" show>
             <FontAwesomeIcon :icon="faSpinner" spin />
             Loading {{ labels.entityNamePlural.toLowerCase() }}...
-        </BAlert>
-
-        <BAlert v-else-if="store.error" variant="danger" show dismissible @dismissed="store.error = null">
-            {{ store.error }}
         </BAlert>
 
         <template v-else-if="!pageId">

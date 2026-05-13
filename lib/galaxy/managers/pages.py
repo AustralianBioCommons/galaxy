@@ -379,8 +379,8 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
         content = payload.get("content", None)
         content_format = payload.get("content_format", None)
         edit_source = payload.get("edit_source", None)
-        if not content:
-            raise exceptions.ObjectAttributeMissingException("content undefined or empty")
+        if content is None:
+            raise exceptions.ObjectAttributeMissingException("content undefined")
         if content_format not in [None, PageContentFormat.html.value, PageContentFormat.markdown.value]:
             raise exceptions.RequestParameterInvalidException(
                 f"content_format [{content_format}], if specified, must be either html or markdown"

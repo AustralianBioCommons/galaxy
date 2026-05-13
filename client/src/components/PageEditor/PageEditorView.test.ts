@@ -332,7 +332,7 @@ describe("PageEditorView", () => {
             expect(editBtn.exists()).toBe(true);
         });
 
-        it("does not call store.$reset on unmount in displayOnly mode", async () => {
+        it("does not clear editor state on unmount in displayOnly mode", async () => {
             setupLoadedPage(HISTORY_ID);
             const store = usePageEditorStore();
             const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID, displayOnly: true });
@@ -340,6 +340,7 @@ describe("PageEditorView", () => {
 
             wrapper.destroy();
             expect(store.$reset).not.toHaveBeenCalled();
+            expect(store.clearCurrentPage).not.toHaveBeenCalled();
         });
     });
 
@@ -637,13 +638,40 @@ describe("PageEditorView", () => {
             expect(store.mode).toBe("standalone");
         });
 
-        it("calls store.$reset on unmount", async () => {
+        it("calls store.clearCurrentPage (not $reset) on unmount so store.error survives", async () => {
             const store = usePageEditorStore();
             const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
             await flushPromises();
 
             wrapper.destroy();
-            expect(store.$reset).toHaveBeenCalled();
+            expect(store.clearCurrentPage).toHaveBeenCalled();
+            expect(store.$reset).not.toHaveBeenCalled();
+        });
+
+        it("does not clear store.error on unmount in edit mode", async () => {
+            setupLoadedPage(HISTORY_ID);
+            const store = usePageEditorStore();
+            store.error = "Save failed";
+            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
+            await flushPromises();
+
+            wrapper.destroy();
+            expect(store.error).toBe("Save failed");
+        });
+    });
+
+    describe("Error alert", () => {
+        it("renders error alert alongside the editor (not in place of it)", async () => {
+            const store = setupLoadedPage(HISTORY_ID);
+            store.error = "Save failed";
+            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
+            await flushPromises();
+
+            const errorAlert = wrapper.find("balert-stub[variant='danger']");
+            expect(errorAlert.exists()).toBe(true);
+            expect(errorAlert.text()).toContain("Save failed");
+            expect(wrapper.find(SELECTORS.TOOLBAR).exists()).toBe(true);
+            expect(wrapper.findComponent(MarkdownEditor).exists()).toBe(true);
         });
     });
 });

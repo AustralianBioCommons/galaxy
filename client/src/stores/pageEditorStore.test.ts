@@ -420,6 +420,34 @@ describe("usePageEditorStore", () => {
             expect(store.error).toBeTruthy();
             expect(store.isSaving).toBe(false);
         });
+
+        it("accepts empty content and clears dirty state", async () => {
+            const updatedDetails: HistoryPageDetails = {
+                ...TEST_PAGE_DETAILS,
+                content: "",
+                content_editor: "",
+                update_time: "2025-06-16T10:00:00Z",
+            };
+            server.use(
+                http.get("/api/pages/{id}", ({ response }: any) => {
+                    return response(200).json(TEST_PAGE_DETAILS);
+                }) as any,
+                http.put("/api/pages/{id}", ({ response }: any) => {
+                    return response(200).json(updatedDetails);
+                }) as any,
+            );
+            const store = usePageEditorStore();
+            store.$patch({ historyId: TEST_HISTORY_ID });
+            await store.loadPageById(TEST_PAGE_ID);
+            store.updateContent("");
+            expect(store.isDirty).toBe(true);
+
+            await store.savePage();
+
+            expect(store.isDirty).toBe(false);
+            expect(store.currentContent).toBe("");
+            expect(store.error).toBeNull();
+        });
     });
 
     describe("deleteCurrentPage", () => {

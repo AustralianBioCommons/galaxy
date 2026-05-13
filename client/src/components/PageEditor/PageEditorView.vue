@@ -84,7 +84,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
     if (!props.displayOnly) {
-        store.$reset();
+        // Clear editor-scoped state but leave store.error alone so a save failure
+        // remains visible across the transient unmount/remount that error-state
+        // re-renders trigger in the parent.
+        store.clearCurrentPage();
     }
 });
 
@@ -180,13 +183,13 @@ function handleRevisionRestore(revisionId: string) {
 
 <template>
     <div class="page-editor-view d-flex flex-column h-100" data-description="page editor view">
+        <BAlert v-if="store.error" variant="danger" show dismissible @dismissed="store.error = null">
+            {{ store.error }}
+        </BAlert>
+
         <BAlert v-if="store.isLoadingPage && !store.hasCurrentPage" variant="info" show>
             <FontAwesomeIcon :icon="faSpinner" spin />
             Loading page...
-        </BAlert>
-
-        <BAlert v-else-if="store.error" variant="danger" show dismissible @dismissed="store.error = null">
-            {{ store.error }}
         </BAlert>
 
         <!-- Display-only mode: rendered view -->

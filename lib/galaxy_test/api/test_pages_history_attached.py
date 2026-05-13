@@ -79,6 +79,29 @@ class TestHistoryPagesApi(BasePagesApiTestCase):
         revisions = self.dataset_populator.list_page_revisions(page["id"])
         assert len(revisions) == 2
 
+    def test_save_empty_content_clears_notebook(self):
+        history_id = self.dataset_populator.new_history()
+        page = self.dataset_populator.new_history_page(history_id, content="# Hello\n\nsome prose")
+        response = self.dataset_populator.update_history_page_raw(page["id"], content="")
+        self._assert_status_code_is(response, 200)
+        revisions = self.dataset_populator.list_page_revisions(page["id"])
+        assert len(revisions) == 2
+        latest_revision = self._get(f"pages/{page['id']}/revisions/{revisions[-1]['id']}").json()
+        assert latest_revision["content"] == ""
+        details = self.dataset_populator.get_history_page(page["id"])
+        assert details["content_editor"] == ""
+
+    def test_save_empty_content_on_regular_page(self):
+        page = self.dataset_populator.new_page(
+            slug="empty-save-regular", content_format="markdown", content="# Hello\n\nstandalone report"
+        )
+        response = self.dataset_populator.update_history_page_raw(page["id"], content="")
+        self._assert_status_code_is(response, 200)
+        revisions = self.dataset_populator.list_page_revisions(page["id"])
+        assert len(revisions) == 2
+        latest_revision = self._get(f"pages/{page['id']}/revisions/{revisions[-1]['id']}").json()
+        assert latest_revision["content"] == ""
+
     def test_delete_history_page(self):
         history_id = self.dataset_populator.new_history()
         page = self.dataset_populator.new_history_page(history_id, content="# Delete me")

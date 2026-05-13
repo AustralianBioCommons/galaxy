@@ -111,6 +111,30 @@ describe("HistoryPageView", () => {
             expect(errorAlert.exists()).toBe(true);
             expect(errorAlert.text()).toContain("Something went wrong");
         });
+
+        it("keeps PageEditorView mounted when error appears in edit mode", async () => {
+            const store = usePageEditorStore();
+            store.isLoadingList = false;
+            store.error = "Save failed";
+            const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID });
+            await flushPromises();
+
+            // Outer error alert is suppressed in edit mode — ownership belongs to PageEditorView
+            // (otherwise the same store.error renders twice). The editor must stay mounted.
+            expect(wrapper.find(SELECTORS.ERROR_ALERT).exists()).toBe(false);
+            expect(wrapper.findComponent(PageEditorView).exists()).toBe(true);
+        });
+
+        it("shows error alert in display-only mode (editor not mounted)", async () => {
+            const store = usePageEditorStore();
+            store.isLoadingList = false;
+            store.error = "Load failed";
+            const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
+            await flushPromises();
+
+            expect(wrapper.find(SELECTORS.ERROR_ALERT).exists()).toBe(true);
+            expect(wrapper.findComponent(PageEditorView).exists()).toBe(false);
+        });
     });
 
     describe("List view (no pageId)", () => {
@@ -243,7 +267,7 @@ describe("HistoryPageView", () => {
             expect(wrapper.findComponent(HistoryPageList).exists()).toBe(true);
         });
 
-        it("does not call store.$reset on unmount in displayOnly mode", async () => {
+        it("does not clear editor state on unmount in displayOnly mode", async () => {
             setupLoadedPage();
             const store = usePageEditorStore();
             const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
@@ -251,6 +275,7 @@ describe("HistoryPageView", () => {
 
             wrapper.destroy();
             expect(store.$reset).not.toHaveBeenCalled();
+            expect(store.clearCurrentPage).not.toHaveBeenCalled();
         });
     });
 
