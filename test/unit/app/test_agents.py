@@ -1037,12 +1037,17 @@ class TestPageAssistantAgent:
         )
         assert patch.mode == "section_patch"
 
-    def test_simple_prompt_fallback(self):
+    @pytest.mark.asyncio
+    async def test_process_rejects_unsupported_model(self):
+        """Unsupported models short-circuit with a capability error instead of running."""
         self.mock_config.ai_model = "deepseek-r1"
         agent = PageAssistantAgent(self.deps, history_id=1, page_content="# Test doc")
-        prompt = agent._get_simple_system_prompt()
-        assert "EDIT_MODE:" in prompt
-        assert "# Test doc" in prompt
+        with mock.patch.object(agent, "_run_with_retry") as mock_run:
+            response = await agent.process("Draft a Methods section")
+            mock_run.assert_not_called()
+        assert response.metadata.get("error") == "model_capability"
+        assert response.confidence == ConfidenceLevel.LOW
+        assert "structured output" in response.content
 
     def test_system_prompt_no_history(self):
         """System prompt includes no-history note when history_id is None."""
@@ -1084,24 +1089,6 @@ class TestPageAssistantAgent:
             assert agent.history_id == 5
             assert agent.history_is_session is True
             assert response.content is not None
-
-    def test_simple_prompt_session_history(self):
-        """Simple prompt fallback handles session history."""
-        self.mock_config.ai_model = "deepseek-r1"
-        agent = PageAssistantAgent(self.deps, history_id=5, page_content="# Test doc")
-        agent.history_is_session = True
-        prompt = agent._get_simple_system_prompt()
-        assert "standalone page" in prompt
-        assert "current active history" in prompt
-        assert "resolve_hid" in prompt
-
-    def test_simple_prompt_no_history(self):
-        """Simple prompt fallback for no history."""
-        self.mock_config.ai_model = "deepseek-r1"
-        agent = PageAssistantAgent(self.deps, history_id=None, page_content="# Test doc")
-        prompt = agent._get_simple_system_prompt()
-        assert "not associated with a history" in prompt
-        assert "not available" in prompt
 
 
 @pytestmark_live_llm

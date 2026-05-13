@@ -25,6 +25,8 @@ from pydantic_ai import (
 
 from galaxy.schema.agents import ConfidenceLevel
 from .base import (
+    ActionSuggestion,
+    ActionType,
     AgentResponse,
     AgentType,
     BaseGalaxyAgent,
@@ -173,39 +175,34 @@ class PageAssistantAgent(BaseGalaxyAgent):
         self.page_content: str = page_content
         super().__init__(deps)
 
+    def _requires_structured_output(self) -> bool:
+        return True
+
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, Any]:
         """Create agent with history tools and edit output types."""
         agent_self = self
-        if self._supports_structured_output():
-            agent = Agent(
-                self._get_model(),
-                deps_type=GalaxyAgentDependencies,
-                output_type=[
-                    ToolOutput(
-                        FullReplacementEdit,
-                        name="replace_entire_document",
-                        description="Rewrite the entire page. Use for major rewrites, restructuring, or when >50% of content changes.",
-                    ),
-                    ToolOutput(
-                        SectionPatchEdit,
-                        name="patch_section",
-                        description="Modify a specific section. PREFER THIS when in doubt — it preserves user work on other sections.",
-                    ),
-                    str,  # Conversational response (no edit)
-                ],
-            )
-        else:
-            agent = Agent(
-                self._get_model(),
-                deps_type=GalaxyAgentDependencies,
-            )
+        agent = Agent(
+            self._get_model(),
+            deps_type=GalaxyAgentDependencies,
+            output_type=[
+                ToolOutput(
+                    FullReplacementEdit,
+                    name="replace_entire_document",
+                    description="Rewrite the entire page. Use for major rewrites, restructuring, or when >50% of content changes.",
+                ),
+                ToolOutput(
+                    SectionPatchEdit,
+                    name="patch_section",
+                    description="Modify a specific section. PREFER THIS when in doubt — it preserves user work on other sections.",
+                ),
+                str,  # Conversational response (no edit)
+            ],
+        )
 
         # Dynamic system prompt — reads self.page_content at call time
         @agent.system_prompt
         def _system_prompt() -> str:
-            if agent_self._supports_structured_output():
-                return agent_self.get_system_prompt()
-            return agent_self._get_simple_system_prompt()
+            return agent_self.get_system_prompt()
 
         # Tools reference agent_self.history_id — set in process() from context before each run.
         # When editing standalone pages (no history), tools return a helpful message.
@@ -330,6 +327,26 @@ class PageAssistantAgent(BaseGalaxyAgent):
 
     async def process(self, query: str, context: Optional[dict[str, Any]] = None) -> AgentResponse:
         """Process a page editing or history question."""
+        capability_error = self._validate_model_capabilities()
+        if capability_error:
+            return self._build_response(
+                content=capability_error,
+                confidence=ConfidenceLevel.LOW,
+                method="capability_check",
+                query=query,
+                suggestions=[
+                    ActionSuggestion(
+                        action_type=ActionType.CONTACT_SUPPORT,
+                        description="Contact your Galaxy administrator to configure a structured-output-capable AI model for notebook/report editing",
+                        parameters={},
+                        confidence=ConfidenceLevel.HIGH,
+                        priority=1,
+                    )
+                ],
+                error="model_capability",
+                agent_data={"requires": "structured_output"},
+            )
+
         ctx = context or {}
         self.history_id = ctx.get("history_id") or None
         self.history_is_session = ctx.get("history_is_session", False)
@@ -392,62 +409,3 @@ class PageAssistantAgent(BaseGalaxyAgent):
         except ValueError as e:
             log.warning(f"Page assistant value error: {e}")
             return self._get_fallback_response(query, str(e))
-
-    def _get_simple_system_prompt(self) -> str:
-        """Fallback prompt for models without structured output."""
-        content = self.page_content or "(empty document)"
-        directive_ref = _build_directive_reference()
-        if self.history_id and not self.history_is_session:
-            intro = (
-                "You are a Galaxy History Page editing assistant. Help users edit their\n"
-                "markdown pages that document scientific analysis workflows."
-            )
-            history_tools_note = (
-                "For questions about the history data, use the available tools to look up datasets.\n"
-                "Users refer to items by HID (the number in the history panel). Use resolve_hid(hid)\n"
-                "to get the encoded history_dataset_id or history_dataset_collection_id for directives.\n"
-                "All tool outputs return encoded IDs — copy them directly into directives.\n"
-                "The resolve_hid and get_dataset_info tools also return job_id for job directives."
-            )
-        elif self.history_id and self.history_is_session:
-            intro = (
-                "You are a Galaxy Page editing assistant. This is a standalone page, but you\n"
-                "have access to the user's current active history for reference. The page is not\n"
-                "attached to this history — the user may switch histories during their session."
-            )
-            history_tools_note = (
-                "You can use history tools to browse datasets in the user's current session history.\n"
-                "Users refer to items by HID (the number in the history panel). Use resolve_hid(hid)\n"
-                "to get the encoded history_dataset_id or history_dataset_collection_id for directives.\n"
-                "All tool outputs return encoded IDs — copy them directly into directives.\n"
-                "The resolve_hid and get_dataset_info tools also return job_id for job directives."
-            )
-        else:
-            intro = (
-                "You are a Galaxy Page editing assistant. Help users edit their\n"
-                "markdown pages. This page is not associated with a history, so history\n"
-                "browsing tools are not available. Focus on editing the page content directly."
-            )
-            history_tools_note = ""
-        return f"""{intro}
-
-When proposing edits, clearly indicate whether you're rewriting the entire document
-or patching a specific section by starting your response with:
-EDIT_MODE: full_replacement
-or
-EDIT_MODE: section_patch
-TARGET_SECTION: ## Section Name
-
-Then provide the new content after a blank line.
-
-{history_tools_note}
-
-Galaxy markdown uses block directives (```galaxy fenced blocks with one directive each)
-and inline directives (${{galaxy directive_name(args)}}) for embed-capable directives.
-Dataset directives use history_dataset_id=ENCODED_ID, collection directives use
-history_dataset_collection_id=ENCODED_ID, job directives use job_id=ENCODED_ID.
-
-{directive_ref}
-
-Current page content:
-{content}"""
