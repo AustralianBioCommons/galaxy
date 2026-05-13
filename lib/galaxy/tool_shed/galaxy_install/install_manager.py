@@ -188,6 +188,8 @@ class InstallRepositoryManager:
             sample_files = irmm_metadata_dict.get("sample_files", [])
             tool_index_sample_files = stdtm.get_tool_index_sample_files(sample_files)
             tool_data_path = self.app.config.tool_data_path
+            # Used to be created as a side effect of install_tool_data_tables; that no longer runs for non-DM repos.
+            os.makedirs(tool_data_path, exist_ok=True)
             tool_util.copy_sample_files(tool_data_path, tool_index_sample_files, tool_path=tool_path)
             sample_files_copied = [str(s) for s in tool_index_sample_files]
             repository_tools_tups = irmm.get_repository_tools_tups()

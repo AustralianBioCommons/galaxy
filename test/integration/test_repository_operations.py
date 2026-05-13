@@ -1,4 +1,5 @@
 import os
+import xml.etree.ElementTree as ET
 from collections import namedtuple
 
 from sqlalchemy import select
@@ -62,13 +63,14 @@ class TestRepositoryInstallIntegrationTestCase(integration_util.IntegrationTestC
         self.uninstall_repository(*repo)
 
     def test_non_data_manager_install_skips_data_table_registration(self):
-        """Non-Data-Manager repos must not register data tables on install."""
+        """Non-Data-Manager repos must not persist data table entries in shed_tool_data_table_conf.xml."""
         non_dm_repo = ("devteam", "bwa", "051eba708f43")
         non_dm_table_names = {"bwa_indexes", "bwa_mem_indexes"}
         self.install_repository(*non_dm_repo)
-        registered = set(self._app.tool_data_tables.data_tables.keys())
+        shed_conf = self._app.config.shed_tool_data_table_config
+        registered = {t.get("name") for t in ET.parse(shed_conf).getroot().findall("table")}
         leaked = non_dm_table_names & registered
-        assert not leaked, f"Unexpected data tables registered by non-DM repo: {sorted(leaked)}"
+        assert not leaked, f"Unexpected data tables in {shed_conf}: {sorted(leaked)}"
 
     def test_repository_update(self):
         response = self._install_repository(revision=REVISION_4, version="0.0.3", allow_upgraded=True)[0]
