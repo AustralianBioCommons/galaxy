@@ -1,5 +1,9 @@
 import abc
 import builtins
+from datetime import (
+    datetime,
+    timezone,
+)
 import os
 import time
 from enum import Enum
@@ -361,6 +365,10 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
         self.requires_groups = config.requires_groups
         self.disable_templating = config.disable_templating
         self._validate_security_rules()
+        if config.token_expires_at:
+
+            if datetime.now(timezone.utc) > datetime.fromisoformat(config.token_expires_at):
+                raise Exception("Fetch job expired before start because staged OIDC credentials expired.")
 
     def to_dict(self, for_serialization=False, user_context: "OptionalUserContext" = None) -> dict[str, Any]:
         rval: dict[str, Any] = {
@@ -388,6 +396,16 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
             context = self._get_runtime_context(user_context=user_context)
             serialized_config = self._serialize_config(context.config)
             rval.update(serialized_config)
+            provider = self.template_config.oidc_auth_provider
+            if provider is not None and user_context is not None:
+                token = (getattr(user_context, "oidc_access_tokens", None) or {}).get(provider)
+                if token:
+                    http_headers = dict(rval.get("http_headers") or {})
+                    http_headers.setdefault("Authorization", f"Bearer {token}")
+                    rval["http_headers"] = http_headers
+                expires_at = user_context.oidc_access_token_expiry_for(provider)
+                if expires_at is not None:
+                    rval["token_expires_at"] = expires_at.isoformat()
         return rval
 
     def _serialize_config(self, config: TResolvedConfig) -> dict[str, Any]:
@@ -427,6 +445,13 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
             self.template_config = self.template_config.model_copy(update=extra_props)
 
         resolved_config = self._evaluate_template_config(user_data)
+        provider = self.template_config.oidc_auth_provider
+        if provider and user_context and hasattr(resolved_config, "http_headers"):
+            token = (getattr(user_context, "oidc_access_tokens", None) or {}).get(provider)
+            if token:
+                headers = dict(resolved_config.http_headers or {})
+                headers.setdefault("Authorization", f"Bearer {token}")
+                resolved_config = resolved_config.model_copy(update={"http_headers": headers})
         return FilesSourceRuntimeContext(user_data=user_data, config=resolved_config)
 
     def _apply_defaults_to_template(
