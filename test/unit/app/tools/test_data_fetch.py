@@ -6,11 +6,9 @@ from contextlib import contextmanager
 from shutil import rmtree
 from tempfile import mkdtemp
 from typing import Optional
-from unittest import mock
 
 import pytest
 
-from galaxy.tools import data_fetch
 from galaxy.tools.data_fetch import main
 
 B64_FOR_1_2_3 = b64encode(b"1 2 3").decode("utf-8")
