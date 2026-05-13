@@ -5,7 +5,7 @@
  * `<div class="alert alert-{variant}">` markup the existing bootstrap CSS expects.
  */
 
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 
 type AlertVariant = "info" | "warning" | "danger" | "success" | "primary" | "secondary" | "light" | "dark";
 
@@ -37,7 +37,20 @@ const emit = defineEmits<{
 
 const variantClass = computed(() => `alert-${props.variant}`);
 
+// Mirror BAlert's localShow behavior so `dismissible` works without a parent
+// handler -- the close button hides the alert locally, and a subsequent
+// `show` prop change re-syncs.
+const localShow = ref<boolean>(props.show);
+
+watch(
+    () => props.show,
+    (next) => {
+        localShow.value = next;
+    },
+);
+
 function onDismiss() {
+    localShow.value = false;
     emit("update:show", false);
     emit("dismissed");
 }
@@ -46,7 +59,7 @@ function onDismiss() {
 <template>
     <Transition v-if="fade" name="g-alert-fade">
         <div
-            v-if="show"
+            v-if="localShow"
             class="alert"
             :class="[variantClass, { 'alert-dismissible': dismissible }]"
             role="alert"
@@ -59,7 +72,7 @@ function onDismiss() {
         </div>
     </Transition>
     <div
-        v-else-if="show"
+        v-else-if="localShow"
         class="alert"
         :class="[variantClass, { 'alert-dismissible': dismissible }]"
         role="alert"
