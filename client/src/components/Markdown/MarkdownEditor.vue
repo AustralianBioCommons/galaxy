@@ -30,6 +30,7 @@
                     :markdown-text="markdownText"
                     :steps="steps"
                     :mode="mode"
+                    :hide-toolbox="hideToolbox"
                     @update="$emit('update', $event)" />
                 <CellEditor v-else :markdown-text="markdownText" :labels="labels" @update="$emit('update', $event)" />
             </div>
@@ -63,6 +64,7 @@ const props = defineProps<{
     labels?: Array<WorkflowLabel>;
     steps?: Record<string, any>;
     title: string;
+    hideToolbox?: boolean;
 }>();
 
 const showHelpModal = ref<boolean>(false);

@@ -1,6 +1,6 @@
 <template>
     <div class="d-flex h-100 w-100">
-        <FlexPanel side="left">
+        <FlexPanel v-if="!hideToolbox" side="left">
             <MarkdownToolBox :steps="steps" @insert="insertMarkdown" />
         </FlexPanel>
         <textarea
@@ -34,6 +34,7 @@ const props = defineProps<{
     mode: DirectiveMode;
     steps?: Record<string, any>;
     title: string;
+    hideToolbox?: boolean;
 }>();
 
 const emit = defineEmits<{

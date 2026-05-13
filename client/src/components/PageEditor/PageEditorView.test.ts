@@ -600,6 +600,28 @@ describe("PageEditorView", () => {
             expect(wrapper.find(SELECTORS.CHAT_BUTTON).exists()).toBe(false);
         });
 
+        it("passes hideToolbox=true to MarkdownEditor when chat is open", async () => {
+            const store = setupLoadedPage(HISTORY_ID);
+            store.showChatPanel = true;
+            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
+            await flushPromises();
+
+            const editor = wrapper.findComponent(MarkdownEditor);
+            expect(editor.exists()).toBe(true);
+            expect(editor.props("hideToolbox")).toBe(true);
+        });
+
+        it("does not set hideToolbox when chat is closed", async () => {
+            const store = setupLoadedPage(HISTORY_ID);
+            store.showChatPanel = false;
+            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
+            await flushPromises();
+
+            const editor = wrapper.findComponent(MarkdownEditor);
+            expect(editor.exists()).toBe(true);
+            expect(editor.props("hideToolbox")).toBeFalsy();
+        });
+
         it("passes props to PageChatPanel", async () => {
             const store = setupLoadedPage(HISTORY_ID);
             store.showChatPanel = true;

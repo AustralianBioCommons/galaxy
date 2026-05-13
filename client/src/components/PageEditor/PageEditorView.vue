@@ -327,6 +327,7 @@ function handleRevisionRestore(revisionId: string) {
                             :markdown-text="store.currentContent"
                             :mode="markdownEditorMode"
                             :title="editorTitle"
+                            :hide-toolbox="true"
                             @update="handleContentUpdate" />
                     </template>
                     <template v-slot:chat>

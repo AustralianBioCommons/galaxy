@@ -28,7 +28,9 @@ const localVue = getLocalVue();
 let pinia: Pinia;
 let eventStore: ReturnType<typeof useEventStore>;
 
-function mountComponent(propsOverrides: Partial<{ markdownText: string; mode: string; title: string }> = {}) {
+function mountComponent(
+    propsOverrides: Partial<{ markdownText: string; mode: string; title: string; hideToolbox: boolean }> = {},
+) {
     return shallowMount(TextEditor as object, {
         localVue,
         propsData: {
@@ -77,6 +79,32 @@ async function applyHighlight(wrapper: Wrapper<Vue>) {
     await wrapper.vm.$nextTick();
     expect(textarea.classes()).toContain("page-dragover-success");
 }
+
+describe("TextEditor toolbox visibility", () => {
+    beforeEach(() => {
+        pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false });
+        eventStore = useEventStore();
+        vi.clearAllMocks();
+    });
+
+    it("renders MarkdownToolBox when hideToolbox is not set", () => {
+        const wrapper = mountComponent();
+        expect(wrapper.findComponent({ name: "MarkdownToolBox" }).exists()).toBe(true);
+        expect(wrapper.findComponent({ name: "FlexPanel" }).exists()).toBe(true);
+    });
+
+    it("renders MarkdownToolBox when hideToolbox is false", () => {
+        const wrapper = mountComponent({ hideToolbox: false });
+        expect(wrapper.findComponent({ name: "MarkdownToolBox" }).exists()).toBe(true);
+        expect(wrapper.findComponent({ name: "FlexPanel" }).exists()).toBe(true);
+    });
+
+    it("hides MarkdownToolBox when hideToolbox is true", () => {
+        const wrapper = mountComponent({ hideToolbox: true });
+        expect(wrapper.findComponent({ name: "MarkdownToolBox" }).exists()).toBe(false);
+        expect(wrapper.findComponent({ name: "FlexPanel" }).exists()).toBe(false);
+    });
+});
 
 describe("TextEditor drag-and-drop", () => {
     beforeEach(() => {
