@@ -351,7 +351,7 @@ def bulk_move_storage(
 
     user = sa_session.get(User, run.user_id) if run.user_id else None
     snapshot = sa_session.get(DatasetStorageOperationSnapshot, run.snapshot_id)
-    storage_operation_manager = DatasetStorageOperationManager(app.object_store)
+    storage_operation_manager = DatasetStorageOperationManager(app.object_store, app.config)
     executor = storage_operation_manager.create_run_executor(
         sa_session=sa_session,
         dataset_manager=dataset_manager,
@@ -721,12 +721,13 @@ def cleanup_expired_notifications(notification_manager: NotificationManager):
     )
 
 
-@galaxy_task(action="prune expired storage operations")
-def prune_expired_storage_operations(
+@galaxy_task(action="prune expired bulk storage operations")
+def prune_expired_bulk_storage_operations(
     sa_session: galaxy_scoped_session,
     object_store: BaseObjectStore,
+    config: GalaxyAppConfiguration,
 ):
-    storage_operation_manager = DatasetStorageOperationManager(object_store)
+    storage_operation_manager = DatasetStorageOperationManager(object_store, config)
     deleted_run_count = storage_operation_manager.prune_completed_runs(sa_session)
     deleted_snapshot_count = storage_operation_manager.prune_expired_snapshots(sa_session)
     if deleted_run_count or deleted_snapshot_count:
@@ -897,7 +898,7 @@ def cleanup_stale_concurrency_slots(
 
 
 @galaxy_task(action="recover stale storage operation runs")
-def recover_stale_storage_operation_runs(
+def recover_stale_bulk_storage_operation_runs(
     session: galaxy_scoped_session,
     stale_threshold_minutes: int = 30,
 ):
