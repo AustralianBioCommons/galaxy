@@ -74,7 +74,7 @@ def test_azure_objectstore_nested_yaml():
 def test_fs_default():
     with _config_context() as cc:
         cds = cc.get_cond_deps()
-        assert not cds.check_fs_dropboxfs()
+        assert not cds.check_dropboxdrivefs()
         assert not cds.check_webdav4()
 
 
@@ -85,7 +85,7 @@ def test_fs_configured():
             "file_sources_config_file": file_sources_conf,
         }
         cds = cc.get_cond_deps(config=config)
-        assert cds.check_fs_dropboxfs()
+        assert cds.check_dropboxdrivefs()
         assert cds.check_webdav4()
 
 

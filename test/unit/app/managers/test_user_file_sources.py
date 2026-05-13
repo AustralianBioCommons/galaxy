@@ -3,16 +3,9 @@ from typing import (
     cast,
     Optional,
 )
-from unittest import SkipTest
 from uuid import uuid4
 
 import pytest
-from fs.osfs import OSFS
-
-try:
-    from fs.dropboxfs import DropboxFS
-except ImportError:
-    DropboxFS = None
 from requests.exceptions import HTTPError
 from yaml import safe_load
 
@@ -290,8 +283,6 @@ class TestFileSourcesTestCase(BaseTestCase):
         assert get_uuid(user_object.uuid) == get_uuid(uuid)
 
     def test_oauth2_access_token_injection_during_verify(self, tmp_path, monkeypatch):
-        if DropboxFS is None:
-            raise SkipTest("Optional dropbpox dependency not available")
         self._init_dropbox_env(tmp_path, monkeypatch)
 
         uuid = uuid4().hex
@@ -315,24 +306,25 @@ class TestFileSourcesTestCase(BaseTestCase):
         def mock_get_token_from_refresh_raw(refresh_token, client_pair, config):
             return MockResponse(json)
 
-        pyfilesystem_fs_init_kwd = {}
+        fsspec_fs_init_kwd = {}
 
-        class MockDropboxFS(OSFS):
+        class MockDropboxDriveFileSystem:
 
             def __init__(self, **kwd):
-                pyfilesystem_fs_init_kwd.update(kwd)
-                root = tmp_path / "foobar"
-                root.mkdir()
-                super().__init__(root)
+                fsspec_fs_init_kwd.update(kwd)
+
+            def ls(self, path, detail=True):
+                return []
 
         monkeypatch.setattr(config_templates, "get_token_from_refresh_raw", mock_get_token_from_refresh_raw)
-        monkeypatch.setattr(dropbox, "DropboxFS", MockDropboxFS)
+        monkeypatch.setattr(dropbox, "DropboxDriveFileSystem", MockDropboxDriveFileSystem)
+        monkeypatch.setattr(dropbox.DropboxFilesSource, "required_module", MockDropboxDriveFileSystem)
         status = self.manager.plugin_status(self.trans, create_payload)
         assert status.oauth2_access_token_generation
         assert not status.oauth2_access_token_generation.is_not_ok
         assert status.connection
         assert not status.connection.is_not_ok
-        assert pyfilesystem_fs_init_kwd["access_token"] == "my_test_access_token"
+        assert fsspec_fs_init_kwd["token"] == "my_test_access_token"
 
     def test_onedrive_oauth2_flow(self, tmp_path, monkeypatch):
         json = {
