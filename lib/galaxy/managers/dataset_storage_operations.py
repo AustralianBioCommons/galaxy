@@ -24,6 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.sql.elements import ColumnElement
 
 from galaxy import exceptions
+from galaxy.config import GalaxyAppConfiguration
 from galaxy.managers import datasets
 from galaxy.model import (
     Dataset,
@@ -69,8 +70,8 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-DATASET_MINIMUM_DAYS_TO_EXPIRATION = 10
-RUN_RETENTION_AFTER_COMPLETION_DAYS = 30
+DEFAULT_DATASET_MINIMUM_DAYS_TO_EXPIRATION = 7
+DEFAULT_RUN_RETENTION_AFTER_COMPLETION_DAYS = 30
 UNUSED_SNAPSHOT_EXPIRES_AFTER_DAYS = 1
 TRANSFER_RETRY_ATTEMPTS = 3
 PROGRESS_COMMIT_INTERVAL_SMALL_RUN = 1
@@ -127,8 +128,23 @@ class StorageOperationPreviewComputation:
 class DatasetStorageOperationManager:
     """Shared policy checks used by storage operation preview and execution paths."""
 
-    def __init__(self, object_store: BaseObjectStore, hdca_manager: Optional["HDCAManager"] = None):
+    def __init__(
+        self,
+        object_store: BaseObjectStore,
+        config: Optional[GalaxyAppConfiguration] = None,
+        hdca_manager: Optional["HDCAManager"] = None,
+    ):
         self.object_store = object_store
+        self.dataset_minimum_days_to_expiration = (
+            config.bulk_storage_operation_dataset_minimum_days_to_expiration
+            if config is not None
+            else DEFAULT_DATASET_MINIMUM_DAYS_TO_EXPIRATION
+        )
+        self.run_retention_after_completion_days = (
+            config.bulk_storage_operation_completed_run_retention_days
+            if config is not None
+            else DEFAULT_RUN_RETENTION_AFTER_COMPLETION_DAYS
+        )
         self._preview_builder = (
             DatasetStorageOperationPreviewBuilder(self, hdca_manager) if hdca_manager is not None else None
         )
@@ -261,7 +277,7 @@ class DatasetStorageOperationManager:
         remaining_lifetime = self._target_remaining_lifetime(dataset, target_object_store_id)
         if remaining_lifetime is None:
             return False
-        return remaining_lifetime < timedelta(days=DATASET_MINIMUM_DAYS_TO_EXPIRATION)
+        return remaining_lifetime < timedelta(days=self.dataset_minimum_days_to_expiration)
 
     def is_cross_device_move(self, dataset: Dataset, target_object_store_id: str) -> bool:
         source_object_store_id = dataset.object_store_id
@@ -377,7 +393,7 @@ class DatasetStorageOperationManager:
         return deleted_count
 
     def prune_completed_runs(self, sa_session: galaxy_scoped_session) -> int:
-        completion_cutoff = now() - timedelta(days=RUN_RETENTION_AFTER_COMPLETION_DAYS)
+        completion_cutoff = now() - timedelta(days=self.run_retention_after_completion_days)
         deleted_run_ids = sa_session.scalars(
             delete(DatasetStorageOperationRun)
             .where(
