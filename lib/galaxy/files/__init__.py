@@ -15,7 +15,6 @@ from galaxy.files.sources import (
     BaseFilesSource,
     PluginKind,
 )
-from galaxy.tools.data_fetch_utils import compute_token_expiry_for_provider
 from galaxy.util.dictifiable import Dictifiable
 from galaxy.util.plugin_config import (
     plugin_source_from_dict,
@@ -454,6 +453,7 @@ class ProvidesFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiab
         return tokens
 
     def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]:
+        from galaxy.tools.data_fetch_utils import compute_token_expiry_for_provider
 
         return compute_token_expiry_for_provider(self.trans.user, provider)
 
