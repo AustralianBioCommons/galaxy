@@ -53,7 +53,8 @@ const ineligibleReasonBreakdown = computed(() => {
 });
 
 const hasIneligible = computed(() => props.preview.eligibility.ineligible_count > 0);
-const hasWarnings = computed(() => Boolean(props.preview.warnings?.length));
+const noneEligible = computed(() => props.preview.eligibility.eligible_count === 0);
+const hasWarnings = computed(() => Boolean(props.preview.warnings?.length) || noneEligible.value);
 
 const targetStoreName = computed(() => {
     return objectStoreStore.getObjectStoreNameById(props.targetStoreId) ?? "Unknown storage location";
@@ -160,6 +161,10 @@ function formatQuotaDelta(delta: number) {
             <div class="font-weight-bold small mb-1">Warnings</div>
             <div v-for="(warning, index) in preview.warnings" :key="index" class="small py-1">
                 {{ warning }}
+            </div>
+            <div v-if="noneEligible" class="small py-1">
+                All selected datasets are ineligible for transfer. Please review the reasons above and adjust your
+                selection or target storage location.
             </div>
         </BAlert>
     </div>

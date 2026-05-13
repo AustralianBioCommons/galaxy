@@ -53,6 +53,10 @@ const executionError = ref<string | null>(null);
 const notifyOnCompletion = ref(true);
 const dropdownOpen = ref(false);
 
+const isAnyItemEligible = computed(() => {
+    return (storagePreview.value?.eligibility.eligible_count ?? 0) > 0;
+});
+
 const notificationSystemEnabled = computed(
     () => isConfigLoaded.value && config.value?.enable_notification_system === true,
 );
@@ -68,7 +72,7 @@ const wizard = useWizard({
     preview: {
         label: "Preview",
         instructions: "Review what will be moved and the estimated impact before starting.",
-        isValid: () => Boolean(storagePreview.value?.snapshot_id) && !storageExecuting.value,
+        isValid: () => Boolean(storagePreview.value?.snapshot_id) && isAnyItemEligible.value && !storageExecuting.value,
         isSkippable: () => false,
     },
 });
