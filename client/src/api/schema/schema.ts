@@ -25671,6 +25671,11 @@ export interface components {
              */
             hdca_ids?: string[];
             /**
+             * Implicit Collection Jobs IDs
+             * @description Decoded IDs of ImplicitCollectionJobs (map-over job groups) to include as mapped workflow steps. Use this for steps that ran with a map/over instead of passing a constituent job id in job_ids.
+             */
+            implicit_collection_jobs_ids?: string[];
+            /**
              * Job IDs
              * @description Decoded IDs of compatible tool jobs to include as workflow steps.
              */
@@ -25694,11 +25699,6 @@ export interface components {
              */
             id: string | null;
             /**
-             * Invalid
-             * @description Reason this job is invalid for extraction.
-             */
-            invalid?: components["schemas"]["InvalidWorkflowExtractionJobReason"] | null;
-            /**
              * Implicit Collection Jobs ID
              * @description Encoded ID of the ImplicitCollectionJobs this job belongs to, or null if the job is not part of a mapped/implicit collection. Callers should submit mapped jobs via implicit_collection_jobs_ids rather than job_ids in the extract-by-ids payload.
              */
@@ -25708,6 +25708,11 @@ export interface components {
              * @description Number of constituent jobs in the ICJ (only set when implicit_collection_jobs_id is non-null).
              */
             implicit_collection_jobs_size?: number | null;
+            /**
+             * Invalid
+             * @description Reason this job is invalid for extraction.
+             */
+            invalid?: components["schemas"]["InvalidWorkflowExtractionJobReason"] | null;
             /**
              * Outputs
              * @description The history items produced by this job.
