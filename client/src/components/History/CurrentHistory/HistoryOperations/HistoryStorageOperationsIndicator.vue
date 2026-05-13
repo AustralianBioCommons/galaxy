@@ -3,8 +3,9 @@ import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BLink, BPopover } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 
+import { useStorageHistoryRunsWatcher } from "@/composables/useStorageRunWatcher";
 import { useUserFlagsStore } from "@/stores/userFlagsStore";
 import localize from "@/utils/localization";
 
@@ -27,6 +28,7 @@ const isStorageHelperVisible = ref(false);
 const hasActiveStorageRuns = computed(() => props.activeStorageRunCount > 0);
 const storageOperationsRoute = computed(() => `/histories/${props.historyId}/storage/runs`);
 const storageOperationsButtonId = computed(() => `history-storage-operations-${props.historyId}`);
+const { startPolling, stopPolling } = useStorageHistoryRunsWatcher(props.historyId);
 
 watch(
     [hasActiveStorageRuns, () => props.showSelection],
@@ -35,6 +37,22 @@ watch(
     },
     { immediate: true },
 );
+
+watch(
+    hasActiveStorageRuns,
+    (hasRuns) => {
+        if (hasRuns) {
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    },
+    { immediate: true },
+);
+
+onUnmounted(() => {
+    stopPolling();
+});
 
 function onDoNotShowAgain() {
     userFlagsStore.ignoreStorageOperationsHelperPopover();
