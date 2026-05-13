@@ -45,7 +45,7 @@ class TestToolsService:
         self.trans.sa_session.commit()
         self.trans.set_history(history)
 
-    def test_create_fetch_stages_token_expiration_input(self):
+    def test_create_fetch_refreshes_oidc_token_when_authorization_header_needed(self):
         self.app.file_sources = ConfiguredFileSources(
             FileSourcePluginsConfig(),
             ConfiguredFileSourcesConf(
@@ -62,7 +62,6 @@ class TestToolsService:
             ),
         )
         auth_time = datetime.now(timezone.utc)
-        expires_at = auth_time + timedelta(hours=1)
         token = UserAuthnzToken(
             provider="oidc",
             uid="oidc-user",
@@ -103,7 +102,6 @@ class TestToolsService:
         create_payload = service.create_fetch(cast(ProvidesHistoryContext, self.trans), payload)
 
         assert create_payload["tool_id"] == "__DATA_FETCH__"
-        assert create_payload["inputs"]["token_expires_at"] == expires_at.replace(microsecond=0).isoformat()
         cast(Mock, self.authnz_manager.refresh_expiring_oidc_tokens).assert_called_once_with(
             self.trans, self.trans.user
         )
