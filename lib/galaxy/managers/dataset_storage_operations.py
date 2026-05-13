@@ -71,7 +71,7 @@ log = get_logger(__name__)
 
 DATASET_MINIMUM_DAYS_TO_EXPIRATION = 10
 RUN_RETENTION_AFTER_COMPLETION_DAYS = 30
-SNAPSHOT_EXPIRES_AFTER_DAYS = 1
+UNUSED_SNAPSHOT_EXPIRES_AFTER_DAYS = 1
 TRANSFER_RETRY_ATTEMPTS = 3
 PROGRESS_COMMIT_INTERVAL_SMALL_RUN = 1
 PROGRESS_COMMIT_INTERVAL_MEDIUM_RUN = 5
@@ -408,7 +408,7 @@ class DatasetStorageOperationManager:
         user: User,
         contents: list[StorageOperationContent],
         target_object_store_id: str,
-        snapshot_ttl: timedelta = timedelta(days=SNAPSHOT_EXPIRES_AFTER_DAYS),
+        snapshot_ttl: timedelta = timedelta(days=UNUSED_SNAPSHOT_EXPIRES_AFTER_DAYS),
         query_based_selection: bool,
     ) -> StorageOperationPreviewResponse:
         preview_builder = self._require_preview_builder()
