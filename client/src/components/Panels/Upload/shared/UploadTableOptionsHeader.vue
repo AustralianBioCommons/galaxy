@@ -18,6 +18,12 @@ interface Props {
     allDeferred?: boolean;
     /** Some but not all items have deferred enabled */
     deferredIndeterminate?: boolean;
+    /** Whether to show the auto-decompress checkbox (advanced mode) */
+    showAutoDecompress?: boolean;
+    /** All items have auto-decompress enabled */
+    allAutoDecompress?: boolean;
+    /** Some but not all items have auto-decompress enabled */
+    autoDecompressIndeterminate?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
@@ -25,12 +31,16 @@ withDefaults(defineProps<Props>(), {
     showDeferred: false,
     allDeferred: false,
     deferredIndeterminate: false,
+    showAutoDecompress: false,
+    allAutoDecompress: true,
+    autoDecompressIndeterminate: false,
 });
 
 const emit = defineEmits<{
     (e: "toggle-space-to-tab"): void;
     (e: "toggle-to-posix-lines"): void;
     (e: "toggle-deferred"): void;
+    (e: "toggle-auto-decompress"): void;
 }>();
 
 function handleToggleSpaceToTab() {
@@ -43,6 +53,10 @@ function handleToggleToPosixLines() {
 
 function handleToggleDeferred() {
     emit("toggle-deferred");
+}
+
+function handleToggleAutoDecompress() {
+    emit("toggle-auto-decompress");
 }
 </script>
 
@@ -66,7 +80,7 @@ function handleToggleDeferred() {
                 :checked="allToPosixLines"
                 :indeterminate="toPosixLinesIndeterminate"
                 size="sm"
-                :class="{ 'mr-2': showDeferred }"
+                :class="{ 'mr-2': showDeferred || showAutoDecompress }"
                 title="Toggle all: Convert line endings to POSIX standard"
                 @change="handleToggleToPosixLines">
                 <span class="small">POSIX</span>
@@ -80,6 +94,16 @@ function handleToggleDeferred() {
                 title="Toggle all: Galaxy will store a reference and fetch data only when needed by a tool"
                 @change="handleToggleDeferred">
                 <span class="small">Deferred</span>
+            </BFormCheckbox>
+            <BFormCheckbox
+                v-if="showAutoDecompress"
+                v-g-tooltip.hover
+                :checked="allAutoDecompress"
+                :indeterminate="autoDecompressIndeterminate"
+                size="sm"
+                title="Toggle all: Disable automatic decompression of compressed inputs"
+                @change="handleToggleAutoDecompress">
+                <span class="small">Auto-decompress</span>
             </BFormCheckbox>
         </div>
     </div>

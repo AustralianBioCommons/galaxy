@@ -230,6 +230,7 @@ export const uploadItemDefaults = {
     space_to_tab: false,
     to_posix_lines: true,
     deferred: false,
+    auto_decompress: true,
 } as const;
 
 // ============================================================================
@@ -351,7 +352,7 @@ export function createFileUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -388,7 +389,7 @@ export function createPastedUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -430,7 +431,7 @@ export function createUrlUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -455,7 +456,7 @@ export function toApiUploadItem(item: NewUploadItem): ApiUploadItem {
         to_posix_lines: item.toPosixLines,
         deferred: item.deferred,
         hashes: item.hashes,
-        auto_decompress: true,
+        auto_decompress: item.autoDecompress ?? true,
     };
 
     switch (item.uploadMode) {
@@ -543,7 +544,7 @@ function buildDataElement(item: ApiUploadItem): ApiDataElement {
         name: normalizeFileName(item.name),
         space_to_tab: item.space_to_tab,
         to_posix_lines: item.to_posix_lines,
-        auto_decompress: true,
+        auto_decompress: item.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
         deferred: item.deferred,
     };
 

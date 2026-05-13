@@ -844,9 +844,13 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
                             :show-deferred="true"
                             :all-deferred="bulk.allDeferred.value"
                             :deferred-indeterminate="bulk.deferredIndeterminate.value"
+                            :show-auto-decompress="advancedMode"
+                            :all-auto-decompress="bulk.allAutoDecompress.value"
+                            :auto-decompress-indeterminate="bulk.autoDecompressIndeterminate.value"
                             @toggle-space-to-tab="bulk.toggleAllSpaceToTab"
                             @toggle-to-posix-lines="bulk.toggleAllToPosixLines"
-                            @toggle-deferred="bulk.toggleAllDeferred" />
+                            @toggle-deferred="bulk.toggleAllDeferred"
+                            @toggle-auto-decompress="bulk.toggleAllAutoDecompress" />
                     </template>
 
                     <template v-slot:cell(options)="{ item }">
@@ -856,9 +860,12 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
                             :to-posix-lines="item.toPosixLines"
                             :show-deferred="true"
                             :deferred="item.deferred"
+                            :show-auto-decompress="advancedMode"
+                            :auto-decompress="item.autoDecompress"
                             @updateSpaceToTab="item.spaceToTab = $event"
                             @updateToPosixLines="item.toPosixLines = $event"
-                            @updateDeferred="item.deferred = $event" />
+                            @updateDeferred="item.deferred = $event"
+                            @updateAutoDecompress="item.autoDecompress = $event" />
                     </template>
 
                     <!-- Actions column -->

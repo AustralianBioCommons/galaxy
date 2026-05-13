@@ -13,6 +13,7 @@ export interface BulkUploadItem {
     dbkey: string;
     spaceToTab: boolean;
     toPosixLines: boolean;
+    autoDecompress: boolean;
     deferred?: boolean;
 }
 
@@ -27,11 +28,13 @@ export interface BulkUploadOperations {
     // "All" computed states
     allSpaceToTab: ComputedRef<boolean>;
     allToPosixLines: ComputedRef<boolean>;
+    allAutoDecompress: ComputedRef<boolean>;
     allDeferred: ComputedRef<boolean>;
 
     // Indeterminate states for checkboxes
     spaceToTabIndeterminate: ComputedRef<boolean>;
     toPosixLinesIndeterminate: ComputedRef<boolean>;
+    autoDecompressIndeterminate: ComputedRef<boolean>;
     deferredIndeterminate: ComputedRef<boolean>;
 
     // Extension warning functions
@@ -45,6 +48,7 @@ export interface BulkUploadOperations {
     // Toggle functions for checkboxes
     toggleAllSpaceToTab: () => void;
     toggleAllToPosixLines: () => void;
+    toggleAllAutoDecompress: () => void;
     toggleAllDeferred: () => void;
 }
 
@@ -92,6 +96,13 @@ export function useBulkUploadOperations<T extends BulkUploadItem>(
     });
 
     /**
+     * Computed property that returns true if all items have autoDecompress enabled.
+     */
+    const allAutoDecompress = computed(() => {
+        return items.value.length > 0 && items.value.every((item) => item.autoDecompress === true);
+    });
+
+    /**
      * Computed property that returns true if all items have deferred enabled.
      * Only relevant when supportDeferred option is true.
      */
@@ -118,6 +129,17 @@ export function useBulkUploadOperations<T extends BulkUploadItem>(
             items.value.length > 0 &&
             items.value.some((item) => item.toPosixLines === true) &&
             !items.value.every((item) => item.toPosixLines === true)
+        );
+    });
+
+    /**
+     * Computed property for checkbox indeterminate state (some but not all checked).
+     */
+    const autoDecompressIndeterminate = computed(() => {
+        return (
+            items.value.length > 0 &&
+            items.value.some((item) => item.autoDecompress === true) &&
+            !items.value.every((item) => item.autoDecompress === true)
         );
     });
 
@@ -187,6 +209,17 @@ export function useBulkUploadOperations<T extends BulkUploadItem>(
     }
 
     /**
+     * Toggles the autoDecompress setting for all items.
+     * If all are currently enabled, disables all; otherwise enables all.
+     */
+    function toggleAllAutoDecompress() {
+        const newValue = !allAutoDecompress.value;
+        items.value.forEach((item) => {
+            item.autoDecompress = newValue;
+        });
+    }
+
+    /**
      * Toggles the deferred setting for all items.
      * If all are currently enabled, disables all; otherwise enables all.
      * Only relevant when supportDeferred option is true.
@@ -227,9 +260,11 @@ export function useBulkUploadOperations<T extends BulkUploadItem>(
         bulkDbKey,
         allSpaceToTab,
         allToPosixLines,
+        allAutoDecompress,
         allDeferred,
         spaceToTabIndeterminate,
         toPosixLinesIndeterminate,
+        autoDecompressIndeterminate,
         deferredIndeterminate,
         getExtensionWarning,
         bulkExtensionWarning,
@@ -237,6 +272,7 @@ export function useBulkUploadOperations<T extends BulkUploadItem>(
         setAllDbKeys,
         toggleAllSpaceToTab,
         toggleAllToPosixLines,
+        toggleAllAutoDecompress,
         toggleAllDeferred,
     };
 }

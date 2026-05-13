@@ -12,18 +12,25 @@ interface Props {
     deferred?: boolean;
     /** Whether to show the deferred checkbox */
     showDeferred?: boolean;
+    /** Whether to auto-decompress compressed inputs */
+    autoDecompress?: boolean;
+    /** Whether to show the auto-decompress checkbox */
+    showAutoDecompress?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
     showPosix: true,
     deferred: false,
     showDeferred: false,
+    autoDecompress: true,
+    showAutoDecompress: false,
 });
 
 const emit = defineEmits<{
     (e: "updateSpaceToTab", value: boolean): void;
     (e: "updateToPosixLines", value: boolean): void;
     (e: "updateDeferred", value: boolean): void;
+    (e: "updateAutoDecompress", value: boolean): void;
 }>();
 
 function updateSpaceToTab(value: boolean) {
@@ -37,6 +44,10 @@ function updateToPosixLines(value: boolean) {
 function updateDeferred(value: boolean) {
     emit("updateDeferred", value);
 }
+
+function updateAutoDecompress(value: boolean) {
+    emit("updateAutoDecompress", value);
+}
 </script>
 
 <template>
@@ -45,7 +56,7 @@ function updateDeferred(value: boolean) {
             v-g-tooltip.hover
             :checked="spaceToTab"
             size="sm"
-            :class="{ 'mr-2': showPosix || showDeferred }"
+            :class="{ 'mr-2': showPosix || showDeferred || showAutoDecompress }"
             title="Convert spaces to tab characters"
             @change="updateSpaceToTab">
             <span class="small">Spaces→Tabs</span>
@@ -55,7 +66,7 @@ function updateDeferred(value: boolean) {
             v-g-tooltip.hover
             :checked="toPosixLines"
             size="sm"
-            :class="{ 'mr-2': showDeferred }"
+            :class="{ 'mr-2': showDeferred || showAutoDecompress }"
             title="Convert line endings to POSIX standard"
             @change="updateToPosixLines">
             <span class="small">POSIX</span>
@@ -68,6 +79,16 @@ function updateDeferred(value: boolean) {
                 title="Galaxy will store a reference and fetch data only when needed by a tool"
                 @change="updateDeferred">
                 <span class="small">Deferred</span>
+            </BFormCheckbox>
+        </div>
+        <div v-if="showAutoDecompress" data-test-id="auto-decompress-toggle">
+            <BFormCheckbox
+                v-g-tooltip.hover
+                :checked="autoDecompress"
+                size="sm"
+                title="Automatic decompression of compressed inputs after upload"
+                @change="updateAutoDecompress">
+                <span class="small">Auto-decompress</span>
             </BFormCheckbox>
         </div>
     </div>

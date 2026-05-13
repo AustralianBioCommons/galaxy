@@ -24,6 +24,7 @@ export function useUploadDefaults(formats?: string[]) {
             dbkey: defaultDbKey.value,
             spaceToTab: false,
             toPosixLines: false,
+            autoDecompress: true,
         };
     }
 
