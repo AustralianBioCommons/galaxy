@@ -32,6 +32,14 @@ Current datasets:
   galaxyproject/galaxy#21661 (comment 4367167981) where the router answered
   "what tools are installed?" with a generic essay instead of calling
   `search_tools`.
+- **live26_demo**: canonical prompts from the GCC2026 Live26 demo script
+  (histological staining quantification flow ending with Omero export).
+  Scored by `LLMJudge` against per-case rubrics for response substance.
+  The routing decision for the same prompts is scored separately by the
+  `live26_*` cases in the `routing` dataset, so a full demo flight check
+  runs both. Cases needing a live Galaxy session (history sanity check,
+  save-to-page) are off by default; pass `--include-galaxy-required` to
+  include them.
 
 ## Layout
 

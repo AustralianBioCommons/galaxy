@@ -20,6 +20,7 @@ from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
     bioinformatics_workflows_dataset,
     error_analysis_dataset,
+    live26_demo_dataset,
     orchestrator_planning_dataset,
     router_tool_use_dataset,
     routing_dataset,
@@ -130,6 +131,25 @@ def build_bioinformatics_workflows(
     )
 
 
+def build_live26_demo(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    dataset = live26_demo_dataset(
+        judge_model=judge_model,
+        only=only,
+        include_galaxy_required=include_galaxy_required,
+    )
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_content_task(deps, usage_buffer=usage_buffer),
+        primary_score="LLMJudge",
+    )
+
+
 def build_orchestrator_planning(
     deps: GalaxyAgentDependencies,
     judge_model: Optional[Model] = None,
@@ -153,4 +173,5 @@ SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "router_tool_use": build_router_tool_use,
     "bioinformatics_workflows": build_bioinformatics_workflows,
     "orchestrator_planning": build_orchestrator_planning,
+    "live26_demo": build_live26_demo,
 }
