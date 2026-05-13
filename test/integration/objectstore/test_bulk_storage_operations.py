@@ -37,8 +37,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from galaxy.celery.tasks import (
-    prune_expired_storage_operations,
-    recover_stale_storage_operation_runs,
+    prune_expired_bulk_storage_operations,
+    recover_stale_bulk_storage_operation_runs,
 )
 from galaxy.managers.dataset_storage_operations import (
     DatasetStorageOperationManager,
@@ -389,9 +389,9 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         self._sa_session.add(run)
         self._sa_session.commit()
 
-    def _prune_expired_storage_operations(self) -> None:
+    def _prune_expired_bulk_storage_operations(self) -> None:
         """Run the prune task against the real database."""
-        prune_expired_storage_operations(self._sa_session, self._app.object_store)
+        prune_expired_bulk_storage_operations(self._sa_session, self._app.object_store)
 
     def _snapshot_has_been_pruned(self, snapshot_id: str) -> bool:
         """Check whether a snapshot has been pruned by attempting to retrieve it from the database."""
@@ -1140,7 +1140,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             inspect_response = SimpleNamespace(active=lambda: {})
             with patch("galaxy.celery.tasks.celery_app.control.inspect", return_value=inspect_response):
                 with patch("galaxy.celery.tasks.bulk_move_storage.delay", return_value=recovered_task_result) as delay:
-                    recover_stale_storage_operation_runs(sa_session, stale_threshold_minutes=0)
+                    recover_stale_bulk_storage_operation_runs(sa_session, stale_threshold_minutes=0)
 
             sa_session.expire_all()
             recovered_run = cast(
@@ -1261,7 +1261,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             inspect_response = SimpleNamespace(active=lambda: {})
             with patch("galaxy.celery.tasks.celery_app.control.inspect", return_value=inspect_response):
                 with patch("galaxy.celery.tasks.bulk_move_storage.delay", return_value=recovered_task_result):
-                    recover_stale_storage_operation_runs(sa_session, stale_threshold_minutes=0)
+                    recover_stale_bulk_storage_operation_runs(sa_session, stale_threshold_minutes=0)
 
             sa_session.expire_all()
             recovered_run = cast(DatasetStorageOperationRun, sa_session.get(DatasetStorageOperationRun, run.id))
@@ -1303,7 +1303,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             self._expire_snapshot(preview["snapshot_id"])
 
-            self._prune_expired_storage_operations()
+            self._prune_expired_bulk_storage_operations()
             assert self._snapshot_has_been_pruned(preview["snapshot_id"])
 
     def test_prune_expired_snapshot_with_completed_run_keeps_run_related_data(self):
@@ -1319,7 +1319,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert original_item_count > 0
 
             self._expire_snapshot(preview["snapshot_id"])
-            self._prune_expired_storage_operations()
+            self._prune_expired_bulk_storage_operations()
 
             # Expired snapshot will not be pruned since it has an associated run
             assert not self._snapshot_has_been_pruned(preview["snapshot_id"])
@@ -1341,6 +1341,6 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             self._expire_snapshot(preview["snapshot_id"])
             self._age_run_past_retention(run_id)
 
-            self._prune_expired_storage_operations()
+            self._prune_expired_bulk_storage_operations()
             assert self._snapshot_has_been_pruned(preview["snapshot_id"])
             assert self._run_has_been_pruned(history_id, run_id)
