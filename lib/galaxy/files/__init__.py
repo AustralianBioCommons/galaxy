@@ -2,6 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from collections.abc import Callable
+from datetime import datetime
 from typing import (
     Any,
     NamedTuple,
@@ -14,6 +15,7 @@ from galaxy.files.sources import (
     BaseFilesSource,
     PluginKind,
 )
+from galaxy.tools.data_fetch_utils import compute_token_expiry_for_provider
 from galaxy.util.dictifiable import Dictifiable
 from galaxy.util.plugin_config import (
     plugin_source_from_dict,
@@ -364,6 +366,8 @@ class FileSourcesUserContext(DictifiableFilesSourceContext, Protocol):
     @property
     def oidc_access_tokens(self) -> Optional[dict[str, str]]: ...
 
+    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]: ...
+
 
 OptionalUserContext = Optional[FileSourcesUserContext]
 
@@ -449,6 +453,10 @@ class ProvidesFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiab
                 tokens[authnz_token.provider] = access_token
         return tokens
 
+    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]:
+
+        return compute_token_expiry_for_provider(self.trans.user, provider)
+
 
 class DictFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiable):
     def __init__(self, **kwd):
@@ -501,3 +509,7 @@ class DictFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiable):
     @property
     def oidc_access_tokens(self) -> Optional[dict[str, str]]:
         return self._kwd.get("oidc_access_tokens")
+
+    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]:
+        expiries = self._kwd.get("oidc_access_token_expiries") or {}
+        return expiries.get(provider)
