@@ -365,7 +365,8 @@ class FileSourcesUserContext(DictifiableFilesSourceContext, Protocol):
     @property
     def oidc_access_tokens(self) -> Optional[dict[str, str]]: ...
 
-    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]: ...
+    @property
+    def oidc_access_token_expirations(self) -> dict[str, datetime]: ...
 
 
 OptionalUserContext = Optional[FileSourcesUserContext]
@@ -452,10 +453,18 @@ class ProvidesFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiab
                 tokens[authnz_token.provider] = access_token
         return tokens
 
-    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]:
+    @property
+    def oidc_access_token_expirations(self) -> dict[str, datetime]:
         from galaxy.tools.data_fetch_utils import compute_token_expiry_for_provider
 
-        return compute_token_expiry_for_provider(self.trans.user, provider)
+        user = self.trans.user
+        if not user or not user.social_auth:
+            return {}
+        return {
+            auth.provider: expiry
+            for auth in user.social_auth
+            if (expiry := compute_token_expiry_for_provider(user, auth.provider)) is not None
+        }
 
 
 class DictFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiable):
@@ -510,6 +519,6 @@ class DictFileSourcesUserContext(FileSourcesUserContext, FileSourceDictifiable):
     def oidc_access_tokens(self) -> Optional[dict[str, str]]:
         return self._kwd.get("oidc_access_tokens")
 
-    def oidc_access_token_expiry_for(self, provider: str) -> Optional[datetime]:
-        expiries = self._kwd.get("oidc_access_token_expiries") or {}
-        return expiries.get(provider)
+    @property
+    def oidc_access_token_expirations(self) -> dict[str, datetime]:
+        return self._kwd.get("oidc_access_token_expirations") or {}

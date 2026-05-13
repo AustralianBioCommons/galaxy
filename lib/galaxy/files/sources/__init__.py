@@ -365,12 +365,24 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
         self.requires_groups = config.requires_groups
         self.disable_templating = config.disable_templating
         self._validate_security_rules()
-        self._check_token_expiry(config)
+        self._auth_expires_at: Optional[datetime] = (
+            datetime.fromisoformat(config.auth_expires_at) if config.auth_expires_at else None
+        )
 
-    def _check_token_expiry(self, config: FilesSourceProperties) -> None:
-        if config.token_expires_at:
-            if datetime.now(timezone.utc) > datetime.fromisoformat(config.token_expires_at):
-                raise Exception("Fetch job expired before start because staged OIDC credentials expired.")
+    def _check_credentials_fresh(self) -> None:
+        if self._auth_expires_at and datetime.now(timezone.utc) > self._auth_expires_at:
+            from galaxy.exceptions import FileSourceCredentialExpired
+
+            raise FileSourceCredentialExpired()
+
+    def _compute_auth_expires_at(self, user_context: "OptionalUserContext") -> Optional[datetime]:
+        if user_context is None:
+            return None
+        provider = self.template_config.oidc_auth_provider
+        if not provider:
+            return None
+        expirations = getattr(user_context, "oidc_access_token_expirations", {})
+        return expirations.get(provider)
 
     def _inject_oidc_bearer_token(
         self,
@@ -419,13 +431,12 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
             serialized_config = self._serialize_config(context.config)
             rval.update(serialized_config)
             if self.template_config.oidc_auth_provider is not None and user_context is not None:
-                provider = self.template_config.oidc_auth_provider
                 updated_headers = self._inject_oidc_bearer_token(dict(rval.get("http_headers") or {}), user_context)
                 if updated_headers is not None:
                     rval["http_headers"] = updated_headers
-                expires_at = user_context.oidc_access_token_expiry_for(provider)
-                if expires_at is not None:
-                    rval["token_expires_at"] = expires_at.isoformat()
+            expires_at = self._compute_auth_expires_at(user_context)
+            if expires_at is not None:
+                rval["auth_expires_at"] = expires_at.isoformat()
         return rval
 
     def _serialize_config(self, config: TResolvedConfig) -> dict[str, Any]:
@@ -509,6 +520,7 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
         sort_by: Optional[str] = None,
     ) -> tuple[list[AnyRemoteEntry], int]:
         self._check_user_access(user_context)
+        self._check_credentials_fresh()
         if not self.supports_pagination and (limit is not None or offset is not None):
             raise RequestParameterInvalidException("Pagination is not supported by this file source.")
         if not self.supports_search and query:
@@ -566,6 +578,7 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
     ) -> str:
         self._ensure_writeable()
         self._check_user_access(user_context)
+        self._check_credentials_fresh()
         resolved_config = self._get_runtime_context(opts, user_context)
         return self._write_from(target_path, native_path, resolved_config) or target_path
 
@@ -586,6 +599,7 @@ class BaseFilesSource(FilesSource, Generic[TTemplateConfig, TResolvedConfig]):
         opts: Optional[FilesSourceOptions] = None,
     ):
         self._check_user_access(user_context)
+        self._check_credentials_fresh()
         resolved_config = self._get_runtime_context(opts, user_context)
         self._realize_to(source_path, native_path, resolved_config)
 

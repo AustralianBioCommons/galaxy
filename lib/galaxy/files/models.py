@@ -215,10 +215,10 @@ class FilesSourceProperties(StrictModel):
             description=("Specify an OIDC provider key to inject the access token as a Bearer Authorization header."),
         ),
     ] = None
-    token_expires_at: Annotated[
+    auth_expires_at: Annotated[
         Optional[str],
         Field(
-            title="Token expires at",
+            title="Auth expires at",
             description=(
                 "ISO-format UTC datetime at which the OIDC access token used by this source expires."
                 " Set at serialisation time for sources that resolve an Authorization header from"

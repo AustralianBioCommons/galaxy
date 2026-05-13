@@ -21,7 +21,6 @@ from galaxy import (
 from galaxy.config import GalaxyAppConfiguration
 from galaxy.exceptions import RequestParameterInvalidException
 from galaxy.exceptions.utils import api_error_to_dict
-from galaxy.files import ProvidesFileSourcesUserContext
 from galaxy.managers.collections_util import dictify_dataset_collection_instance
 from galaxy.managers.context import (
     ProvidesHistoryContext,
@@ -63,7 +62,6 @@ from galaxy.tool_util_models.parameters import (
 )
 from galaxy.tools import Tool
 from galaxy.tools._types import InputFormatT
-from galaxy.tools.data_fetch_utils import fetch_uses_authorization_header
 from galaxy.tools.search import ToolBoxSearch
 from galaxy.util.path import safe_contains
 from galaxy.webapps.galaxy.services._fetch_util import validate_and_normalize_targets
@@ -297,10 +295,6 @@ class ToolsService(ServiceBase):
             clean_payload[key] = value
         clean_payload["check_content"] = self.config.check_upload_content
         validate_and_normalize_targets(trans, clean_payload)
-        user_context = ProvidesFileSourcesUserContext(trans)
-        if fetch_uses_authorization_header(clean_payload, trans.app.file_sources, user_context) and trans.user:
-            if hasattr(trans.app, "authnz_manager") and trans.app.authnz_manager:
-                trans.app.authnz_manager.refresh_expiring_oidc_tokens(trans, trans.user)
         request = dumps(clean_payload)
         create_payload: ToolRunPayload = {
             "tool_id": "__DATA_FETCH__",
