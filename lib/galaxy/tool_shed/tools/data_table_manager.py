@@ -8,10 +8,7 @@ from typing import (
 
 from galaxy.tool_shed.galaxy_install.client import InstallationTarget
 from galaxy.tool_shed.util import hg_util
-from galaxy.tool_util.data import (
-    DataTableColumnMismatch,
-    DataTableFileConflict,
-)
+from galaxy.tool_util.data import DataTableColumnMismatch
 from galaxy.util import (
     Element,
     SubElement,
@@ -219,16 +216,14 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
             if elem.tag != "table":
                 kept_elems.append(elem)
                 continue
-            candidate_file_paths: list[str] = []
             for file_elem in elem.findall("file"):
                 path = file_elem.get("path", None)
                 if path:
                     new_path = os.path.normpath(os.path.join(shared_loc_dir, os.path.split(path)[1]))
                     file_elem.set("path", new_path)
-                    candidate_file_paths.append(new_path)
             table_name = elem.get("name") or ""
             incoming_columns = _parse_table_columns(elem)
-            self.app.tool_data_tables.assert_data_table_consistency(table_name, incoming_columns, candidate_file_paths)
+            self.app.tool_data_tables.assert_data_table_consistency(table_name, incoming_columns)
             existing = registered_tables.get(table_name) if table_name else None
             if existing is not None and getattr(existing, "columns", None) is not None:
                 # Already registered with matching columns; skip to avoid duplicate <table> entry.
@@ -251,7 +246,6 @@ ToolDataTableManager = ShedToolDataTableManager
 
 __all__ = (
     "DataTableColumnMismatch",
-    "DataTableFileConflict",
     "ToolDataTableManager",
     "ShedToolDataTableManager",
 )

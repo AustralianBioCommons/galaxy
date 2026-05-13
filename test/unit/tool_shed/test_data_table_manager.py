@@ -7,7 +7,6 @@ import pytest
 
 from galaxy.tool_shed.tools.data_table_manager import (
     DataTableColumnMismatch,
-    DataTableFileConflict,
     ShedToolDataTableManager,
 )
 from galaxy.tool_util.data import ToolDataTableManager
@@ -162,23 +161,6 @@ def test_column_match_with_column_elements_dedupes(tmp_path):
         ["tool_data_table_conf.xml.sample", os.path.join("tool-data", "all_fasta.loc.sample")],
     )
     assert kept_elems == []
-
-
-def test_file_path_conflict_raises(tmp_path):
-    stdtm, repo, samples, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
-    shared_loc = os.path.join(tool_data_path, "all_fasta.loc")
-    stdtm.app.tool_data_tables.data_tables = {
-        "other_table": _registered_table(
-            {"value": 0, "name": 1},
-            filenames={shared_loc: {"found": True}},
-        ),
-    }
-
-    with pytest.raises(DataTableFileConflict) as exc_info:
-        stdtm.install_tool_data_tables(repo, samples)
-    assert exc_info.value.candidate_name == "all_fasta"
-    assert exc_info.value.existing_name == "other_table"
-    assert not captured["to_xml_calls"]
 
 
 def test_parse_table_columns_aliases_name_to_value():

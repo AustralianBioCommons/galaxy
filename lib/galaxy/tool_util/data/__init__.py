@@ -23,7 +23,6 @@ from typing import (
     BinaryIO,
     Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     overload,
@@ -151,28 +150,6 @@ class DataTableColumnMismatch(Exception):
         super().__init__(
             f"Data table {table_name!r} is already registered with columns {existing_columns}, "
             f"refusing to register conflicting columns {incoming_columns}."
-        )
-
-
-class DataTableFileConflict(Exception):
-    """Two data tables with different names reference the same loc file."""
-
-    def __init__(
-        self,
-        path: str,
-        candidate_name: str,
-        candidate_columns: Dict[str, int],
-        existing_name: str,
-        existing_columns: Dict[str, int],
-    ):
-        self.path = path
-        self.candidate_name = candidate_name
-        self.candidate_columns = candidate_columns
-        self.existing_name = existing_name
-        self.existing_columns = existing_columns
-        super().__init__(
-            f"Data table {candidate_name!r} declares loc file {path!r}, but that file is already "
-            f"registered to data table {existing_name!r}."
         )
 
 
@@ -1022,31 +999,13 @@ class ToolDataTableManager(Dictifiable):
         self,
         candidate_name: str,
         candidate_columns: Dict[str, int],
-        candidate_file_paths: Iterable[str],
     ) -> None:
-        """
-        Raise if registering ``candidate_name`` would conflict with current state:
-        an existing table with the same name but different columns, or any
-        ``candidate_file_paths`` already owned by a different table name.
-        """
+        """Raise if ``candidate_name`` is already registered with different columns."""
         existing = self.data_tables.get(candidate_name)
         if existing is not None:
             existing_columns = getattr(existing, "columns", None)
             if existing_columns is not None and existing_columns != candidate_columns:
                 raise DataTableColumnMismatch(candidate_name, existing_columns, candidate_columns)
-        candidate_realpaths = {os.path.realpath(p) for p in candidate_file_paths if p}
-        if not candidate_realpaths:
-            return
-        for other_name, other_table in self.data_tables.items():
-            if other_name == candidate_name:
-                continue
-            other_filenames = getattr(other_table, "filenames", None) or {}
-            for other_path in other_filenames:
-                if os.path.realpath(other_path) in candidate_realpaths:
-                    other_columns = getattr(other_table, "columns", None) or {}
-                    raise DataTableFileConflict(
-                        other_path, candidate_name, candidate_columns, other_name, other_columns
-                    )
 
     def to_dict(
         self, view: str = "collection", value_mapper: Optional[Dict[str, Callable]] = None
@@ -1085,11 +1044,6 @@ class ToolDataTableManager(Dictifiable):
                 other_config_dict=self.other_config_dict,
             )
             table_elems.append(table_elem)
-            self.assert_data_table_consistency(
-                table.name,
-                getattr(table, "columns", {}) or {},
-                getattr(table, "filenames", {}) or {},
-            )
             if table.name not in self.data_tables:
                 self.data_tables[table.name] = table
                 log.debug("Loaded tool data table '%s' from file '%s'", table.name, config_filename)
