@@ -212,9 +212,7 @@ class FilesSourceProperties(StrictModel):
         Field(
             None,
             title="OIDC authorization provider",
-            description=(
-                "Specify an OIDC provider key to inject the access token as a Bearer Authorization header."
-            ),
+            description=("Specify an OIDC provider key to inject the access token as a Bearer Authorization header."),
         ),
     ] = None
     token_expires_at: Annotated[
