@@ -63,10 +63,7 @@ from galaxy.tool_util_models.parameters import (
 )
 from galaxy.tools import Tool
 from galaxy.tools._types import InputFormatT
-from galaxy.tools.data_fetch_utils import (
-    fetch_uses_authorization_header,
-    staged_fetch_token_expiration,
-)
+from galaxy.tools.data_fetch_utils import fetch_uses_authorization_header
 from galaxy.tools.search import ToolBoxSearch
 from galaxy.util.path import safe_contains
 from galaxy.webapps.galaxy.services._fetch_util import validate_and_normalize_targets
@@ -304,12 +301,6 @@ class ToolsService(ServiceBase):
         if fetch_uses_authorization_header(clean_payload, trans.app.file_sources, user_context) and trans.user:
             if hasattr(trans.app, "authnz_manager") and trans.app.authnz_manager:
                 trans.app.authnz_manager.refresh_expiring_oidc_tokens(trans, trans.user)
-        expires_at = staged_fetch_token_expiration(
-            trans.user,
-            clean_payload,
-            trans.app.file_sources,
-            user_context,
-        )
         request = dumps(clean_payload)
         create_payload: ToolRunPayload = {
             "tool_id": "__DATA_FETCH__",
@@ -320,8 +311,6 @@ class ToolsService(ServiceBase):
                 "file_count": str(len(files_payload)),
             },
         }
-        if expires_at is not None:
-            create_payload["inputs"]["token_expires_at"] = expires_at.isoformat()
         create_payload.update(files_payload)
         return self._create(trans, create_payload)
 
