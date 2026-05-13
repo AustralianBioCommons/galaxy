@@ -30,6 +30,7 @@ from galaxy.celery.tasks import (
     touch,
     write_history_content_to,
 )
+from galaxy.config import GalaxyAppConfiguration
 from galaxy.managers import (
     datasets,
     folders,
@@ -272,6 +273,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
     def __init__(
         self,
         security: IdEncodingHelper,
+        config: GalaxyAppConfiguration,
         object_store: BaseObjectStore,
         history_manager: histories.HistoryManager,
         history_contents_manager: HistoryContentsManager,
@@ -305,7 +307,11 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         self.short_term_storage_allocator = short_term_storage_allocator
         self.genomes_manager = genomes_manager
         self.object_store = object_store
-        self.storage_operation_manager = DatasetStorageOperationManager(object_store, hdca_manager=self.hdca_manager)
+        self.storage_operation_manager = DatasetStorageOperationManager(
+            object_store,
+            config,
+            hdca_manager=self.hdca_manager,
+        )
 
     def index(
         self,
