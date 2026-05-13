@@ -307,7 +307,14 @@ function getExplicitlySelectedItems(): HistoryContentItemBase[] {
             </div>
 
             <div v-else-if="wizard.isCurrent('preview')">
-                <div v-if="storagePreviewLoading" class="text-center text-muted py-3">Loading preview...</div>
+                <LoadingSpan
+                    v-if="storagePreviewLoading"
+                    class="text-center text-muted py-3"
+                    message="Loading preview information for the selected items. This may take a few moments. Please do not close this dialog while the preview is loading." />
+                <BAlert v-else-if="!storagePreview" show variant="info">
+                    No preview information is available. Please go back and ensure you have selected a target storage
+                    location.
+                </BAlert>
 
                 <StorageOperationPreviewReport
                     v-else-if="storagePreview"
