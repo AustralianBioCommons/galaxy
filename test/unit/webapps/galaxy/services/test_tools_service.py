@@ -74,5 +74,5 @@ class TestToolsService:
             }
         )
 
-        create_payload = service.create_fetch(cast(ProvidesHistoryContext, self.trans), payload)
+        service.create_fetch(cast(ProvidesHistoryContext, self.trans), payload)
         cast(Mock, self.authnz_manager.refresh_expiring_oidc_tokens).assert_not_called()
