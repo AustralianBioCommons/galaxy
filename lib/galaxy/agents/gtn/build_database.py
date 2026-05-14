@@ -459,15 +459,6 @@ class GTNDatabaseBuilder:
             """)
 
             cursor.execute("""
-                CREATE TABLE example_queries (
-                    id INTEGER PRIMARY KEY,
-                    query TEXT NOT NULL,
-                    description TEXT,
-                    category TEXT
-                )
-            """)
-
-            cursor.execute("""
                 CREATE TABLE faqs (
                     id INTEGER PRIMARY KEY,
                     category TEXT NOT NULL,
@@ -596,29 +587,6 @@ class GTNDatabaseBuilder:
                 cursor.execute(
                     "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
                     (key, value),
-                )
-
-            example_queries = [
-                ("RNA-seq", "Find RNA sequencing tutorials", "analysis"),
-                (
-                    "differential expression",
-                    "Tutorials on differential expression analysis",
-                    "analysis",
-                ),
-                (
-                    "quality control",
-                    "QC and data preprocessing tutorials",
-                    "preprocessing",
-                ),
-                ("workflow", "Workflow creation and management", "galaxy"),
-                ("beginner", "Tutorials for beginners", "skill-level"),
-                ("tool development", "Creating custom Galaxy tools", "development"),
-            ]
-
-            for query, description, category in example_queries:
-                cursor.execute(
-                    "INSERT INTO example_queries (query, description, category) VALUES (?, ?, ?)",
-                    (query, description, category),
                 )
 
             conn.commit()
