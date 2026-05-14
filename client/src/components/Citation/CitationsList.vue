@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { faCopy, faDownload } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BButton, BCard, BNav, BNavItem } from "bootstrap-vue";
+import { BButton, BCard, BNav, BNavItem } from "bootstrap-vue";
 import { computed, onMounted, onUpdated, ref, toRef } from "vue";
 
 import { getCitations } from "@/components/Citation/services";
@@ -12,6 +12,7 @@ import { copy } from "@/utils/clipboard";
 import type { Citation } from ".";
 import { Cite } from "./cite";
 
+import GAlert from "@/components/BaseComponents/GAlert.vue";
 import GCollapse from "@/components/BaseComponents/GCollapse.vue";
 import CitationItem from "@/components/Citation/CitationItem.vue";
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
@@ -187,11 +188,11 @@ function citationsToBibtexAsText() {
                     <div v-html="config?.citations_export_message_html"></div>
                 </div>
 
-                <BAlert v-if="warnings.length > 0" variant="warning" show>
+                <GAlert v-if="warnings.length > 0" variant="warning" show>
                     <ul class="mb-0">
                         <li v-for="(warning, idx) in warnings" :key="idx">{{ warning }}</li>
                     </ul>
-                </BAlert>
+                </GAlert>
 
                 <div class="citations-formatted">
                     <CitationItem
