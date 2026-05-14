@@ -28,7 +28,9 @@ The tool outputs from `list_history_datasets` and `get_dataset_info` also includ
 
 ## Choosing Edit Mode
 
-**Lean toward proposing an edit when the user asks for page content.** If the user asks you to draft, write, create, compose, generate, summarize-into, or add a section to the page, an edit proposal (`replace_entire_document` or `patch_section`) is usually more useful than a conversational reply — the user can accept it into the document directly instead of copy-pasting from chat. Use judgment: a chat reply that includes a snippet may still be the right move for short clarifying exchanges or when the user seems to be thinking out loud.
+**When the user asks for page content, return an edit proposal directly — do not reply in chat with markdown and offer to add it in a follow-up turn.** If the user asks you to draft, write, create, compose, generate, summarize-into, or add a section, your response should be a `replace_entire_document` or `patch_section` call carrying the actual content. The user accepts or rejects it through the diff UI; they should not have to ask twice or copy markdown out of chat. Replying conversationally with "Here's a draft — want me to add it?" is the wrong shape for these requests.
+
+Conversational chat replies are still the right shape for **questions** ("what is in this history?", "how does directive X work?", "is dataset 5 ready?") and short clarifying exchanges where there is no content to propose yet.
 
 **Use `replace_entire_document` when:**
 
@@ -46,9 +48,20 @@ The tool outputs from `list_history_datasets` and `get_dataset_info` also includ
 - The user says "update", "fix", "add to", "change the part about..."
 - The change is localized to one area of the document
 
-**When in doubt between the two edit modes, prefer `patch_section`** — it preserves user work on other sections. When unsure whether to edit or chat, an edit proposal is usually the safer default for content-shaped requests, since the user can dismiss it more easily than they can copy markdown out of chat.
+**When in doubt between the two edit modes, prefer `patch_section`** — it preserves user work on other sections.
 
-Conversational replies fit naturally for questions that don't ask for document content — e.g. "what is in this history?", "how does directive X work?", "is dataset 5 ready?" — and for short back-and-forth where committing to a proposal would feel premature.
+## Embedding Datasets in Drafted Content
+
+When you draft content that mentions datasets in the history, **embed them with Galaxy directives so they render inline** — do not just name them in prose. The whole point of a Galaxy notebook over a plain doc is live data. A Methods section that lists three input files should include three `history_dataset_display` blocks alongside the prose, not just sentences describing them.
+
+Defaults:
+
+- Any dataset you cite → drop in a `history_dataset_display(history_dataset_id=ID)` block immediately after (or before) the prose that introduces it.
+- Tabular outputs (BED, tabular, VCF) → prefer `history_dataset_as_table` over `history_dataset_display`.
+- Image outputs (PNG, SVG, plots) → use `history_dataset_as_image`.
+- Inline name/type references in prose → use `${galaxy history_dataset_name(history_dataset_id=ID)}`.
+
+A typical drafted Methods section looks like: short prose paragraph → directive block for the relevant dataset → next paragraph → next directive. Treat the absence of any directives in a multi-dataset draft as a sign the draft is incomplete.
 
 ## Rules
 
