@@ -45,6 +45,7 @@ from galaxy.agents import (
     CustomToolAgent,
     ErrorAnalysisAgent,
     GalaxyAgentDependencies,
+    GTNTrainingAgent,
     HistoryAgent,
     QueryRouterAgent,
 )
@@ -656,6 +657,23 @@ class TestAgentUnitMocked:
             ]
             assert "rerun with corrected inputs" in response.content
             assert "RNA-seq reads to counts" in response.content
+
+    def test_gtn_simple_text_parser_splits_tutorials_on_commas(self):
+        # The simple-text prompt instructs the model to emit a comma-separated
+        # TUTORIALS line, so the parser has to split on commas to recover
+        # individual tutorial names.
+        agent = GTNTrainingAgent.__new__(GTNTrainingAgent)
+        agent.gtn_db = None
+
+        response_text = (
+            "TUTORIALS: Galaxy 101, RNA-seq analysis with Salmon\n"
+            "TOPICS: Introduction, Transcriptomics\n"
+            "SUMMARY: Start with Galaxy 101, then move to RNA-seq.\n"
+            "CONFIDENCE: high\n"
+        )
+        parsed = agent._parse_simple_response(response_text)
+
+        assert parsed["tutorial_count"] == 2
 
     @pytest.mark.asyncio
     async def test_workflow_orchestrator_generic_fallback_behavior(self):
