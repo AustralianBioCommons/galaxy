@@ -40,6 +40,7 @@ class GTNSearchResponse(BaseModel):
     """Structured response from GTN training agent."""
 
     tutorials: list[dict[str, Any]] = Field(default_factory=list, description="List of matching tutorials")
+    faqs: list[dict[str, Any]] = Field(default_factory=list, description="List of matching FAQs")
     summary: str = Field(..., description="Natural language summary of findings")
     learning_path: Optional[str] = Field(None, description="Suggested learning progression")
     prerequisites: list[str] = Field(default_factory=list, description="Recommended prerequisites")
@@ -236,8 +237,8 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                     )
 
                 used_fallback = False
-                if not response_data.tutorials:
-                    log.info("No tutorials in response, falling back to direct search")
+                if not response_data.tutorials and not response_data.faqs:
+                    log.info("No tutorials or FAQs in response, falling back to direct search")
                     fallback_results = self.gtn_db.search(query, limit=5)
                     if fallback_results:
                         used_fallback = True
@@ -248,13 +249,18 @@ class GTNTrainingAgent(BaseGalaxyAgent):
 
                 return self._build_response(
                     content=self._format_gtn_response(response_data),
-                    confidence=ConfidenceLevel.HIGH if response_data.tutorials else ConfidenceLevel.MEDIUM,
+                    confidence=(
+                        ConfidenceLevel.HIGH
+                        if response_data.tutorials or response_data.faqs
+                        else ConfidenceLevel.MEDIUM
+                    ),
                     method="structured_with_fallback" if used_fallback else "structured",
                     result=result,
                     query=query,
                     suggestions=self._create_suggestions(response_data),
                     agent_data={
                         "tutorial_count": len(response_data.tutorials),
+                        "faq_count": len(response_data.faqs),
                         "has_learning_path": bool(response_data.learning_path),
                         "total_time": response_data.total_time,
                     },
@@ -303,6 +309,24 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                     parts.append(f"   - Time: {time_estimation}")
                 parts.append(f"   - Link: {url}")
 
+        if response_data.faqs:
+            parts.append("\n**Relevant FAQs:**")
+            for i, faq in enumerate(response_data.faqs, 1):
+                title = faq.get("title", "Untitled FAQ")
+                category = faq.get("category", "Unknown")
+                area = faq.get("area", "")
+                url = faq.get("url", "#")
+                snippet = faq.get("snippet", "")
+
+                parts.append(f"\n{i}. **{title}**")
+                if snippet:
+                    parts.append(f"   {snippet}")
+                if category and category != "Unknown":
+                    parts.append(f"   - Category: {category}")
+                if area:
+                    parts.append(f"   - Area: {area}")
+                parts.append(f"   - Link: {url}")
+
         if response_data.learning_path:
             parts.append(f"\n**Suggested Learning Path:**\n{response_data.learning_path}")
 
@@ -329,6 +353,19 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                     parameters={"url": url},
                     confidence=ConfidenceLevel.HIGH,
                     priority=1,
+                )
+            )
+
+        for faq in response_data.faqs[:3]:
+            title = faq.get("title", "Untitled FAQ")
+            url = faq.get("url", "#")
+            suggestions.append(
+                ActionSuggestion(
+                    action_type=ActionType.VIEW_EXTERNAL,
+                    description=f"Open FAQ: {title}",
+                    parameters={"url": url},
+                    confidence=ConfidenceLevel.HIGH,
+                    priority=1 if not response_data.tutorials else 2,
                 )
             )
 

@@ -17,8 +17,14 @@ from typing import (
 )
 
 GTN_DATABASE_URL = "https://depot.galaxyproject.org/chatgxy/gtn_search.db"
+GTN_FAQ_BASE_URL = "https://training.galaxyproject.org/training-material/faqs"
 
 log = logging.getLogger(__name__)
+
+
+def _slugify_heading(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug
 
 
 def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
@@ -120,10 +126,13 @@ class FAQResult:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         snippet = self.snippet.replace("<mark>", "").replace("</mark>", "")
+        anchor = _slugify_heading(self.title) or self.filename
         return {
             "title": self.title,
             "category": self.category,
+            "filename": self.filename,
             "area": self.area,
+            "url": f"{GTN_FAQ_BASE_URL}/{self.category}/#{anchor}",
             "snippet": snippet,
             "score": round(self.score, 2),
             "result_type": "faq",
