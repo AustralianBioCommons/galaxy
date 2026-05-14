@@ -62,27 +62,23 @@ class TestRepositoryInstallIntegrationTestCase(integration_util.IntegrationTestC
         self.install_repository(*repo)
         self.uninstall_repository(*repo)
 
-    def test_non_data_manager_install_registers_data_tables_without_repo_info(self):
-        """Non-Data-Manager repos register tables in shed_tool_data_table_conf.xml without the
-        <tool_shed_repository> sub-element, and their loc files land at tool_data_path root."""
+    def test_non_data_manager_install_lands_loc_files_at_tool_data_path(self):
+        """Non-Data-Manager repos install their .loc files to tool_data_path root, and any
+        <table> entries written to shed_tool_data_table_conf.xml have no <tool_shed_repository>
+        sub-element. Tables that already exist in Galaxy's shipped tool_data_table_conf.xml.sample
+        are deduped (not re-added to shed_tool_data_table_conf.xml)."""
         non_dm_repo = ("devteam", "bwa", "051eba708f43")
-        non_dm_table_names = {"bwa_indexes", "bwa_mem_indexes"}
+        non_dm_loc_files = {"bwa_index.loc"}
         self.install_repository(*non_dm_repo)
+        for loc_file in non_dm_loc_files:
+            shared_loc = os.path.join(self._app.config.tool_data_path, loc_file)
+            assert os.path.exists(shared_loc), f"Expected shared loc file at {shared_loc}"
         shed_conf = self._app.config.shed_tool_data_table_config
-        table_elems = {t.get("name"): t for t in ET.parse(shed_conf).getroot().findall("table")}
-        missing = non_dm_table_names - table_elems.keys()
-        assert not missing, f"Expected tables not registered in {shed_conf}: {sorted(missing)}"
-        for name in non_dm_table_names:
-            assert (
-                table_elems[name].find("tool_shed_repository") is None
-            ), f"Table {name!r} should not have a <tool_shed_repository> sub-element on new installs"
-            file_elems = table_elems[name].findall("file")
-            assert file_elems, f"Table {name!r} has no <file> entry"
-            for file_elem in file_elems:
-                loc_path = file_elem.get("path") or ""
-                assert loc_path.startswith(
-                    self._app.config.tool_data_path
-                ), f"Loc file for {name!r} not at tool_data_path root: {loc_path}"
+        if os.path.exists(shed_conf):
+            for table_elem in ET.parse(shed_conf).getroot().findall("table"):
+                assert (
+                    table_elem.find("tool_shed_repository") is None
+                ), f"Table {table_elem.get('name')!r} should not have a <tool_shed_repository> sub-element"
 
     def test_repository_update(self):
         response = self._install_repository(revision=REVISION_4, version="0.0.3", allow_upgraded=True)[0]

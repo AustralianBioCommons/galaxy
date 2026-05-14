@@ -205,6 +205,25 @@ def test_second_install_with_empty_loc_sample_does_not_append(tmp_path):
     existing.append_entries_with_attribution.assert_not_called()
 
 
+def test_second_install_registers_shared_loc_with_existing_table(tmp_path):
+    """When merging into an existing table whose ``filenames`` is empty (e.g. refgenie tables
+    or shipped tables whose loc resolution failed), the shared loc path must be registered so
+    Data Managers can persist entries."""
+    stdtm, repo, samples, _, tool_data_path, _, _ = _make_stdtm(tmp_path)
+    matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
+    existing = _registered_table(matching_columns)
+    existing.parse_file_fields.return_value = []
+    stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+
+    stdtm.install_tool_data_tables(repo, samples)
+
+    shared_loc = os.path.join(tool_data_path, "all_fasta.loc")
+    assert shared_loc in existing.filenames
+    info = existing.filenames[shared_loc]
+    assert info["tool_shed_repository"] is None
+    assert info["from_shed_config"] is True
+
+
 def test_parse_table_columns_aliases_name_to_value():
     from galaxy.tool_shed.tools.data_table_manager import _parse_table_columns
 

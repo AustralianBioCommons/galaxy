@@ -171,14 +171,41 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
         )
         for file_elem in elem.findall("file"):
             shared_path = file_elem.get("path")
-            basename = os.path.basename(shared_path) if shared_path else None
-            source_loc_sample = loc_basename_to_source.get(basename) if basename else None
+            if not shared_path:
+                continue
+            self._register_shared_loc_with_existing_table(existing_table, shared_path, elem)
+            basename = os.path.basename(shared_path)
+            source_loc_sample = loc_basename_to_source.get(basename)
             if not source_loc_sample or not os.path.exists(source_loc_sample):
                 continue
             # Keep `${__HERE__}` literal so the appended rows match the shared loc's existing format.
             new_rows = existing_table.parse_file_fields(source_loc_sample, here="${__HERE__}")
             if new_rows:
                 existing_table.append_entries_with_attribution(new_rows, attribution)
+
+    def _register_shared_loc_with_existing_table(
+        self,
+        existing_table: TabularToolDataTable,
+        shared_path: str,
+        elem: Element,
+    ) -> None:
+        """Make the shared loc file path known to the existing table's ``filenames``.
+
+        Without this, Data Manager persist calls can't locate a destination loc file
+        when the table was first registered from a shipped or refgenie config that has
+        no tabular ``<file>`` entry (e.g. ``__dbkeys__``).
+        """
+        if shared_path in existing_table.filenames:
+            return
+        existing_table.filenames[shared_path] = dict(
+            found=os.path.exists(shared_path),
+            filename=shared_path,
+            from_shed_config=True,
+            tool_data_path=self.app.config.tool_data_path,
+            config_element=elem,
+            tool_shed_repository=None,
+            errors=[],
+        )
 
     def install_tool_data_tables(self, tool_shed_repository: "ToolShedRepository", tool_index_sample_files):
         TOOL_DATA_TABLE_FILE_NAME = "tool_data_table_conf.xml"
