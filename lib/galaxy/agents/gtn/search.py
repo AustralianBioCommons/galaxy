@@ -155,16 +155,12 @@ class GTNSearchDB:
             self._download_database()
 
         try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM tutorials")
-                count = cursor.fetchone()[0]
-                version = self._read_meta(cursor, "version") or "unknown"
-                build_date = self._read_meta(cursor, "build_date") or "unknown"
-                log.info(
-                    f"GTN database loaded from {self.db_path} "
-                    f"(version={version}, built={build_date}, tutorials={count})"
-                )
+            metadata = self._validate_database_file(self.db_path)
+            log.info(
+                f"GTN database loaded from {self.db_path} "
+                f"(version={metadata['version']}, built={metadata['build_date']}, "
+                f"tutorials={metadata['tutorial_count']})"
+            )
         except sqlite3.Error as e:
             raise RuntimeError(f"Failed to initialize GTN database: {e}") from e
 
@@ -179,22 +175,53 @@ class GTNSearchDB:
 
     def _download_database(self):
         """Download the GTN database from the configured URL."""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self.db_path.with_suffix(".db.tmp")
-        try:
-            log.info(f"GTN database not found locally, downloading from {self.download_url} ...")
-            urllib.request.urlretrieve(self.download_url, tmp_path)
-            tmp_path.rename(self.db_path)
-            log.info(f"GTN database downloaded to {self.db_path}")
-        except OSError as e:
-            tmp_path.unlink(missing_ok=True)
-            raise FileNotFoundError(f"GTN database not found at {self.db_path} and download failed: {e}") from e
+        metadata = self._download_database_to_path(self.db_path, self.download_url)
+        log.info(
+            f"GTN database downloaded to {self.db_path} "
+            f"(version={metadata['version']}, tutorials={metadata['tutorial_count']}, faqs={metadata['faq_count']})"
+        )
 
     def refresh(self) -> None:
-        """Force-redownload the database from ``download_url``, replacing any local copy."""
-        if self.db_path.exists():
-            self.db_path.unlink()
+        """Force-redownload the database from ``download_url``, replacing it atomically."""
         self._download_database()
+
+    @classmethod
+    def refresh_database(cls, db_path: str | Path, download_url: Optional[str] = None) -> dict[str, Any]:
+        """Download, validate, and atomically replace a GTN database without opening the old copy."""
+        return cls._download_database_to_path(Path(db_path), download_url or GTN_DATABASE_URL)
+
+    @classmethod
+    def _download_database_to_path(cls, db_path: Path, download_url: str) -> dict[str, Any]:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = db_path.with_suffix(f"{db_path.suffix}.tmp")
+        tmp_path.unlink(missing_ok=True)
+        try:
+            log.info(f"Downloading GTN database from {download_url} ...")
+            urllib.request.urlretrieve(download_url, tmp_path)
+            metadata = cls._validate_database_file(tmp_path)
+            tmp_path.replace(db_path)
+            return metadata
+        except (OSError, sqlite3.Error) as e:
+            tmp_path.unlink(missing_ok=True)
+            raise FileNotFoundError(f"GTN database download failed for {db_path}: {e}") from e
+
+    @classmethod
+    def _validate_database_file(cls, db_path: Path) -> dict[str, Any]:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, isolation_level=None)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM tutorials")
+            tutorial_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM faqs")
+            faq_count = cursor.fetchone()[0]
+            return {
+                "tutorial_count": tutorial_count,
+                "faq_count": faq_count,
+                "version": cls._read_meta(cursor, "version") or "unknown",
+                "build_date": cls._read_meta(cursor, "build_date") or "unknown",
+            }
+        finally:
+            conn.close()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Open a read-only, autocommit connection to the GTN database."""
