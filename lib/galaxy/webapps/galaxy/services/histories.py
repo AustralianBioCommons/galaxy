@@ -845,9 +845,12 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
                     )
                 )
             else:
-                tool = trans.app.toolbox.get_tool(job.tool_id, tool_version=job.tool_version)
+                try:
+                    tool = trans.app.toolbox.tool_for_job(job, user=trans.user)
+                except glx_exceptions.InsufficientPermissionsException:
+                    tool = None
                 if tool is None:
-                    # Tool missing
+                    # Tool missing or inaccessible
                     continue
                 if not tool.is_workflow_compatible:
                     # Not a workflow step (e.g. upload, data fetch) — treat as input.

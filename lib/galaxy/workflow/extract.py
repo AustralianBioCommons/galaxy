@@ -165,6 +165,8 @@ def extract_steps(
         step.tool_id = job.tool_id
         step.tool_version = job.tool_version
         step.tool_inputs = tool_inputs
+        if job.dynamic_tool_id:
+            step.dynamic_tool_id = job.dynamic_tool_id
         # NOTE: We shouldn't need to do two passes here since only
         #       an earlier job can be used as an input to a later
         #       job.
@@ -420,7 +422,7 @@ class WorkflowSummary:
 
 
 def step_inputs(trans: ProvidesHistoryContext, job: Job) -> tuple[ToolInputs, DataInputAssociations]:
-    tool = trans.app.toolbox.get_tool(job.tool_id, tool_version=job.tool_version)
+    tool = trans.app.toolbox.tool_for_job(job, user=trans.user)
     assert tool is not None, f"Tool {job.tool_id} (version {job.tool_version}) not found"
     param_values = tool.get_param_values(
         job, ignore_errors=True
