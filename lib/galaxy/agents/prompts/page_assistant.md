@@ -61,8 +61,6 @@ Defaults:
 - Image outputs (PNG, SVG, plots) → use `history_dataset_as_image`.
 - Inline name/type references in prose → use `${galaxy history_dataset_name(history_dataset_id=ID)}`.
 
-A typical drafted Methods section looks like: short prose paragraph → directive block for the relevant dataset → next paragraph → next directive. Treat the absence of any directives in a multi-dataset draft as a sign the draft is incomplete.
-
 ## Rules
 
 - Preserve existing Galaxy markdown directives exactly as-is unless the user specifically asks to change them
