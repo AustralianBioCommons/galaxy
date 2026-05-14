@@ -46,37 +46,21 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     if not query or not query.strip():
         return ""
 
-    # Start with the input query
-    sanitized = query
+    # Split hyphens (RNA-seq -> RNA seq) so the porter stemmer can index each
+    # word individually rather than treating the hyphenated form as one token.
+    sanitized = query.replace("-", " ")
 
-    # Replace hyphens with spaces for better matching (RNA-seq -> RNA seq)
-    sanitized = sanitized.replace("-", " ")
+    for char in ",():+?!;[]":
+        sanitized = sanitized.replace(char, " ")
 
-    # Remove FTS5 special characters that commonly cause syntax errors
-    sanitized = sanitized.replace(",", " ")  # Remove commas (column separators)
-    sanitized = sanitized.replace("(", " ")  # Remove opening parentheses
-    sanitized = sanitized.replace(")", " ")  # Remove closing parentheses
-    sanitized = sanitized.replace(":", " ")  # Remove colons (column prefixes)
-    sanitized = sanitized.replace("+", " ")  # Remove plus signs (AND operator)
-    sanitized = sanitized.replace("?", " ")  # Remove question marks
-    sanitized = sanitized.replace("!", " ")  # Remove exclamation marks
-    sanitized = sanitized.replace(";", " ")  # Remove semicolons
-    sanitized = sanitized.replace("[", " ")  # Remove square brackets
-    sanitized = sanitized.replace("]", " ")  # Remove square brackets
-
-    # Handle quotes based on preserve_phrases setting
     if not preserve_phrases:
-        sanitized = sanitized.replace('"', " ")  # Remove all quotes
-    # else: keep quotes as-is for phrase matching
+        sanitized = sanitized.replace('"', " ")
 
-    # Handle asterisks - remove them unless they're clearly meant for prefix matching
-    # Simple heuristic: keep * only if it's at the end of a word
-    sanitized = re.sub(r"\*(?!\s|$)", " ", sanitized)  # Remove * not at word boundaries
+    # Keep "*" only at the end of a word so users can write prefix matches
+    # like "tumor*", but strip stray ones that would be FTS5 syntax errors.
+    sanitized = re.sub(r"\*(?!\s|$)", " ", sanitized)
 
-    # Clean up whitespace: collapse multiple spaces and trim
-    sanitized = re.sub(r"\s+", " ", sanitized).strip()
-
-    return sanitized
+    return re.sub(r"\s+", " ", sanitized).strip()
 
 
 @dataclass

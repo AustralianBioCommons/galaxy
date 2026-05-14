@@ -88,28 +88,13 @@ class GTNDatabaseBuilder:
     def build(self):
         """Build the complete database."""
         log.info(f"Building GTN database from {self.gtn_path}")
-
-        # Collect all tutorials
         self.collect_tutorials()
-
-        # Collect all FAQs
         self.collect_faqs()
-
-        # Create database
         self.create_database()
-
-        # Insert tutorials
         self.insert_tutorials()
-
-        # Insert FAQs
         self.insert_faqs()
-
-        # Add metadata
         self.add_metadata()
-
-        # Optimize database
         self.optimize_database()
-
         log.info(f"Database built successfully: {self.output_path}")
         log.info(f"Total tutorials indexed: {len(self.tutorials)}")
         log.info(f"Total FAQs indexed: {len(self.faqs)}")
@@ -121,7 +106,6 @@ class GTNDatabaseBuilder:
         if not topics_dir.exists():
             raise ValueError(f"Topics directory not found: {topics_dir}")
 
-        # Iterate through all topics
         for topic_dir in topics_dir.iterdir():
             if not topic_dir.is_dir() or topic_dir.name.startswith("."):
                 continue
@@ -132,7 +116,6 @@ class GTNDatabaseBuilder:
             if not tutorials_dir.exists():
                 continue
 
-            # Iterate through tutorials in this topic
             for tutorial_dir in tutorials_dir.iterdir():
                 if not tutorial_dir.is_dir():
                     continue
@@ -157,7 +140,6 @@ class GTNDatabaseBuilder:
             log.warning(f"FAQs directory not found: {faqs_dir}")
             return
 
-        # Process Galaxy FAQs
         galaxy_faqs_dir = faqs_dir / "galaxy"
         if galaxy_faqs_dir.exists():
             for faq_file in galaxy_faqs_dir.glob("*.md"):
@@ -170,7 +152,6 @@ class GTNDatabaseBuilder:
                     except (OSError, ValueError, KeyError) as e:
                         log.warning(f"Failed to parse FAQ galaxy/{faq_file.name}: {e}")
 
-        # Process GTN FAQs
         gtn_faqs_dir = faqs_dir / "gtn"
         if gtn_faqs_dir.exists():
             for faq_file in gtn_faqs_dir.glob("*.md"):
@@ -189,41 +170,35 @@ class GTNDatabaseBuilder:
             with open(faq_file, encoding="utf-8") as f:
                 content = f.read()
 
-            # Extract frontmatter
             frontmatter = {}
             if content.startswith("---"):
                 try:
                     end_index = content.index("---", 3)
                     yaml_content = content[3:end_index]
                     frontmatter = self.parse_yaml_simple(yaml_content)
-                    # Remove frontmatter from content
                     content = content[end_index + 3 :].strip()
                 except ValueError:
                     pass
 
-            # Get file stats
             stat = faq_file.stat()
             last_modified = datetime.fromtimestamp(stat.st_mtime).isoformat()
-
-            # Calculate content hash
             content_bytes = content.encode("utf-8")
             content_hash = md5(content_bytes).hexdigest()
 
-            # Extract contributors list if present
             contributors = []
             if "contributors" in frontmatter:
                 contrib_value = frontmatter["contributors"]
                 if isinstance(contrib_value, str):
-                    # Parse the string that looks like "[user1, user2]"
+                    # Some FAQ frontmatter encodes contributors as the literal
+                    # string "[user1, user2]" rather than a real YAML list.
                     contrib_str = contrib_value.strip("[]")
                     contributors = [c.strip() for c in contrib_str.split(",")]
                 elif isinstance(contrib_value, list):
                     contributors = contrib_value
 
-            # Create FAQ object
             faq = FAQ(
                 category=category,
-                filename=faq_file.stem,  # filename without .md extension
+                filename=faq_file.stem,
                 title=frontmatter.get("title", faq_file.stem.replace("-", " ").title()),
                 area=frontmatter.get("area", ""),
                 box_type=frontmatter.get("box_type", ""),
@@ -245,39 +220,31 @@ class GTNDatabaseBuilder:
             with open(tutorial_file, encoding="utf-8") as f:
                 content = f.read()
 
-            # Extract frontmatter (YAML between --- markers)
             frontmatter = {}
             if content.startswith("---"):
                 try:
                     end_index = content.index("---", 3)
                     yaml_content = content[3:end_index]
                     frontmatter = self.parse_yaml_simple(yaml_content)
-                    # Remove frontmatter from content
                     content = content[end_index + 3 :].strip()
                 except ValueError:
                     pass
 
-            # Extract key sections from content
             questions = self.extract_section(content, "questions")
             objectives = self.extract_section(content, "objectives")
             key_points = self.extract_section(content, "keypoints") or self.extract_section(content, "key_points")
 
-            # Build tutorial URL
             base_url = "https://training.galaxyproject.org/training-material"
             url = f"{base_url}/topics/{topic}/tutorials/{tutorial_name}/tutorial.html"
 
-            # Get file stats
             stat = tutorial_file.stat()
             last_modified = datetime.fromtimestamp(stat.st_mtime).isoformat()
-
-            # Calculate content hash
             content_bytes = content.encode("utf-8")
             content_hash = md5(content_bytes).hexdigest()
 
             tools = self.extract_list(frontmatter.get("tools", []))
             tools.extend(self.extract_tool_macros(content))
 
-            # Create tutorial object
             tutorial = Tutorial(
                 topic=topic,
                 tutorial=tutorial_name,
@@ -287,7 +254,7 @@ class GTNDatabaseBuilder:
                 difficulty=str(frontmatter.get("level", "intermediate")).lower(),
                 hands_on=frontmatter.get("hands_on", True) not in (False, "false", "False"),
                 time_estimation=frontmatter.get("time_estimation", ""),
-                content=content[:50000],  # Limit content size
+                content=content[:50000],
                 questions=questions,
                 objectives=objectives,
                 key_points=key_points,
