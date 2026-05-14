@@ -1655,18 +1655,6 @@ class ShedTestCase(ShedApiTestCase):
         assert self._installation_client
         self._installation_client.refresh_tool_shed_repository(repo)
 
-    def verify_no_installed_repository_data_table_entries(self, table_names):
-        """Assert that none of ``table_names`` appears in shed_tool_data_table_conf.xml."""
-        shed_tool_data_table_conf = self.shed_tool_data_table_conf
-        if not os.path.exists(shed_tool_data_table_conf):
-            return
-        data_tables, error_message = xml_util.parse_xml(shed_tool_data_table_conf)
-        assert not error_message, f"Failed to parse {shed_tool_data_table_conf}: {error_message}"
-        assert data_tables is not None
-        registered_names = {t.get("name") for t in data_tables.findall("table")}
-        for name in table_names:
-            assert name not in registered_names, f"Unexpected data table entry '{name}' in {shed_tool_data_table_conf}"
-
     def verify_installed_repository_data_table_entries(self, required_data_table_entries):
         # The value of the received required_data_table_entries will be something like: [ 'sam_fa_indexes' ]
         shed_tool_data_table_conf = self.shed_tool_data_table_conf

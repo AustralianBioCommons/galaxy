@@ -63,7 +63,5 @@ class TestToolWithToolDependencies(ShedTestCase):
         self.verify_installed_repository_metadata_unchanged(repository_name, common.test_user_1_name)
 
     def test_0025_verify_sample_files(self):
-        """Non-Data-Manager repositories no longer auto-register data tables on install
-        (galaxyproject/galaxy#21448); confirm sam_fa_indexes is absent from
-        shed_tool_data_table_conf.xml."""
-        self.verify_no_installed_repository_data_table_entries(table_names=["sam_fa_indexes"])
+        """Verify that the installed repository populated shed_tool_data_table.xml and the sample files."""
+        self.verify_installed_repository_data_table_entries(required_data_table_entries=["sam_fa_indexes"])
