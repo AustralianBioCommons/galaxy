@@ -188,14 +188,27 @@ class PageAssistantAgent(BaseGalaxyAgent):
                 ToolOutput(
                     FullReplacementEdit,
                     name="replace_entire_document",
-                    description="Rewrite the entire page. Use for major rewrites, restructuring, or when >50% of content changes.",
+                    description=(
+                        "Deliver new or rewritten document content. Use this when the user asks you to "
+                        "draft, write, create, compose, generate, or fill in a document (especially when "
+                        "the document is empty or near-empty), and for major rewrites or >50% changes. "
+                        "DO NOT put drafted markdown in a chat reply and offer to add it — call this tool "
+                        "with the content."
+                    ),
                 ),
                 ToolOutput(
                     SectionPatchEdit,
                     name="patch_section",
-                    description="Modify a specific section. PREFER THIS when in doubt — it preserves user work on other sections.",
+                    description=(
+                        "Deliver new or edited content for one specific section of an existing document. "
+                        "Use this when the user asks to add, update, rewrite, expand, or tighten a named "
+                        "section, or to draft a section to add to a document that already has other "
+                        "content. PREFER THIS over replace_entire_document when other sections should "
+                        "be preserved. DO NOT put the section content in a chat reply and offer to add "
+                        "it — call this tool with the content."
+                    ),
                 ),
-                str,  # Conversational response (no edit)
+                str,  # Conversational response — questions, clarifications, no document content.
             ],
         )
 
