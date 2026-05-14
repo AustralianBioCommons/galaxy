@@ -1,29 +1,26 @@
 <script setup lang="ts">
 import { BFormCheckbox } from "bootstrap-vue";
 
+import type { UploadOptionVisibility } from "./uploadOptionVisibility";
+import { defaultUploadOptionVisibility } from "./uploadOptionVisibility";
+
 interface Props {
     /** Whether to convert spaces to tabs */
     spaceToTab: boolean;
     /** Whether to convert to POSIX line endings */
     toPosixLines: boolean;
-    /** Whether to show the POSIX checkbox (advanced mode) */
-    showPosix?: boolean;
+    /** Which option toggles are visible */
+    optionVisibility?: UploadOptionVisibility;
     /** Whether to defer data fetching (optional, for URLs) */
     deferred?: boolean;
-    /** Whether to show the deferred checkbox */
-    showDeferred?: boolean;
     /** Whether to auto-decompress compressed inputs */
     autoDecompress?: boolean;
-    /** Whether to show the auto-decompress checkbox */
-    showAutoDecompress?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
-    showPosix: true,
+    optionVisibility: () => defaultUploadOptionVisibility,
     deferred: false,
-    showDeferred: false,
     autoDecompress: true,
-    showAutoDecompress: false,
 });
 
 const emit = defineEmits<{
@@ -51,27 +48,25 @@ function updateAutoDecompress(value: boolean) {
 </script>
 
 <template>
-    <div class="d-flex align-items-center">
+    <div class="options-cell options-controls d-inline-flex align-items-center flex-nowrap">
         <BFormCheckbox
             v-g-tooltip.hover
             :checked="spaceToTab"
             size="sm"
-            :class="{ 'mr-2': showPosix || showDeferred || showAutoDecompress }"
             title="Convert spaces to tab characters"
             @change="updateSpaceToTab">
             <span class="small">Spaces→Tabs</span>
         </BFormCheckbox>
         <BFormCheckbox
-            v-if="showPosix"
+            v-if="optionVisibility.posix"
             v-g-tooltip.hover
             :checked="toPosixLines"
             size="sm"
-            :class="{ 'mr-2': showDeferred || showAutoDecompress }"
             title="Convert line endings to POSIX standard"
             @change="updateToPosixLines">
             <span class="small">POSIX</span>
         </BFormCheckbox>
-        <div v-if="showDeferred" data-test-id="deferred-toggle">
+        <div v-if="optionVisibility.deferred" data-test-id="deferred-toggle">
             <BFormCheckbox
                 v-g-tooltip.hover
                 :checked="deferred"
@@ -81,7 +76,7 @@ function updateAutoDecompress(value: boolean) {
                 <span class="small">Deferred</span>
             </BFormCheckbox>
         </div>
-        <div v-if="showAutoDecompress" data-test-id="auto-decompress-toggle">
+        <div v-if="optionVisibility.autoDecompress" data-test-id="auto-decompress-toggle">
             <BFormCheckbox
                 v-g-tooltip.hover
                 :checked="autoDecompress"

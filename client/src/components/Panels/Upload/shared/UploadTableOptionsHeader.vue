@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { BFormCheckbox } from "bootstrap-vue";
 
+import type { UploadOptionVisibility } from "./uploadOptionVisibility";
+import { defaultUploadOptionVisibility } from "./uploadOptionVisibility";
+
 interface Props {
     /** All items have spaceToTab enabled */
     allSpaceToTab: boolean;
@@ -10,16 +13,12 @@ interface Props {
     allToPosixLines: boolean;
     /** Some but not all items have toPosixLines enabled */
     toPosixLinesIndeterminate: boolean;
-    /** Whether to show the POSIX checkbox (advanced mode) */
-    showPosix?: boolean;
-    /** Whether to show the deferred checkbox (for URL uploads) */
-    showDeferred?: boolean;
+    /** Which option toggles are visible */
+    optionVisibility?: UploadOptionVisibility;
     /** All items have deferred enabled */
     allDeferred?: boolean;
     /** Some but not all items have deferred enabled */
     deferredIndeterminate?: boolean;
-    /** Whether to show the auto-decompress checkbox (advanced mode) */
-    showAutoDecompress?: boolean;
     /** All items have auto-decompress enabled */
     allAutoDecompress?: boolean;
     /** Some but not all items have auto-decompress enabled */
@@ -27,11 +26,9 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-    showPosix: true,
-    showDeferred: false,
+    optionVisibility: () => defaultUploadOptionVisibility,
     allDeferred: false,
     deferredIndeterminate: false,
-    showAutoDecompress: false,
     allAutoDecompress: true,
     autoDecompressIndeterminate: false,
 });
@@ -63,30 +60,28 @@ function handleToggleAutoDecompress() {
 <template>
     <div class="options-header">
         <span class="options-title">Upload Settings</span>
-        <div class="d-flex align-items-center">
+        <div class="options-controls d-inline-flex align-items-center flex-nowrap">
             <BFormCheckbox
                 v-g-tooltip.hover
                 :checked="allSpaceToTab"
                 :indeterminate="spaceToTabIndeterminate"
                 size="sm"
-                class="mr-2"
                 title="Toggle all: Convert spaces to tab characters"
                 @change="handleToggleSpaceToTab">
                 <span class="small">Spaces→Tabs</span>
             </BFormCheckbox>
             <BFormCheckbox
-                v-if="showPosix"
+                v-if="optionVisibility.posix"
                 v-g-tooltip.hover
                 :checked="allToPosixLines"
                 :indeterminate="toPosixLinesIndeterminate"
                 size="sm"
-                :class="{ 'mr-2': showDeferred || showAutoDecompress }"
                 title="Toggle all: Convert line endings to POSIX standard"
                 @change="handleToggleToPosixLines">
                 <span class="small">POSIX</span>
             </BFormCheckbox>
             <BFormCheckbox
-                v-if="showDeferred"
+                v-if="optionVisibility.deferred"
                 v-g-tooltip.hover
                 :checked="allDeferred"
                 :indeterminate="deferredIndeterminate"
@@ -96,7 +91,7 @@ function handleToggleAutoDecompress() {
                 <span class="small">Deferred</span>
             </BFormCheckbox>
             <BFormCheckbox
-                v-if="showAutoDecompress"
+                v-if="optionVisibility.autoDecompress"
                 v-g-tooltip.hover
                 :checked="allAutoDecompress"
                 :indeterminate="autoDecompressIndeterminate"

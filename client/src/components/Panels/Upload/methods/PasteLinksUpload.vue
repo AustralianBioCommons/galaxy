@@ -5,6 +5,8 @@ import { BFormInput } from "bootstrap-vue";
 import { computed, nextTick, ref, watch } from "vue";
 
 import type { TableField } from "@/components/Common/GTable.types";
+import { urlUploadOptionVisibility } from "@/components/Panels/Upload/shared/uploadOptionVisibility";
+import { getUploadSettingsColumnWidth } from "@/components/Panels/Upload/shared/uploadTableOptionsWidth";
 import { useBulkUploadOperations } from "@/composables/upload/bulkUploadOperations";
 import { useCollectionCreation } from "@/composables/upload/collectionCreation";
 import { useUploadAdvancedMode } from "@/composables/upload/uploadAdvancedMode";
@@ -56,6 +58,8 @@ const emit = defineEmits<{
 }>();
 
 const { advancedMode } = useUploadAdvancedMode();
+
+const optionVisibility = computed(() => urlUploadOptionVisibility(advancedMode.value));
 
 const { effectiveExtensions, listDbKeys, configurationsReady, createItemDefaults } = useUploadDefaults(props.formats);
 
@@ -164,7 +168,7 @@ function removeItem(id: number) {
     }
 }
 
-const tableFields: TableField[] = [
+const tableFields = computed<TableField[]>(() => [
     {
         key: "name",
         label: "Name",
@@ -196,6 +200,7 @@ const tableFields: TableField[] = [
         key: "options",
         label: "Upload Settings",
         sortable: false,
+        width: getUploadSettingsColumnWidth(optionVisibility.value),
         align: "center",
     },
     {
@@ -205,7 +210,7 @@ const tableFields: TableField[] = [
         width: "50px",
         align: "center",
     },
-];
+]);
 
 function reset() {
     urlItems.value = [];
@@ -332,13 +337,11 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
                         <UploadTableOptionsHeader
                             :all-space-to-tab="bulk.allSpaceToTab.value"
                             :space-to-tab-indeterminate="bulk.spaceToTabIndeterminate.value"
-                            :show-posix="advancedMode"
+                            :option-visibility="optionVisibility"
                             :all-to-posix-lines="bulk.allToPosixLines.value"
                             :to-posix-lines-indeterminate="bulk.toPosixLinesIndeterminate.value"
-                            :show-deferred="true"
                             :all-deferred="bulk.allDeferred.value"
                             :deferred-indeterminate="bulk.deferredIndeterminate.value"
-                            :show-auto-decompress="advancedMode"
                             :all-auto-decompress="bulk.allAutoDecompress.value"
                             :auto-decompress-indeterminate="bulk.autoDecompressIndeterminate.value"
                             @toggle-space-to-tab="bulk.toggleAllSpaceToTab"
@@ -350,11 +353,9 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
                     <template v-slot:cell(options)="{ item }">
                         <UploadTableOptionsCell
                             :space-to-tab="item.spaceToTab"
-                            :show-posix="advancedMode"
+                            :option-visibility="optionVisibility"
                             :to-posix-lines="item.toPosixLines"
-                            :show-deferred="true"
                             :deferred="item.deferred"
-                            :show-auto-decompress="advancedMode"
                             :auto-decompress="item.autoDecompress"
                             @updateSpaceToTab="item.spaceToTab = $event"
                             @updateToPosixLines="item.toPosixLines = $event"
