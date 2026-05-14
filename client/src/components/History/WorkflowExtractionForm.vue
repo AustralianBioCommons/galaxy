@@ -19,8 +19,10 @@ import { isWorkflowExtractionInput, type WorkflowExtractionInput } from "./Workf
 
 import GFormInput from "../BaseComponents/Form/GFormInput.vue";
 import GButton from "../BaseComponents/GButton.vue";
+import GModal from "../BaseComponents/GModal.vue";
 import BreadcrumbHeading from "../Common/BreadcrumbHeading.vue";
 import RenameModal from "../Common/RenameModal.vue";
+import JobDetails from "../JobInformation/JobDetails.vue";
 import LoadingSpan from "../LoadingSpan.vue";
 import WorkflowExtractionCard from "./WorkflowExtraction/WorkflowExtractionCard.vue";
 import WorkflowExtractionMessages from "./WorkflowExtraction/WorkflowExtractionMessages.vue";
@@ -52,6 +54,8 @@ const jobsList = ref<(WorkflowExtractionInput | WorkflowExtractionJob)[]>([]);
 const workflowName = ref("");
 const renameIndex = ref<number | null>(null);
 const warnings = ref<string[]>([]);
+const showJobModal = ref(false);
+const viewedJobId = ref<string | null>(null);
 
 /** The job (input step) to rename based on the current `renameIndex`. */
 const toRenameInput = computed(() => {
@@ -190,6 +194,11 @@ function onJobSelect(index: number) {
     }
 }
 
+function onViewJob(jobId: string) {
+    viewedJobId.value = jobId;
+    showJobModal.value = true;
+}
+
 async function renameInput(newName: string) {
     if (!jobsList.value?.length) {
         throw new Error("No jobs available to rename");
@@ -285,7 +294,8 @@ async function submitWorkflow() {
                 :data-step-type="job.step_type"
                 :data-job-id="job.id || undefined"
                 @rename="onJobRename(index)"
-                @select="onJobSelect(index)" />
+                @select="onJobSelect(index)"
+                @view-job="onViewJob" />
         </div>
 
         <RenameModal
@@ -294,6 +304,10 @@ async function submitWorkflow() {
             :name="toRenameInput.newName"
             :rename-action="renameInput"
             @close="renameIndex = null" />
+
+        <GModal :show.sync="showJobModal" title="View Job" fixed-height size="medium" @close="viewedJobId = null">
+            <JobDetails v-if="viewedJobId" :job-id="viewedJobId" />
+        </GModal>
     </div>
 </template>
 
