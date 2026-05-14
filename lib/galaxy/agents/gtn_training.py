@@ -438,7 +438,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
 
         suggestions: list[ActionSuggestion] = []
         if tutorials and tutorials.group(1).strip() and self.gtn_db:
-            for tutorial_name in [t.strip() for t in tutorials.group(1).split(";")][:3]:
+            for tutorial_name in [t.strip() for t in tutorials.group(1).split(",")][:3]:
                 results = self.gtn_db.search(tutorial_name, limit=1)
                 if results:
                     result = results[0]
@@ -466,7 +466,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
         return {
             "content": "\n".join(content_parts),
             "confidence": confidence_level,
-            "tutorial_count": len(tutorials.group(1).split(";")) if tutorials and tutorials.group(1).strip() else 0,
+            "tutorial_count": len(tutorials.group(1).split(",")) if tutorials and tutorials.group(1).strip() else 0,
             "suggestions": suggestions,
         }
 
