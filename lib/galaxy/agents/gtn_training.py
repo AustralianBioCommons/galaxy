@@ -107,7 +107,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                         "count": len(results),
                     }
                 )
-            except (AttributeError, KeyError, TypeError) as e:
+            except Exception as e:
                 log.warning(f"GTN search failed: {e}")
                 return json.dumps({"error": str(e)})
 
@@ -124,7 +124,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             try:
                 content = self.gtn_db.get_tutorial_content(topic, tutorial, max_length)
                 return content or f"Tutorial {topic}/{tutorial} not found"
-            except (AttributeError, KeyError, TypeError) as e:
+            except Exception as e:
                 log.warning(f"Failed to get tutorial content: {e}")
                 return f"Error: {e}"
 
@@ -136,7 +136,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             try:
                 topics = self.gtn_db.get_topics()
                 return json.dumps({"topics": topics, "count": len(topics)})
-            except (AttributeError, KeyError, TypeError) as e:
+            except Exception as e:
                 log.warning(f"Failed to get topics: {e}")
                 return json.dumps({"error": str(e)})
 
@@ -164,7 +164,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                         "count": len(results),
                     }
                 )
-            except (AttributeError, KeyError, TypeError) as e:
+            except Exception as e:
                 log.warning(f"GTN FAQ search failed: {e}")
                 return json.dumps({"error": str(e)})
 
@@ -186,7 +186,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                         "tools_searched": tool_names,
                     }
                 )
-            except (AttributeError, KeyError, TypeError) as e:
+            except Exception as e:
                 log.warning(f"Tool search failed: {e}")
                 return json.dumps({"error": str(e)})
 
