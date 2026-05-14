@@ -7,6 +7,7 @@ using SQLite FTS5 full-text search with BM25 ranking.
 
 import logging
 import re
+import shutil
 import sqlite3
 import urllib.request
 from dataclasses import dataclass
@@ -18,6 +19,11 @@ from typing import (
 
 GTN_DATABASE_URL = "https://depot.galaxyproject.org/chatgxy/gtn_search.db"
 GTN_FAQ_BASE_URL = "https://training.galaxyproject.org/training-material/faqs"
+# Connect + per-read timeout for the initial GTN database download. The file
+# is ~25MB; this bounds individual socket reads so a stalled depot can't hang
+# an agent init forever. Total wall-clock can still exceed this if the
+# remote keeps sending small chunks, which is the trade for stdlib-only.
+GTN_DOWNLOAD_TIMEOUT_SECONDS = 60
 
 log = logging.getLogger(__name__)
 
@@ -197,7 +203,9 @@ class GTNSearchDB:
         tmp_path.unlink(missing_ok=True)
         try:
             log.info(f"Downloading GTN database from {download_url} ...")
-            urllib.request.urlretrieve(download_url, tmp_path)
+            with urllib.request.urlopen(download_url, timeout=GTN_DOWNLOAD_TIMEOUT_SECONDS) as response:
+                with open(tmp_path, "wb") as out:
+                    shutil.copyfileobj(response, out)
             metadata = cls._validate_database_file(tmp_path)
             tmp_path.replace(db_path)
             return metadata
