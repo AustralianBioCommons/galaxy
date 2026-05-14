@@ -434,7 +434,12 @@ class TestAgentUnitMocked:
     def test_extract_message_history_returns_none_for_unsupported_history_shape(self):
         assert (
             QueryRouterAgent._extract_message_history(
-                {"conversation_history": {"role": "user", "content": "Not a message list"}}
+                {
+                    "conversation_history": {
+                        "role": "user",
+                        "content": "Not a message list",
+                    }
+                }
             )
             is None
         )
@@ -584,7 +589,8 @@ class TestAgentUnitMocked:
             # Mock agent responses
             mock_error_agent = AsyncMock()
             mock_error_agent.process.return_value = MagicMock(
-                content="Error diagnosis: memory limit exceeded", agent_type="error_analysis"
+                content="Error diagnosis: memory limit exceeded",
+                agent_type="error_analysis",
             )
 
             mock_custom_tool_agent = AsyncMock()
@@ -611,14 +617,14 @@ class TestAgentUnitMocked:
             assert "Custom tool" in response.content
 
     @pytest.mark.asyncio
-    async def test_workflow_orchestrator_maps_legacy_gtn_training_to_history(self):
+    async def test_workflow_orchestrator_routes_gtn_training_directly(self):
         agent = WorkflowOrchestratorAgent(self.deps)
 
         with patch.object(agent, "_get_agent_plan") as mock_get_plan:
             mock_get_plan.return_value = AgentPlan(
                 agents=["history", "gtn_training"],
                 sequential=True,
-                reasoning="Legacy planner output",
+                reasoning="History summary plus training recommendations",
             )
 
             mock_history_agent = AsyncMock()
@@ -626,13 +632,30 @@ class TestAgentUnitMocked:
                 content="You should inspect the failed datasets and rerun with corrected inputs.",
                 agent_type="history",
             )
-            self.deps.get_agent = MagicMock(return_value=mock_history_agent)
+            mock_gtn_agent = AsyncMock()
+            mock_gtn_agent.process.return_value = MagicMock(
+                content="The RNA-seq reads to counts tutorial is relevant.",
+                agent_type="gtn_training",
+            )
+
+            def get_agent_side_effect(agent_type, deps):
+                if agent_type == "history":
+                    return mock_history_agent
+                if agent_type == "gtn_training":
+                    return mock_gtn_agent
+                raise ValueError(f"Unexpected agent type: {agent_type}")
+
+            self.deps.get_agent = MagicMock(side_effect=get_agent_side_effect)
 
             response = await agent.process("What should I do next?")
 
-            assert response.metadata.get("agents_used") == ["history"]
-            self.deps.get_agent.assert_called_once_with("history", self.deps)
+            assert response.metadata.get("agents_used") == ["history", "gtn_training"]
+            assert self.deps.get_agent.call_args_list == [
+                mock.call("history", self.deps),
+                mock.call("gtn_training", self.deps),
+            ]
             assert "rerun with corrected inputs" in response.content
+            assert "RNA-seq reads to counts" in response.content
 
     @pytest.mark.asyncio
     async def test_workflow_orchestrator_generic_fallback_behavior(self):
@@ -816,7 +839,10 @@ class TestAgentUnitMocked:
             return mock_result
 
         with mock.patch.object(agent, "_run_with_retry", side_effect=fake_run_with_retry):
-            await agent.process("Summarize my history", context={"run_state": run_state, "history_id": "abc123"})
+            await agent.process(
+                "Summarize my history",
+                context={"run_state": run_state, "history_id": "abc123"},
+            )
 
         assert len(captured_prompts) == 1
         prompt = captured_prompts[0]

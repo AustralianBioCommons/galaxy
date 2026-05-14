@@ -79,7 +79,6 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
         """Map legacy plan outputs to supported agents and drop duplicates."""
         normalized: list[str] = []
         legacy_aliases = {
-            "gtn_training": AgentType.HISTORY,
             "next_step_advisor": AgentType.HISTORY,
         }
         supported_agents = {
@@ -87,6 +86,7 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
             AgentType.CUSTOM_TOOL,
             AgentType.HISTORY,
             AgentType.TOOL_RECOMMENDATION,
+            AgentType.GTN_TRAINING,
         }
 
         for agent_name in agents:
@@ -274,6 +274,7 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
             "history": "Based on your history:",
             "custom_tool": "Regarding the tool:",
             "tool_recommendation": "For relevant Galaxy tools:",
+            "gtn_training": "For relevant GTN training materials:",
         }
         return transitions.get(agent_name, "Additionally:")
 
@@ -286,6 +287,7 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
         - custom_tool: Create new Galaxy tools
         - history: Summarize histories, describe analyses, FIND failed jobs, and suggest practical next steps
         - tool_recommendation: Find relevant Galaxy tools already available on this server
+        - gtn_training: Find Galaxy Training Network tutorials and FAQs
 
         Respond in this format:
         AGENTS: [agent1, agent2]
