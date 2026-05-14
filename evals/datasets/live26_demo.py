@@ -17,10 +17,13 @@ Notes:
   ``import_workflow_from_iwc``). On this branch the case still runs and its
   rubric just measures how degraded the answer is without those tools -- useful
   as a "before" number to diff against once IWC ops merges.
-- ``live26_history_sanity_check`` and ``live26_summarize_to_page`` need a real
-  Galaxy session because the history agent does live tool calls. They carry
-  ``requires_galaxy=True`` and are filtered out by default; pass
-  ``--include-galaxy-required`` to include them.
+- ``live26_history_sanity_check``, ``live26_summarize_to_page``,
+  ``live26_report_takeaway``, and ``live26_social_media_post`` need a real
+  Galaxy session because they presuppose specific results in the user's
+  history. They carry ``requires_galaxy=True`` and are filtered out by
+  default; pass ``--include-galaxy-required`` to include them. Note that
+  the harness's MagicMock'd trans means these will still fail until
+  real-Galaxy plumbing is added; the flag is forward-looking.
 - ``live26_report_takeaway`` and ``live26_social_media_post`` don't have a
   pinned routing target yet (report-template editing isn't a dedicated agent
   and the social-post beat is borderline); they're content-only here.
@@ -172,7 +175,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
             "after the results table, etc.) OR returns it in a form that can "
             "be inserted directly"
         ),
-        "requires_galaxy": False,
+        "requires_galaxy": True,
     },
     {
         "name": "live26_social_media_post",
@@ -187,7 +190,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
             "as marketing copy\n"
             "4. Doesn't fabricate a specific result number"
         ),
-        "requires_galaxy": False,
+        "requires_galaxy": True,
     },
 ]
 
