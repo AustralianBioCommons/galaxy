@@ -135,17 +135,22 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "name": "live26_custom_tool_quantify_brown",
         "query": "Generate a Galaxy tool that counts brown pixels in a TIFF image.",
         "rubric": (
-            "Response should produce a working Galaxy tool wrapper:\n"
-            "1. Valid Galaxy tool XML with <tool>, <inputs>, <outputs>, "
-            "<command>, and <help> sections\n"
-            "2. Input is a TIFF image dataset (correct format)\n"
-            "3. Command implements brown-pixel counting plausibly -- e.g. a "
-            "Python or ImageMagick one-liner using a sensible brown threshold "
-            "in RGB or HSV space\n"
-            "4. Output is a tabular or text file with the count -- not just a "
-            "log message\n"
-            "5. No invented Galaxy framework features (e.g. don't make up "
-            "param types that don't exist)"
+            "Response should produce a working Galaxy tool wrapper in the "
+            "GalaxyUserTool YAML schema (this is what the custom_tool agent "
+            "emits -- not legacy XML):\n"
+            "1. Valid YAML with required fields: class: GalaxyUserTool, id "
+            "(lowercase-with-hyphens), version (semver), name, container "
+            "(real biocontainer / quay.io image), and a shell_command using "
+            "$(inputs.NAME.path) syntax\n"
+            "2. inputs list has at least one entry with type: data and a "
+            "TIFF-compatible format (e.g. format: tiff or format: [tiff])\n"
+            "3. outputs list has at least one text/tabular entry (type: data "
+            "with format: txt or tabular) -- not just a log message\n"
+            "4. shell_command implements brown-pixel counting plausibly -- "
+            "e.g. a Python or ImageMagick one-liner using a sensible brown "
+            "threshold in RGB or HSV space\n"
+            "5. No invented Galaxy framework features (only the documented "
+            "input types data/text/integer/float/boolean/select)"
         ),
         "requires_galaxy": False,
     },
