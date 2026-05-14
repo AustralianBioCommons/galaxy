@@ -93,7 +93,20 @@ def make_deps(
     # which raises ValueError on unpack and aborts the agent run before we
     # can read tool calls. Give those service .index() calls an explicit
     # empty result so the tool succeeds with no data and the model moves on.
-    trans.app.__getitem__.return_value.index.return_value = ([], 0)
+    # File source manager has different shape: .index() returns a list,
+    # .summaries.root is a list -- dispatch by class so both paths work.
+    _default_service = MagicMock()
+    _default_service.index.return_value = ([], 0)
+    _file_source_manager = MagicMock()
+    _file_source_manager.summaries.root = []
+    _file_source_manager.index.return_value = []
+
+    def _app_getitem(cls):
+        if getattr(cls, "__name__", "") == "FileSourceInstancesManager":
+            return _file_source_manager
+        return _default_service
+
+    trans.app.__getitem__.side_effect = _app_getitem
     return GalaxyAgentDependencies(
         trans=trans,
         user=MagicMock(),
