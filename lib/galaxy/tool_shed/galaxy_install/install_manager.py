@@ -171,7 +171,7 @@ class InstallRepositoryManager:
         session.commit()
 
         is_data_manager = "data_manager" in irmm_metadata_dict
-        if is_data_manager and "sample_files" in irmm_metadata_dict:
+        if "sample_files" in irmm_metadata_dict:
             sample_files = irmm_metadata_dict.get("sample_files", [])
             tool_index_sample_files = stdtm.get_tool_index_sample_files(sample_files)
             tool_data_table_conf_filename, tool_data_table_elems = stdtm.install_tool_data_tables(

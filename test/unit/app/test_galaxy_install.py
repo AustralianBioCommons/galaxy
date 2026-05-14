@@ -43,7 +43,8 @@ def test_against_production_shed(tmp_path: Path):
         assert tool_guid in f.read()
     repo_path = tmp_path / "tools" / "toolshed.g2.bx.psu.edu" / "repos" / repo_owner / repo_name / repo_revision
     assert repo_path.exists()
-    # featurecounts is not a Data Manager — install must not register a per-revision data table config.
+    # All shed installs now register data tables; the per-revision config is written for any repo
+    # with sample files, regardless of whether it's a Data Manager.
     tool_data_table_path = (
         tmp_path
         / "tool_data"
@@ -54,7 +55,7 @@ def test_against_production_shed(tmp_path: Path):
         / repo_revision
         / "tool_data_table_conf.xml"
     )
-    assert not tool_data_table_path.exists()
+    assert tool_data_table_path.exists()
 
     install_model_context = cast("install_model_scoped_session", install_target.install_model.session)
     query = install_model_context.query(ToolShedRepository).where(ToolShedRepository.name == repo_name)

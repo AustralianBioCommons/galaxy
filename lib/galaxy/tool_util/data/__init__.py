@@ -684,6 +684,7 @@ class TabularToolDataTable(ToolDataTable):
                     source_repo_info_model = source.repo_info
                 source_repo_info = source_repo_info_model.model_dump() if source_repo_info_model else None
         filename = default
+        shared_fallback: Optional[str] = None
         for name, value in self.filenames.items():
             repo_info = value.get("tool_shed_repository")
             if (not source_repo_info and not repo_info) or (
@@ -691,6 +692,14 @@ class TabularToolDataTable(ToolDataTable):
             ):
                 filename = name
                 break
+            if source_repo_info and not repo_info and shared_fallback is None:
+                # Loc file registered without repo_info (shared install) — use as fallback
+                # when a tool-shed source has no exact match. Preserves legacy behavior where
+                # a `<tool_shed_repository>`-tagged filename matches exactly.
+                shared_fallback = name
+        else:
+            if shared_fallback is not None:
+                filename = shared_fallback
         return filename
 
     def _add_entry(
@@ -761,6 +770,62 @@ class TabularToolDataTable(ToolDataTable):
                         raise
                 fields_collapsed = f"{self.separator.join(fields)}\n"
                 data_table_fh.write(fields_collapsed.encode("utf-8"))
+
+    def append_entries_with_attribution(
+        self,
+        entries: List[List[str]],
+        attribution: str,
+        allow_duplicates: bool = False,
+    ) -> int:
+        """Append ``entries`` to this table's loc file with an attribution comment line.
+
+        When ``allow_duplicates`` is False, dedupes entries by the ``value`` column
+        (the table's primary key) against existing in-memory rows and the pending
+        batch. Writes a single ``{comment_char} {attribution}`` line before the first
+        new row. No-op if no rows survive the dedup.
+        """
+        filename: Optional[str] = self.get_filename_for_source(None)
+        if filename is None:
+            for name in self.filenames:
+                filename = name
+                break
+        if filename is None:
+            raise MessageException(f"Unable to determine filename for appending entries to data table '{self.name}'.")
+        value_index = self.columns.get("value", 0)
+        existing_values: Optional[Set[str]] = None
+        if not allow_duplicates:
+            existing_values = {row[value_index] for row in self.data if value_index < len(row)}
+        new_rows: List[List[str]] = []
+        for entry in entries:
+            fields = self._replace_field_separators(list(entry))
+            if self.largest_index >= len(fields):
+                log.warning(
+                    "Skipping fields (%s) for data table '%s': only %d field(s) provided.",
+                    fields,
+                    self.name,
+                    len(fields),
+                )
+                continue
+            if existing_values is not None and fields[value_index] in existing_values:
+                continue
+            new_rows.append(fields)
+            if existing_values is not None:
+                existing_values.add(fields[value_index])
+        if not new_rows:
+            return self._loaded_content_version
+        with FileLock(filename):
+            if os.path.exists(filename) and os.stat(filename).st_size > 0:
+                with open(filename, "rb+") as fh:
+                    fh.seek(-1, 2)
+                    if fh.read(1) not in (b"\n", b"\r"):
+                        fh.write(b"\n")
+            with open(filename, "ab") as fh:
+                fh.write(f"{self.comment_char} {attribution}\n".encode())
+                for fields in new_rows:
+                    fh.write(f"{self.separator.join(fields)}\n".encode())
+        for fields in new_rows:
+            self.data.append(fields)
+        return self._update_version()
 
     def _locate_filename(self, tool_data_file_path, entry_source, bundle_mode):
         if tool_data_file_path is not None:

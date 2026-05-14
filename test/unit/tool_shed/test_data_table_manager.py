@@ -9,7 +9,10 @@ from galaxy.tool_shed.tools.data_table_manager import (
     DataTableColumnMismatch,
     ShedToolDataTableManager,
 )
-from galaxy.tool_util.data import ToolDataTableManager
+from galaxy.tool_util.data import (
+    TabularToolDataTable,
+    ToolDataTableManager,
+)
 from galaxy.util import (
     Element,
     SubElement,
@@ -80,9 +83,10 @@ def _make_stdtm(tmp_path):
 
 
 def _registered_table(columns, filenames=None):
-    existing = mock.MagicMock(spec=["columns", "filenames"])
+    existing = mock.MagicMock(spec=TabularToolDataTable)
     existing.columns = columns
     existing.filenames = filenames or {}
+    existing.parse_file_fields.return_value = []
     return existing
 
 
@@ -99,6 +103,10 @@ def test_loc_file_lands_at_shared_root_not_per_revision(tmp_path):
     file_elems = list(kept_elems[0].findall("file"))
     assert len(file_elems) == 1
     assert file_elems[0].get("path") == shared_loc
+    # New installs should not stamp a <tool_shed_repository> sub-element on the <table>:
+    # the loc-file location is deterministic and DMs on legacy installs fall through to
+    # the shared-no-repo_info match in get_filename_for_source.
+    assert kept_elems[0].find("tool_shed_repository") is None
 
 
 def test_existing_loc_file_is_not_overwritten(tmp_path):
@@ -161,6 +169,40 @@ def test_column_match_with_column_elements_dedupes(tmp_path):
         ["tool_data_table_conf.xml.sample", os.path.join("tool-data", "all_fasta.loc.sample")],
     )
     assert kept_elems == []
+
+
+def test_second_install_merges_loc_sample_rows_with_attribution(tmp_path):
+    stdtm, repo, samples, captured, _, _, _ = _make_stdtm(tmp_path)
+    matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
+    existing = _registered_table(matching_columns)
+    incoming_rows = [["hg19", "hg19", "human (hg19)", "/data/hg19.fa"]]
+    existing.parse_file_fields.return_value = incoming_rows
+    stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+
+    _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
+
+    assert kept_elems == []
+    assert not captured["to_xml_calls"]
+    existing.append_entries_with_attribution.assert_called_once()
+    call_args = existing.append_entries_with_attribution.call_args
+    assert call_args.args[0] == incoming_rows
+    attribution = call_args.args[1]
+    assert "iuc/data_manager_fetch_genome_dbkeys_all_fasta" in attribution
+    assert "abc" in attribution
+
+
+def test_second_install_with_empty_loc_sample_does_not_append(tmp_path):
+    stdtm, repo, samples, captured, _, _, _ = _make_stdtm(tmp_path)
+    matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
+    existing = _registered_table(matching_columns)
+    existing.parse_file_fields.return_value = []
+    stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+
+    _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
+
+    assert kept_elems == []
+    assert not captured["to_xml_calls"]
+    existing.append_entries_with_attribution.assert_not_called()
 
 
 def test_parse_table_columns_aliases_name_to_value():

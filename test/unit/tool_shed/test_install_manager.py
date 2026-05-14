@@ -69,11 +69,11 @@ def _invoke_handle(irm, metadata_dict: dict[str, Any], repository_tools_tups: li
     return stdtm_instance
 
 
-def test_non_data_manager_repo_skips_sample_files_registration():
+def test_non_data_manager_repo_registers_sample_files():
     irm, register_mock = _make_install_repository_manager()
     stdtm_instance = _invoke_handle(irm, {"sample_files": ["foo.loc.sample"]}, [])
-    stdtm_instance.install_tool_data_tables.assert_not_called()
-    register_mock.assert_not_called()
+    stdtm_instance.install_tool_data_tables.assert_called_once()
+    register_mock.assert_called_once()
 
 
 def test_data_manager_repo_registers_sample_files():
