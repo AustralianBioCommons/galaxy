@@ -297,7 +297,7 @@ class InvenioRepositoryInteractor(RDMRepositoryInteractor):
         writeable: bool,
         query: Optional[str] = None,
     ) -> list[RemoteFile]:
-        conditionally_draft = "/draft" if writeable else ""
+        conditionally_draft = "/draft" if writeable or self._is_draft_record(container_id, context) else ""
         request_url = f"{self.records_url}/{container_id}{conditionally_draft}/files"
         response_data = self._get_response(context, request_url)
         return self._get_record_files_from_response(container_id, response_data)
