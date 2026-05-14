@@ -3047,7 +3047,7 @@ galaxy:
   # mutable-data directory. The file is downloaded automatically on
   # first use from ``gtn_database_url`` if it does not exist.
   # The default value is: gtn/gtn_search.db
-  #gtn_database_path: null
+  #gtn_database_path: gtn/gtn_search.db
 
   # URL used to download the GTN search database when the local file at
   # ``gtn_database_path`` is missing.
