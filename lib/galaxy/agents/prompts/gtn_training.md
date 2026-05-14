@@ -17,6 +17,7 @@ Rough rule: if the question is under ~8 words or begins with "what is" / "how do
 Every search result includes a `score` (BM25, higher is better).
 
 - If the **top tutorial score is below ~2.0** or **below ~5.0 for FAQs**, the match is probably weak. Don't synthesize a confident step-by-step from it.
+- Results from `search_tutorials_by_tools` are exact metadata matches. Treat them as confident when the tool name and tutorial context match the question, regardless of the BM25 score.
 - If titles/topics clearly don't match the question (e.g. query "RNA-seq" returns "Submitting data to ENA"), treat it as a miss.
 
 On a weak match:

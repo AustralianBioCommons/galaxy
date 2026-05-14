@@ -32,6 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 log = logging.getLogger(__name__)
 
 DB_VERSION = "1.1.0"
+TOOL_MACRO_RE = re.compile(r"{%\s*tool\s+\[([^\]]+)\]\(([^)]+)\)", re.IGNORECASE)
 
 
 @dataclass
@@ -273,6 +274,9 @@ class GTNDatabaseBuilder:
             content_bytes = content.encode("utf-8")
             content_hash = md5(content_bytes).hexdigest()
 
+            tools = self.extract_list(frontmatter.get("tools", []))
+            tools.extend(self.extract_tool_macros(content))
+
             # Create tutorial object
             tutorial = Tutorial(
                 topic=topic,
@@ -287,7 +291,7 @@ class GTNDatabaseBuilder:
                 questions=questions,
                 objectives=objectives,
                 key_points=key_points,
-                tools=self.extract_list(frontmatter.get("tools", [])),
+                tools=self.deduplicate_list(tools),
                 requirements=self.extract_list(frontmatter.get("requirements", [])),
                 tags=self.extract_list(frontmatter.get("tags", [])),
                 content_hash=content_hash,
@@ -384,6 +388,24 @@ class GTNDatabaseBuilder:
             return [value]
         else:
             return []
+
+    def extract_tool_macros(self, content: str) -> list[str]:
+        """Extract tool names and ids from GTN ``{% tool [Name](id) %}`` macros."""
+        tools: list[str] = []
+        for name, tool_id in TOOL_MACRO_RE.findall(content):
+            tools.extend([name.strip(), tool_id.strip()])
+        return self.deduplicate_list(tools)
+
+    def deduplicate_list(self, values: list[str]) -> list[str]:
+        """Deduplicate string values while preserving order."""
+        seen: set[str] = set()
+        deduplicated: list[str] = []
+        for value in values:
+            normalized = value.strip()
+            if normalized and normalized not in seen:
+                deduplicated.append(normalized)
+                seen.add(normalized)
+        return deduplicated
 
     def create_database(self):
         """Create the SQLite database with FTS5 tables."""
@@ -578,8 +600,16 @@ class GTNDatabaseBuilder:
 
             example_queries = [
                 ("RNA-seq", "Find RNA sequencing tutorials", "analysis"),
-                ("differential expression", "Tutorials on differential expression analysis", "analysis"),
-                ("quality control", "QC and data preprocessing tutorials", "preprocessing"),
+                (
+                    "differential expression",
+                    "Tutorials on differential expression analysis",
+                    "analysis",
+                ),
+                (
+                    "quality control",
+                    "QC and data preprocessing tutorials",
+                    "preprocessing",
+                ),
                 ("workflow", "Workflow creation and management", "galaxy"),
                 ("beginner", "Tutorials for beginners", "skill-level"),
                 ("tool development", "Creating custom Galaxy tools", "development"),
