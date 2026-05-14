@@ -59,6 +59,7 @@ from galaxy.agents.base import (
     AgentType,
 )
 from galaxy.agents.error_analysis import ErrorAnalysisResult
+from galaxy.agents.gtn_training import GTNSearchResponse
 from galaxy.agents.orchestrator import (
     AgentPlan,
     WorkflowOrchestratorAgent,
@@ -674,6 +675,30 @@ class TestAgentUnitMocked:
         parsed = agent._parse_simple_response(response_text)
 
         assert parsed["tutorial_count"] == 2
+
+    def test_gtn_format_response_renders_faq_section(self):
+        # FAQ-only responses (short definitional questions) should render as
+        # "Relevant FAQs", not be silently dropped because tutorials is empty.
+        agent = GTNTrainingAgent.__new__(GTNTrainingAgent)
+        response_data = GTNSearchResponse(
+            tutorials=[],
+            faqs=[
+                {
+                    "title": "How do I archive a history?",
+                    "category": "galaxy",
+                    "area": "histories",
+                    "url": "https://training.galaxyproject.org/training-material/faqs/galaxy/#how-do-i-archive-a-history",
+                    "snippet": "Histories can be archived...",
+                }
+            ],
+            summary="See the archive FAQ.",
+        )
+
+        content = agent._format_gtn_response(response_data)
+
+        assert "**Relevant FAQs:**" in content
+        assert "How do I archive a history?" in content
+        assert "**Relevant Tutorials:**" not in content
 
     @pytest.mark.asyncio
     async def test_workflow_orchestrator_generic_fallback_behavior(self):
