@@ -572,8 +572,6 @@ class DatasetStorageOperationPreviewBuilder:
         )
 
         warnings: list[str] = []
-        if query_based_selection:
-            warnings.append("Selection was query-based. Execute uses a fixed snapshot to avoid selection drift.")
         if preview.target_quota_projection and preview.target_quota_projection.exceeds_quota:
             warnings.append(
                 self.storage_operation_manager.target_quota_exceeded_message(phase_label="before execution")
