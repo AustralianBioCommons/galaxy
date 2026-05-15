@@ -540,7 +540,6 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             files_dir=job_wrapper.working_directory,
         )
         cjs.register_cleanup_file_attribute("user_log")
-        submit_file = os.path.join(job_wrapper.working_directory, f"galaxy_{galaxy_id_tag}.condor.desc")
         executable = cjs.job_file
 
         build_submit_params = dict(
@@ -567,16 +566,6 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             return
 
         cleanup_job = job_wrapper.cleanup_job
-        try:
-            with open(submit_file, "w") as handle:
-                handle.write(submit_file_contents)
-        except Exception:
-            if cleanup_job == "always":
-                cjs.cleanup()
-            job_wrapper.fail("failure preparing submit file", exception=True)
-            log.exception(f"({galaxy_id_tag}) failure preparing submit file")
-            return
-
         if job_wrapper.get_state() in (
             model.Job.states.DELETED,
             model.Job.states.STOPPED,
@@ -586,7 +575,6 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
                 galaxy_id_tag,
             )
             if cleanup_job in ("always", "onsuccess"):
-                os.unlink(submit_file)
                 cjs.cleanup()
                 job_wrapper.cleanup()
             return
@@ -601,14 +589,10 @@ class HTCondorJobRunner(AsynchronousJobRunner[HTCondorJobState]):
             )
         except Exception:
             log.exception("htcondor submit failed for job %s", job_wrapper.get_id_tag())
-            if cleanup_job == "always" and os.path.exists(submit_file):
-                os.unlink(submit_file)
+            if cleanup_job == "always":
                 cjs.cleanup()
             job_wrapper.fail("htcondor submit failed", exception=True)
             return
-
-        if os.path.exists(submit_file):
-            os.unlink(submit_file)
 
         log.info(f"({galaxy_id_tag}) queued as {external_job_id}")
 
