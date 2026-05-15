@@ -53,7 +53,10 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     for char in ",():+?!;[]":
         sanitized = sanitized.replace(char, " ")
 
-    if not preserve_phrases:
+    # Phrase preservation only works with a balanced pair of quotes. An odd
+    # count means the user left one open, and passing that to FTS5 raises
+    # "unterminated string" which the search layer swallows as no-results.
+    if not preserve_phrases or sanitized.count('"') % 2 == 1:
         sanitized = sanitized.replace('"', " ")
 
     # Keep "*" only at the end of a word so users can write prefix matches
