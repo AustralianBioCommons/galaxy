@@ -149,6 +149,7 @@ PRIVACY_DOWNGRADE_WARNING = (
     "Some selected datasets would move from private storage to shareable storage. "
     "After the operation, you will be able to share these datasets with other users."
 )
+NEAR_QUOTA_WARNING_PREFIX = "After this operation, the target storage will be at"
 
 
 class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
@@ -373,6 +374,24 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
         self._sa_session.add(dataset)
         self._sa_session.commit()
 
+    def _dataset_total_size(self, hda_id: str) -> int:
+        hda = self._sa_session.get(HistoryDatasetAssociation, self._decode_id(hda_id))
+        assert hda is not None
+        dataset = hda.dataset
+        assert dataset is not None
+        return int(dataset.get_total_size() or 0)
+
+    def _quota_source_usage_for_current_user(self, quota_source_label: str) -> int:
+        user_email = self.dataset_populator.user_email()
+        user = self._sa_session.query(User).filter(User.email == user_email).one()
+        usage = user.quota_source_usage_for(quota_source_label)
+        return int(usage.disk_usage or 0) if usage else 0
+
+    def _total_disk_usage_for_current_user(self) -> int:
+        user_email = self.dataset_populator.user_email()
+        user = self._sa_session.query(User).filter(User.email == user_email).one()
+        return int(user.total_disk_usage or 0)
+
     def _expire_snapshot(self, snapshot_id: str) -> None:
         """Simulate snapshot expiration by setting expires_at to the past."""
         snapshot = self._sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(snapshot_id))
@@ -502,6 +521,169 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             try:
                 preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+                eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
+                self._assert_eligibility_reason(eligibility, reason_code="target_quota_exceeded", count=1)
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
+
+    def test_preview_partial_quota_eligibility_greedy_allocation(self):
+        with self.dataset_populator.test_history() as history_id:
+            hdas = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "quota-greedy", "ext": "txt", "name": "quota-greedy-1"},
+                    {"src": "pasted", "paste_content": "quota-greedy", "ext": "txt", "name": "quota-greedy-2"},
+                    {"src": "pasted", "paste_content": "quota-greedy", "ext": "txt", "name": "quota-greedy-3"},
+                ],
+                wait=True,
+            )
+            dataset_size = self._dataset_total_size(hdas[0]["id"])
+            current_usage = self._quota_source_usage_for_current_user("other_quota")
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-greedy-preview-quota",
+                    "description": "Quota for greedy partial eligibility preview coverage.",
+                    "amount": f"{current_usage + (dataset_size * 2) + 1} bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                    "quota_source_label": "other_quota",
+                }
+            )
+
+            try:
+                preview = self._preview_move(
+                    history_id,
+                    OTHER_OBJECT_STORE_ID,
+                    [self._item(hda["id"]) for hda in hdas],
+                )
+
+                eligibility = self._assert_eligibility(preview, eligible=2, ineligible=1)
+                self._assert_eligibility_reason(eligibility, reason_code="target_quota_exceeded", count=1)
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
+
+    @requires_celery
+    def test_execute_quota_enforcement_matches_preview(self):
+        with self.dataset_populator.test_history() as history_id:
+            hdas = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "quota-execute", "ext": "txt", "name": "quota-execute-1"},
+                    {"src": "pasted", "paste_content": "quota-execute", "ext": "txt", "name": "quota-execute-2"},
+                    {"src": "pasted", "paste_content": "quota-execute", "ext": "txt", "name": "quota-execute-3"},
+                ],
+                wait=True,
+            )
+            dataset_size = self._dataset_total_size(hdas[0]["id"])
+            current_usage = self._quota_source_usage_for_current_user("other_quota")
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-greedy-execute-quota",
+                    "description": "Quota for greedy execute consistency coverage.",
+                    "amount": f"{current_usage + (dataset_size * 2) + 1} bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                    "quota_source_label": "other_quota",
+                }
+            )
+
+            try:
+                preview, _, final = self._run_move(
+                    history_id,
+                    OTHER_OBJECT_STORE_ID,
+                    [self._item(hda["id"]) for hda in hdas],
+                    skip_ineligible=True,
+                )
+
+                self._assert_eligibility(preview, eligible=2, ineligible=1)
+                self._assert_run_counts(final["run"], succeeded=2, failed=0, skipped=1)
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
+
+    def test_preview_near_quota_warning_when_approaching_limit(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="near-quota", wait=True)
+            dataset_size = self._dataset_total_size(hda["id"])
+            current_usage = self._quota_source_usage_for_current_user("other_quota")
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-near-quota-warning",
+                    "description": "Quota for near-threshold warning coverage.",
+                    "amount": f"{current_usage + dataset_size} bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                    "quota_source_label": "other_quota",
+                }
+            )
+
+            try:
+                preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+                assert any(NEAR_QUOTA_WARNING_PREFIX in warning for warning in preview["warnings"])
+                assert preview["estimates"].get("quota_projection") is not None
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
+
+    def test_preview_quota_projection_in_estimates(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="projection-estimate", wait=True)
+            dataset_size = self._dataset_total_size(hda["id"])
+            current_usage = self._quota_source_usage_for_current_user("other_quota")
+            quota_limit = current_usage + dataset_size + 123
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-quota-projection-estimate",
+                    "description": "Quota projection estimate coverage.",
+                    "amount": f"{quota_limit} bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                    "quota_source_label": "other_quota",
+                }
+            )
+
+            try:
+                preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, [self._item(hda["id"])])
+
+                projection = preview["estimates"].get("quota_projection")
+                assert projection is not None
+                assert projection["projected_usage"] == current_usage + dataset_size
+                assert projection["quota_limit"] == quota_limit
+            finally:
+                self._delete(f"quotas/{quota['id']}", admin=True).raise_for_status()
+                self._post(f"quotas/{quota['id']}/purge", data={"purge": "true"}, admin=True).raise_for_status()
+
+    def test_preview_marks_ineligible_when_target_default_quota_projection_fails(self):
+        with self.dataset_populator.test_history() as history_id:
+            hda = self._new_dataset_in_store(history_id, "default-target-quota", PRIVATE_OBJECT_STORE_ID)
+            dataset_size = self._dataset_total_size(hda["id"])
+            current_usage = self._total_disk_usage_for_current_user()
+            quota = self.dataset_populator.create_quota(
+                {
+                    "name": "bulk-storage-default-target-quota",
+                    "description": "Quota for default target source projection coverage.",
+                    "amount": f"{current_usage + dataset_size - 1} bytes",
+                    "operation": "=",
+                    "default": "no",
+                    "in_users": [self.dataset_populator.user_email()],
+                    "in_groups": [],
+                }
+            )
+
+            try:
+                preview = self._preview_move(history_id, DEFAULT_OBJECT_STORE_ID, [self._item(hda["id"])])
 
                 eligibility = self._assert_eligibility(preview, eligible=0, ineligible=1)
                 self._assert_eligibility_reason(eligibility, reason_code="target_quota_exceeded", count=1)

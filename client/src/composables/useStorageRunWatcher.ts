@@ -2,7 +2,9 @@ import { computed, readonly, type Ref, ref } from "vue";
 
 import { getStorageOperationRunStatus, type HistoryReference, type StorageOperationRunResponse } from "@/api/histories";
 import { useResourceWatcher } from "@/composables/resourceWatcher";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 import { useStorageOperationsStore } from "@/stores/storageOperationsStore";
+import { useUserStore } from "@/stores/userStore";
 import { isTerminalRunState } from "@/utils/storageOperations";
 
 const STORAGE_RUN_POLLING_INTERVAL = 10000; // 10 seconds
@@ -75,6 +77,8 @@ export function useStorageHistoryRunsWatcher(historyId: string, options?: Storag
 
     if (!watcher) {
         const storageOperationsStore = useStorageOperationsStore();
+        const userStore = useUserStore();
+        const quotaUsageStore = useQuotaUsageStore();
         const runSummariesByRunId = ref<RunSummaries>({});
 
         const historyReference: HistoryReference = {
@@ -113,6 +117,7 @@ export function useStorageHistoryRunsWatcher(historyId: string, options?: Storag
             );
 
             const next: RunSummaries = {};
+            let hasNewlyTerminalRun = false;
 
             runs.forEach((run) => {
                 const existingSummary = previous[run.run_id];
@@ -129,6 +134,7 @@ export function useStorageHistoryRunsWatcher(historyId: string, options?: Storag
 
                 if (result.status === "fulfilled" && result.value.summary) {
                     const summary = result.value.summary;
+                    const previouslyTerminal = isTerminalRunState(runsToFetch[index]?.state ?? summary.state);
                     next[runId] = summary;
                     storageOperationsStore.updateRunStatus(runId, {
                         state: summary.state,
@@ -139,10 +145,18 @@ export function useStorageHistoryRunsWatcher(historyId: string, options?: Storag
                         total_bytes_processed: summary.total_bytes_processed,
                         update_time: summary.update_time,
                     });
+                    if (!previouslyTerminal && isTerminalRunState(summary.state)) {
+                        hasNewlyTerminalRun = true;
+                    }
                 }
             });
 
             runSummariesByRunId.value = next;
+
+            if (hasNewlyTerminalRun) {
+                void userStore.refreshUser(false);
+                quotaUsageStore.requestRefreshDebounced(0);
+            }
         };
 
         const { startWatchingResource, stopWatchingResource, isWatchingResource } = useResourceWatcher(

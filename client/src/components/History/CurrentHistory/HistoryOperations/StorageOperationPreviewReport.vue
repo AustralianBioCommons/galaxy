@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BAlert, BBadge, BListGroup, BListGroupItem } from "bootstrap-vue";
+import { BAlert, BBadge, BListGroup, BListGroupItem, BProgress, BProgressBar } from "bootstrap-vue";
 import { computed } from "vue";
 
 import type { StorageOperationPreviewResponse } from "@/api/histories";
@@ -55,6 +55,29 @@ const ineligibleReasonBreakdown = computed(() => {
 const hasIneligible = computed(() => props.preview.eligibility.ineligible_count > 0);
 const noneEligible = computed(() => props.preview.eligibility.eligible_count === 0);
 const hasWarnings = computed(() => Boolean(props.preview.warnings?.length) || noneEligible.value);
+
+type QuotaProjection = NonNullable<StorageOperationPreviewResponse["estimates"]["quota_projection"]>;
+
+const quotaProjection = computed<QuotaProjection | null>(() => props.preview.estimates.quota_projection ?? null);
+
+const quotaProjectionPercent = computed(() => {
+    const projection = quotaProjection.value;
+    if (!projection || projection.quota_limit <= 0) {
+        return 0;
+    }
+    return (projection.projected_usage / projection.quota_limit) * 100;
+});
+
+const quotaProjectionVariant = computed(() => {
+    const percent = quotaProjectionPercent.value;
+    if (percent > 80) {
+        return "danger";
+    }
+    if (percent >= 60) {
+        return "warning";
+    }
+    return "success";
+});
 
 const targetStoreName = computed(() => {
     return objectStoreStore.getObjectStoreNameById(props.targetStoreId) ?? "Unknown storage location";
@@ -133,6 +156,19 @@ function formatQuotaDelta(delta: number) {
                     <span class="small text-warning">{{ formatQuotaDelta(entry.availableQuotaDelta) }}</span>
                 </BListGroupItem>
             </BListGroup>
+        </div>
+
+        <div v-if="quotaProjection" class="mb-3">
+            <p class="mb-1 font-weight-bold">Target quota after operation</p>
+            <BProgress :max="100" height="1.25rem">
+                <BProgressBar
+                    :value="Math.min(quotaProjectionPercent, 100)"
+                    :variant="quotaProjectionVariant"
+                    :label="`${quotaProjectionPercent.toFixed(0)}%`" />
+            </BProgress>
+            <div class="text-muted small mt-1">
+                {{ bytesToString(quotaProjection.projected_usage) }} / {{ bytesToString(quotaProjection.quota_limit) }}
+            </div>
         </div>
 
         <!-- Ineligibility breakdown -->

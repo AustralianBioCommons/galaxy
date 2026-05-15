@@ -22668,6 +22668,7 @@ export interface components {
             bytes_to_transfer: number;
             /** Quota Delta Transfers */
             quota_delta_transfers?: components["schemas"]["StorageOperationQuotaDeltaTransfer"][];
+            quota_projection?: components["schemas"]["StorageOperationQuotaProjectionSummary"] | null;
         };
         /** StorageOperationExecutePolicy */
         StorageOperationExecutePolicy: {
@@ -22811,6 +22812,13 @@ export interface components {
             source_object_store_id: string;
             /** Target Object Store Id */
             target_object_store_id: string;
+        };
+        /** StorageOperationQuotaProjectionSummary */
+        StorageOperationQuotaProjectionSummary: {
+            /** Projected Usage */
+            projected_usage: number;
+            /** Quota Limit */
+            quota_limit: number;
         };
         /**
          * StorageOperationRunItemState

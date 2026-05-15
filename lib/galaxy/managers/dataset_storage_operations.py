@@ -49,6 +49,7 @@ from galaxy.schema.storage_operations import (
     StorageOperationMode,
     StorageOperationPreviewResponse,
     StorageOperationQuotaDeltaTransfer,
+    StorageOperationQuotaProjectionSummary,
     StorageOperationRunItemState,
     StorageOperationRunItemStatus,
     StorageOperationRunState,
@@ -78,6 +79,7 @@ PROGRESS_COMMIT_INTERVAL_SMALL_RUN = 1
 PROGRESS_COMMIT_INTERVAL_MEDIUM_RUN = 5
 PROGRESS_COMMIT_INTERVAL_LARGE_RUN = 25
 PROGRESS_COMMIT_INTERVAL_XL_RUN = 50
+NEAR_QUOTA_WARNING_THRESHOLD = 0.8
 TERMINAL_RUN_ITEM_STATES = {
     StorageOperationRunItemState.succeeded.value,
     StorageOperationRunItemState.failed.value,
@@ -193,8 +195,6 @@ class DatasetStorageOperationManager:
         source_quota_label: Optional[str],
         target_quota_label: Optional[str],
     ) -> int:
-        if target_quota_label is None:
-            return 0
         if source_quota_label == target_quota_label:
             return 0
         return dataset_size
@@ -572,10 +572,26 @@ class DatasetStorageOperationPreviewBuilder:
         )
 
         warnings: list[str] = []
-        if preview.target_quota_projection and preview.target_quota_projection.exceeds_quota:
+        target_quota_exceeded = any(
+            reason.reason_code == DatasetStorageOperationFailureReasonCode.target_quota_exceeded
+            for reason in preview.eligibility_reasons
+        )
+        if target_quota_exceeded:
             warnings.append(
                 self.storage_operation_manager.target_quota_exceeded_message(phase_label="before execution")
             )
+        if (
+            preview.target_quota_projection
+            and not preview.target_quota_projection.exceeds_quota
+            and preview.target_quota_projection.quota > 0
+        ):
+            target_quota_percentage = (
+                preview.target_quota_projection.projected_usage / preview.target_quota_projection.quota
+            ) * 100
+            if target_quota_percentage >= NEAR_QUOTA_WARNING_THRESHOLD * 100:
+                warnings.append(
+                    f"After this operation, the target storage will be at {target_quota_percentage:.0f}% of its quota limit."
+                )
         if preview.privacy_downgrade_count > 0:
             warnings.append(
                 "Some selected datasets would move from private storage to shareable storage. "
@@ -601,6 +617,14 @@ class DatasetStorageOperationPreviewBuilder:
             estimates=StorageOperationEstimateSummary(
                 bytes_to_transfer=preview.bytes_to_transfer,
                 quota_delta_transfers=preview.quota_delta_transfers,
+                quota_projection=(
+                    StorageOperationQuotaProjectionSummary(
+                        projected_usage=preview.target_quota_projection.projected_usage,
+                        quota_limit=preview.target_quota_projection.quota,
+                    )
+                    if preview.target_quota_projection
+                    else None
+                ),
             ),
             warnings=warnings,
             expires_at=snapshot.expires_at,
@@ -620,7 +644,7 @@ class DatasetStorageOperationPreviewBuilder:
         eligible_count = 0
         ineligible_count = 0
         bytes_to_transfer = 0
-        target_quota_delta = 0
+        running_additional_target_usage = 0
         quota_delta_transfer_totals: dict[tuple[str, str], int] = {}
         privacy_downgrade_count = 0
         quota_source_map = self.object_store.get_quota_source_map()
@@ -634,9 +658,33 @@ class DatasetStorageOperationPreviewBuilder:
             )
 
             if reason is None:
+                dataset_size = int(dataset.get_total_size() or 0)
+                source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
+                target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
+                dataset_target_quota_delta = self.storage_operation_manager.target_quota_delta(
+                    dataset_size,
+                    source_quota_label,
+                    target_quota_label,
+                )
+
+                target_quota_projection = self.storage_operation_manager.target_quota_projection(
+                    quota_agent,
+                    user,
+                    target_object_store_id,
+                    dataset_target_quota_delta,
+                    additional_target_usage=running_additional_target_usage,
+                )
+                if target_quota_projection and target_quota_projection.exceeds_quota:
+                    ineligible_count += 1
+                    self._increment_eligibility_reason(
+                        eligibility_reason_counts,
+                        DatasetStorageOperationFailureReasonCode.target_quota_exceeded,
+                    )
+                    continue
+
                 eligible_count += 1
                 eligible_dataset_ids.append(dataset_id)
-                dataset_size = int(dataset.get_total_size() or 0)
+
                 if self.storage_operation_manager.requires_data_transfer(dataset, target_object_store_id):
                     bytes_to_transfer += dataset_size
 
@@ -648,13 +696,7 @@ class DatasetStorageOperationPreviewBuilder:
                         key = (source_object_store_id, target_object_store_id)
                         quota_delta_transfer_totals[key] = quota_delta_transfer_totals.get(key, 0) + dataset_size
 
-                source_quota_label = quota_source_map.get_quota_source_label(dataset.object_store_id)
-                target_quota_label = quota_source_map.get_quota_source_label(target_object_store_id)
-                target_quota_delta += self.storage_operation_manager.target_quota_delta(
-                    dataset_size,
-                    source_quota_label,
-                    target_quota_label,
-                )
+                running_additional_target_usage += dataset_target_quota_delta
                 if self.storage_operation_manager.is_privacy_downgrade_for_target(dataset, target_object_store_id):
                     privacy_downgrade_count += 1
             else:
@@ -675,17 +717,8 @@ class DatasetStorageOperationPreviewBuilder:
             quota_agent,
             user,
             target_object_store_id,
-            target_quota_delta,
+            running_additional_target_usage,
         )
-        if target_quota_projection and target_quota_projection.exceeds_quota:
-            self._increment_eligibility_reason(
-                eligibility_reason_counts,
-                DatasetStorageOperationFailureReasonCode.target_quota_exceeded,
-                count=eligible_count,
-            )
-            eligible_dataset_ids = []
-            ineligible_count += eligible_count
-            eligible_count = 0
 
         return StorageOperationPreviewComputation(
             eligible_dataset_ids=eligible_dataset_ids,
@@ -699,7 +732,7 @@ class DatasetStorageOperationPreviewBuilder:
             eligible_count=eligible_count,
             ineligible_count=ineligible_count,
             bytes_to_transfer=bytes_to_transfer,
-            target_quota_delta=target_quota_delta,
+            target_quota_delta=running_additional_target_usage,
             quota_delta_transfers=quota_delta_transfers,
             privacy_downgrade_count=privacy_downgrade_count,
             target_quota_projection=target_quota_projection,
@@ -956,6 +989,15 @@ class StorageOperationRunExecutor:
         self.storage_operation_manager = storage_operation_manager
         self.quota_source_map = app.object_store.get_quota_source_map()
         self.target_quota_source_label = self.quota_source_map.get_quota_source_label(run.target_object_store_id)
+        self.target_quota_limit: Optional[int] = None
+        self.target_quota_usage_at_start = 0
+        if user is not None:
+            self.target_quota_limit = app.quota_agent.get_quota(user, quota_source_label=self.target_quota_source_label)
+            if self.target_quota_source_label is None:
+                self.target_quota_usage_at_start = int(user.total_disk_usage or 0)
+            else:
+                quota_source_usage = user.quota_source_usage_for(self.target_quota_source_label)
+                self.target_quota_usage_at_start = int(quota_source_usage.disk_usage or 0) if quota_source_usage else 0
         self.additional_target_usage = 0
         self.succeeded_count = 0
         self.failed_count = 0
@@ -1224,15 +1266,10 @@ class StorageOperationRunExecutor:
         if reason is not None:
             return reason
 
-        target_quota_projection = self.storage_operation_manager.target_quota_projection(
-            self.app.quota_agent,
-            self.user,
-            self.run.target_object_store_id,
-            quota_delta,
-            additional_target_usage=self.additional_target_usage,
-        )
-        if target_quota_projection and target_quota_projection.exceeds_quota:
-            return DatasetStorageOperationFailureReasonCode.target_quota_exceeded
+        if self.target_quota_limit is not None and quota_delta > 0:
+            projected_usage = self.target_quota_usage_at_start + self.additional_target_usage + quota_delta
+            if projected_usage > self.target_quota_limit:
+                return DatasetStorageOperationFailureReasonCode.target_quota_exceeded
 
         return None
 

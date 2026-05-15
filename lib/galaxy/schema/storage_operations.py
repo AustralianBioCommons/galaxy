@@ -95,9 +95,15 @@ class StorageOperationQuotaDeltaTransfer(Model):
     bytes: int = 0
 
 
+class StorageOperationQuotaProjectionSummary(Model):
+    projected_usage: int
+    quota_limit: int
+
+
 class StorageOperationEstimateSummary(Model):
     bytes_to_transfer: int = 0
     quota_delta_transfers: list[StorageOperationQuotaDeltaTransfer] = Field(default_factory=list)
+    quota_projection: Optional[StorageOperationQuotaProjectionSummary] = None
 
 
 class StorageOperationPreviewResponse(Model):
