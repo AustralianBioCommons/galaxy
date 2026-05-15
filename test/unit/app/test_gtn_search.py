@@ -140,6 +140,16 @@ def test_search_by_tools_finds_tutorial_using_tool(fixture_db: Path):
     assert results[0].tutorial == "dip-and-snp-calling"
 
 
+def test_search_by_tools_escapes_like_metacharacters(fixture_db: Path):
+    db = GTNSearchDB(db_path=str(fixture_db))
+    # "%" as a tool name should match nothing -- no tutorial uses a tool
+    # literally named "%". Without LIKE escaping, "%%%" globs every row.
+    assert db.search_by_tools(["%"]) == []
+    # Same for "_": it should only match a tool literally containing
+    # an underscore, not stand in for any single character.
+    assert db.search_by_tools(["hisa_2"]) == []
+
+
 def test_faq_result_to_dict_builds_category_anchor_url():
     result = FAQResult(
         id=1,
