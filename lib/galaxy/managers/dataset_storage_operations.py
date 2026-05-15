@@ -965,6 +965,10 @@ class StorageOperationRunExecutor:
         self.total_bytes_processed = 0
         self.progress_commit_every = PROGRESS_COMMIT_INTERVAL_SMALL_RUN
         self.datasets_since_progress_commit = 0
+        self.run_items_by_dataset_id_cache: dict[int, DatasetStorageOperationRunItem] = {}
+        self._pending_dataset_update_ids: set[int] = set()
+        # Cleanups queued during transfer; executed after batch DB commit to ensure durability.
+        self._pending_cleanups: list[tuple[DatasetObjectStoreProxy, Optional[str]]] = []
 
     def execute_run(self, snapshot: Optional[DatasetStorageOperationSnapshot]) -> StorageOperationExecutionResult:
         """Validate snapshot, drive state transitions, execute all datasets, and return execution outcome."""
@@ -975,10 +979,13 @@ class StorageOperationRunExecutor:
             return self._fail_run("Bulk storage run failed because its preview snapshot expired before execution.")
 
         run_items_by_dataset_id = self._run_items_by_dataset_id()
+        self.run_items_by_dataset_id_cache = run_items_by_dataset_id
         self._reconcile_interrupted_items(run_items_by_dataset_id)
-        self._rebuild_run_progress(run_items_by_dataset_id.values())
+        self._rebuild_run_progress(self.run_items_by_dataset_id_cache.values())
 
-        remaining_dataset_ids = self._remaining_dataset_ids(snapshot.resolved_dataset_ids, run_items_by_dataset_id)
+        remaining_dataset_ids = self._remaining_dataset_ids(
+            snapshot.resolved_dataset_ids, self.run_items_by_dataset_id_cache
+        )
         if not remaining_dataset_ids:
             return self._complete_run(snapshot.resolved_dataset_ids)
 
@@ -1025,6 +1032,7 @@ class StorageOperationRunExecutor:
         return StorageOperationExecutionResult(state=StorageOperationRunState.completed, message=message)
 
     def _fail_run(self, message: str) -> StorageOperationExecutionResult:
+        self._flush_pending_dataset_updates()
         self.run.state = "failed"
         self.run.failed_count = self.run.total_count if self.run.total_count else 0
         self.sa_session.add(self.run)
@@ -1042,6 +1050,10 @@ class StorageOperationRunExecutor:
             self.datasets_since_progress_commit += 1
             self._persist_run_progress()
         self._persist_run_progress(force=True)
+        # Flush all queued source cleanups only after DB is durable.
+        # This ensures that if the worker crashes, recovery will see completed state
+        # and datasets won't point to deleted files.
+        self._flush_pending_cleanups()
         return self.succeeded_count, self.failed_count, self.skipped_count, self.total_bytes_processed
 
     def _progress_commit_interval(self, remaining_count: int) -> int:
@@ -1075,12 +1087,21 @@ class StorageOperationRunExecutor:
                 self.skipped_count += 1
 
     def _reconcile_interrupted_items(self, run_items_by_dataset_id: dict[int, DatasetStorageOperationRunItem]) -> None:
-        reconciled = False
-        for dataset_id, run_item in run_items_by_dataset_id.items():
-            if run_item.state != StorageOperationRunItemState.running.value:
-                continue
+        running_dataset_ids = [
+            dataset_id
+            for dataset_id, run_item in run_items_by_dataset_id.items()
+            if run_item.state == StorageOperationRunItemState.running.value
+        ]
+        if not running_dataset_ids:
+            return
 
-            dataset = self.sa_session.get(Dataset, dataset_id)
+        datasets = self.sa_session.execute(select(Dataset).where(Dataset.id.in_(running_dataset_ids))).scalars().all()
+        datasets_by_id = {dataset.id: dataset for dataset in datasets}
+
+        reconciled = False
+        for dataset_id in running_dataset_ids:
+            run_item = run_items_by_dataset_id[dataset_id]
+            dataset = datasets_by_id.get(dataset_id)
             if dataset is None or dataset.purged:
                 self._add_run_item(
                     dataset_id=dataset_id,
@@ -1105,6 +1126,7 @@ class StorageOperationRunExecutor:
             reconciled = True
 
         if reconciled:
+            self._flush_pending_dataset_updates()
             self.sa_session.commit()
 
     def _reconcile_completed_cross_device_transfer(
@@ -1234,8 +1256,15 @@ class StorageOperationRunExecutor:
 
     def _execute_dataset_transfer(self, dataset: Dataset, dataset_id: int, quota_delta: int):
         run_item = self._mark_run_item_running(dataset_id)
-        source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
+        # Capture source store ID early to avoid issues with in-memory mutations during retries.
+        source_store_id = dataset.object_store_id
+        assert source_store_id is not None, "Dataset object_store_id cannot be None for transfer operations."
+        source_proxy = self._dataset_proxy(dataset, str(source_store_id))
+        target_proxy = self._dataset_proxy(dataset, self.run.target_object_store_id)
         extra_files_path_name = dataset.extra_files_path_name
+        requires_data_transfer = self.storage_operation_manager.requires_data_transfer(
+            dataset, self.run.target_object_store_id
+        )
         if not self._source_dataset_exists(source_proxy):
             self._record_transfer_failure(
                 dataset_id,
@@ -1244,20 +1273,19 @@ class StorageOperationRunExecutor:
             )
             return
 
-        requires_data_transfer = self.storage_operation_manager.requires_data_transfer(
-            dataset, self.run.target_object_store_id
-        )
-
         for attempt in range(1, TRANSFER_RETRY_ATTEMPTS + 1):
-            target_proxy: Optional[DatasetObjectStoreProxy] = None
+            target_proxy_for_cleanup: Optional[DatasetObjectStoreProxy] = None
             try:
                 bytes_processed = 0
                 if requires_data_transfer:
-                    target_proxy = self._dataset_proxy(dataset, self.run.target_object_store_id)
-                    bytes_processed = self._copy_dataset_to_target_store(dataset, self.run.target_object_store_id)
-                    self._verify_copied_dataset_integrity(dataset, self.run.target_object_store_id)
+                    target_proxy_for_cleanup = target_proxy
+                    bytes_processed = self._copy_dataset_to_target_store(
+                        dataset, source_store_id, self.run.target_object_store_id
+                    )
+                    self._verify_copied_dataset_integrity(dataset, source_store_id, self.run.target_object_store_id)
                     self._finalize_cross_device_move(dataset, self.run.target_object_store_id)
-                    self._cleanup_source_dataset_data(source_proxy, extra_files_path_name)
+                    # Queue cleanup for after DB commit to ensure crash safety.
+                    self._pending_cleanups.append((source_proxy, extra_files_path_name))
                 else:
                     self.dataset_manager.update_object_store_id(self.trans, dataset, self.run.target_object_store_id)
 
@@ -1280,8 +1308,8 @@ class StorageOperationRunExecutor:
                     TRANSFER_RETRY_ATTEMPTS,
                     exc,
                 )
-                if target_proxy is not None:
-                    self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
+                if target_proxy_for_cleanup is not None:
+                    self._cleanup_target_dataset_data(target_proxy_for_cleanup, extra_files_path_name)
                 if attempt < TRANSFER_RETRY_ATTEMPTS and requires_data_transfer:
                     continue
                 self._record_transfer_failure(
@@ -1298,8 +1326,8 @@ class StorageOperationRunExecutor:
                     attempt,
                     TRANSFER_RETRY_ATTEMPTS,
                 )
-                if target_proxy is not None:
-                    self._cleanup_target_dataset_data(target_proxy, extra_files_path_name)
+                if target_proxy_for_cleanup is not None:
+                    self._cleanup_target_dataset_data(target_proxy_for_cleanup, extra_files_path_name)
                 if attempt < TRANSFER_RETRY_ATTEMPTS and requires_data_transfer:
                     continue
                 self._record_transfer_failure(
@@ -1322,8 +1350,21 @@ class StorageOperationRunExecutor:
             return False
 
     def _notify_dataset_update(self, dataset: Dataset):
-        # Touching the dataset update time will trigger a refresh in the UI
-        dataset.touch_collection_update_time()
+        self._pending_dataset_update_ids.add(dataset.id)
+
+    def _flush_pending_dataset_updates(self) -> None:
+        if not self._pending_dataset_update_ids:
+            return
+
+        datasets = (
+            self.sa_session.execute(select(Dataset).where(Dataset.id.in_(self._pending_dataset_update_ids)))
+            .scalars()
+            .all()
+        )
+        for dataset in datasets:
+            # Touching dataset-linked collections drives history refreshes for clients.
+            dataset.touch_collection_update_time()
+        self._pending_dataset_update_ids.clear()
 
     def _record_transfer_failure(
         self,
@@ -1342,6 +1383,7 @@ class StorageOperationRunExecutor:
     def _persist_run_progress(self, force: bool = False) -> None:
         if not force and self.datasets_since_progress_commit < self.progress_commit_every:
             return
+        self._flush_pending_dataset_updates()
         self.run.succeeded_count = self.succeeded_count
         self.run.failed_count = self.failed_count
         self.run.skipped_count = self.skipped_count
@@ -1349,6 +1391,16 @@ class StorageOperationRunExecutor:
         self.sa_session.add(self.run)
         self.sa_session.commit()
         self.datasets_since_progress_commit = 0
+
+    def _flush_pending_cleanups(self) -> None:
+        """Execute queued source file cleanups after DB is durable.
+
+        This ensures crash safety: if the worker fails, the DB reflects success
+        and recovery will find source files already gone (expected state).
+        """
+        for source_proxy, extra_files_path_name in self._pending_cleanups:
+            self._cleanup_source_dataset_data(source_proxy, extra_files_path_name)
+        self._pending_cleanups.clear()
 
     def _add_run_item(
         self,
@@ -1358,12 +1410,14 @@ class StorageOperationRunExecutor:
         reason_code: Optional[DatasetStorageOperationFailureReasonCode] = None,
         bytes_processed: int = 0,
     ) -> DatasetStorageOperationRunItem:
-        run_item = self.sa_session.execute(
-            select(DatasetStorageOperationRunItem).where(
-                DatasetStorageOperationRunItem.run_id == self.run.id,
-                DatasetStorageOperationRunItem.dataset_id == dataset_id,
-            )
-        ).scalar_one_or_none()
+        run_item = self.run_items_by_dataset_id_cache.get(dataset_id)
+        if run_item is None:
+            run_item = self.sa_session.execute(
+                select(DatasetStorageOperationRunItem).where(
+                    DatasetStorageOperationRunItem.run_id == self.run.id,
+                    DatasetStorageOperationRunItem.dataset_id == dataset_id,
+                )
+            ).scalar_one_or_none()
         if run_item is None:
             run_item = DatasetStorageOperationRunItem(
                 run_id=self.run.id,
@@ -1372,27 +1426,27 @@ class StorageOperationRunExecutor:
                 reason_code=reason_code,
                 bytes_processed=bytes_processed,
             )
+            self.run_items_by_dataset_id_cache[dataset_id] = run_item
         else:
             run_item.state = state
             run_item.reason_code = reason_code
             run_item.bytes_processed = bytes_processed
+            self.run_items_by_dataset_id_cache[dataset_id] = run_item
         self.sa_session.add(run_item)
         return run_item
 
     def _mark_run_item_running(self, dataset_id: int) -> DatasetStorageOperationRunItem:
-        run_item = self._add_run_item(
+        return self._add_run_item(
             dataset_id=dataset_id,
             state=StorageOperationRunItemState.running.value,
             bytes_processed=0,
         )
-        self.sa_session.commit()
-        return run_item
 
     def _dataset_proxy(self, dataset: Dataset, object_store_id: str) -> DatasetObjectStoreProxy:
         return DatasetObjectStoreProxy(id=dataset.id, uuid=dataset.uuid, object_store_id=object_store_id)
 
-    def _copy_dataset_to_target_store(self, dataset: Dataset, target_object_store_id: str) -> int:
-        source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
+    def _copy_dataset_to_target_store(self, dataset: Dataset, source_store_id: str, target_object_store_id: str) -> int:
+        source_proxy = self._dataset_proxy(dataset, source_store_id)
         target_proxy = self._dataset_proxy(dataset, target_object_store_id)
 
         source_filename = self.app.object_store.get_filename(source_proxy)
@@ -1437,8 +1491,8 @@ class StorageOperationRunExecutor:
                 preserve_symlinks=False,
             )
 
-    def _verify_copied_dataset_integrity(self, dataset: Dataset, target_object_store_id: str):
-        source_proxy = self._dataset_proxy(dataset, str(dataset.object_store_id))
+    def _verify_copied_dataset_integrity(self, dataset: Dataset, source_store_id: str, target_object_store_id: str):
+        source_proxy = self._dataset_proxy(dataset, source_store_id)
         target_proxy = self._dataset_proxy(dataset, target_object_store_id)
 
         source_filename = self.app.object_store.get_filename(source_proxy)

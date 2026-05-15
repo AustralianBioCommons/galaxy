@@ -564,8 +564,14 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def test_preview_mixed_eligibility(self):
         """Preview handles a mix of eligible and ineligible items in one request."""
         with self.dataset_populator.test_history() as history_id:
-            eligible_hda = self.dataset_populator.new_dataset(history_id, content="a", wait=True)
-            ineligible_hda = self.dataset_populator.new_dataset(history_id, content="b", wait=True)
+            eligible_hda, ineligible_hda = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "a", "ext": "txt", "name": "eligible-a"},
+                    {"src": "pasted", "paste_content": "b", "ext": "txt", "name": "ineligible-b"},
+                ],
+                wait=True,
+            )
 
             self._preview_move(
                 history_id,
@@ -637,6 +643,67 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             assert item["state"] == "succeeded"
             assert item["reason_code"] is None
 
+    def test_sync_large_batch_uses_batched_progress_commits_and_notification_flushes(self):
+        with self.dataset_populator.test_history() as history_id:
+            # Keep this test fast while still exercising batched progress commits (>10 => interval 5).
+            dataset_count = 15
+            datasets = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {
+                        "src": "pasted",
+                        "paste_content": f"batch-{i}",
+                        "ext": "txt",
+                        "name": f"batch-{i}",
+                    }
+                    for i in range(dataset_count)
+                ],
+                wait=True,
+            )
+            items = [self._item(dataset["id"]) for dataset in datasets]
+
+            preview = self._preview_move(history_id, OTHER_OBJECT_STORE_ID, items)
+            snapshot = self._sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(preview["snapshot_id"]))
+            assert snapshot is not None
+
+            storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
+            dataset_manager = DatasetManager(self._app)
+            user = self._sa_session.get(User, snapshot.user_id)
+
+            run, _ = storage_operation_manager.create_run_and_summary(
+                sa_session=self._sa_session,
+                snapshot=snapshot,
+                skip_ineligible=False,
+            )
+            executor = storage_operation_manager.create_run_executor(
+                sa_session=self._sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=run,
+                user=user,
+            )
+
+            batch_sizes: list[int] = []
+            original_flush = executor._flush_pending_dataset_updates
+
+            def recording_flush():
+                pending_count = len(executor._pending_dataset_update_ids)
+                if pending_count:
+                    batch_sizes.append(pending_count)
+                return original_flush()
+
+            with patch.object(executor, "_flush_pending_dataset_updates", side_effect=recording_flush):
+                result = executor.execute_run(snapshot)
+
+            assert result.state == StorageOperationRunState.completed
+            assert run.succeeded_count == len(datasets)
+            assert run.failed_count == 0
+            assert run.skipped_count == 0
+            assert batch_sizes
+            assert max(batch_sizes) > 1
+            assert len(batch_sizes) < len(datasets)
+            assert sum(batch_sizes) == len(datasets)
+
     @requires_celery
     def test_move_mode_cross_device_completes_and_updates_source_store(self):
         """Move mode to a different device uses copy-then-cutover and updates dataset source store id."""
@@ -690,8 +757,14 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def test_skip_ineligible_true_skips_not_fails(self):
         """With skip_ineligible=True an ineligible dataset is skipped, not failed."""
         with self.dataset_populator.test_history() as history_id:
-            eligible = self.dataset_populator.new_dataset(history_id, content="eligible", wait=True)
-            to_skip = self.dataset_populator.new_dataset(history_id, content="skip_me", wait=True)
+            eligible, to_skip = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "eligible", "ext": "txt", "name": "eligible"},
+                    {"src": "pasted", "paste_content": "skip_me", "ext": "txt", "name": "skip-me"},
+                ],
+                wait=True,
+            )
 
             self.dataset_populator.update_object_store_id(to_skip["id"], OTHER_OBJECT_STORE_ID)
 
@@ -723,8 +796,14 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     @requires_celery
     def test_run_items_search_filters_by_reason_code(self):
         with self.dataset_populator.test_history() as history_id:
-            eligible = self.dataset_populator.new_dataset(history_id, content="eligible", wait=True)
-            ineligible = self.dataset_populator.new_dataset(history_id, content="ineligible", wait=True)
+            eligible, ineligible = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "eligible", "ext": "txt", "name": "eligible"},
+                    {"src": "pasted", "paste_content": "ineligible", "ext": "txt", "name": "ineligible"},
+                ],
+                wait=True,
+            )
             self.dataset_populator.update_object_store_id(ineligible["id"], OTHER_OBJECT_STORE_ID)
 
             _, run, final = self._run_move(
@@ -902,9 +981,20 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def test_idempotent_reexecution_mixed_state_no_data_mutation(self):
         """Re-executing the same snapshot is safe and does not duplicate cross-device files."""
         with self.dataset_populator.test_history() as history_id:
-            to_move = self.dataset_populator.new_dataset(history_id, content="to-move", wait=True)
-            becomes_ineligible = self.dataset_populator.new_dataset(history_id, content="becomes-ineligible", wait=True)
-            control = self.dataset_populator.new_dataset(history_id, content="control", wait=True)
+            to_move, becomes_ineligible, control = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "to-move\n", "ext": "txt", "name": "to-move"},
+                    {
+                        "src": "pasted",
+                        "paste_content": "becomes-ineligible\n",
+                        "ext": "txt",
+                        "name": "becomes-ineligible",
+                    },
+                    {"src": "pasted", "paste_content": "control\n", "ext": "txt", "name": "control"},
+                ],
+                wait=True,
+            )
 
             preview = self._preview_move(
                 history_id,
@@ -1064,8 +1154,14 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     @requires_celery
     def test_recover_stale_run_requeues_and_resumes_remaining_datasets(self):
         with self.dataset_populator.test_history() as history_id:
-            first = self.dataset_populator.new_dataset(history_id, content="first", wait=True)
-            second = self.dataset_populator.new_dataset(history_id, content="second", wait=True)
+            first, second = self.dataset_populator.fetch_hdas(
+                history_id,
+                [
+                    {"src": "pasted", "paste_content": "first\n", "ext": "txt", "name": "first"},
+                    {"src": "pasted", "paste_content": "second\n", "ext": "txt", "name": "second"},
+                ],
+                wait=True,
+            )
 
             preview = self._preview_move(
                 history_id,
@@ -1240,8 +1336,12 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
             source_proxy = executor._dataset_proxy(dataset, str(dataset.object_store_id))
             target_proxy = executor._dataset_proxy(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
             executor._mark_run_item_running(dataset.id)
-            executor._copy_dataset_to_target_store(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
-            executor._verify_copied_dataset_integrity(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._copy_dataset_to_target_store(
+                dataset, str(dataset.object_store_id), SEPARATE_DEVICE_OBJECT_STORE_ID
+            )
+            executor._verify_copied_dataset_integrity(
+                dataset, str(dataset.object_store_id), SEPARATE_DEVICE_OBJECT_STORE_ID
+            )
             executor._cleanup_source_dataset_data(source_proxy, dataset.extra_files_path_name)
             sa_session.expire_all()
 
@@ -1294,6 +1394,88 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
                 new_hda["id"],
                 SEPARATE_DEVICE_OBJECT_STORE_ID,
                 "late-commit\n",
+            )
+
+    def test_recovery_handles_crash_after_source_cleanup(self):
+        """Verify safe recovery when worker crashes after source files are deleted but before DB update.
+
+        Exercises the reconciliation path: source missing + target present + DB shows old store
+        + run_item in "running" state → finalize and succeed.
+        """
+        with self.dataset_populator.test_history() as history_id:
+            hda = self.dataset_populator.new_dataset(history_id, content="crash-recovery\n", wait=True)
+
+            preview = self._preview_move(history_id, SEPARATE_DEVICE_OBJECT_STORE_ID, [self._item(hda["id"])])
+            self._assert_eligibility(preview, eligible=1, ineligible=0)
+
+            sa_session = self._sa_session
+            snapshot = sa_session.get(DatasetStorageOperationSnapshot, self._decode_id(preview["snapshot_id"]))
+            assert snapshot is not None
+
+            storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
+            dataset_manager = DatasetManager(self._app)
+            user = sa_session.get(User, snapshot.user_id)
+            assert user is not None
+
+            run, _ = storage_operation_manager.create_run_and_summary(
+                sa_session=sa_session,
+                snapshot=snapshot,
+                skip_ineligible=False,
+            )
+
+            hda_obj = sa_session.get(HistoryDatasetAssociation, self._decode_id(hda["id"]))
+            assert hda_obj is not None
+            dataset = hda_obj.dataset
+            assert dataset is not None
+            original_store = str(dataset.object_store_id)
+
+            # Use a temporary executor to set up the crash state via file operations only:
+            # copy data to target, delete from source — intentionally skipping
+            # _finalize_cross_device_move so the DB still shows the old store.
+            executor = storage_operation_manager.create_run_executor(
+                sa_session=sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=run,
+                user=user,
+            )
+            source_proxy = executor._dataset_proxy(dataset, original_store)
+            target_proxy = executor._dataset_proxy(dataset, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._copy_dataset_to_target_store(dataset, original_store, SEPARATE_DEVICE_OBJECT_STORE_ID)
+            executor._cleanup_source_dataset_data(source_proxy, dataset.extra_files_path_name)
+
+            assert not self._app.object_store.exists(source_proxy)
+            assert self._app.object_store.exists(target_proxy)
+            assert dataset.object_store_id == original_store  # DB still shows old store
+
+            # Simulate a run_item left in "running" state by the crashed worker.
+            sa_session.add(
+                DatasetStorageOperationRunItem(
+                    run_id=run.id,
+                    dataset_id=dataset.id,
+                    state="running",
+                    reason_code=None,
+                    bytes_processed=0,
+                )
+            )
+            sa_session.commit()
+
+            # Recovery: a new executor should detect source-missing + target-present and finalize.
+            executor_recovered = storage_operation_manager.create_run_executor(
+                sa_session=sa_session,
+                dataset_manager=dataset_manager,
+                app=self._app,
+                run=run,
+                user=user,
+            )
+            result = executor_recovered.execute_run(snapshot)
+
+            assert result.state == StorageOperationRunState.completed
+            self._assert_dataset_store_and_content(
+                history_id,
+                hda["id"],
+                SEPARATE_DEVICE_OBJECT_STORE_ID,
+                "crash-recovery\n",
             )
 
     def test_prune_expired_unused_snapshot(self):
