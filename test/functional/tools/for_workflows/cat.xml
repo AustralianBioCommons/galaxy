@@ -10,7 +10,7 @@ cat '$input1' #for $q in $queries# '${q.input2}' #end for# > '$out_file1'
         </repeat>
     </inputs>
     <outputs>
-        <data name="out_file1" format="input" metadata_source="input1" label="Concatenated"/>
+        <data name="out_file1" format="input" metadata_source="input1"/>
     </outputs>
     <tests>
     </tests>
