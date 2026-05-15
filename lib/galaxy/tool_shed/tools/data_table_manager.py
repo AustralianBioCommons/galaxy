@@ -165,6 +165,15 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
         loc_basename_to_source: dict,
         tool_shed_repository: "ToolShedRepository",
     ) -> None:
+        """Append any non-comment rows from this install's .loc.sample files to the shared loc file,
+        attributing them to the installing repository. 99% of .loc.sample files are empty/comments,
+        in which case this is a no-op.
+
+        Skipped for non-tabular table types (e.g. ``RefgenieToolDataTable``) whose
+        ``parse_file_fields`` is not designed to read a ``.loc.sample``.
+        """
+        if getattr(existing_table, "type_key", "tabular") != "tabular":
+            return
         attribution = (
             f"Added by {tool_shed_repository.owner}/{tool_shed_repository.name}"
             f"@{tool_shed_repository.installed_changeset_revision}"
@@ -173,7 +182,6 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
             shared_path = file_elem.get("path")
             if not shared_path:
                 continue
-            self._register_shared_loc_with_existing_table(existing_table, shared_path, elem)
             basename = os.path.basename(shared_path)
             source_loc_sample = loc_basename_to_source.get(basename)
             if not source_loc_sample or not os.path.exists(source_loc_sample):
@@ -183,29 +191,33 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
             if new_rows:
                 existing_table.append_entries_with_attribution(new_rows, attribution)
 
-    def _register_shared_loc_with_existing_table(
-        self,
-        existing_table: TabularToolDataTable,
-        shared_path: str,
-        elem: Element,
-    ) -> None:
-        """Make the shared loc file path known to the existing table's ``filenames``.
+    def _shed_config_has_matching_entry(self, table_name: str, elem: Element) -> bool:
+        """Return True if ``shed_tool_data_table_config`` already has a ``<table>`` with the same
+        ``name`` and identical set of ``<file path>`` entries as ``elem``.
 
-        Without this, Data Manager persist calls can't locate a destination loc file
-        when the table was first registered from a shipped or refgenie config that has
-        no tabular ``<file>`` entry (e.g. ``__dbkeys__``).
+        Used to avoid writing duplicate ``<table>`` entries for tables that have already been
+        registered by a prior install. The shed config remains the persistent source of the
+        shared loc file's association with the data table name — on reload, ``merge_tool_data_table``
+        re-applies the filename info to the in-memory table.
         """
-        if shared_path in existing_table.filenames:
-            return
-        existing_table.filenames[shared_path] = dict(
-            found=os.path.exists(shared_path),
-            filename=shared_path,
-            from_shed_config=True,
-            tool_data_path=self.app.config.tool_data_path,
-            config_element=elem,
-            tool_shed_repository=None,
-            errors=[],
-        )
+        config = self.app.config.shed_tool_data_table_config
+        if not config or not os.path.exists(config):
+            return False
+        try:
+            tree, _ = xml_util.parse_xml(config)
+        except OSError as e:
+            log.warning("Could not read shed_tool_data_table_config '%s' for dedup check: %s", config, e)
+            return False
+        if tree is None:
+            return False
+        elem_paths = {fe.get("path") for fe in elem.findall("file") if fe.get("path")}
+        for existing_elem in tree.getroot().findall("table"):
+            if existing_elem.get("name") != table_name:
+                continue
+            existing_paths = {fe.get("path") for fe in existing_elem.findall("file") if fe.get("path")}
+            if elem_paths == existing_paths:
+                return True
+        return False
 
     def install_tool_data_tables(self, tool_shed_repository: "ToolShedRepository", tool_index_sample_files):
         TOOL_DATA_TABLE_FILE_NAME = "tool_data_table_conf.xml"
@@ -214,8 +226,11 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
         SAMPLE_SUFFIX_OFFSET = -len(SAMPLE_SUFFIX)
         LOC_SAMPLE_SUFFIX = ".loc.sample"
         target_dir, tool_path, relative_target_dir = self.get_target_install_dir(tool_shed_repository)
-        # .loc files are shared across repository installations: install at the root of tool_data_path.
-        shared_loc_dir = self.app.config.tool_data_path
+        # Galaxy-managed loc files for shed-installed tools live under tool_data_path/shed/ so they
+        # are clearly separated from admin-configured loc files in tool_data_path and from any
+        # entries shipped via tool_data_table_conf.xml.sample.
+        shared_loc_dir = os.path.join(self.app.config.tool_data_path, "shed")
+        os.makedirs(shared_loc_dir, exist_ok=True)
         # Map shared loc basename -> source .loc.sample, used to merge entries when a table is reinstalled.
         loc_basename_to_source: dict[str, str] = {}
         for sample_file in tool_index_sample_files:
@@ -280,9 +295,12 @@ class ShedToolDataTableManager(BaseShedToolDataTableManager):
             existing = registered_tables.get(table_name) if table_name else None
             if isinstance(existing, TabularToolDataTable) and existing.columns is not None:
                 # Already registered with matching columns. Merge any rows from this install's
-                # .loc.sample(s) into the shared loc file, then skip adding a duplicate <table>.
+                # .loc.sample(s) into the shared loc file.
                 self._merge_loc_sample_entries(existing, elem, loc_basename_to_source, tool_shed_repository)
-                continue
+                if self._shed_config_has_matching_entry(table_name, elem):
+                    # An identical <table> entry already exists in shed_tool_data_table_config.
+                    # Don't write another one (it would just duplicate the shared loc reference).
+                    continue
             kept_elems.append(elem)
         if kept_elems:
             # Remove old data_table

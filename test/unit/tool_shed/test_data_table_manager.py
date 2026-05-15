@@ -52,6 +52,7 @@ def _make_stdtm(tmp_path):
     repo_dir = str(tmp_path / "repo")
     tool_data_path = str(tmp_path / "tool-data")
     shed_tool_data_path = str(tmp_path / "shed_tool_data")
+    shed_tool_data_table_config = str(tmp_path / "shed_data_table_conf.xml")
     relative_target_dir = "owner/name/abc"
 
     os.makedirs(tool_data_path)
@@ -62,6 +63,7 @@ def _make_stdtm(tmp_path):
     app = mock.MagicMock(name="app")
     app.config.tool_data_path = tool_data_path
     app.config.shed_tool_data_path = shed_tool_data_path
+    app.config.shed_tool_data_table_config = shed_tool_data_table_config
     registry = _FakeTableRegistry()
     app.tool_data_tables = registry
     captured = {"to_xml_calls": registry.to_xml_calls}
@@ -82,20 +84,39 @@ def _make_stdtm(tmp_path):
     return stdtm, repo, sample_files, captured, tool_data_path, shed_tool_data_path, relative_target_dir
 
 
-def _registered_table(columns, filenames=None):
+def _registered_table(columns, filenames=None, type_key="tabular"):
     existing = mock.MagicMock(spec=TabularToolDataTable)
     existing.columns = columns
     existing.filenames = filenames or {}
+    existing.type_key = type_key
     existing.parse_file_fields.return_value = []
     return existing
 
 
-def test_loc_file_lands_at_shared_root_not_per_revision(tmp_path):
+def _write_shed_config_with_entry(stdtm, table_name, file_path):
+    """Pre-populate ``shed_tool_data_table_config`` with a single ``<table>`` matching ``elem``."""
+    shed_config = stdtm.app.config.shed_tool_data_table_config
+    contents = f"""<?xml version="1.0"?>
+<tables>
+    <table name="{table_name}" comment_char="#">
+        <columns>value, dbkey, name, path</columns>
+        <file path="{file_path}" />
+    </table>
+</tables>
+"""
+    with open(shed_config, "w") as fh:
+        fh.write(contents)
+
+
+def test_loc_file_lands_under_shed_subdir_not_per_revision(tmp_path):
     stdtm, repo, samples, captured, tool_data_path, shed_tool_data_path, _ = _make_stdtm(tmp_path)
     _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
 
-    shared_loc = os.path.join(tool_data_path, "all_fasta.loc")
+    shared_loc = os.path.join(tool_data_path, "shed", "all_fasta.loc")
     assert os.path.exists(shared_loc)
+    # The loc file does NOT land at the tool_data_path root (which is for admin-configured loc
+    # files) — Galaxy-managed shed loc files are isolated under tool_data_path/shed/.
+    assert not os.path.exists(os.path.join(tool_data_path, "all_fasta.loc"))
     per_rev_loc = os.path.join(shed_tool_data_path, "owner/name/abc", "all_fasta.loc")
     assert not os.path.exists(per_rev_loc)
 
@@ -111,7 +132,8 @@ def test_loc_file_lands_at_shared_root_not_per_revision(tmp_path):
 
 def test_existing_loc_file_is_not_overwritten(tmp_path):
     stdtm, repo, samples, _, tool_data_path, _, _ = _make_stdtm(tmp_path)
-    shared_loc = os.path.join(tool_data_path, "all_fasta.loc")
+    shared_loc = os.path.join(tool_data_path, "shed", "all_fasta.loc")
+    os.makedirs(os.path.dirname(shared_loc), exist_ok=True)
     _write(shared_loc, "preexisting DM-populated content\n")
 
     stdtm.install_tool_data_tables(repo, samples)
@@ -132,8 +154,11 @@ def test_column_mismatch_raises(tmp_path):
     assert not captured["to_xml_calls"]
 
 
-def test_column_match_dedupes_without_writing(tmp_path):
-    stdtm, repo, samples, captured, _, _, _ = _make_stdtm(tmp_path)
+def test_column_match_first_install_writes_table_entry(tmp_path):
+    """When a table is already registered in memory but has not yet been written to
+    ``shed_tool_data_table_config``, we still write a (stamp-less) ``<table>`` entry so the
+    shared loc file's association with the table survives reload."""
+    stdtm, repo, samples, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
     matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
     stdtm.app.tool_data_tables.data_tables = {
         "all_fasta": _registered_table(matching_columns),
@@ -141,12 +166,31 @@ def test_column_match_dedupes_without_writing(tmp_path):
 
     _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
 
+    assert len(kept_elems) == 1
+    file_elems = list(kept_elems[0].findall("file"))
+    assert len(file_elems) == 1
+    assert file_elems[0].get("path") == os.path.join(tool_data_path, "shed", "all_fasta.loc")
+    assert kept_elems[0].find("tool_shed_repository") is None
+
+
+def test_column_match_subsequent_install_dedupes_shed_config_entry(tmp_path):
+    """If shed_tool_data_table_config already has a ``<table>`` with the same name and same
+    ``<file path>``, don't write another one."""
+    stdtm, repo, samples, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
+    matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
+    stdtm.app.tool_data_tables.data_tables = {
+        "all_fasta": _registered_table(matching_columns),
+    }
+    _write_shed_config_with_entry(stdtm, "all_fasta", os.path.join(tool_data_path, "shed", "all_fasta.loc"))
+
+    _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
+
     assert kept_elems == []
     assert not captured["to_xml_calls"]
 
 
-def test_column_match_with_column_elements_dedupes(tmp_path):
-    stdtm, repo, _, captured, _, _, _ = _make_stdtm(tmp_path)
+def test_column_match_with_column_elements_writes_entry(tmp_path):
+    stdtm, repo, _, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
     column_form_conf = """\
 <tables>
     <table name="all_fasta" comment_char="#">
@@ -168,16 +212,19 @@ def test_column_match_with_column_elements_dedupes(tmp_path):
         repo,
         ["tool_data_table_conf.xml.sample", os.path.join("tool-data", "all_fasta.loc.sample")],
     )
-    assert kept_elems == []
+    assert len(kept_elems) == 1
+    assert kept_elems[0].find("tool_shed_repository") is None
 
 
 def test_second_install_merges_loc_sample_rows_with_attribution(tmp_path):
-    stdtm, repo, samples, captured, _, _, _ = _make_stdtm(tmp_path)
+    stdtm, repo, samples, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
     matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
     existing = _registered_table(matching_columns)
     incoming_rows = [["hg19", "hg19", "human (hg19)", "/data/hg19.fa"]]
     existing.parse_file_fields.return_value = incoming_rows
     stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+    # Pre-populate shed config so kept_elems stays empty — we're testing the row-merge path.
+    _write_shed_config_with_entry(stdtm, "all_fasta", os.path.join(tool_data_path, "shed", "all_fasta.loc"))
 
     _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
 
@@ -192,11 +239,12 @@ def test_second_install_merges_loc_sample_rows_with_attribution(tmp_path):
 
 
 def test_second_install_with_empty_loc_sample_does_not_append(tmp_path):
-    stdtm, repo, samples, captured, _, _, _ = _make_stdtm(tmp_path)
+    stdtm, repo, samples, captured, tool_data_path, _, _ = _make_stdtm(tmp_path)
     matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
     existing = _registered_table(matching_columns)
     existing.parse_file_fields.return_value = []
     stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+    _write_shed_config_with_entry(stdtm, "all_fasta", os.path.join(tool_data_path, "shed", "all_fasta.loc"))
 
     _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
 
@@ -205,23 +253,20 @@ def test_second_install_with_empty_loc_sample_does_not_append(tmp_path):
     existing.append_entries_with_attribution.assert_not_called()
 
 
-def test_second_install_registers_shared_loc_with_existing_table(tmp_path):
-    """When merging into an existing table whose ``filenames`` is empty (e.g. refgenie tables
-    or shipped tables whose loc resolution failed), the shared loc path must be registered so
-    Data Managers can persist entries."""
+def test_merge_skipped_for_non_tabular_table_types(tmp_path):
+    """Refgenie-backed (and other non-tabular) tables don't get their .loc.sample parsed
+    during install — refgenie's ``parse_file_fields`` expects YAML, not a .loc, so calling
+    it on a ``.loc.sample`` is incorrect."""
     stdtm, repo, samples, _, tool_data_path, _, _ = _make_stdtm(tmp_path)
     matching_columns = {"value": 0, "dbkey": 1, "name": 2, "path": 3}
-    existing = _registered_table(matching_columns)
-    existing.parse_file_fields.return_value = []
+    existing = _registered_table(matching_columns, type_key="refgenie")
     stdtm.app.tool_data_tables.data_tables = {"all_fasta": existing}
+    _write_shed_config_with_entry(stdtm, "all_fasta", os.path.join(tool_data_path, "shed", "all_fasta.loc"))
 
-    stdtm.install_tool_data_tables(repo, samples)
-
-    shared_loc = os.path.join(tool_data_path, "all_fasta.loc")
-    assert shared_loc in existing.filenames
-    info = existing.filenames[shared_loc]
-    assert info["tool_shed_repository"] is None
-    assert info["from_shed_config"] is True
+    _, kept_elems = stdtm.install_tool_data_tables(repo, samples)
+    assert kept_elems == []
+    existing.parse_file_fields.assert_not_called()
+    existing.append_entries_with_attribution.assert_not_called()
 
 
 def test_parse_table_columns_aliases_name_to_value():
