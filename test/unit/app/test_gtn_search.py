@@ -95,6 +95,13 @@ def test_sanitize_fts5_query_drops_quotes_when_disabled():
     assert sanitize_fts5_query('find "exact phrase" in data', preserve_phrases=False) == "find exact phrase in data"
 
 
+def test_sanitize_fts5_query_drops_unmatched_quotes():
+    # An unmatched quote left in the query would surface to FTS5 as
+    # OperationalError: unterminated string, which the search layer
+    # silently swallows -- so a user typo becomes a phantom no-results.
+    assert sanitize_fts5_query('find "exact phrase') == "find exact phrase"
+
+
 def test_sanitize_fts5_query_returns_empty_for_blank_input():
     assert sanitize_fts5_query("") == ""
     assert sanitize_fts5_query("    ") == ""
@@ -182,7 +189,7 @@ def test_refresh_database_keeps_old_db_when_download_fails(fixture_db: Path, tmp
 
 def test_refresh_database_rejects_invalid_payload(tmp_path: Path):
     target = tmp_path / "live_gtn.db"
-    # Pre-existing valid sqlite file (empty schema is fine — refresh validates against the *new* file)
+    # Pre-existing valid sqlite file (empty schema is fine -- refresh validates against the *new* file)
     sqlite3.connect(target).close()
     bogus_source = tmp_path / "bogus_source.db"
     bogus_source.write_text("not a sqlite database")
