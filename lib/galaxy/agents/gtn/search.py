@@ -33,6 +33,11 @@ def _slugify_heading(text: str) -> str:
     return slug
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQLite LIKE metacharacters so tool names match literally."""
+    return value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+
+
 def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     """Strip FTS5 operators from user input to prevent syntax errors.
 
@@ -435,8 +440,8 @@ class GTNSearchDB:
                 tool_conditions = []
                 params: list[Any] = []
                 for tool in tool_names:
-                    tool_conditions.append("tools_json LIKE ?")
-                    params.append(f"%{tool}%")
+                    tool_conditions.append(r"tools_json LIKE ? ESCAPE '\'")
+                    params.append(f"%{_escape_like(tool)}%")
 
                 sql = f"""
                     SELECT
