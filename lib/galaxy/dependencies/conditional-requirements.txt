@@ -25,7 +25,7 @@ webdav4[fsspec]  # type: webdav
 fs.dropboxfs>=1.0.3  # type: dropbox
 fs.sshfs  # type: ssh
 fs.anvilfs # type: anvil
-fs.googledrivefs # type: googledrive
+gdrive_fsspec # type: googledrive
 gcsfs # type: googlecloudstorage
 fs.onedatarestfs==21.2.5.2 # type: onedata, depends on onedatafilerestclient
 fs-basespace # type: basespace
