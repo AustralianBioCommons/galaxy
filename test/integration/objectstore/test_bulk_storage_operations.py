@@ -178,6 +178,11 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     def _encode_id(self, decoded_id: int) -> str:
         return self._app.security.encode_id(decoded_id)
 
+    def _get_required_user(self, user_id: int) -> User:
+        user = self._sa_session.get(User, user_id)
+        assert user is not None
+        return user
+
     def _preview_move(
         self,
         history_id: str,
@@ -256,7 +261,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
     ) -> str:
         storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
         dataset_manager = DatasetManager(self._app)
-        user = sa_session.get(User, snapshot.user_id)
+        user = self._get_required_user(snapshot.user_id)
 
         run, _ = storage_operation_manager.create_run_and_summary(
             sa_session=sa_session,
@@ -850,7 +855,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
             dataset_manager = DatasetManager(self._app)
-            user = self._sa_session.get(User, snapshot.user_id)
+            user = self._get_required_user(snapshot.user_id)
 
             run, _ = storage_operation_manager.create_run_and_summary(
                 sa_session=self._sa_session,
@@ -1358,7 +1363,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
             dataset_manager = DatasetManager(self._app)
-            user = sa_session.get(User, snapshot.user_id)
+            user = self._get_required_user(snapshot.user_id)
             assert user is not None
 
             run, _ = storage_operation_manager.create_run_and_summary(
@@ -1489,8 +1494,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
             dataset_manager = DatasetManager(self._app)
-            user = sa_session.get(User, snapshot.user_id)
-            assert user is not None
+            user = self._get_required_user(snapshot.user_id)
 
             run, _ = storage_operation_manager.create_run_and_summary(
                 sa_session=sa_session,
@@ -1596,7 +1600,7 @@ class TestBulkStorageOperationsIntegration(BaseObjectStoreIntegrationTestCase):
 
             storage_operation_manager = DatasetStorageOperationManager(self._app.object_store)
             dataset_manager = DatasetManager(self._app)
-            user = sa_session.get(User, snapshot.user_id)
+            user = self._get_required_user(snapshot.user_id)
             assert user is not None
 
             run, _ = storage_operation_manager.create_run_and_summary(

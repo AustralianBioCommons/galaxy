@@ -321,7 +321,7 @@ def bulk_move_storage(
     notification_manager: NotificationManager,
     app: MinimalManagerApp,
     run_db_id: int,
-    task_user_id: Optional[int] = None,
+    task_user_id: int,
     notify_on_completion: Optional[bool] = None,
 ):
     run = sa_session.get(DatasetStorageOperationRun, run_db_id)
@@ -349,7 +349,15 @@ def bulk_move_storage(
         log.info("Skipping bulk storage run %s because it is already terminal (%s)", run.id, run.state)
         return
 
-    user = sa_session.get(User, run.user_id) if run.user_id else None
+    user = sa_session.get(User, task_user_id)
+    if user is None:
+        log.error("Bulk storage run %s user %s not found; marking run as failed", run.id, task_user_id)
+        run.state = StorageOperationRunState.failed.value
+        run.failed_count = run.total_count or 0
+        sa_session.add(run)
+        sa_session.commit()
+        return
+
     snapshot = sa_session.get(DatasetStorageOperationSnapshot, run.snapshot_id)
     storage_operation_manager = DatasetStorageOperationManager(app.object_store, app.config)
     executor = storage_operation_manager.create_run_executor(
@@ -369,7 +377,7 @@ def bulk_move_storage(
     if run_notify_on_completion is None:
         run_notify_on_completion = run.notify_on_completion
 
-    if not run_notify_on_completion or user is None:
+    if not run_notify_on_completion:
         return
 
     try:

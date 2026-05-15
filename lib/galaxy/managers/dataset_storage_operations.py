@@ -155,7 +155,7 @@ class DatasetStorageOperationManager:
     def validate_dataset_for_move(
         self,
         security_agent: RBACAgent,
-        user: Optional[User],
+        user: User,
         dataset: Dataset,
         target_object_store_id: str,
     ) -> Optional[DatasetStorageOperationFailureReasonCode]:
@@ -170,9 +170,6 @@ class DatasetStorageOperationManager:
             return DatasetStorageOperationFailureReasonCode.already_in_target
 
         if dataset.library_associations:
-            return DatasetStorageOperationFailureReasonCode.insufficient_permissions
-
-        if user is None:
             return DatasetStorageOperationFailureReasonCode.insufficient_permissions
 
         can_change = security_agent.can_change_object_store_id(user, dataset)
@@ -202,13 +199,13 @@ class DatasetStorageOperationManager:
     def target_quota_projection(
         self,
         quota_agent: QuotaAgent,
-        user: Optional[User],
+        user: User,
         target_object_store_id: str,
         target_quota_delta: int,
         *,
         additional_target_usage: int = 0,
     ) -> Optional[TargetQuotaProjection]:
-        if target_quota_delta <= 0 or user is None:
+        if target_quota_delta <= 0:
             return None
 
         quota_source_label = self.object_store.get_quota_source_map().get_quota_source_label(target_object_store_id)
@@ -511,7 +508,7 @@ class DatasetStorageOperationManager:
         dataset_manager: datasets.DatasetManager,
         app: "MinimalManagerApp",
         run: DatasetStorageOperationRun,
-        user: Optional[User],
+        user: User,
         current_task_id: Optional[str] = None,
     ) -> "StorageOperationRunExecutor":
         return StorageOperationRunExecutor(
@@ -975,7 +972,7 @@ class StorageOperationRunExecutor:
         dataset_manager: datasets.DatasetManager,
         app: "MinimalManagerApp",
         run: DatasetStorageOperationRun,
-        user: Optional[User],
+        user: User,
         current_task_id: Optional[str],
         storage_operation_manager: DatasetStorageOperationManager,
     ):
@@ -988,16 +985,14 @@ class StorageOperationRunExecutor:
         self.trans = SimpleNamespace(user=user)
         self.storage_operation_manager = storage_operation_manager
         self.quota_source_map = app.object_store.get_quota_source_map()
-        self.target_quota_source_label = self.quota_source_map.get_quota_source_label(run.target_object_store_id)
-        self.target_quota_limit: Optional[int] = None
         self.target_quota_usage_at_start = 0
-        if user is not None:
-            self.target_quota_limit = app.quota_agent.get_quota(user, quota_source_label=self.target_quota_source_label)
-            if self.target_quota_source_label is None:
-                self.target_quota_usage_at_start = int(user.total_disk_usage or 0)
-            else:
-                quota_source_usage = user.quota_source_usage_for(self.target_quota_source_label)
-                self.target_quota_usage_at_start = int(quota_source_usage.disk_usage or 0) if quota_source_usage else 0
+        self.target_quota_source_label = self.quota_source_map.get_quota_source_label(run.target_object_store_id)
+        self.target_quota_limit = app.quota_agent.get_quota(user, quota_source_label=self.target_quota_source_label)
+        if self.target_quota_source_label is None:
+            self.target_quota_usage_at_start = int(user.total_disk_usage or 0)
+        else:
+            quota_source_usage = user.quota_source_usage_for(self.target_quota_source_label)
+            self.target_quota_usage_at_start = int(quota_source_usage.disk_usage or 0) if quota_source_usage else 0
         self.additional_target_usage = 0
         self.succeeded_count = 0
         self.failed_count = 0
@@ -1667,7 +1662,7 @@ class StorageOperationRunExecutor:
         if quota_source_map:
             old_label = quota_source_map.get_quota_source_label(old_object_store_id)
             new_label = quota_source_map.get_quota_source_label(target_object_store_id)
-            if old_label != new_label and self.user is not None:
+            if old_label != new_label:
                 self.app.quota_agent.relabel_quota_for_dataset(dataset, old_label, new_label)
         dataset.object_store_id = target_object_store_id
         self.sa_session.add(dataset)
