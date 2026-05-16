@@ -150,35 +150,24 @@ def test_search_by_tools_escapes_like_metacharacters(fixture_db: Path):
     assert db.search_by_tools(["hisa_2"]) == []
 
 
-def test_faq_result_to_dict_builds_category_anchor_url():
+def test_faq_result_to_dict_points_at_per_faq_page():
+    # GTN renders each FAQ as its own .html page rather than as a fragment
+    # anchor on the category index, so the URL has to be built from the
+    # FAQ's filename, not a title slug. Anchor-style URLs would 200 on the
+    # category page but never scroll to the actual FAQ.
     result = FAQResult(
         id=1,
         category="galaxy",
-        filename="archive-a-history",
-        title="How do I archive a history?",
+        filename="histories_archive",
+        title="Archive a history",
         area="histories",
         content="...",
         snippet="<mark>archive</mark>",
         score=3.5,
     )
     payload = result.to_dict()
-    assert payload["url"] == f"{GTN_FAQ_BASE_URL}/galaxy/#how-do-i-archive-a-history"
+    assert payload["url"] == f"{GTN_FAQ_BASE_URL}/galaxy/histories_archive.html"
     assert "<mark>" not in payload["snippet"]
-
-
-def test_faq_result_to_dict_falls_back_to_filename_when_title_unslugifiable():
-    result = FAQResult(
-        id=1,
-        category="galaxy",
-        filename="weird-anchor",
-        title="???",
-        area="",
-        content="",
-        snippet="",
-        score=1.0,
-    )
-    payload = result.to_dict()
-    assert payload["url"] == f"{GTN_FAQ_BASE_URL}/galaxy/#weird-anchor"
 
 
 def test_refresh_database_keeps_old_db_when_download_fails(fixture_db: Path, tmp_path: Path):
