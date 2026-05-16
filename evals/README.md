@@ -60,7 +60,39 @@ evals/
                            # to a commit.
 ```
 
-## Running
+## Two runners
+
+The harness ships with two runners that share dataset definitions,
+evaluators, and report format. Use whichever fits the question you're
+asking.
+
+### Fast loop -- standalone CLI (default)
+
+`python -m evals.run_evals` builds `GalaxyAgentDependencies` from a
+`MagicMock`'d `trans`, so the agents run without a live Galaxy. Fast
+iteration, no Galaxy startup, ideal for prompt work and cross-model
+comparison. Cases marked `requires_galaxy=True` are filtered out by
+default.
+
+### Real flight check -- pytest live runner
+
+`test/integration/test_live_evals.py` runs the same datasets inside a
+Galaxy integration-test fixture with a real `trans`. Seeds a demo
+history via `scripts/seed_live26_demo_history.py`, runs the
+`requires_galaxy=True` cases against it, writes a report to
+`evals/results/` in the same shape as the CLI. Slower (Galaxy startup),
+but the only path that actually exercises history-dependent cases.
+
+### Which to use
+
+- Iterating on a prompt? **CLI.**
+- Choosing between models? **CLI.**
+- Stage rehearsal / flight check for the GCC2026 demo? **Pytest live
+  runner.**
+- Cases involving "my history", "my analysis", or the history agent
+  doing real tool calls? **Pytest live runner.**
+
+## Running the CLI
 
 Copy `evals/models.yaml.sample` to `evals/models.yaml` (gitignored), list
 each model you want to evaluate with its proxy URL and key, then:
@@ -75,6 +107,29 @@ stdout and to `evals/results/<date>-<datasets>-<sha>.md`.
 
 You can still pass `--models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct`
 to restrict to a subset.
+
+## Running the pytest live runner
+
+```bash
+export GALAXY_TEST_ENABLE_LIVE_LLM=1
+export GALAXY_TEST_LIVE_EVALS=1
+export GALAXY_TEST_AI_API_KEY=...
+export GALAXY_TEST_AI_API_BASE_URL=http://localhost:4000/v1/
+export GALAXY_TEST_AI_MODEL=gpt-oss-120b
+
+# Optional: override which datasets/models/judge to run
+# export EVALS_MODEL_CONFIG=/path/to/models.yaml
+# export EVALS_DATASETS=live26_demo
+# export EVALS_MODELS=gpt-oss-120b
+# export EVALS_JUDGE_MODEL=gpt-oss-120b
+
+pytest test/integration/test_live_evals.py -v
+```
+
+The live runner always passes `include_galaxy_required=True`, so the
+history-needing live26 cases (`history_sanity_check`, `summarize_to_page`,
+`report_takeaway`, `social_media_post`) actually get exercised. Default
+scope is `live26_demo` only; override with `EVALS_DATASETS`.
 
 ### Diffing against a previous run
 
