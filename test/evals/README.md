@@ -78,7 +78,7 @@ default.
 
 `test/integration/test_live_evals.py` runs the same datasets inside a
 Galaxy integration-test fixture with a real `trans`. Seeds a demo
-history via `scripts/seed_live26_demo_history.py`, runs the
+history via `test/evals/seed_live26_demo_history.py`, runs the
 `requires_galaxy=True` cases against it, writes a report to
 `test/evals/results/` in the same shape as the CLI. Slower (Galaxy
 startup), but the only path that actually exercises history-dependent

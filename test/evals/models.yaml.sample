@@ -1,10 +1,11 @@
 # Models to evaluate. Each top-level key is a model name; the value names
 # the proxy it lives on plus the API key (literal or env var).
 #
-# Copy to evals/models.yaml (gitignored) and fill in.
+# Copy to test/evals/models.yaml (gitignored) and fill in.
 #
 # When you run `python -m evals.run_evals --model-config evals/models.yaml`
-# without `--models`, every model declared here is evaluated.
+# from the `test/` directory without `--models`, every model declared
+# here is evaluated.
 #
 # Two ways to supply the key per entry:
 #   - api_key_env: <ENV_VAR_NAME>   (recommended -- key never lives in file)

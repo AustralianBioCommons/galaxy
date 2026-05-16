@@ -53,11 +53,8 @@ from galaxy_test.driver.integration_util import IntegrationTestCase
 
 # test/evals/ isn't an installable package -- put test/ on sys.path so the
 # `evals.*` modules import cleanly without an editable install or an
-# __init__.py at test/. scripts/ stays at repo root for now.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_TEST_ROOT = _REPO_ROOT / "test"
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# __init__.py at test/.
+_TEST_ROOT = Path(__file__).resolve().parents[1]
 if str(_TEST_ROOT) not in sys.path:
     sys.path.insert(0, str(_TEST_ROOT))
 
@@ -66,8 +63,8 @@ from evals.run_evals import (  # noqa: E402
     run_eval_suite,
     write_eval_report,
 )
+from evals.seed_live26_demo_history import seed_demo_history  # noqa: E402
 from evals.tasks import make_live_deps  # noqa: E402
-from scripts.seed_live26_demo_history import seed_demo_history  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -158,7 +155,7 @@ class TestLiveEvals(IntegrationTestCase):
             )
         )
 
-        results_dir = _REPO_ROOT / "evals" / "results"
+        results_dir = _TEST_ROOT / "evals" / "results"
         md_path, json_path = write_eval_report(results, datasets, results_dir)
         log.info("Wrote live eval report: %s", md_path)
         log.info("Wrote live eval JSON sidecar: %s", json_path)

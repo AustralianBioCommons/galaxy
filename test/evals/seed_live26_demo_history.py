@@ -20,13 +20,13 @@ Used by:
 
 Standalone usage (against a running Galaxy):
 
-    python scripts/seed_live26_demo_history.py \\
+    python test/evals/seed_live26_demo_history.py \\
         --galaxy-url http://localhost:8080 \\
         --galaxy-api-key <key>
 
 In-test usage:
 
-    from scripts.seed_live26_demo_history import seed_demo_history
+    from evals.seed_live26_demo_history import seed_demo_history
     history_id = seed_demo_history(dataset_populator)
 """
 

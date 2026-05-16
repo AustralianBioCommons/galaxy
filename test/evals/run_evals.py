@@ -1,7 +1,8 @@
 """Cross-model evaluation runner for Galaxy agents.
 
-Run from Galaxy root with the venv active:
+Run from `test/` with the venv active:
 
+    cd test
     python -m evals.run_evals
 
 Reads `evals/models.yaml` (falling back to `evals/models.yaml.sample`) for
@@ -13,7 +14,7 @@ Datasets default to all registered (routing, error_analysis). Restrict with
 `--datasets routing` or similar. Fuzzy quality scoring (LLM judge) uses
 `--judge-model` (default gpt-oss-120b -- must also be in the YAML).
 
-Writes a markdown comparison table to stdout and to evals/results/.
+Writes a markdown comparison table to stdout and to test/evals/results/.
 """
 
 import argparse
