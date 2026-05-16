@@ -119,9 +119,18 @@ class TestLiveEvals(IntegrationTestCase):
         # Build a real trans bound to the test user, then close over it in
         # the deps factory so every (dataset, model) pair sees the same
         # seeded history.
+        #
+        # The history agent's tools call trans.url_for(...) to encode dataset
+        # references, which raises NotImplementedError without a url_builder.
+        # MCP solves this with a fallback URL builder for non-HTTP contexts --
+        # reuse it here so history_sanity_check / summarize_to_page don't
+        # ERROR out before the agent's response is even scored.
+        from galaxy.webapps.galaxy.api.mcp import get_mcp_url_builder
+
         user = self._user_for_api_key(self.galaxy_interactor.api_key)
         history = self._history_for_id(history_id)
-        trans = WorkRequestContext(app=self._app, user=user, history=history)
+        url_builder = get_mcp_url_builder(self.url)
+        trans = WorkRequestContext(app=self._app, user=user, history=history, url_builder=url_builder)
 
         def _live_deps_factory(model: str, api_key: str, base_url: str):
             return make_live_deps(trans=trans, model=model, api_key=api_key, base_url=base_url)
