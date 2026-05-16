@@ -21,6 +21,7 @@ import asyncio
 import os
 import statistics
 import sys
+from collections.abc import Callable
 from dataclasses import (
     dataclass,
     field,
@@ -38,10 +39,13 @@ from pydantic_evals.reporting import (
     EvaluationReportAdapter,
 )
 
+from galaxy.agents.base import GalaxyAgentDependencies
 from .judge import build_judge_model
 from .pricing import model_cost
 from .specs import SPECS
 from .tasks import make_deps
+
+DepsFactory = Callable[[str, str, str], GalaxyAgentDependencies]
 
 DEFAULT_MODEL_CONFIG = "evals/models.yaml"
 FALLBACK_MODEL_CONFIG = "evals/models.yaml.sample"
@@ -559,14 +563,91 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+async def run_eval_suite(
+    *,
+    datasets: list[str],
+    models: list[str],
+    model_config: dict[str, dict[str, str]],
+    judge_model_name: str,
+    deps_factory: DepsFactory,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    max_concurrency: int = 4,
+    repeat: int = 1,
+) -> list[DatasetResult]:
+    """Run each (dataset, model) pair and return their DatasetResults.
+
+    Pure runtime -- no argparse, no file writing. The standalone CLI and the
+    live-Galaxy pytest runner both call this with different ``deps_factory``
+    callables (MagicMock'd trans vs. real fixture trans) and process the
+    returned results their own way.
+    """
+    for ds in datasets:
+        if ds not in SPECS:
+            raise ValueError(f"Unknown dataset: {ds}. Known: {', '.join(SPECS)}.")
+
+    judge_proxy_url, judge_api_key = _resolve_model_endpoint(judge_model_name, model_config)
+    judge_model = build_judge_model(judge_model_name, judge_proxy_url, judge_api_key)
+    print(f"Judge: {judge_model_name} (via {judge_proxy_url})", file=sys.stderr)
+
+    all_results: list[DatasetResult] = []
+    for ds_name in datasets:
+        spec_fn = SPECS[ds_name]
+        for model in models:
+            proxy_url, api_key = _resolve_model_endpoint(model, model_config)
+            print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
+            deps = deps_factory(model, api_key, proxy_url)
+            usage_buffer: list[dict[str, int]] = []
+            built = spec_fn(
+                deps,
+                judge_model=judge_model,
+                only=only,
+                include_galaxy_required=include_galaxy_required,
+                usage_buffer=usage_buffer,
+            )
+            report = await built.dataset.evaluate(
+                built.task,
+                name=f"{ds_name}/{model}",
+                max_concurrency=max_concurrency,
+                repeat=repeat,
+            )
+            report.print(include_input=False, include_output=False)
+            all_results.append(
+                DatasetResult(
+                    dataset=ds_name,
+                    model=model,
+                    primary_score=built.primary_score,
+                    report=report,
+                    usage=usage_buffer,
+                )
+            )
+    return all_results
+
+
+def write_eval_report(
+    results: list[DatasetResult],
+    datasets: list[str],
+    results_dir: Path,
+    baseline_path: Optional[Path] = None,
+) -> tuple[Path, Path]:
+    """Render markdown + JSON and write to results_dir. Returns (md_path, json_path)."""
+    baseline = _load_baseline(str(baseline_path)) if baseline_path else None
+    md = render_markdown(results, baseline=baseline)
+
+    results_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    slug = "+".join(datasets)
+    out_md = results_dir / f"{stamp}-{slug}-{_git_sha()}.md"
+    out_json = out_md.with_suffix(".json")
+    out_md.write_text(md)
+    out_json.write_text(_serialize_results(results))
+    return out_md, out_json
+
+
 async def amain() -> int:
     args = parse_args()
     datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
     only = [n.strip() for n in args.only.split(",")] if args.only else None
-
-    for ds in datasets:
-        if ds not in SPECS:
-            raise SystemExit(f"Unknown dataset: {ds}. Known: {', '.join(SPECS)}.")
 
     config_path, model_config = _load_model_config(args.model_config)
     print(f"Using model config: {config_path}", file=sys.stderr)
@@ -581,55 +662,35 @@ async def amain() -> int:
     else:
         models = list(model_config.keys())
 
-    judge_proxy_url, judge_api_key = _resolve_model_endpoint(args.judge_model, model_config)
-    judge_model = build_judge_model(args.judge_model, judge_proxy_url, judge_api_key)
-    print(f"Judge: {args.judge_model} (via {judge_proxy_url})", file=sys.stderr)
+    def _cli_deps_factory(model: str, api_key: str, base_url: str) -> GalaxyAgentDependencies:
+        return make_deps(model=model, api_key=api_key, base_url=base_url)
 
-    all_results: list[DatasetResult] = []
-    for ds_name in datasets:
-        spec_fn = SPECS[ds_name]
-        for model in models:
-            proxy_url, api_key = _resolve_model_endpoint(model, model_config)
-            print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
-            deps = make_deps(model=model, api_key=api_key, base_url=proxy_url)
-            usage_buffer: list[dict[str, int]] = []
-            built = spec_fn(
-                deps,
-                judge_model=judge_model,
-                only=only,
-                include_galaxy_required=args.include_galaxy_required,
-                usage_buffer=usage_buffer,
-            )
-            report = await built.dataset.evaluate(
-                built.task,
-                name=f"{ds_name}/{model}",
-                max_concurrency=args.max_concurrency,
-                repeat=args.repeat,
-            )
-            report.print(include_input=False, include_output=False)
-            all_results.append(
-                DatasetResult(
-                    dataset=ds_name,
-                    model=model,
-                    primary_score=built.primary_score,
-                    report=report,
-                    usage=usage_buffer,
-                )
-            )
+    try:
+        results = await run_eval_suite(
+            datasets=datasets,
+            models=models,
+            model_config=model_config,
+            judge_model_name=args.judge_model,
+            deps_factory=_cli_deps_factory,
+            only=only,
+            include_galaxy_required=args.include_galaxy_required,
+            max_concurrency=args.max_concurrency,
+            repeat=args.repeat,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     baseline = _load_baseline(args.baseline) if args.baseline else None
-    md = render_markdown(all_results, baseline=baseline)
+    md = render_markdown(results, baseline=baseline)
     print(md)
 
     if not args.no_write:
-        results_dir = Path(args.results_dir)
-        results_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        slug = "+".join(datasets)
-        out_md = results_dir / f"{stamp}-{slug}-{_git_sha()}.md"
-        out_json = out_md.with_suffix(".json")
-        out_md.write_text(md)
-        out_json.write_text(_serialize_results(all_results))
+        out_md, out_json = write_eval_report(
+            results,
+            datasets,
+            Path(args.results_dir),
+            Path(args.baseline) if args.baseline else None,
+        )
         print(f"\nWrote {out_md}", file=sys.stderr)
         print(f"Wrote {out_json}", file=sys.stderr)
 
