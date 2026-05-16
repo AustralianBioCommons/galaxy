@@ -199,6 +199,3 @@ The CLI auto-includes anything registered in `SPECS`.
   `StaticAgentRegistry`, which swaps real agents for canned-YAML responses.
   Complementary, not a substitute: static fixture is for orchestrator
   plumbing tests; evals are for measuring the LLM itself.
-- `~/.claude/plans/galaxy-agents/test_agents_live.py` -- standalone live
-  test script the routing dataset is seeded from. Slated for retirement once
-  this harness covers what it covered.
