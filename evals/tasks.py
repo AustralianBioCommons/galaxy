@@ -115,6 +115,62 @@ def make_deps(
     )
 
 
+def make_live_deps(
+    trans: Any,
+    model: str,
+    api_key: str,
+    base_url: str,
+    temperature: float = 0.7,
+    max_tokens: int = 4000,
+) -> GalaxyAgentDependencies:
+    """Build GalaxyAgentDependencies from a live Galaxy ``trans``.
+
+    Used by the pytest integration runner (``test/integration/test_live_evals.py``):
+    the test fixture provides a real ``trans`` against a spun-up Galaxy, and
+    this wraps it for the agents. ``trans.app`` is the real app container, so
+    ``app[ManagerClass]`` resolves to real managers and the history /
+    tool_recommendation agents actually see the user's data.
+
+    The model config is layered on top of ``trans.app.config`` (a copy, so the
+    underlying Galaxy config is not mutated) so the agents route through the
+    eval-selected model rather than whatever's globally configured.
+    """
+    # Shallow-wrap the real config so we can override inference_services per
+    # eval run without mutating Galaxy's app-wide config object.
+    base_config = trans.app.config
+
+    class _EvalConfig:
+        def __init__(self, base, services):
+            self._base = base
+            self.inference_services = services
+            self.ai_api_key = getattr(base, "ai_api_key", None)
+            self.ai_model = getattr(base, "ai_model", None)
+            self.ai_api_base_url = getattr(base, "ai_api_base_url", None)
+
+        def __getattr__(self, name):
+            return getattr(self._base, name)
+
+    config = _EvalConfig(
+        base_config,
+        {
+            "default": {
+                "model": model,
+                "api_key": api_key,
+                "api_base_url": base_url,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        },
+    )
+
+    return GalaxyAgentDependencies(
+        trans=trans,
+        user=trans.user,
+        config=config,
+        get_agent=_registry.get_agent,
+    )
+
+
 def make_router_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
