@@ -131,6 +131,13 @@ history-needing live26 cases (`history_sanity_check`, `summarize_to_page`,
 `report_takeaway`, `social_media_post`) actually get exercised. Default
 scope is `live26_demo` only; override with `EVALS_DATASETS`.
 
+The default judge is `Llama-4-Maverick-17B-128E-Instruct` rather than
+`gpt-oss-120b` because gpt-oss-120b tends to grade itself too
+charitably; Maverick scores hand-checked-correct responses more
+accurately. Override with `EVALS_JUDGE_MODEL` if Maverick isn't
+reachable. (The standalone CLI keeps `gpt-oss-120b` as its default
+judge for baseline continuity.)
+
 ### Diffing against a previous run
 
 Save baselines outside the repo (the JSON sidecars are noisy). Filenames

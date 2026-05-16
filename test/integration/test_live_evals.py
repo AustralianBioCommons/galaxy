@@ -22,7 +22,10 @@ deps construction differs.
     # Or point at a models.yaml that's structured for the eval CLI:
     export EVALS_MODEL_CONFIG=/path/to/models.yaml
     export EVALS_MODELS="gpt-oss-120b"      # optional comma-separated subset
-    export EVALS_JUDGE_MODEL="gpt-oss-120b" # optional override
+    export EVALS_JUDGE_MODEL="..."          # optional override; defaults to
+                                            # Llama-4-Maverick-17B-128E-Instruct
+                                            # so the candidate isn't judging
+                                            # its own output
     export EVALS_DATASETS="live26_demo"     # optional comma-separated subset
 
     pytest test/integration/test_live_evals.py -v
@@ -114,7 +117,12 @@ class TestLiveEvals(IntegrationTestCase):
         else:
             models = list(model_config.keys())
 
-        judge_model_name = os.environ.get("EVALS_JUDGE_MODEL", "gpt-oss-120b")
+        # Default to a different judge than the candidate model. gpt-oss-120b
+        # is the typical candidate (the free Jetstream-backed default) and
+        # tends to be too charitable when judging its own output; Maverick
+        # scores hand-graded "obviously correct" responses more accurately.
+        # Override with EVALS_JUDGE_MODEL if Maverick isn't reachable.
+        judge_model_name = os.environ.get("EVALS_JUDGE_MODEL", "Llama-4-Maverick-17B-128E-Instruct")
 
         # Build a real trans bound to the test user, then close over it in
         # the deps factory so every (dataset, model) pair sees the same
