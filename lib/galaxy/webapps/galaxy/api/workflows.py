@@ -33,7 +33,6 @@ from galaxy import (
     model,
     util,
 )
-from galaxy.agents.operations import AgentOperationsManager
 from galaxy.files.uris import (
     stream_url_to_str,
     validate_uri_access,
@@ -1206,11 +1205,7 @@ class FastAPIWorkflows:
         payload: ImportFromIwcPayload = Body(...),
         trans: ProvidesUserContext = DependsOnTrans,
     ) -> ImportFromIwcResponse:
-        try:
-            ops = AgentOperationsManager(trans.app, trans)
-            result = ops.import_workflow_from_iwc(payload.trs_id)
-        except ValueError as e:
-            raise exceptions.RequestParameterInvalidException(str(e))
+        result = self.service.import_from_iwc(trans, payload.trs_id)
         return ImportFromIwcResponse(**result)
 
     @router.post("/api/workflow_landings", public=True, allow_cors=True)

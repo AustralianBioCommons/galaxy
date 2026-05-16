@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from typing import (
     Any,
     Optional,
@@ -20,6 +21,7 @@ from galaxy.managers.workflows import (
     RefactorRequest,
     RefactorResponse,
     WorkflowContentsManager,
+    WorkflowCreateOptions,
     WorkflowSerializer,
     WorkflowsManager,
 )
@@ -338,6 +340,47 @@ class WorkflowsService(ServiceBase):
     ) -> RefactorResponse:
         stored_workflow = self._workflows_manager.get_stored_workflow(trans, workflow_id, by_stored_id=not instance)
         return self._workflow_contents_manager.refactor(trans, stored_workflow, payload)
+
+    def import_from_iwc(self, trans: ProvidesUserContext, trs_id: str) -> dict[str, Any]:
+        """Import an IWC manifest entry as a private StoredWorkflow owned by trans.user.
+
+        Local import of the ``iwc`` helper keeps the agents module out of the
+        service's eager-load graph; the service is constructed at app startup,
+        the IWC manifest is only fetched when someone actually imports.
+        """
+        from galaxy.agents import iwc
+
+        if not trans.user:
+            raise exceptions.AuthenticationRequired("User must be authenticated to import a workflow")
+
+        workflows = iwc.all_workflows(iwc.fetch_manifest())
+        workflow_entry = next((wf for wf in workflows if wf.get("trsID") == trs_id), None)
+        if workflow_entry is None:
+            raise exceptions.ObjectNotFound(
+                f"IWC workflow with trsID {trs_id!r} not found. Use search_iwc_workflows() to discover trsIDs."
+            )
+        definition = workflow_entry.get("definition")
+        if not definition:
+            raise exceptions.RequestParameterInvalidException(
+                f"IWC workflow {trs_id!r} has no embedded definition; cannot import."
+            )
+
+        raw_workflow_description = self._workflow_contents_manager.ensure_raw_description(deepcopy(definition))
+        create_options = WorkflowCreateOptions(publish=False, importable=False, import_tools=False)
+        created = self._workflow_contents_manager.build_workflow_from_raw_description(
+            trans,
+            raw_workflow_description,
+            create_options,
+            source=f"IWC ({trs_id})",
+        )
+        stored = created.stored_workflow
+        missing_tools = [tup[0] for tup in (created.missing_tools or [])]
+        return {
+            "id": trans.security.encode_id(stored.id),
+            "name": stored.name,
+            "trsID": trs_id,
+            "missing_tools": missing_tools,
+        }
 
     def show_workflow(self, trans, workflow_id, instance, legacy, version) -> StoredWorkflowDetailed:
         stored_workflow = self._workflows_manager.get_stored_workflow(trans, workflow_id, by_stored_id=not instance)

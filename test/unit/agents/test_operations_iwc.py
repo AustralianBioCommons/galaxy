@@ -5,9 +5,8 @@ from typing import (
 )
 from unittest.mock import patch
 
-from galaxy.agents.operations import AgentOperationsManager
 from galaxy.managers.context import ProvidesUserContext
-from galaxy.structured_app import MinimalManagerApp
+from galaxy.webapps.galaxy.services.workflows import WorkflowsService
 
 
 class MutatingWorkflowContentsManager:
@@ -22,7 +21,13 @@ class MutatingWorkflowContentsManager:
         )
 
 
-def test_import_workflow_from_iwc_does_not_mutate_cached_definition():
+def _make_service() -> WorkflowsService:
+    service = WorkflowsService.__new__(WorkflowsService)
+    service._workflow_contents_manager = MutatingWorkflowContentsManager()
+    return service
+
+
+def test_import_from_iwc_does_not_mutate_cached_definition():
     definition: dict[str, Any] = {
         "name": "IWC workflow with subworkflow",
         "annotation": "",
@@ -50,12 +55,17 @@ def test_import_workflow_from_iwc_does_not_mutate_cached_definition():
             ]
         }
     ]
-    app = SimpleNamespace(workflow_contents_manager=MutatingWorkflowContentsManager())
-    trans = SimpleNamespace(security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"))
-    ops = AgentOperationsManager(cast(MinimalManagerApp, app), cast(ProvidesUserContext, trans))
+    trans = SimpleNamespace(
+        user=SimpleNamespace(id=42),
+        security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"),
+    )
+    service = _make_service()
 
     with patch("galaxy.agents.iwc.fetch_manifest", return_value=manifest):
-        result = ops.import_workflow_from_iwc("#workflow/github.com/iwc-workflows/with-subworkflow/main")
+        result = service.import_from_iwc(
+            cast(ProvidesUserContext, trans),
+            "#workflow/github.com/iwc-workflows/with-subworkflow/main",
+        )
 
     assert result["id"] == "encoded-1"
     assert result["missing_tools"] == ["missing/tool"]
