@@ -74,6 +74,9 @@ weasyprint>=61.2
 # support for python 3.8.
 pydyf<0.11; python_version<"3.9"
 
+# HTCondor runner — install via `pip install htcondor`; this package provides the `htcondor2` module
+htcondor
+
 # AWS Batch runner
 boto3
 

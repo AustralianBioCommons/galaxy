@@ -30,6 +30,11 @@ runners:
   runner1:
     load: job_runner_A
 """
+JOB_CONF_HTCONDOR_YAML = """
+runners:
+  htcondor:
+    load: galaxy.jobs.runners.htcondor:HTCondorJobRunner
+"""
 VAULT_CONF_HASHICORP = """
 type: hashicorp
 """
@@ -97,6 +102,20 @@ def test_yaml_jobconf_runners():
         }
         cds = cc.get_cond_deps(config=config)
         assert "job_runner_A" in cds.job_runners
+
+
+def test_htcondor_not_required_by_default():
+    with _config_context() as cc:
+        cds = cc.get_cond_deps()
+        assert not cds.check_htcondor()
+
+
+def test_htcondor_required_when_runner_configured():
+    with _config_context() as cc:
+        job_conf_file = cc.write_config("job_conf.yml", JOB_CONF_HTCONDOR_YAML)
+        config = {"job_config_file": job_conf_file}
+        cds = cc.get_cond_deps(config=config)
+        assert cds.check_htcondor()
 
 
 def test_vault_hashicorp_configured():
