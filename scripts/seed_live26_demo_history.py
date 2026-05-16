@@ -55,6 +55,15 @@ _QUANTIFICATION_CSV = """region_id\tarea_pixels\tmean_intensity_brown\tmean_inte
 3\t15670\t121.5\t110.8\t29.4
 """
 
+_HISTORY_ANNOTATION = (
+    "Live26 demo: histological staining quantification flow. Brightfield "
+    "RGB inputs (slide_01, slide_02) -> ROI mask -> color deconvolution "
+    "isolating the brown stain channel -> per-ROI intensity / area "
+    "quantification. Final output: staining_quantification_per_roi.tabular "
+    "with per-region area_pixels, mean_intensity_brown, mean_intensity_blue, "
+    "and pct_positive."
+)
+
 
 def seed_demo_history(dataset_populator: Any) -> str:
     """Create the demo history and seed it via the given DatasetPopulator.
@@ -116,6 +125,12 @@ def seed_demo_history(dataset_populator: Any) -> str:
         name="staining_quantification_per_roi.tabular",
         wait=True,
     )
+
+    # History-level annotation gives the agent a context summary even before
+    # it dives into per-dataset metadata -- without this, prompts like
+    # "draft a post about my analysis" can't ground their output on anything
+    # more specific than the history name.
+    dataset_populator.update_history(history_id, {"annotation": _HISTORY_ANNOTATION})
 
     return history_id
 
