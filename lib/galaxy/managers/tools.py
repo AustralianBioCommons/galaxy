@@ -141,7 +141,12 @@ class DynamicToolManager(ModelManager[DynamicTool]):
             if not tool_format:
                 raise exceptions.ObjectAttributeMissingException("Current tool representations require 'class'.")
 
-        if tool_format in ("GalaxyTool", "GalaxyUserTool"):
+        if tool_format == "GalaxyUserTool":
+            raise exceptions.RequestParameterInvalidException(
+                "GalaxyUserTool is reserved for user-defined tools created via "
+                "/api/unprivileged_tools; use GalaxyTool for admin-installed dynamic tools."
+            )
+        if tool_format == "GalaxyTool":
             tool_id = representation.get("id")
             if not tool_id:
                 tool_id = str(uuid)
