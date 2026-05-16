@@ -1,7 +1,8 @@
-"""Seed a Galaxy history with the mid-state Live26 (GCC2026) demo data.
+"""Seed a Galaxy history with mid-state data for the staining quantification
+eval use case.
 
-Creates a history named "Live26 staining quantification" populated with the
-shape of data the demo flow's later prompts assume:
+Creates a history populated with the shape of data the use case's later
+prompts assume:
 
 - one or more brightfield RGB inputs (stub TIFFs)
 - a region-of-interest mask
@@ -10,23 +11,23 @@ shape of data the demo flow's later prompts assume:
 
 The contents are structurally correct but synthetic -- the agents reason
 about the history's shape, not the pixel values. Swap in real images for
-stage rehearsals.
+demo rehearsals.
 
 Used by:
 - ``test/integration/test_live_evals.py`` as a fixture for the pytest
   live-eval runner.
-- Stage rehearsal: run standalone against a real Galaxy with an API key
-  to set up a demo history in seconds.
+- Standalone runs against a real Galaxy to set up the demo history in
+  seconds.
 
 Standalone usage (against a running Galaxy):
 
-    python test/evals/seed_live26_demo_history.py \\
+    python test/evals/seed_staining_quantification_history.py \\
         --galaxy-url http://localhost:8080 \\
         --galaxy-api-key <key>
 
 In-test usage:
 
-    from evals.seed_live26_demo_history import seed_demo_history
+    from evals.seed_staining_quantification_history import seed_demo_history
     history_id = seed_demo_history(dataset_populator)
 """
 
@@ -38,7 +39,7 @@ from typing import (
     Optional,
 )
 
-HISTORY_NAME = "Live26 staining quantification"
+HISTORY_NAME = "Staining quantification (eval fixture)"
 
 # Stub TIFF bytes -- structurally correct minimal TIFF header. The agents only
 # need to see that the dataset exists with the right file type / extension.
@@ -56,12 +57,11 @@ _QUANTIFICATION_CSV = """region_id\tarea_pixels\tmean_intensity_brown\tmean_inte
 """
 
 _HISTORY_ANNOTATION = (
-    "Live26 demo: histological staining quantification flow. Brightfield "
-    "RGB inputs (slide_01, slide_02) -> ROI mask -> color deconvolution "
-    "isolating the brown stain channel -> per-ROI intensity / area "
-    "quantification. Final output: staining_quantification_per_roi.tabular "
-    "with per-region area_pixels, mean_intensity_brown, mean_intensity_blue, "
-    "and pct_positive."
+    "Histological staining quantification flow. Brightfield RGB inputs "
+    "(slide_01, slide_02) -> ROI mask -> color deconvolution isolating "
+    "the brown stain channel -> per-ROI intensity / area quantification. "
+    "Final output: staining_quantification_per_roi.tabular with per-region "
+    "area_pixels, mean_intensity_brown, mean_intensity_blue, and pct_positive."
 )
 
 

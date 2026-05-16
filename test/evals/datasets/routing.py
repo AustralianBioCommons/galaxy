@@ -177,50 +177,51 @@ ROUTING_CASES: list[Case[str, str, dict[str, Any]]] = [
         "router",
         "One-word query -- router asks for clarification",
     ),
-    # Live26 (GCC2026) demo prompts -- canonical strings from the demo script.
-    # See evals/datasets/live26_demo.py for content-quality rubrics on the same
-    # set; these cases only score the routing decision.
+    # Staining quantification use-case prompts -- a representative
+    # histological staining quantification flow ending with Omero export.
+    # See evals/datasets/staining_quantification.py for content-quality
+    # rubrics on the same set; these cases only score the routing decision.
     _case(
-        "live26_stain_quantification_intro",
+        "stain_quantification_intro",
         (
             "The datasets in my history are brightfield RGB images from a "
             "histological staining experiment. I'd like to quantify stain "
             "components from those images. What's a good way to do this?"
         ),
         "tool_recommendation",
-        "Live26 step 3 -- Diana's opening prompt; tool_recommendation also surfaces IWC workflows once agent-ops-iwc-reintroduce lands.",
+        "Opening prompt; tool_recommendation also surfaces IWC workflows once agent-ops-iwc-reintroduce lands.",
     ),
     _case(
-        "live26_import_iwc_workflow",
+        "import_iwc_workflow",
         "Import a histological staining workflow from IWC.",
         "router",
-        "Live26 step 4 -- router-direct action. On agent-ops-iwc-reintroduce this triggers search_iwc_workflows + import_workflow_from_iwc tool calls.",
+        "Router-direct action. On agent-ops-iwc-reintroduce this triggers search_iwc_workflows + import_workflow_from_iwc tool calls.",
     ),
     _case(
-        "live26_omero_upload_guidance",
+        "omero_upload_guidance",
         "How can I upload this data to Omero?",
         "router",
-        "Live26 step 7 -- router-direct guidance on Omero file source / connection setup.",
+        "Router-direct guidance on Omero file source / connection setup.",
     ),
     _case(
-        "live26_history_sanity_check",
+        "history_sanity_check",
         "Look at my history -- did I miss anything in this analysis?",
         "history",
-        "Live26 step 6 -- post-run sanity check.",
+        "Post-run sanity check on the user's history.",
         requires_galaxy=True,
     ),
     _case(
-        "live26_summarize_to_page",
+        "summarize_to_page",
         "Summarize this analysis and save it as a Galaxy Page.",
         "history",
-        "Live26 step 6 follow-up -- history agent owns Page creation.",
+        "History agent owns Page creation.",
         requires_galaxy=True,
     ),
     _case(
-        "live26_custom_tool_quantify_brown",
+        "custom_tool_quantify_brown",
         "Generate a Galaxy tool that counts brown pixels in a TIFF image.",
         "custom_tool",
-        "Live26 step 6 follow-up -- explicit custom_tool request.",
+        "Explicit custom_tool request -- writing a tool wrapper, not running an existing one.",
     ),
 ]
 

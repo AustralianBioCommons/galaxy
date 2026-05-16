@@ -1,31 +1,33 @@
-"""Live26 (GCC2026) demo dataset: rubric-graded content quality for the demo script.
+"""Staining quantification: rubric-graded content quality for an end-to-end
+histological staining analysis use case.
 
-These are the prompts we will actually type on stage at GCC2026 for the Live26
-presentation (a histological staining quantification flow ending with an Omero
-export). The routing decision for each prompt is scored in
-``evals/datasets/routing.py`` under the ``live26_*`` names; this dataset scores
-the substance of the response with an LLMJudge per-case rubric, regardless of
-which downstream agent the router picks.
+The prompts walk the agent through a representative bioimaging flow --
+brightfield RGB inputs, color deconvolution, per-ROI quantification, and
+finally exporting results to Omero. They were originally sourced from a
+demo script so the casework mirrors what a real user typing into ChatGXY
+would do, but the rubrics score domain substance, not stage timing.
 
-Pairs with the planning doc at:
-https://docs.google.com/document/d/1-TuXZG-fVRjLDesR3NQFoenBDxJbf7Mt0Sqtokr4DQA
+The routing decision for each prompt is scored in
+``evals/datasets/routing.py`` under matching case names; this dataset
+scores the substance of the response with an LLMJudge per-case rubric,
+regardless of which downstream agent the router picks.
 
 Notes:
 
-- ``live26_import_iwc_workflow`` depends on the in-flight IWC operations on the
+- ``import_iwc_workflow`` depends on the in-flight IWC operations on the
   ``agent-ops-iwc-reintroduce`` branch (``search_iwc_workflows``,
   ``import_workflow_from_iwc``). On this branch the case still runs and its
   rubric just measures how degraded the answer is without those tools -- useful
   as a "before" number to diff against once IWC ops merges.
-- ``live26_history_sanity_check``, ``live26_summarize_to_page``,
-  ``live26_report_takeaway``, and ``live26_social_media_post`` need a real
-  Galaxy session because they presuppose specific results in the user's
-  history. They carry ``requires_galaxy=True`` and are filtered out by
-  default; pass ``--include-galaxy-required`` to include them. Note that
-  the harness's MagicMock'd trans means these will still fail until
-  real-Galaxy plumbing is added; the flag is forward-looking.
-- ``live26_report_takeaway`` and ``live26_social_media_post`` don't have a
-  pinned routing target yet (report-template editing isn't a dedicated agent
+- ``history_sanity_check``, ``summarize_to_page``, ``report_takeaway``,
+  and ``social_media_post`` need a real Galaxy session because they
+  presuppose specific results in the user's history. They carry
+  ``requires_galaxy=True`` and are filtered out by default; pass
+  ``--include-galaxy-required`` to include them. Note that the
+  standalone CLI's MagicMock'd trans means these will still fail until
+  the pytest live runner exercises them; the flag is forward-looking.
+- ``report_takeaway`` and ``social_media_post`` don't have a pinned
+  routing target yet (report-template editing isn't a dedicated agent
   and the social-post beat is borderline); they're content-only here.
 """
 
@@ -46,7 +48,7 @@ from pydantic_evals.evaluators import (
 
 _PROTO_CASES: list[dict[str, Any]] = [
     {
-        "name": "live26_stain_quantification_intro",
+        "name": "stain_quantification_intro",
         "query": (
             "The datasets in my history are brightfield RGB images from a "
             "histological staining experiment. I'd like to quantify stain "
@@ -68,7 +70,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": False,
     },
     {
-        "name": "live26_import_iwc_workflow",
+        "name": "import_iwc_workflow",
         "query": "Import a histological staining workflow from IWC.",
         "rubric": (
             "Response should perform or describe importing an IWC workflow:\n"
@@ -85,7 +87,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": False,
     },
     {
-        "name": "live26_omero_upload_guidance",
+        "name": "omero_upload_guidance",
         "query": "How can I upload this data to Omero?",
         "rubric": (
             "Response should guide the user through Omero export from Galaxy:\n"
@@ -102,7 +104,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": False,
     },
     {
-        "name": "live26_history_sanity_check",
+        "name": "history_sanity_check",
         "query": "Look at my history -- did I miss anything in this analysis?",
         "rubric": (
             "Response should perform a real sanity check on the user's history:\n"
@@ -118,7 +120,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": True,
     },
     {
-        "name": "live26_summarize_to_page",
+        "name": "summarize_to_page",
         "query": "Summarize this analysis and save it as a Galaxy Page.",
         "rubric": (
             "Response should produce a publishable analysis summary:\n"
@@ -135,7 +137,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": True,
     },
     {
-        "name": "live26_custom_tool_quantify_brown",
+        "name": "custom_tool_quantify_brown",
         "query": "Generate a Galaxy tool that counts brown pixels in a TIFF image.",
         "rubric": (
             "Response should produce a working Galaxy tool wrapper in the "
@@ -158,7 +160,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": False,
     },
     {
-        "name": "live26_report_takeaway",
+        "name": "report_takeaway",
         "query": (
             "Add a short take-away message to the workflow report summarizing "
             "what the staining quantification results show."
@@ -178,7 +180,7 @@ _PROTO_CASES: list[dict[str, Any]] = [
         "requires_galaxy": True,
     },
     {
-        "name": "live26_social_media_post",
+        "name": "social_media_post",
         "query": "Can you summarize my analysis in a couple of sentences I can share?",
         "rubric": (
             "Response should produce a publishable short summary:\n"
@@ -196,8 +198,9 @@ _PROTO_CASES: list[dict[str, Any]] = [
 
 
 _RUBRIC_TEMPLATE = """\
-You are evaluating a Galaxy AI agent's response to a prompt from the Live26
-(GCC2026) demo script. The demo is a histological staining quantification flow.
+You are evaluating a Galaxy AI agent's response to a prompt from the
+histological staining quantification use case (brightfield RGB inputs,
+color deconvolution, per-ROI quantification, Omero export).
 
 Acceptance rubric for this case:
 {rubric}
@@ -212,12 +215,12 @@ Return a number; no commentary.
 """
 
 
-def live26_demo_dataset(
+def staining_quantification_dataset(
     judge_model: Optional[Model] = None,
     only: Optional[list[str]] = None,
     include_galaxy_required: bool = False,
 ) -> Dataset[str, str, dict[str, Any]]:
-    """Build the live26_demo Dataset.
+    """Build the staining_quantification Dataset.
 
     Requires ``judge_model`` to score; without it the dataset has no
     evaluators and cases will report no scores.
@@ -252,4 +255,4 @@ def live26_demo_dataset(
                 evaluators=evaluators,
             )
         )
-    return Dataset(name="live26_demo", cases=cases)
+    return Dataset(name="staining_quantification", cases=cases)

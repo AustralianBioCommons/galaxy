@@ -32,14 +32,14 @@ Current datasets:
   galaxyproject/galaxy#21661 (comment 4367167981) where the router answered
   "what tools are installed?" with a generic essay instead of calling
   `search_tools`.
-- **live26_demo**: canonical prompts from the GCC2026 Live26 demo script
-  (histological staining quantification flow ending with Omero export).
-  Scored by `LLMJudge` against per-case rubrics for response substance.
-  The routing decision for the same prompts is scored separately by the
-  `live26_*` cases in the `routing` dataset, so a full demo flight check
-  runs both. Cases needing a live Galaxy session (history sanity check,
-  save-to-page) are off by default; pass `--include-galaxy-required` to
-  include them.
+- **staining_quantification**: end-to-end bioimaging use case --
+  brightfield RGB inputs, color deconvolution, per-ROI quantification,
+  Omero export. Scored by `LLMJudge` against per-case rubrics for
+  response substance. The routing decision for the same prompts is
+  scored separately by the matching cases in the `routing` dataset, so
+  a full flight check runs both. Cases needing a live Galaxy session
+  (history sanity check, save-to-page) are off by default; pass
+  `--include-galaxy-required` to include them.
 
 ## Layout
 
@@ -78,8 +78,8 @@ default.
 
 `test/integration/test_live_evals.py` runs the same datasets inside a
 Galaxy integration-test fixture with a real `trans`. Seeds a demo
-history via `test/evals/seed_live26_demo_history.py`, runs the
-`requires_galaxy=True` cases against it, writes a report to
+history via `test/evals/seed_staining_quantification_history.py`, runs
+the `requires_galaxy=True` cases against it, writes a report to
 `test/evals/results/` in the same shape as the CLI. Slower (Galaxy
 startup), but the only path that actually exercises history-dependent
 cases.
@@ -88,7 +88,7 @@ cases.
 
 - Iterating on a prompt? **CLI.**
 - Choosing between models? **CLI.**
-- Stage rehearsal / flight check for the GCC2026 demo? **Pytest live
+- End-to-end flight check before a demo rehearsal? **Pytest live
   runner.**
 - Cases involving "my history", "my analysis", or the history agent
   doing real tool calls? **Pytest live runner.**
@@ -123,7 +123,7 @@ export GALAXY_TEST_AI_MODEL=gpt-oss-120b
 
 # Optional: override which datasets/models/judge to run
 # export EVALS_MODEL_CONFIG=/path/to/models.yaml
-# export EVALS_DATASETS=live26_demo
+# export EVALS_DATASETS=staining_quantification
 # export EVALS_MODELS=gpt-oss-120b
 # export EVALS_JUDGE_MODEL=gpt-oss-120b
 
@@ -131,9 +131,10 @@ pytest test/integration/test_live_evals.py -v
 ```
 
 The live runner always passes `include_galaxy_required=True`, so the
-history-needing live26 cases (`history_sanity_check`, `summarize_to_page`,
-`report_takeaway`, `social_media_post`) actually get exercised. Default
-scope is `live26_demo` only; override with `EVALS_DATASETS`.
+history-needing staining-quantification cases (`history_sanity_check`,
+`summarize_to_page`, `report_takeaway`, `social_media_post`) actually
+get exercised. Default scope is `staining_quantification` only;
+override with `EVALS_DATASETS`.
 
 The default judge is `Llama-4-Maverick-17B-128E-Instruct` rather than
 `gpt-oss-120b` because gpt-oss-120b tends to grade itself too

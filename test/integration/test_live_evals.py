@@ -1,15 +1,16 @@
-"""Live-Galaxy runner for the ``evals/`` agent eval suite.
+"""Live-Galaxy runner for the ``test/evals/`` agent eval suite.
 
 Wraps the standalone ``evals.run_evals`` machinery inside a Galaxy
-integration-test fixture so the ``requires_galaxy=True`` cases (live26
-history sanity check, summarize-to-page, report takeaway, social media
-post, history_analyzer routing cases) actually run against a real history.
+integration-test fixture so the ``requires_galaxy=True`` cases (the
+staining quantification history sanity check, summarize-to-page, report
+takeaway, social media post, plus the history_analyzer routing cases)
+actually run against a real history.
 
-The mock-trans CLI under ``evals/run_evals.py`` stays the fast loop for
-prompt iteration on the cases that don't need live data. This test is the
-"real flight check" before stage rehearsals -- it shares dataset
-definitions, evaluators, and the report renderer with the CLI, only the
-deps construction differs.
+The mock-trans CLI under ``test/evals/run_evals.py`` stays the fast
+loop for prompt iteration on the cases that don't need live data. This
+test is the real flight check before demo rehearsals -- it shares
+dataset definitions, evaluators, and the report renderer with the CLI,
+only the deps construction differs.
 
 ## Running
 
@@ -26,13 +27,13 @@ deps construction differs.
                                             # Llama-4-Maverick-17B-128E-Instruct
                                             # so the candidate isn't judging
                                             # its own output
-    export EVALS_DATASETS="live26_demo"     # optional comma-separated subset
+    export EVALS_DATASETS="staining_quantification"   # optional comma-separated subset
 
     pytest test/integration/test_live_evals.py -v
 
-Reports land in ``evals/results/<stamp>-<datasets>-<sha>.{md,json}``, the
-same place and naming as the CLI so ``--baseline`` diffing keeps working
-across both runners.
+Reports land in ``test/evals/results/<stamp>-<datasets>-<sha>.{md,json}``,
+the same place and naming as the CLI so ``--baseline`` diffing keeps
+working across both runners.
 """
 
 import asyncio
@@ -63,7 +64,7 @@ from evals.run_evals import (  # noqa: E402
     run_eval_suite,
     write_eval_report,
 )
-from evals.seed_live26_demo_history import seed_demo_history  # noqa: E402
+from evals.seed_staining_quantification_history import seed_demo_history  # noqa: E402
 from evals.tasks import make_live_deps  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -101,14 +102,17 @@ class TestLiveEvals(IntegrationTestCase):
     def test_run_live_eval_suite(self):
         """Seed the demo history, run the eval suite, write reports.
 
-        Default scope: ``live26_demo`` dataset with ``--include-galaxy-required``
-        so the cases that need a real history actually run. Override via the
-        ``EVALS_*`` env vars documented at the top of the file.
+        Default scope: ``staining_quantification`` dataset with
+        ``--include-galaxy-required`` so the cases that need a real
+        history actually run. Override via the ``EVALS_*`` env vars
+        documented at the top of the file.
         """
         history_id = seed_demo_history(self.dataset_populator)
-        log.info("Seeded Live26 demo history: %s", history_id)
+        log.info("Seeded staining quantification fixture history: %s", history_id)
 
-        datasets = [d.strip() for d in os.environ.get("EVALS_DATASETS", "live26_demo").split(",") if d.strip()]
+        datasets = [
+            d.strip() for d in os.environ.get("EVALS_DATASETS", "staining_quantification").split(",") if d.strip()
+        ]
 
         config_path = os.environ.get("EVALS_MODEL_CONFIG")
         _path, model_config = _load_model_config(config_path)
