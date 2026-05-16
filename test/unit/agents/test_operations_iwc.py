@@ -5,6 +5,9 @@ from typing import (
 )
 from unittest.mock import patch
 
+import pytest
+
+from galaxy import exceptions
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.webapps.galaxy.services.workflows import WorkflowsService
 
@@ -70,3 +73,36 @@ def test_import_from_iwc_does_not_mutate_cached_definition():
     assert result["id"] == "encoded-1"
     assert result["missing_tools"] == ["missing/tool"]
     assert isinstance(definition["steps"]["0"]["subworkflow"], dict)
+
+
+def test_import_from_iwc_requires_authenticated_user():
+    trans = SimpleNamespace(user=None)
+    service = _make_service()
+
+    with pytest.raises(exceptions.AuthenticationRequired):
+        service.import_from_iwc(cast(ProvidesUserContext, trans), "#workflow/anything/main")
+
+
+def test_import_from_iwc_raises_object_not_found_for_unknown_trs_id():
+    manifest = [
+        {
+            "workflows": [
+                {
+                    "trsID": "#workflow/github.com/iwc-workflows/known/main",
+                    "definition": {"name": "Known", "steps": {}},
+                }
+            ]
+        }
+    ]
+    trans = SimpleNamespace(
+        user=SimpleNamespace(id=1),
+        security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"),
+    )
+    service = _make_service()
+
+    with patch("galaxy.agents.iwc.fetch_manifest", return_value=manifest):
+        with pytest.raises(exceptions.ObjectNotFound, match="not found"):
+            service.import_from_iwc(
+                cast(ProvidesUserContext, trans),
+                "#workflow/github.com/iwc-workflows/missing/main",
+            )
