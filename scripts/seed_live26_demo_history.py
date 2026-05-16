@@ -31,6 +31,7 @@ In-test usage:
 """
 
 import argparse
+import io
 import sys
 from typing import (
     Any,
@@ -65,32 +66,47 @@ def seed_demo_history(dataset_populator: Any) -> str:
     """
     history_id = dataset_populator.new_history(name=HISTORY_NAME)
 
+    # Binary uploads need to go through the file-upload path (the populator's
+    # default path does ``"://" in content`` to detect URLs, which fails on
+    # bytes). Wrapping in BytesIO triggers the ``hasattr(content, "read")``
+    # branch instead.
+    def _tiff_blob() -> io.BytesIO:
+        return io.BytesIO(_STUB_TIFF)
+
     dataset_populator.new_dataset(
         history_id,
-        content=_STUB_TIFF,
+        content=_tiff_blob(),
         file_type="tiff",
         name="slide_01_brightfield.tiff",
+        to_posix_lines=False,
+        auto_decompress=False,
         wait=True,
     )
     dataset_populator.new_dataset(
         history_id,
-        content=_STUB_TIFF,
+        content=_tiff_blob(),
         file_type="tiff",
         name="slide_02_brightfield.tiff",
+        to_posix_lines=False,
+        auto_decompress=False,
         wait=True,
     )
     dataset_populator.new_dataset(
         history_id,
-        content=_STUB_TIFF,
+        content=_tiff_blob(),
         file_type="tiff",
         name="rois.tiff",
+        to_posix_lines=False,
+        auto_decompress=False,
         wait=True,
     )
     dataset_populator.new_dataset(
         history_id,
-        content=_STUB_TIFF,
+        content=_tiff_blob(),
         file_type="tiff",
         name="deconvolved_brown_channel.tiff",
+        to_posix_lines=False,
+        auto_decompress=False,
         wait=True,
     )
     dataset_populator.new_dataset(
