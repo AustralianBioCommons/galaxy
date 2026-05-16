@@ -10,6 +10,7 @@ import { type DynamicUnprivilegedToolCreatePayload, GalaxyApi } from "@/api";
 import { useConfig } from "@/composables/config";
 import { useToast } from "@/composables/toast";
 import { useUnprivilegedToolStore } from "@/stores/unprivilegedToolStore";
+import { errorMessageAsString } from "@/utils/simple-error";
 
 /* eslint-disable no-unused-vars */
 // Action types from backend - values are used in switch/case and icon maps
@@ -210,7 +211,7 @@ export function useAgentActions() {
         });
 
         if (error) {
-            toast.error(`Failed to import ${name}: ${String(error)}`);
+            toast.error(`Failed to import ${name}: ${errorMessageAsString(error)}`);
             return;
         }
 
