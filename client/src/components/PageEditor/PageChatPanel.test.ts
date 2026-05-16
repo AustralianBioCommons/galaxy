@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 import PageChatPanel from "./PageChatPanel.vue";
-import ChatInput from "@/components/ChatGXY/ChatInput.vue";
-import ChatMessageCell from "@/components/ChatGXY/ChatMessageCell.vue";
+import ChatInput from "@/components/GalaxyAI/ChatInput.vue";
+import ChatMessageCell from "@/components/GalaxyAI/ChatMessageCell.vue";
 
 // Mock GalaxyApi
 const mockPOST = vi.fn();
