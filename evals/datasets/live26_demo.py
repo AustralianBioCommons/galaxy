@@ -179,16 +179,16 @@ _PROTO_CASES: list[dict[str, Any]] = [
     },
     {
         "name": "live26_social_media_post",
-        "query": "Draft a short post about my analysis for the Galaxy hub.",
+        "query": "Can you summarize my analysis in a couple of sentences I can share?",
         "rubric": (
-            "Response should produce a publishable short post:\n"
+            "Response should produce a publishable short summary:\n"
             "1. Under ~280 characters or a couple of short sentences -- not a "
-            "blog post\n"
+            "blog post or a wall of caveats\n"
             "2. Names the analysis topic (histological staining quantification) "
-            "concretely\n"
-            "3. Mentions Galaxy and IWC / GTN where natural, but does not read "
-            "as marketing copy\n"
-            "4. Doesn't fabricate a specific result number"
+            "concretely, grounded in what's actually in the history\n"
+            "3. Reads like something a researcher would post, not marketing copy\n"
+            "4. Doesn't fabricate a specific result number; placeholders or "
+            "real values from the history are both fine"
         ),
         "requires_galaxy": True,
     },
