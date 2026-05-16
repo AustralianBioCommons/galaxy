@@ -128,7 +128,7 @@ class ChatManager:
         self, trans: ProvidesUserContext, query: str, response_data: Any, agent_type: str = "unknown"
     ) -> ChatExchange:
         """
-        Create a general ChatGXY exchange (not job-related) in the database.
+        Create a general GalaxyAI exchange (not job-related) in the database.
         Stores both the user's query and the full agent response.
 
         :param query: The user's query
