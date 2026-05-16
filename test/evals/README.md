@@ -44,7 +44,7 @@ Current datasets:
 ## Layout
 
 ```
-evals/
+test/evals/
   datasets/                # One module per dataset
     routing.py
     error_analysis.py
@@ -80,8 +80,9 @@ default.
 Galaxy integration-test fixture with a real `trans`. Seeds a demo
 history via `scripts/seed_live26_demo_history.py`, runs the
 `requires_galaxy=True` cases against it, writes a report to
-`evals/results/` in the same shape as the CLI. Slower (Galaxy startup),
-but the only path that actually exercises history-dependent cases.
+`test/evals/results/` in the same shape as the CLI. Slower (Galaxy
+startup), but the only path that actually exercises history-dependent
+cases.
 
 ### Which to use
 
@@ -94,16 +95,19 @@ but the only path that actually exercises history-dependent cases.
 
 ## Running the CLI
 
-Copy `evals/models.yaml.sample` to `evals/models.yaml` (gitignored), list
-each model you want to evaluate with its proxy URL and key, then:
+Copy `test/evals/models.yaml.sample` to `test/evals/models.yaml`
+(gitignored), list each model you want to evaluate with its proxy URL
+and key, then run from the `test/` directory so the `evals.*` modules
+import without an editable install:
 
 ```bash
 . .venv/bin/activate
+cd test
 python -m evals.run_evals --model-config evals/models.yaml
 ```
 
 That runs every model in the YAML against every dataset. Output goes to
-stdout and to `evals/results/<date>-<datasets>-<sha>.md`.
+stdout and to `test/evals/results/<date>-<datasets>-<sha>.md`.
 
 You can still pass `--models gpt-oss-120b,Llama-4-Maverick-17B-128E-Instruct`
 to restrict to a subset.
@@ -145,6 +149,7 @@ encode the repo SHA they were generated from, so any baseline file pairs
 back to a specific commit.
 
 ```bash
+cd test
 python -m evals.run_evals \
     --baseline /path/to/baselines/2026-05-08-121624-bioinformatics_workflows+orchestrator_planning+tool_recommendation+router_tool_use-db9b1cb0799.md
 ```

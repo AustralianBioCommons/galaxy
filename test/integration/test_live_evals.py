@@ -51,11 +51,15 @@ from galaxy_test.base.populators import (
 )
 from galaxy_test.driver.integration_util import IntegrationTestCase
 
-# evals/ lives at the repo root, not under lib/ -- add it to sys.path so the
-# test can import the standalone harness modules without requiring an install.
+# test/evals/ isn't an installable package -- put test/ on sys.path so the
+# `evals.*` modules import cleanly without an editable install or an
+# __init__.py at test/. scripts/ stays at repo root for now.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_TEST_ROOT = _REPO_ROOT / "test"
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+if str(_TEST_ROOT) not in sys.path:
+    sys.path.insert(0, str(_TEST_ROOT))
 
 from evals.run_evals import (  # noqa: E402
     _load_model_config,
