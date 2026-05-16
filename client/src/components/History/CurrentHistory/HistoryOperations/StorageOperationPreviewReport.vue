@@ -1,18 +1,40 @@
 <script setup lang="ts">
-import { BAlert, BBadge, BListGroup, BListGroupItem, BProgress, BProgressBar } from "bootstrap-vue";
-import { computed } from "vue";
+import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { BAlert, BBadge, BListGroup, BListGroupItem } from "bootstrap-vue";
+import { computed, onMounted, ref, watch } from "vue";
 
+import { GalaxyApi } from "@/api";
 import type { StorageOperationPreviewResponse } from "@/api/histories";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
+import { useQuotaUsageStore } from "@/stores/quotaUsageStore";
 import { getIneligibleReasonDescription } from "@/utils/storageOperations";
 import { bytesToString } from "@/utils/utils";
+
+import StorageQuotaImpactBar from "@/components/History/StorageOperations/StorageQuotaImpactBar.vue";
+import Popper from "@/components/Popper/Popper.vue";
 
 const props = defineProps<{
     preview: StorageOperationPreviewResponse;
     targetStoreId: string;
 }>();
 
+interface QuotaUsageDeltaEntry {
+    storeId: string;
+    usageDeltaBytes: number;
+}
+
+interface QuotaImpactEntry extends QuotaUsageDeltaEntry {
+    isTargetStore: boolean;
+    quotaLimitBytes: number | null;
+    currentUsageBytes: number;
+}
+
 const objectStoreStore = useObjectStoreStore();
+const quotaUsageStore = useQuotaUsageStore();
+const objectStoreUsageById = ref<Record<string, number>>({});
+const objectStoreUsageLoaded = ref(false);
+const objectStoreUsageLoading = ref(false);
 
 const transferEstimate = computed(() => {
     const bytes = props.preview.estimates?.bytes_to_transfer;
@@ -22,26 +44,133 @@ const transferEstimate = computed(() => {
     return bytesToString(bytes);
 });
 
-const quotaAvailabilityEntries = computed(() => {
+const quotaUsageDeltaEntries = computed<QuotaUsageDeltaEntry[]>(() => {
     const transfers = props.preview.estimates?.quota_delta_transfers ?? [];
     const byStore = new Map<string, number>();
 
     for (const transfer of transfers) {
         const bytes = transfer.bytes ?? 0;
-        byStore.set(transfer.source_object_store_id, (byStore.get(transfer.source_object_store_id) ?? 0) + bytes);
-        byStore.set(transfer.target_object_store_id, (byStore.get(transfer.target_object_store_id) ?? 0) - bytes);
+        // Usage decreases on the source and increases on the target.
+        byStore.set(transfer.source_object_store_id, (byStore.get(transfer.source_object_store_id) ?? 0) - bytes);
+        byStore.set(transfer.target_object_store_id, (byStore.get(transfer.target_object_store_id) ?? 0) + bytes);
     }
 
     return Array.from(byStore.entries())
-        .map(([storeId, availableQuotaDelta]) => ({
+        .map(([storeId, usageDeltaBytes]) => ({
             storeId,
-            availableQuotaDelta,
+            usageDeltaBytes,
         }))
+        .filter((entry) => entry.usageDeltaBytes !== 0)
         .sort((a, b) => a.storeId.localeCompare(b.storeId));
 });
 
-const quotaGains = computed(() => quotaAvailabilityEntries.value.filter((entry) => entry.availableQuotaDelta > 0));
-const quotaLosses = computed(() => quotaAvailabilityEntries.value.filter((entry) => entry.availableQuotaDelta < 0));
+const affectedStoreIdsKey = computed(() => quotaUsageDeltaEntries.value.map((entry) => entry.storeId).join("|"));
+
+function clearObjectStoreUsage(): void {
+    objectStoreUsageById.value = {};
+    objectStoreUsageLoaded.value = false;
+}
+
+async function ensureQuotaUsageLoadedOnce(): Promise<void> {
+    if (!quotaUsageStore.isLoaded) {
+        await quotaUsageStore.loadQuotaUsages();
+    }
+}
+
+async function fetchObjectStoreUsageMap(): Promise<Record<string, number> | null> {
+    const { data, error } = await GalaxyApi().GET("/api/users/{user_id}/objectstore_usage", {
+        params: { path: { user_id: "current" } },
+    });
+
+    if (error || !data) {
+        return null;
+    }
+
+    return Object.fromEntries(data.map((entry) => [entry.object_store_id, entry.total_disk_usage]));
+}
+
+async function loadObjectStoreUsageIfNeeded(): Promise<void> {
+    if (!affectedStoreIdsKey.value) {
+        clearObjectStoreUsage();
+        return;
+    }
+
+    if (objectStoreUsageLoaded.value || objectStoreUsageLoading.value) {
+        return;
+    }
+
+    objectStoreUsageLoading.value = true;
+    try {
+        const usageMap = await fetchObjectStoreUsageMap();
+        if (!usageMap) {
+            clearObjectStoreUsage();
+            return;
+        }
+
+        objectStoreUsageById.value = usageMap;
+        objectStoreUsageLoaded.value = true;
+    } finally {
+        objectStoreUsageLoading.value = false;
+    }
+}
+
+function handleAffectedStoresChanged(storeIdsKey: string): void {
+    if (!storeIdsKey) {
+        clearObjectStoreUsage();
+        return;
+    }
+
+    void loadObjectStoreUsageIfNeeded();
+}
+
+onMounted(() => {
+    void ensureQuotaUsageLoadedOnce();
+});
+
+watch(affectedStoreIdsKey, handleAffectedStoresChanged, { immediate: true });
+
+const quotaSourceByStoreId = computed<Record<string, string | null>>(() => {
+    const stores = objectStoreStore.selectableObjectStores ?? [];
+    return Object.fromEntries(
+        stores
+            .filter((store) => Boolean(store.object_store_id))
+            .map((store) => [store.object_store_id!, store.quota.source ?? null]),
+    );
+});
+
+const maxUsageScaleBytes = computed(() => {
+    const scaleCandidates = quotaImpactEntries.value.flatMap((entry) => {
+        const currentUsage = entry.currentUsageBytes;
+        const projectedUsage = Math.max(0, currentUsage + entry.usageDeltaBytes);
+        return [currentUsage, projectedUsage];
+    });
+
+    if (!scaleCandidates.length) {
+        return 1;
+    }
+
+    return Math.max(1, ...scaleCandidates);
+});
+
+const quotaProjection = computed<QuotaProjection | null>(() => props.preview.estimates.quota_projection ?? null);
+
+const quotaImpactEntries = computed<QuotaImpactEntry[]>(() => {
+    return quotaUsageDeltaEntries.value.map((entry) => {
+        const isTargetStore = entry.storeId === props.targetStoreId;
+        const quotaSourceLabel = quotaSourceByStoreId.value[entry.storeId] ?? null;
+        const quotaUsage = quotaUsageStore.getQuotaUsageBySourceLabel(quotaSourceLabel) ?? null;
+        return {
+            ...entry,
+            isTargetStore,
+            quotaLimitBytes: quotaUsage?.quotaInBytes ?? null,
+            currentUsageBytes:
+                objectStoreUsageById.value[entry.storeId] ??
+                (isTargetStore && quotaProjection.value
+                    ? quotaProjection.value.projected_usage + entry.usageDeltaBytes
+                    : 0),
+        };
+    });
+});
 
 const ineligibleReasonBreakdown = computed(() => {
     return (props.preview.eligibility?.reasons ?? [])
@@ -58,38 +187,12 @@ const hasWarnings = computed(() => Boolean(props.preview.warnings?.length) || no
 
 type QuotaProjection = NonNullable<StorageOperationPreviewResponse["estimates"]["quota_projection"]>;
 
-const quotaProjection = computed<QuotaProjection | null>(() => props.preview.estimates.quota_projection ?? null);
-
-const quotaProjectionPercent = computed(() => {
-    const projection = quotaProjection.value;
-    if (!projection || projection.quota_limit <= 0) {
-        return 0;
-    }
-    return (projection.projected_usage / projection.quota_limit) * 100;
-});
-
-const quotaProjectionVariant = computed(() => {
-    const percent = quotaProjectionPercent.value;
-    if (percent > 80) {
-        return "danger";
-    }
-    if (percent >= 60) {
-        return "warning";
-    }
-    return "success";
-});
-
 const targetStoreName = computed(() => {
     return objectStoreStore.getObjectStoreNameById(props.targetStoreId) ?? "Unknown storage location";
 });
 
 function getObjectStoreLabel(storeId: string) {
     return objectStoreStore.getObjectStoreNameById(storeId) ?? "Unknown storage location";
-}
-
-function formatQuotaDelta(delta: number) {
-    const sign = delta > 0 ? "+" : "-";
-    return `${sign}${bytesToString(Math.abs(delta))}`;
 }
 </script>
 
@@ -129,45 +232,36 @@ function formatQuotaDelta(delta: number) {
         </div>
 
         <!-- Storage quota changes -->
-        <div v-if="quotaAvailabilityEntries.length" class="mb-3">
-            <p class="mb-1 font-weight-bold">Quota availability impact by location:</p>
-            <p class="text-muted small mb-2">
-                Positive values mean you gain available quota. Negative values mean you lose available quota.
-            </p>
-            <BListGroup flush>
-                <BListGroupItem
-                    v-for="entry in quotaGains"
-                    :key="entry.storeId"
-                    class="px-0 py-1 d-flex justify-content-between align-items-center border-0">
-                    <div class="d-flex align-items-center">
-                        <BBadge variant="success" class="mr-2">Gain</BBadge>
-                        <span class="text-muted small">{{ getObjectStoreLabel(entry.storeId) }}</span>
+        <div v-if="quotaUsageDeltaEntries.length" class="mb-3">
+            <div class="d-flex align-items-center mb-2">
+                <p class="mb-0 font-weight-bold">Quota availability impact by location:</p>
+                <Popper placement="top" mode="light">
+                    <template v-slot:reference>
+                        <span class="ml-2 text-muted" aria-label="Quota impact help" tabindex="0">
+                            <FontAwesomeIcon :icon="faInfoCircle" />
+                        </span>
+                    </template>
+                    <div class="p-2 small" style="max-width: 28rem">
+                        Based on current usage and quota limits, the bars below illustrate how available quota will
+                        change on each affected storage location if the operation is executed. The "Current" and "After
+                        Change" values represent total usage on that storage location before and after the operation,
+                        while "Gain" or "Loss" reflects the usage change for that location. These are estimates based on
+                        current information and actual results may vary at execution time.
                     </div>
-                    <span class="small text-success">{{ formatQuotaDelta(entry.availableQuotaDelta) }}</span>
-                </BListGroupItem>
-                <BListGroupItem
-                    v-for="entry in quotaLosses"
-                    :key="`loss-${entry.storeId}`"
-                    class="px-0 py-1 d-flex justify-content-between align-items-center border-0">
-                    <div class="d-flex align-items-center">
-                        <BBadge variant="warning" class="mr-2">Loss</BBadge>
-                        <span class="text-muted small">{{ getObjectStoreLabel(entry.storeId) }}</span>
-                    </div>
-                    <span class="small text-warning">{{ formatQuotaDelta(entry.availableQuotaDelta) }}</span>
-                </BListGroupItem>
-            </BListGroup>
-        </div>
-
-        <div v-if="quotaProjection" class="mb-3">
-            <p class="mb-1 font-weight-bold">Target quota after operation</p>
-            <BProgress :max="100" height="1.25rem">
-                <BProgressBar
-                    :value="Math.min(quotaProjectionPercent, 100)"
-                    :variant="quotaProjectionVariant"
-                    :label="`${quotaProjectionPercent.toFixed(0)}%`" />
-            </BProgress>
-            <div class="text-muted small mt-1">
-                {{ bytesToString(quotaProjection.projected_usage) }} / {{ bytesToString(quotaProjection.quota_limit) }}
+                </Popper>
+            </div>
+            <p class="mb-2 text-muted small">You can hover over each bar for more details.</p>
+            <StorageQuotaImpactBar
+                v-for="entry in quotaImpactEntries"
+                :key="entry.storeId"
+                :store-label="getObjectStoreLabel(entry.storeId)"
+                :current-usage-bytes="entry.currentUsageBytes"
+                :delta-bytes="entry.usageDeltaBytes"
+                :quota-limit-bytes="entry.quotaLimitBytes"
+                :scale-max-bytes="maxUsageScaleBytes"
+                :is-target-store="entry.isTargetStore" />
+            <div v-if="!quotaImpactEntries.length" class="text-muted small">
+                No quota availability changes were detected for this operation.
             </div>
         </div>
 
