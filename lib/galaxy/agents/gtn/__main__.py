@@ -16,7 +16,6 @@ from galaxy.util.properties import (
     find_config_file,
     load_app_properties,
 )
-
 from .search import (
     GTN_DATABASE_URL,
     GTNSearchDB,
