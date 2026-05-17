@@ -133,6 +133,25 @@ def test_search_faqs_returns_hits(fixture_db: Path):
     assert results[0].title == "How do I archive a history?"
 
 
+def test_search_faqs_falls_back_to_or_for_stopword_heavy_queries(fixture_db: Path):
+    # FTS5 ANDs space-separated tokens by default. A user query like
+    # "how can I archive my history" misses the archive FAQ because the
+    # FAQ doesn't contain "my", even though every other term lines up.
+    # The OR fallback should surface it anyway.
+    db = GTNSearchDB(db_path=str(fixture_db))
+    results = db.search_faqs("how can I archive my history")
+    assert len(results) >= 1
+    assert results[0].title == "How do I archive a history?"
+
+
+def test_search_falls_back_to_or_for_stopword_heavy_queries(fixture_db: Path):
+    # Same fallback shape for tutorial search.
+    db = GTNSearchDB(db_path=str(fixture_db))
+    results = db.search("show me a quick RNA-seq tutorial")
+    assert len(results) >= 1
+    assert "RNA-seq" in results[0].title
+
+
 def test_search_by_tools_finds_tutorial_using_tool(fixture_db: Path):
     db = GTNSearchDB(db_path=str(fixture_db))
     results = db.search_by_tools(["bwa-mem"])
