@@ -33,6 +33,18 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
+def _or_form(fts_query: str) -> Optional[str]:
+    """OR-joined fallback for a multi-token FTS5 query, or None.
+
+    Returns None for quoted phrases (preserve as-is) and single-token
+    queries (no fallback needed). Callers should retry an AND-form
+    search with this if the AND form returns no rows.
+    """
+    if not fts_query or '"' in fts_query or " " not in fts_query:
+        return None
+    return " OR ".join(fts_query.split())
+
+
 def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     """Strip FTS5 operators from user input to prevent syntax errors.
 
@@ -287,9 +299,14 @@ class GTNSearchDB:
                 sql += " ORDER BY score LIMIT ?"
                 params.append(limit)
 
-                results = cursor.execute(sql, params)
+                rows = list(cursor.execute(sql, params))
+                or_query = _or_form(fts_query) if not rows else None
+                if or_query:
+                    params[0] = or_query
+                    rows = list(cursor.execute(sql, params))
+
                 search_results = []
-                for row in results:
+                for row in rows:
                     search_results.append(
                         SearchResult(
                             id=row["id"],
@@ -361,10 +378,14 @@ class GTNSearchDB:
                 sql += " ORDER BY score LIMIT ?"
                 params.append(limit)
 
-                results = cursor.execute(sql, params)
+                rows = list(cursor.execute(sql, params))
+                or_query = _or_form(fts_query) if not rows else None
+                if or_query:
+                    params[0] = or_query
+                    rows = list(cursor.execute(sql, params))
 
                 faq_results = []
-                for row in results:
+                for row in rows:
                     faq_results.append(
                         FAQResult(
                             id=row["id"],
