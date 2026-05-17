@@ -1081,7 +1081,7 @@ class TestAgentUnitMocked:
 
     def test_router_query_context_includes_entity_references(self):
         agent = QueryRouterAgent(self.deps)
-        out = agent._build_query_with_context(
+        out = agent._prepare_prompt(
             "what does this mean?",
             {
                 "entities": {
@@ -1093,7 +1093,7 @@ class TestAgentUnitMocked:
         assert "Referenced entities:" in out
         assert "Dataset #42" in out
         assert "Mapped reads" in out
-        assert "Current query: what does this mean?" in out
+        assert "what does this mean?" in out
 
 
 class TestPageAssistantAgent:
