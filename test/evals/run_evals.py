@@ -81,25 +81,39 @@ def _git_sha() -> str:
         return "unknown"
 
 
-def _resolve_model_endpoint(model: str, model_config: dict[str, Any]) -> tuple[str, str]:
-    """Return (proxy_url, api_key) for a model declared in model_config."""
+def _require_model_entry(model: str, model_config: dict[str, Any]) -> dict[str, Any]:
     entry = model_config.get(model)
     if not entry:
         raise SystemExit(
             f"Model '{model}' is not declared in the model-config YAML. "
             f"Known: {', '.join(model_config) or '(none)'}."
         )
+    return entry
+
+
+def _resolve_proxy_url(model: str, model_config: dict[str, Any]) -> str:
+    """Return the proxy URL for a model. Kept separate from key resolution
+    so the URL value never flows through the same tuple as the api_key
+    (CodeQL's taint tracking otherwise marks both as sensitive).
+    """
+    entry = _require_model_entry(model, model_config)
     proxy_url = entry.get("proxy_url")
     if not proxy_url:
         raise SystemExit(f"Model '{model}' is missing proxy_url in the YAML.")
+    return proxy_url
+
+
+def _resolve_api_key(model: str, model_config: dict[str, Any]) -> str:
+    """Return the api_key for a model -- either inline or from the env var."""
+    entry = _require_model_entry(model, model_config)
     if "api_key" in entry:
-        return proxy_url, entry["api_key"]
+        return entry["api_key"]
     api_key_env = entry.get("api_key_env")
     if api_key_env:
         api_key = os.environ.get(api_key_env)
         if not api_key:
             raise SystemExit(f"Model '{model}' requires env var {api_key_env} (not set).")
-        return proxy_url, api_key
+        return api_key
     raise SystemExit(f"Model '{model}' needs either api_key or api_key_env in the YAML.")
 
 
@@ -587,7 +601,8 @@ async def run_eval_suite(
         if ds not in SPECS:
             raise ValueError(f"Unknown dataset: {ds}. Known: {', '.join(SPECS)}.")
 
-    judge_proxy_url, judge_api_key = _resolve_model_endpoint(judge_model_name, model_config)
+    judge_proxy_url = _resolve_proxy_url(judge_model_name, model_config)
+    judge_api_key = _resolve_api_key(judge_model_name, model_config)
     judge_model = build_judge_model(judge_model_name, judge_proxy_url, judge_api_key)
     print(f"Judge: {judge_model_name} (via {judge_proxy_url})", file=sys.stderr)
 
@@ -595,7 +610,8 @@ async def run_eval_suite(
     for ds_name in datasets:
         spec_fn = SPECS[ds_name]
         for model in models:
-            proxy_url, api_key = _resolve_model_endpoint(model, model_config)
+            proxy_url = _resolve_proxy_url(model, model_config)
+            api_key = _resolve_api_key(model, model_config)
             print(f"\n=== {ds_name} | {model} (via {proxy_url}) ===", file=sys.stderr)
             deps = deps_factory(model, api_key, proxy_url)
             usage_buffer: list[dict[str, int]] = []

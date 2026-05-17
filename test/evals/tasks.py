@@ -12,9 +12,14 @@ from collections.abc import (
 )
 from typing import (
     Any,
+    cast,
     Optional,
+    TYPE_CHECKING,
 )
 from unittest.mock import MagicMock
+
+if TYPE_CHECKING:
+    from galaxy.config import GalaxyAppConfiguration
 
 from galaxy.agents.base import (
     extract_result_content,
@@ -166,7 +171,10 @@ def make_live_deps(
     return GalaxyAgentDependencies(
         trans=trans,
         user=trans.user,
-        config=config,
+        # _EvalConfig is a structural proxy: agents only touch ai_* and
+        # inference_services, both of which it provides; the rest falls
+        # through to base_config via __getattr__.
+        config=cast("GalaxyAppConfiguration", config),
         get_agent=_registry.get_agent,
     )
 

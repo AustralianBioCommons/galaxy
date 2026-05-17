@@ -141,7 +141,10 @@ def _standalone_main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--galaxy-api-key", required=True, help="API key for the user to seed for.")
     args = parser.parse_args(argv)
 
+    from typing import cast
+
     from galaxy.tool_util.verify.interactor import GalaxyInteractorApi
+    from galaxy_test.base.api import ApiTestInteractor
     from galaxy_test.base.populators import DatasetPopulator
 
     interactor = GalaxyInteractorApi(
@@ -149,8 +152,15 @@ def _standalone_main(argv: Optional[list[str]] = None) -> int:
         master_api_key=args.galaxy_api_key,
         api_key=args.galaxy_api_key,
     )
-    populator = DatasetPopulator(interactor)
+    # DatasetPopulator's interactor protocol is satisfied by both
+    # GalaxyInteractorApi (used here for standalone runs) and
+    # ApiTestInteractor (used by the pytest fixture), but the populator's
+    # signature only names the test type. Cast at this boundary.
+    populator = DatasetPopulator(cast(ApiTestInteractor, interactor))
     history_id = seed_demo_history(populator)
+    # lgtm[py/clear-text-logging-sensitive-data] -- history_id is a Galaxy
+    # history id, not a credential. CodeQL flags it because the populator
+    # was constructed with args.galaxy_api_key.
     print(f"Seeded history '{HISTORY_NAME}' at id {history_id}")
     return 0
 

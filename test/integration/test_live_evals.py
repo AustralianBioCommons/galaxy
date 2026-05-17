@@ -108,6 +108,10 @@ class TestLiveEvals(IntegrationTestCase):
         documented at the top of the file.
         """
         history_id = seed_demo_history(self.dataset_populator)
+        # lgtm[py/clear-text-logging-sensitive-data] -- history_id is a
+        # Galaxy history id, not a credential. CodeQL flags it because the
+        # populator was constructed with self.galaxy_interactor (which holds
+        # an api_key), so any value derived from it inherits the taint.
         log.info("Seeded staining quantification fixture history: %s", history_id)
 
         datasets = [
@@ -140,7 +144,9 @@ class TestLiveEvals(IntegrationTestCase):
         # ERROR out before the agent's response is even scored.
         from galaxy.webapps.galaxy.api.mcp import get_mcp_url_builder
 
-        user = self._user_for_api_key(self.galaxy_interactor.api_key)
+        api_key = self.galaxy_interactor.api_key
+        assert api_key, "Test setup must provide a galaxy_interactor.api_key"
+        user = self._user_for_api_key(api_key)
         history = self._history_for_id(history_id)
         url_builder = get_mcp_url_builder(self.url)
         trans = WorkRequestContext(app=self._app, user=user, history=history, url_builder=url_builder)
