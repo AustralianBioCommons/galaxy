@@ -3,6 +3,7 @@ from typing import (
     Any,
     cast,
 )
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -13,22 +14,20 @@ from galaxy.managers.workflows import WorkflowContentsManager
 from galaxy.webapps.galaxy.services.workflows import WorkflowsService
 
 
-class MutatingWorkflowContentsManager:
-    def ensure_raw_description(self, definition):
-        return SimpleNamespace(as_dict=definition)
-
-    def build_workflow_from_raw_description(self, trans, raw_workflow_description, create_options, source=None):
-        raw_workflow_description.as_dict["steps"]["0"]["subworkflow"] = object()
-        return SimpleNamespace(
-            stored_workflow=SimpleNamespace(id=1, name="Imported IWC workflow"),
-            missing_tools=[("missing/tool", "Missing Tool", "1.0", "0")],
-        )
+def _mutating_build(trans, raw_workflow_description, create_options, source=None):
+    raw_workflow_description.as_dict["steps"]["0"]["subworkflow"] = object()
+    return SimpleNamespace(
+        stored_workflow=SimpleNamespace(id=1, name="Imported IWC workflow"),
+        missing_tools=[("missing/tool", "Missing Tool", "1.0", "0")],
+    )
 
 
 def _make_service() -> WorkflowsService:
     service = WorkflowsService.__new__(WorkflowsService)
-    # Duck-typed mock; we only need the two methods import_from_iwc calls.
-    service._workflow_contents_manager = cast(WorkflowContentsManager, MutatingWorkflowContentsManager())
+    contents_manager = mock.Mock(spec=WorkflowContentsManager)
+    contents_manager.ensure_raw_description.side_effect = lambda d: SimpleNamespace(as_dict=d)
+    contents_manager.build_workflow_from_raw_description.side_effect = _mutating_build
+    service._workflow_contents_manager = contents_manager
     return service
 
 
