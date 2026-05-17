@@ -158,9 +158,6 @@ def _standalone_main(argv: Optional[list[str]] = None) -> int:
     # signature only names the test type. Cast at this boundary.
     populator = DatasetPopulator(cast(ApiTestInteractor, interactor))
     history_id = seed_demo_history(populator)
-    # lgtm[py/clear-text-logging-sensitive-data] -- history_id is a Galaxy
-    # history id, not a credential. CodeQL flags it because the populator
-    # was constructed with args.galaxy_api_key.
     print(f"Seeded history '{HISTORY_NAME}' at id {history_id}")
     return 0
 

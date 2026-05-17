@@ -108,10 +108,6 @@ class TestLiveEvals(IntegrationTestCase):
         documented at the top of the file.
         """
         history_id = seed_demo_history(self.dataset_populator)
-        # lgtm[py/clear-text-logging-sensitive-data] -- history_id is a
-        # Galaxy history id, not a credential. CodeQL flags it because the
-        # populator was constructed with self.galaxy_interactor (which holds
-        # an api_key), so any value derived from it inherits the taint.
         log.info("Seeded staining quantification fixture history: %s", history_id)
 
         datasets = [
