@@ -9,6 +9,7 @@ import pytest
 
 from galaxy import exceptions
 from galaxy.managers.context import ProvidesUserContext
+from galaxy.managers.workflows import WorkflowContentsManager
 from galaxy.webapps.galaxy.services.workflows import WorkflowsService
 
 
@@ -26,7 +27,8 @@ class MutatingWorkflowContentsManager:
 
 def _make_service() -> WorkflowsService:
     service = WorkflowsService.__new__(WorkflowsService)
-    service._workflow_contents_manager = MutatingWorkflowContentsManager()
+    # Duck-typed mock; we only need the two methods import_from_iwc calls.
+    service._workflow_contents_manager = cast(WorkflowContentsManager, MutatingWorkflowContentsManager())
     return service
 
 
