@@ -191,9 +191,7 @@ class InstallRepositoryManager:
             # so they're separated from admin-configured loc files at tool_data_path root.
             shed_loc_dir = os.path.join(self.app.config.tool_data_path, "shed")
             os.makedirs(shed_loc_dir, exist_ok=True)
-            tool_util.copy_sample_files(
-                shed_loc_dir, tool_index_sample_files, tool_path=tool_path
-            )
+            tool_util.copy_sample_files(shed_loc_dir, tool_index_sample_files, tool_path=tool_path)
             sample_files_copied = [str(s) for s in tool_index_sample_files]
             repository_tools_tups = irmm.get_repository_tools_tups()
             if repository_tools_tups:
