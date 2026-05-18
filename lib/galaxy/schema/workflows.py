@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 from typing import (
     Annotated,
     Any,
@@ -337,6 +338,13 @@ class WorkflowExtractionOutput(Model):
     )
 
 
+class InvalidWorkflowExtractionJobReason(str, Enum):
+    """Reasons a workflow extraction job may be invalid and disabled for extraction."""
+
+    TOOL_MISSING_OR_INACCESSIBLE = "tool_missing_or_inaccessible"
+    CUSTOM_TOOL_INACCESSIBLE = "custom_tool_inaccessible"
+
+
 class WorkflowExtractionJob(Model):
     id: Optional[EncodedDatabaseIdField] = Field(
         ...,
@@ -377,6 +385,11 @@ class WorkflowExtractionJob(Model):
         default_factory=list,
         title="Outputs",
         description="The history items produced by this job.",
+    )
+    invalid: Optional[InvalidWorkflowExtractionJobReason] = Field(
+        None,
+        title="Invalid",
+        description="Reason this job is invalid for extraction.",
     )
 
 
