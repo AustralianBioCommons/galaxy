@@ -120,7 +120,6 @@ class CisML(GenericXml):
 class Tei(GenericXml):
     """Text Encoding Initiative XML data."""
 
-    edam_format = "format_2332"
     file_ext = "tei"
 
     def set_peek(self, dataset: DatasetProtocol, **kwd) -> None:
