@@ -56,6 +56,7 @@ import type { PreparedUpload } from "@/components/Panels/Upload/types";
 import type { UploadRowModel } from "@/components/Upload/model";
 import type { SupportedCollectionType, UploadCollectionConfig } from "@/composables/upload/collectionTypes";
 import type { NewUploadItem } from "@/composables/upload/uploadItemTypes";
+import { uploadApiOptionDefaults } from "@/composables/upload/uploadOptionModel";
 import { getAppRoot } from "@/onload/loadConfig";
 import { errorMessageAsString } from "@/utils/simple-error";
 import { isUrl, isValidUrl } from "@/utils/url";
@@ -227,10 +228,7 @@ export interface UploadDatasetsConfig extends FetchDatasetsCallbacks, BuildPaylo
 export const uploadItemDefaults = {
     dbkey: "?",
     ext: "auto",
-    space_to_tab: false,
-    to_posix_lines: true,
-    deferred: false,
-    auto_decompress: true,
+    ...uploadApiOptionDefaults,
 } as const;
 
 // ============================================================================

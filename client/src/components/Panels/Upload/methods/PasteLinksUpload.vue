@@ -12,6 +12,7 @@ import { useCollectionCreation } from "@/composables/upload/collectionCreation";
 import { useUploadAdvancedMode } from "@/composables/upload/uploadAdvancedMode";
 import { useUploadDefaults } from "@/composables/upload/uploadDefaults";
 import { useUploadItemValidation } from "@/composables/upload/uploadItemValidation";
+import { useUploadOptionBindings } from "@/composables/upload/uploadOptionBindings";
 import { useUploadReadyState } from "@/composables/upload/uploadReadyState";
 import { useUploadStaging } from "@/composables/upload/useUploadStaging";
 import { buildPreparedUpload } from "@/utils/upload";
@@ -100,6 +101,10 @@ const addMoreUrlsLabel = computed(() => (isSingleMode.value ? "Change selected U
 const { isNameValid, restoreOriginalName } = useUploadItemValidation();
 
 const bulk = useBulkUploadOperations(urlItems, effectiveExtensions);
+const { headerOptionProps, headerOptionEvents, getRowOptionProps, getRowOptionEvents } = useUploadOptionBindings(
+    bulk,
+    optionVisibility,
+);
 
 // Additional validation for URL items
 const hasInvalidUrls = computed(() => urlItems.value.some((item) => !isValidUrl(item.url)));
@@ -334,33 +339,11 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
 
                     <!-- Options column with bulk checkboxes -->
                     <template v-slot:head(options)>
-                        <UploadTableOptionsHeader
-                            :all-space-to-tab="bulk.allSpaceToTab.value"
-                            :space-to-tab-indeterminate="bulk.spaceToTabIndeterminate.value"
-                            :option-visibility="optionVisibility"
-                            :all-to-posix-lines="bulk.allToPosixLines.value"
-                            :to-posix-lines-indeterminate="bulk.toPosixLinesIndeterminate.value"
-                            :all-deferred="bulk.allDeferred.value"
-                            :deferred-indeterminate="bulk.deferredIndeterminate.value"
-                            :all-auto-decompress="bulk.allAutoDecompress.value"
-                            :auto-decompress-indeterminate="bulk.autoDecompressIndeterminate.value"
-                            @toggle-space-to-tab="bulk.toggleAllSpaceToTab"
-                            @toggle-to-posix-lines="bulk.toggleAllToPosixLines"
-                            @toggle-deferred="bulk.toggleAllDeferred"
-                            @toggle-auto-decompress="bulk.toggleAllAutoDecompress" />
+                        <UploadTableOptionsHeader v-bind="headerOptionProps" v-on="headerOptionEvents" />
                     </template>
 
                     <template v-slot:cell(options)="{ item }">
-                        <UploadTableOptionsCell
-                            :space-to-tab="item.spaceToTab"
-                            :option-visibility="optionVisibility"
-                            :to-posix-lines="item.toPosixLines"
-                            :deferred="item.deferred"
-                            :auto-decompress="item.autoDecompress"
-                            @updateSpaceToTab="item.spaceToTab = $event"
-                            @updateToPosixLines="item.toPosixLines = $event"
-                            @updateDeferred="item.deferred = $event"
-                            @updateAutoDecompress="item.autoDecompress = $event" />
+                        <UploadTableOptionsCell v-bind="getRowOptionProps(item)" v-on="getRowOptionEvents(item)" />
                     </template>
 
                     <!-- Actions column -->
