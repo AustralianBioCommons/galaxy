@@ -68,7 +68,7 @@ class TestRepositoryInstallIntegrationTestCase(integration_util.IntegrationTestC
         shipped via tool_data_table_conf.xml.sample). Any <table> entries written to
         shed_tool_data_table_conf.xml have no <tool_shed_repository> sub-element."""
         non_dm_repo = ("devteam", "bwa", "051eba708f43")
-        non_dm_loc_files = {"bwa_index.loc"}
+        non_dm_loc_files = {"bwa_mem_index.loc"}
         self.install_repository(*non_dm_repo)
         shed_loc_dir = os.path.join(self._app.config.tool_data_path, "shed")
         for loc_file in non_dm_loc_files:
