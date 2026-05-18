@@ -53,7 +53,7 @@ class TestWorkflowExtractionApi(BaseWorkflowsApiTestCase, WorkflowStructureAsser
                 history_id=history_id,
             )
             payload["tool_uuid"] = dynamic_tool["uuid"]
-            run_response = self._post("tools", data=payload, json=True)
+            run_response = self.dataset_populator.tools_post(payload)
             self._assert_status_code_is(run_response, 200)
             udt_job_id = run_response.json()["jobs"][0]["id"]
             self.dataset_populator.wait_for_history(history_id, assert_ok=True)
@@ -736,8 +736,7 @@ class TestWorkflowExtractionSummaryApi(BaseWorkflowsApiTestCase):
                 history_id=history_id,
             )
             payload["tool_uuid"] = dynamic_tool["uuid"]
-            run_response = self._post("tools", data=payload, json=True)
-            self._assert_status_code_is(run_response, 200)
+            self._assert_status_code_is(self.dataset_populator.tools_post(payload), 200)
             self.dataset_populator.wait_for_history(history_id, assert_ok=True)
 
             summary = self._get_extraction_summary(history_id)
@@ -746,6 +745,31 @@ class TestWorkflowExtractionSummaryApi(BaseWorkflowsApiTestCase):
             udt_job = tool_jobs[0]
             assert udt_job["id"] is not None
             assert udt_job["tool_id"] == dynamic_tool["tool_id"]
+
+    def test_extraction_summary_udt_step_invalid_after_role_revoked(self):
+        # After the execute role is revoked the UDT step must be marked invalid
+        # with reason "custom_tool_inaccessible" and checked=False.
+        with self.dataset_populator.test_history() as history_id:
+            with self.dataset_populator.user_tool_execute_permissions():
+                dynamic_tool = self.dataset_populator.create_unprivileged_tool(
+                    UserToolSource(**TOOL_WITH_SHELL_COMMAND)
+                )
+                hda = self.dataset_populator.new_dataset(history_id, content="hello", wait=True)
+                payload = self.dataset_populator.run_tool_payload(
+                    tool_id=None,
+                    inputs={"input": {"src": "hda", "id": hda["id"]}},
+                    history_id=history_id,
+                )
+                payload["tool_uuid"] = dynamic_tool["uuid"]
+                self._assert_status_code_is(self.dataset_populator.tools_post(payload), 200)
+                self.dataset_populator.wait_for_history(history_id, assert_ok=True)
+
+            # Role revoked — UDT is inaccessible; step must be invalid.
+            summary = self._get_extraction_summary(history_id)
+            tool_jobs = [j for j in summary["jobs"] if j["step_type"] == "tool"]
+            assert len(tool_jobs) == 1
+            assert tool_jobs[0]["invalid"] == "custom_tool_inaccessible"
+            assert tool_jobs[0]["checked"] is False
 
     @skip_without_tool("cat1")
     def test_extraction_summary_structure(self):
