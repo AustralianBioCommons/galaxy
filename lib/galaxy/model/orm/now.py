@@ -6,6 +6,8 @@ from galaxy.util import now
 #   also saves us from needing to postfetch on postgres. HOWEVER: it
 #   relies on the client's clock being set correctly, so if clustering
 #   web servers, use a time server to ensure synchronization
+#
+# This function lives since 26.1 in galaxy.utils.
 
 
 __all__ = ("now",)
