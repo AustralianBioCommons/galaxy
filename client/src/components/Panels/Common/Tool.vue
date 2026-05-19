@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { faGripLines } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 
@@ -43,15 +45,12 @@ function onClick(evt: MouseEvent) {
 
 <template>
     <div class="toolTitle">
+        <div v-if="props.showDragHandle" class="favorite-top-level-drag-target">
+            <FontAwesomeIcon :icon="faGripLines" />
+        </div>
         <a
             v-if="props.tool.disabled"
-            :class="[
-                'title-link',
-                'name',
-                'text-muted',
-                'tool-link',
-                { 'favorite-top-level-drag-target': props.showDragHandle },
-            ]"
+            class="title-link name text-muted tool-link"
             :data-tool-id="props.tool.id"
             :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null">
             <span v-if="!props.hideName">{{ props.tool.name }}</span>
@@ -59,12 +58,7 @@ function onClick(evt: MouseEvent) {
         </a>
         <a
             v-else
-            :class="[
-                'title-link',
-                'cursor-pointer',
-                'tool-link',
-                { 'favorite-top-level-drag-target': props.showDragHandle },
-            ]"
+            class="title-link cursor-pointer tool-link"
             :data-tool-id="props.tool.id"
             :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null"
             :href="toolLink"
@@ -93,7 +87,7 @@ function onClick(evt: MouseEvent) {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .toolTitle {
     display: flex;
     align-items: center;
@@ -136,8 +130,14 @@ function onClick(evt: MouseEvent) {
 .favorite-top-level-drag-target {
     cursor: grab;
     user-select: none;
-}
-.favorite-top-level-drag-target:active {
-    cursor: grabbing;
+    margin-left: var(--spacing-2);
+    opacity: 0.5;
+
+    &:active {
+        cursor: grabbing;
+    }
+    &:hover {
+        opacity: 1;
+    }
 }
 </style>

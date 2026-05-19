@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faFilter, faSitemap, faStar, faTags } from "@fortawesome/free-solid-svg-icons";
+import { faFilter, faGripLines, faSitemap, faStar, faTags } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useEventBus } from "@vueuse/core";
 import { storeToRefs } from "pinia";
@@ -310,12 +310,11 @@ async function onFavoriteSectionToggle() {
             v-g-tooltip.topright.hover
             class="toolSectionTitle tool-panel-divider"
             :title="props.category.description || undefined">
+            <div v-if="props.showDragHandle" class="favorite-top-level-drag-target">
+                <FontAwesomeIcon :icon="faGripLines" />
+            </div>
             <a
-                :class="[
-                    'title-link',
-                    'tool-panel-divider-link',
-                    { 'favorite-top-level-drag-target': props.showDragHandle },
-                ]"
+                class="title-link tool-panel-divider-link"
                 href="javascript:void(0)"
                 role="button"
                 :aria-expanded="opened"
@@ -475,10 +474,15 @@ async function onFavoriteSectionToggle() {
 .favorite-top-level-drag-target {
     cursor: grab;
     user-select: none;
-}
+    margin-left: var(--spacing-2);
+    opacity: 0.5;
 
-.favorite-top-level-drag-target:active {
-    cursor: grabbing;
+    &:active {
+        cursor: grabbing;
+    }
+    &:hover {
+        opacity: 1;
+    }
 }
 
 .favorite-tag-section .toolSectionTitle:hover .favorite-tag-section-star,
