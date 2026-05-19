@@ -29,7 +29,6 @@ from galaxy.schema.schema import (
     PageRevisionDetails,
     PageRevisionList,
     PageRevisionSummary,
-    PageSummary,
     PageSummaryList,
     UpdatePagePayload,
 )
@@ -87,15 +86,22 @@ class PagesService(ServiceBase):
             total_matches,
         )
 
-    def create(self, trans, payload: CreatePagePayload) -> PageSummary:
+    def _page_to_details(self, trans, page) -> PageDetails:
+        """Serialize a Page (with the content of its latest revision) to PageDetails."""
+        rval = page.to_dict()
+        rval["annotation"] = get_item_annotation_str(trans.sa_session, trans.user, page)
+        rval["content"] = page.latest_revision.content
+        rval["content_format"] = page.latest_revision.content_format
+        rval["edit_source"] = page.latest_revision.edit_source
+        self.manager.rewrite_content_for_export(trans, rval)
+        return PageDetails(**rval)
+
+    def create(self, trans, payload: CreatePagePayload) -> PageDetails:
         """
-        Create a page and return Page summary
+        Create a page and return it.
         """
         page = self.manager.create_page(trans, payload)
-        rval = page.to_dict()
-        rval["content"] = page.latest_revision.content
-        self.manager.rewrite_content_for_export(trans, rval)
-        return PageSummary(**rval)
+        return self._page_to_details(trans, page)
 
     def delete(self, trans, id: DecodedDatabaseIdField):
         """
@@ -128,13 +134,7 @@ class PagesService(ServiceBase):
         :returns:   Dictionary return of the Page.to_dict call with the 'content' field populated by the most recent revision
         """
         page = base.get_object(trans, id, "Page", check_ownership=False, check_accessible=True)
-        rval = page.to_dict()
-        rval["annotation"] = get_item_annotation_str(trans.sa_session, trans.user, page)
-        rval["content"] = page.latest_revision.content
-        rval["content_format"] = page.latest_revision.content_format
-        rval["edit_source"] = page.latest_revision.edit_source
-        self.manager.rewrite_content_for_export(trans, rval)
-        return PageDetails(**rval)
+        return self._page_to_details(trans, page)
 
     def show_pdf(self, trans, id: DecodedDatabaseIdField):
         """
@@ -169,13 +169,12 @@ class PagesService(ServiceBase):
         result = prepare_pdf_download.delay(request=pdf_download_request, task_user_id=getattr(trans.user, "id", None))
         return AsyncFile(storage_request_id=request_id, task=async_task_summary(result))
 
-    def update(self, trans, id: PageIdPathParam, payload: UpdatePagePayload) -> PageSummary:
+    def update(self, trans, id: PageIdPathParam, payload: UpdatePagePayload) -> PageDetails:
         """
-        Update a page and return summary
+        Update a page and return it.
         """
         page = self.manager.update_page(trans, id, payload)
-        rval = page.to_dict()
-        return PageSummary(**rval)
+        return self._page_to_details(trans, page)
 
     def list_revisions(self, trans, id: DecodedDatabaseIdField, sort_desc: bool = False) -> PageRevisionList:
         page = base.get_object(trans, id, "Page", check_ownership=False, check_accessible=True)

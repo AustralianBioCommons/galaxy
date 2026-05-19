@@ -24,7 +24,6 @@ from galaxy.schema.schema import (
     PageRevisionDetails,
     PageRevisionList,
     PageSortByEnum,
-    PageSummary,
     PageSummaryList,
     SetSlugPayload,
     ShareWithPayload,
@@ -150,14 +149,14 @@ class FastAPIPages:
 
     @router.post(
         "/api/pages",
-        summary="Create a page and return summary information.",
-        response_description="The page summary information.",
+        summary="Create a page and return it.",
+        response_description="The page including the content of its latest revision.",
     )
     def create(
         self,
         trans: ProvidesUserContext = DependsOnTrans,
         payload: CreatePagePayload = Body(...),
-    ) -> PageSummary:
+    ) -> PageDetails:
         """Creates a new Page."""
         return self.service.create(trans, payload)
 
@@ -337,15 +336,15 @@ class FastAPIPages:
 
     @router.put(
         "/api/pages/{id}",
-        summary="Update a page and return summary information.",
-        response_description="The page summary information.",
+        summary="Update a page and return it.",
+        response_description="The page including the content of its latest revision.",
     )
     def update(
         self,
         id: PageIdPathParam,
         trans: ProvidesUserContext = DependsOnTrans,
         payload: UpdatePagePayload = Body(...),
-    ) -> PageSummary:
+    ) -> PageDetails:
         """Updates an existing Page."""
         return self.service.update(trans, id, payload)
 

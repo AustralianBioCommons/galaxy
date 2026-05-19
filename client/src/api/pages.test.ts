@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import { useServerMock } from "@/api/client/__mocks__";
 
-import type { HistoryPageDetails, HistoryPageSummary } from "./pages";
+import type {
+    CreateHistoryPagePayload,
+    HistoryPageDetails,
+    HistoryPageSummary,
+    UpdateHistoryPagePayload,
+} from "./pages";
 import {
     createHistoryPage,
     deleteHistoryPage,
@@ -112,7 +117,7 @@ describe("pages API", () => {
     });
 
     describe("createHistoryPage", () => {
-        const CREATE_PAYLOAD = {
+        const CREATE_PAYLOAD: CreateHistoryPagePayload = {
             content: "# New Page\n\nInitial content.",
             content_format: "markdown",
             title: "New Page",
@@ -150,7 +155,7 @@ describe("pages API", () => {
     });
 
     describe("updateHistoryPage", () => {
-        const UPDATE_PAYLOAD = {
+        const UPDATE_PAYLOAD: UpdateHistoryPagePayload = {
             content: "# Updated Content\n\nRevised analysis.",
             content_format: "markdown",
             title: "Updated Title",

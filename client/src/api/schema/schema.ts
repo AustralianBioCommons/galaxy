@@ -4220,7 +4220,7 @@ export interface paths {
         get: operations["index_api_pages_get"];
         put?: never;
         /**
-         * Create a page and return summary information.
+         * Create a page and return it.
          * @description Creates a new Page.
          */
         post: operations["create_api_pages_post"];
@@ -4243,7 +4243,7 @@ export interface paths {
          */
         get: operations["show_api_pages__id__get"];
         /**
-         * Update a page and return summary information.
+         * Update a page and return it.
          * @description Updates an existing Page.
          */
         put: operations["update_api_pages__id__put"];
@@ -44096,13 +44096,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The page summary information. */
+            /** @description The page including the content of its latest revision. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageSummary"];
+                    "application/json": components["schemas"]["PageDetails"];
                 };
             };
             /** @description Request Error */
@@ -44188,13 +44188,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The page summary information. */
+            /** @description The page including the content of its latest revision. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageSummary"];
+                    "application/json": components["schemas"]["PageDetails"];
                 };
             };
             /** @description Request Error */

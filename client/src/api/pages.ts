@@ -1,115 +1,61 @@
 /**
  * Unified API client for all Galaxy Pages (history-attached and standalone).
- * Uses /api/pages endpoints.
+ * Uses the generated typed client against the /api/pages endpoints.
  */
-import axios from "axios";
-
-import { withPrefix } from "@/utils/redirect";
+import { type components, GalaxyApi } from "@/api";
 import { rethrowSimple } from "@/utils/simple-error";
 
-// --- Types matching backend Page/PageRevision schemas ---
+// --- Types (generated from the backend Page/PageRevision schemas) ---
 
-export interface HistoryPageSummary {
-    id: string;
-    title: string;
-    slug: string | null;
-    history_id: string | null;
-    source_invocation_id: string | null;
-    published: boolean;
-    importable: boolean;
-    deleted: boolean;
-    latest_revision_id: string;
-    revision_ids: string[];
-    create_time: string;
-    update_time: string;
-    username: string;
-    email_hash: string;
-    author_deleted: boolean;
-    model_class: "Page";
-    tags: string[];
-}
-
-export interface HistoryPageDetails extends HistoryPageSummary {
-    content: string | null;
-    content_editor: string | null;
-    content_format: "markdown" | "html";
-    edit_source: string | null;
-    annotation: string | null;
-}
-
-export interface PageRevisionSummary {
-    id: string;
-    page_id: string;
-    edit_source: string | null;
-    create_time: string;
-    update_time: string;
-}
-
-export interface PageRevisionDetails extends PageRevisionSummary {
-    title: string | null;
-    content: string | null;
-    content_format: string | null;
-}
-
-export interface CreateHistoryPagePayload {
-    title: string;
-    history_id: string;
-    content?: string | null;
-    content_format?: string;
-}
-
-export interface UpdateHistoryPagePayload {
-    title?: string;
-    content?: string;
-    content_format?: string;
-    edit_source?: string;
-}
+export type HistoryPageSummary = components["schemas"]["PageSummary"];
+export type HistoryPageDetails = components["schemas"]["PageDetails"];
+export type PageRevisionSummary = components["schemas"]["PageRevisionSummary"];
+export type PageRevisionDetails = components["schemas"]["PageRevisionDetails"];
+export type CreateHistoryPagePayload = components["schemas"]["CreatePagePayload"];
+export type UpdateHistoryPagePayload = components["schemas"]["UpdatePagePayload"];
 
 // --- API functions ---
 
 export async function fetchHistoryPages(historyId: string): Promise<HistoryPageSummary[]> {
-    try {
-        const { data } = await axios.get(withPrefix(`/api/pages`), {
-            params: { history_id: historyId, show_own: true, show_published: false },
-        });
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e; // unreachable, makes TS happy
+    const { data, error } = await GalaxyApi().GET("/api/pages", {
+        params: { query: { history_id: historyId, show_own: true, show_published: false } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 export async function fetchHistoryPage(pageId: string): Promise<HistoryPageDetails> {
-    try {
-        const { data } = await axios.get(withPrefix(`/api/pages/${pageId}`));
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().GET("/api/pages/{id}", {
+        params: { path: { id: pageId } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 export async function createHistoryPage(payload: CreateHistoryPagePayload): Promise<HistoryPageDetails> {
-    try {
-        const { data } = await axios.post(withPrefix("/api/pages"), payload);
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().POST("/api/pages", { body: payload });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 export async function updateHistoryPage(
     pageId: string,
     payload: UpdateHistoryPagePayload,
 ): Promise<HistoryPageDetails> {
-    try {
-        const { data } = await axios.put(withPrefix(`/api/pages/${pageId}`), payload);
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().PUT("/api/pages/{id}", {
+        params: { path: { id: pageId } },
+        body: payload,
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 /** Save page content via PUT (replaces legacy POST /revisions save). */
@@ -122,11 +68,11 @@ export async function savePage(
 }
 
 export async function deleteHistoryPage(pageId: string): Promise<void> {
-    try {
-        await axios.delete(withPrefix(`/api/pages/${pageId}`));
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { error } = await GalaxyApi().DELETE("/api/pages/{id}", {
+        params: { path: { id: pageId } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
 }
 
@@ -134,33 +80,31 @@ export async function fetchPageRevisions(
     pageId: string,
     { sortDesc = false }: { sortDesc?: boolean } = {},
 ): Promise<PageRevisionSummary[]> {
-    try {
-        const { data } = await axios.get(withPrefix(`/api/pages/${pageId}/revisions`), {
-            params: { sort_desc: sortDesc },
-        });
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().GET("/api/pages/{id}/revisions", {
+        params: { path: { id: pageId }, query: { sort_desc: sortDesc } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 export async function fetchPageRevision(pageId: string, revisionId: string): Promise<PageRevisionDetails> {
-    try {
-        const { data } = await axios.get(withPrefix(`/api/pages/${pageId}/revisions/${revisionId}`));
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().GET("/api/pages/{id}/revisions/{revision_id}", {
+        params: { path: { id: pageId, revision_id: revisionId } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
 
 export async function revertPageRevision(pageId: string, revisionId: string): Promise<PageRevisionDetails> {
-    try {
-        const { data } = await axios.post(withPrefix(`/api/pages/${pageId}/revisions/${revisionId}/revert`));
-        return data;
-    } catch (e) {
-        rethrowSimple(e);
-        throw e;
+    const { data, error } = await GalaxyApi().POST("/api/pages/{id}/revisions/{revision_id}/revert", {
+        params: { path: { id: pageId, revision_id: revisionId } },
+    });
+    if (error) {
+        rethrowSimple(error);
     }
+    return data;
 }
