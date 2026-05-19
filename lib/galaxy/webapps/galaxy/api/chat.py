@@ -24,6 +24,7 @@ from pydantic import Field
 from galaxy.config import GalaxyAppConfiguration
 from galaxy.exceptions import (
     ConfigurationError,
+    MessageException,
     ObjectNotFound,
 )
 from galaxy.managers.agents import AgentService
@@ -428,6 +429,10 @@ class ChatAPI:
         agent = WorkflowReportAgent(deps)
 
         response = await agent.generate_workflow_report(workflow)
+        if response.metadata.get("validation_error"):
+            raise MessageException(response.content)
+        if response.metadata.get("error"):
+            raise MessageException(response.metadata.get("error"))
         return WorkflowReportResponse(
             report=response.content,
             total_tokens=response.metadata.get("total_tokens"),

@@ -4,6 +4,7 @@ Workflow report agent for generating markdown reports from Galaxy workflows.
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from galaxy.model import Workflow
 from .base import (
@@ -23,6 +24,16 @@ class WorkflowReportAgent(SimpleGalaxyAgent):
 
     def get_system_prompt(self) -> str:
         return (Path(__file__).parent / "prompts" / "workflow_report.md").read_text()
+
+    def _get_agent_config(self, key: str, default: Any = None) -> Any:
+        if key == "max_query_length":
+            # Workflow serializations are structured data that legitimately exceed the
+            # default chat query length. Raise the ceiling while still respecting any
+            # explicit admin override in inference_services config.
+            # NOTE: all other validation (prompt injection checks) still runs normally —
+            # workflow fields like readme and annotations are user-controlled.
+            default = 50000
+        return super()._get_agent_config(key, default)
 
     def _serialize_workflow(self, workflow: Workflow) -> str:
         """Serialize a Workflow into a compact structured string for the LLM prompt.
