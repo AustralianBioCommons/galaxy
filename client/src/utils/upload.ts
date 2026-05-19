@@ -56,6 +56,7 @@ import type { PreparedUpload } from "@/components/Panels/Upload/types";
 import type { UploadRowModel } from "@/components/Upload/model";
 import type { SupportedCollectionType, UploadCollectionConfig } from "@/composables/upload/collectionTypes";
 import type { NewUploadItem } from "@/composables/upload/uploadItemTypes";
+import { uploadApiOptionDefaults } from "@/composables/upload/uploadOptionModel";
 import { getAppRoot } from "@/onload/loadConfig";
 import { errorMessageAsString } from "@/utils/simple-error";
 import { isUrl, isValidUrl } from "@/utils/url";
@@ -227,9 +228,7 @@ export interface UploadDatasetsConfig extends FetchDatasetsCallbacks, BuildPaylo
 export const uploadItemDefaults = {
     dbkey: "?",
     ext: "auto",
-    space_to_tab: false,
-    to_posix_lines: true,
-    deferred: false,
+    ...uploadApiOptionDefaults,
 } as const;
 
 // ============================================================================
@@ -351,7 +350,7 @@ export function createFileUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -388,7 +387,7 @@ export function createPastedUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -430,7 +429,7 @@ export function createUrlUploadItem(
         to_posix_lines: options.to_posix_lines ?? uploadItemDefaults.to_posix_lines,
         deferred: options.deferred ?? uploadItemDefaults.deferred,
         hashes: options.hashes,
-        auto_decompress: true,
+        auto_decompress: options.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
     };
 }
 
@@ -455,7 +454,7 @@ export function toApiUploadItem(item: NewUploadItem): ApiUploadItem {
         to_posix_lines: item.toPosixLines,
         deferred: item.deferred,
         hashes: item.hashes,
-        auto_decompress: true,
+        auto_decompress: item.autoDecompress ?? true,
     };
 
     switch (item.uploadMode) {
@@ -543,7 +542,7 @@ function buildDataElement(item: ApiUploadItem): ApiDataElement {
         name: normalizeFileName(item.name),
         space_to_tab: item.space_to_tab,
         to_posix_lines: item.to_posix_lines,
-        auto_decompress: true,
+        auto_decompress: item.auto_decompress ?? uploadItemDefaults.auto_decompress ?? true,
         deferred: item.deferred,
     };
 
