@@ -4050,6 +4050,16 @@ mapping:
           backend URL. By default, Galaxy uses an SQLite database at '<data_dir>/results.sqlite' for storing task results.
           For details, see https://docs.galaxyproject.org/en/master/admin/production.html#use-celery-for-asynchronous-tasks
 
+      enable_tool_requests:
+        type: bool
+        default: true
+        required: false
+        desc: |
+          Submit tool jobs through the asynchronous tool requests API (`/api/jobs`)
+          when available. The client falls back to the legacy `/api/tools` endpoint
+          when this is disabled, when Celery is not enabled, or when the tool does
+          not provide a typed parameter schema.
+
       celery_conf:
         type: any
         required: false
@@ -4160,6 +4170,25 @@ mapping:
           Set static_responses to a YAML file path to replace all LLM calls with
           deterministic responses for testing:
           inference_services: { static_responses: test/integration/static_agents.yml }
+
+      gtn_database_path:
+        type: str
+        default: 'gtn/gtn_search.db'
+        path_resolves_to: data_dir
+        required: false
+        desc: |
+          Path to the SQLite FTS5 database used by the GTN training agent.
+          Resolves against ``data_dir`` so admins can place it in a mutable-data
+          directory. The file is downloaded automatically on first use from
+          ``gtn_database_url`` if it does not exist.
+
+      gtn_database_url:
+        type: str
+        default: 'https://depot.galaxyproject.org/chatgxy/gtn_search.db'
+        required: false
+        desc: |
+          URL used to download the GTN search database when the local file at
+          ``gtn_database_path`` is missing.
 
       enable_tool_recommendations:
         type: bool

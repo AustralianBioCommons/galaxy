@@ -1,6 +1,14 @@
 import logging
 import time
+from typing import (
+    Optional,
+    TYPE_CHECKING,
+)
 from unittest.mock import MagicMock
+from uuid import (
+    UUID,
+    uuid4,
+)
 
 import pytest
 import routes
@@ -8,12 +16,16 @@ import routes
 from galaxy import model
 from galaxy.app_unittest_utils.toolbox_support import BaseToolBoxTestCase
 from galaxy.exceptions import InsufficientPermissionsException
+from galaxy.managers.tools import DynamicToolManager
 from galaxy.tool_util.ontologies import ontology_data
 from galaxy.tool_util.unittest_utils import mock_trans
 from galaxy.tool_util.unittest_utils.sample_data import (
     SIMPLE_MACRO,
     SIMPLE_TOOL_WITH_MACRO,
 )
+
+if TYPE_CHECKING:
+    from galaxy.tools import Tool
 
 log = logging.getLogger(__name__)
 
@@ -226,43 +238,112 @@ class TestToolBox(BaseToolBoxTestCase):
         as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
         assert len(as_dict) == 0, as_dict
 
-    def test_allow_user_access_non_public_dynamic_tool(self):
+    def _setup_dynamic_tool_test(self) -> "Tool":
         self._init_tool()
         self._add_config("""<toolbox><tool file="tool.xml" /></toolbox>""")
         tool = self.toolbox.get_tool("test_tool")
+        tool.app.dynamic_tool_manager = DynamicToolManager(self.app)
+        return tool
 
-        # Regular tool allows access without a user
-        assert tool.allow_user_access(None) is True
+    def _persist_user(self, with_user_tool_execute_role: bool = False) -> model.User:
+        session = self.app.model.context
+        user = model.User(email=f"u_{uuid4().hex}@example.com", password="pw")
+        session.add(user)
+        if with_user_tool_execute_role:
+            role = model.Role(
+                name=f"udt_exec_{uuid4().hex[:8]}",
+                description="user tool execute",
+                type=model.Role.types.USER_TOOL_EXECUTE,
+                deleted=False,
+            )
+            session.add(role)
+            session.add(model.UserRoleAssociation(user, role))
+        session.commit()
+        return user
 
-        # Simulate a non-public dynamic tool
-        dynamic_tool = MagicMock()
-        dynamic_tool.public = False
-        tool.dynamic_tool = dynamic_tool
-
-        # Mock the dynamic tool manager to reject the user
-        mock_manager = MagicMock()
-        mock_manager.ensure_can_use_unprivileged_tool.side_effect = InsufficientPermissionsException(
-            "User is not allowed to run unprivileged tools"
+    def _persist_dynamic_tool(
+        self, public: bool, active: bool = True, owner: Optional[model.User] = None
+    ) -> model.DynamicTool:
+        session = self.app.model.context
+        dyn = model.DynamicTool(
+            tool_format="GalaxyUserTool",
+            tool_id=f"udt_{uuid4().hex[:8]}",
+            tool_version="0.1",
+            uuid=uuid4(),
+            value={"name": "test", "class": "GalaxyUserTool", "version": "0.1"},
+            public=public,
+            active=active,
         )
-        tool.app.dynamic_tool_manager = mock_manager
+        session.add(dyn)
+        session.flush()
+        if owner is not None:
+            session.add(model.UserDynamicToolAssociation(user_id=owner.id, dynamic_tool_id=dyn.id))
+        session.commit()
+        return dyn
 
-        # Non-public dynamic tool denies access without a user
+    def _snapshot(self, tool: "Tool", dyn: model.DynamicTool) -> None:
+        tool.dynamic_tool_id = dyn.id
+        tool.dynamic_tool_uuid = dyn.uuid if isinstance(dyn.uuid, UUID) else None
+        tool.is_unprivileged_tool = not bool(dyn.public)
+        tool.dynamic_tool_active = bool(dyn.active)
+
+    def test_allow_user_access_non_dynamic_tool(self):
+        tool = self._setup_dynamic_tool_test()
+        some_user = self._persist_user()
+        assert tool.allow_user_access(None) is True
+        assert tool.allow_user_access(some_user) is True
+
+    def test_allow_user_access_for_non_unprivileged_tool(self):
+        tool = self._setup_dynamic_tool_test()
+        dyn = self._persist_dynamic_tool(public=True)
+        self._snapshot(tool, dyn)
+        some_user = self._persist_user()
+
+        assert tool.is_unprivileged_tool is False
+        assert tool.allow_user_access(None) is True
+        assert tool.allow_user_access(some_user) is True
+
+    def test_allow_user_access_denies_anonymous_for_unprivileged_tool(self):
+        tool = self._setup_dynamic_tool_test()
+        dyn = self._persist_dynamic_tool(public=False)
+        self._snapshot(tool, dyn)
+
+        assert tool.is_unprivileged_tool is True
         assert tool.allow_user_access(None) is False
 
-        # Non-public dynamic tool denies access for user without execute role
-        mock_user = MagicMock()
-        assert tool.allow_user_access(mock_user) is False
-        mock_manager.ensure_can_use_unprivileged_tool.assert_called_with(mock_user)
+    def test_allow_user_access_unprivileged_tool_grants_only_to_owner_with_role(self):
+        tool = self._setup_dynamic_tool_test()
+        owner = self._persist_user(with_user_tool_execute_role=True)
+        dyn = self._persist_dynamic_tool(public=False, owner=owner)
+        self._snapshot(tool, dyn)
 
-        # Non-public dynamic tool allows access for user with execute role
-        mock_manager.ensure_can_use_unprivileged_tool.side_effect = None
-        assert tool.allow_user_access(mock_user) is True
+        assert tool.allow_user_access(owner) is True
 
-        # Detached dynamic tool allows access (validated at load time)
-        detached_dynamic_tool = MagicMock()
-        type(detached_dynamic_tool).public = property(lambda self: (_ for _ in ()).throw(Exception("not bound")))
-        tool.dynamic_tool = detached_dynamic_tool
-        assert tool.allow_user_access(None) is True
+        other_with_role = self._persist_user(with_user_tool_execute_role=True)
+        assert tool.allow_user_access(other_with_role) is False
+
+        other_no_role = self._persist_user(with_user_tool_execute_role=False)
+        assert tool.allow_user_access(other_no_role) is False
+
+        tool.dynamic_tool_active = False
+        assert tool.allow_user_access(owner) is False
+
+    def test_allow_user_access_with_detached_dynamic_tool_does_not_raise(self):
+        """Regression: booby-trap the ORM row so any read raises; allow_user_access
+        must rely on the snapshot only."""
+        tool = self._setup_dynamic_tool_test()
+
+        detached = MagicMock()
+        type(detached).public = property(lambda self: (_ for _ in ()).throw(Exception("not bound")))
+        type(detached).active = property(lambda self: (_ for _ in ()).throw(Exception("not bound")))
+        tool.dynamic_tool = detached
+
+        dyn = self._persist_dynamic_tool(public=False)
+        self._snapshot(tool, dyn)
+
+        assert tool.allow_user_access(None) is False
+        some_user = self._persist_user(with_user_tool_execute_role=True)
+        assert tool.allow_user_access(some_user) is False
 
     def _find_section(self, as_dict, section_id):
         for elem in as_dict:

@@ -221,6 +221,12 @@ class ConditionalDependencies:
     def check_chronos_python(self):
         return "galaxy.jobs.runners.chronos:ChronosJobRunner" in self.job_runners
 
+    def check_htcondor(self):
+        return (
+            "galaxy.jobs.runners.htcondor:HTCondorJobRunner" in self.job_runners
+            or os.environ.get("GALAXY_DEPENDENCIES_INSTALL_HTCONDOR") == "1"
+        )
+
     def check_boto3_python(self):
         return "galaxy.jobs.runners.aws:AWSBatchJobRunner" in self.job_runners
 
@@ -254,7 +260,7 @@ class ConditionalDependencies:
     def check_python_irodsclient(self):
         return "irods" in self.object_stores
 
-    def check_fs_dropboxfs(self):
+    def check_dropboxdrivefs(self):
         return "dropbox" in self.file_sources
 
     def check_webdav4(self):
@@ -267,7 +273,7 @@ class ConditionalDependencies:
     def check_fs_sshfs(self):
         return "ssh" in self.file_sources
 
-    def check_fs_googledrivefs(self):
+    def check_gdrive_fsspec(self):
         return "googledrive" in self.file_sources
 
     def check_gcsfs(self):

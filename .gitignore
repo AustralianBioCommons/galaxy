@@ -31,10 +31,11 @@ lib/galaxy/web/framework/meta.json
 *.lock
 *.log
 *.pid
-celerybeat-schedule
 
 # Celery state files
-celerybeat-schedule.*
+celerybeat-schedule
+celery-beat-schedule
+celerybeat-schedule.db
 
 # Tool Shed runtime files
 tool_shed_webapp.lock
@@ -111,6 +112,7 @@ test-data-cache
 run_api_tests.html
 run_cwl_tests.html
 run_framework_tests.html
+run_framework_workflows_tests.html
 run_functional_tests.html
 run_integration_tests.html
 run_playwright_tests.html
@@ -187,6 +189,12 @@ test/functional/tools/cwl_tools/v1.?/
 
 # Involucro tool
 involucro
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# GTN search database (downloaded on first use)
+lib/galaxy/agents/gtn/data/gtn_search.db
 
 # Misc
 *.orig

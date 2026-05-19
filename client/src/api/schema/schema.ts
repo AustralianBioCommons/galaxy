@@ -10079,7 +10079,7 @@ export interface components {
             name: string;
         };
         /**
-         * CustomBuildsCollection
+         * Custom builds collection
          * @description The custom builds associated with the user.
          */
         CustomBuildsCollection: components["schemas"]["CustomBuildModel"][];
@@ -10963,7 +10963,7 @@ export interface components {
             model_class: "DatasetHash";
         };
         /**
-         * DatasetInheritanceChain
+         * Dataset inheritance chain
          * @default []
          */
         DatasetInheritanceChain: components["schemas"]["DatasetInheritanceChainEntry"][];
@@ -11200,7 +11200,7 @@ export interface components {
             tool_id: string;
         };
         /**
-         * DatatypeConverterList
+         * List of data type converters
          * @default []
          */
         DatatypeConverterList: components["schemas"]["DatatypeConverter"][];
@@ -11285,7 +11285,7 @@ export interface components {
             visualization: string;
         };
         /**
-         * DatatypeVisualizationMappingsList
+         * List of datatype visualization mappings
          * @default []
          */
         DatatypeVisualizationMappingsList: components["schemas"]["DatatypeVisualizationMapping"][];
@@ -11303,7 +11303,7 @@ export interface components {
             datatypes_mapping: components["schemas"]["DatatypesMap"];
         };
         /**
-         * DatatypesEDAMDetailsDict
+         * Dict of EDAM details for formats
          * @default {}
          */
         DatatypesEDAMDetailsDict: {
@@ -12827,8 +12827,17 @@ export interface components {
             writable: boolean;
         };
         /**
-         * FilesSourcePluginList
+         * List of files source plugins
          * @default []
+         * @example {
+         *       "browsable": true,
+         *       "doc": "Galaxy's library import directory",
+         *       "id": "_import",
+         *       "label": "Library Import Directory",
+         *       "type": "gximport",
+         *       "uri_root": "gximport://",
+         *       "writable": false
+         *     }
          */
         FilesSourcePluginList: (
             | components["schemas"]["BrowsableFilesSourcePlugin"]
@@ -17453,7 +17462,7 @@ export interface components {
             value: string;
         };
         /**
-         * JobMetricCollection
+         * Job Metrics
          * @description Represents a collection of metrics associated with a Job.
          * @default []
          */
@@ -18654,7 +18663,7 @@ export interface components {
             synopsis?: string | null;
         };
         /**
-         * LibrarySummaryList
+         * List with summary information of Libraries.
          * @default []
          */
         LibrarySummaryList: components["schemas"]["LibrarySummary"][];
@@ -18753,14 +18762,14 @@ export interface components {
          */
         LinkDataOnly: "copy_files" | "link_to_files";
         /**
-         * ListJstreeResponse
+         * List of files
          * @deprecated
          * @description List of files in Jstree format.
          * @default []
          */
         ListJstreeResponse: unknown[];
         /**
-         * ListUriResponse
+         * List of remote entries
          * @description List of directories and files.
          * @default []
          */
@@ -19693,7 +19702,7 @@ export interface components {
             username: string;
         };
         /**
-         * PageSummaryList
+         * List with summary information of Pages.
          * @default []
          */
         PageSummaryList: components["schemas"]["PageSummary"][];
@@ -20462,7 +20471,7 @@ export interface components {
             url: string;
         };
         /**
-         * QuotaSummaryList
+         * List with summary information of Quotas.
          * @default []
          */
         QuotaSummaryList: components["schemas"]["QuotaSummary"][];
@@ -20916,7 +20925,7 @@ export interface components {
              *     May be a fractional value to indicate to a scheduling algorithm that one core can be allocated to multiple jobs. For example, a value of 0.25 indicates that up to 4 jobs may run in parallel on 1 core. A value of 1.25 means that up to 3 jobs can run on a 4 core system (4/1.25 ≈ 3).
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              */
-            cores_max?: number | null;
+            cores_max?: number | string | null;
             /**
              * Cores Min
              * @description Minimum reserved number of CPU cores.
@@ -20924,41 +20933,41 @@ export interface components {
              *     The reported number of CPU cores reserved for the process is a non-zero integer calculated by rounding up the cores request to the next whole number.
              * @default 1
              */
-            cores_min: number | null;
+            cores_min: number | string | null;
             /** Cuda Compute Capability */
-            cuda_compute_capability?: number | null;
+            cuda_compute_capability?: number | string | null;
             /** Cuda Device Count Max */
-            cuda_device_count_max?: number | null;
+            cuda_device_count_max?: number | string | null;
             /** Cuda Device Count Min */
-            cuda_device_count_min?: number | null;
+            cuda_device_count_min?: number | string | null;
             /** Cuda Version Min */
-            cuda_version_min?: number | null;
+            cuda_version_min?: number | string | null;
             /** Gpu Memory Min */
-            gpu_memory_min?: number | null;
+            gpu_memory_min?: number | string | null;
             /**
              * Ram Max
              * @description Maximum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              */
-            ram_max?: number | null;
+            ram_max?: number | string | null;
             /**
              * Ram Min
              * @description Minimum reserved RAM in mebibytes (2**20).
              *     May be a fractional value. If so, the actual RAM request is rounded up to the next whole number. The reported amount of RAM reserved for the process is a non-zero integer.
              * @default 256
              */
-            ram_min: number | null;
+            ram_min: number | string | null;
             /** Shm Size */
-            shm_size?: number | null;
+            shm_size?: number | string | null;
             /**
              * Timelimit
              * @description Maximum time in seconds the tool is allowed to run. Job will be terminated if exceeded.
              */
-            timelimit?: number | null;
+            timelimit?: number | string | null;
             /** Tmpdir Max */
-            tmpdir_max?: number | null;
+            tmpdir_max?: number | string | null;
             /** Tmpdir Min */
-            tmpdir_min?: number | null;
+            tmpdir_min?: number | string | null;
             /**
              * Type
              * @constant
@@ -23411,7 +23420,7 @@ export interface components {
              */
             name: string;
         };
-        /** ToolDataEntryList */
+        /** A list with details on individual data tables. */
         ToolDataEntryList: components["schemas"]["ToolDataEntry"][];
         /** ToolDataField */
         ToolDataField: {
@@ -23823,7 +23832,7 @@ export interface components {
             title_default?: string | null;
         };
         /**
-         * TourList
+         * List of tours
          * @default []
          */
         TourList: components["schemas"]["Tour"][];
@@ -23910,7 +23919,23 @@ export interface components {
              * @example 0123456789ABCDEF
              */
             id: string;
-            representation: components["schemas"]["UserToolSource-Output"];
+            /** Representation */
+            representation:
+                | components["schemas"]["UserToolSource-Output"]
+                | {
+                      [key: string]: unknown;
+                  };
+            /**
+             * Representation Errors
+             * @default []
+             */
+            representation_errors: string[];
+            /**
+             * Representation Status
+             * @default ok
+             * @enum {string}
+             */
+            representation_status: "ok" | "lifted" | "invalid";
             /** Tool Format */
             tool_format: string | null;
             /** Tool Id */
@@ -25537,7 +25562,7 @@ export interface components {
             [key: string]: unknown;
         };
         /**
-         * VisualizationSummaryList
+         * List with detailed information of Visualizations.
          * @default []
          */
         VisualizationSummaryList: components["schemas"]["VisualizationSummary"][];

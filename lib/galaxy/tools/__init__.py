@@ -680,6 +680,12 @@ class ToolBox(AbstractToolBox):
             raise Exception(f"Unknown tool representation format [{tool_format}].")
         tool = create_tool_from_source(self.app, tool_source=tool_source, tool_dir=None, dynamic=True)
         tool.dynamic_tool = dynamic_tool
+        # Snapshot while the ORM row is session-attached; later reads would raise
+        # DetachedInstanceError.
+        tool.dynamic_tool_id = dynamic_tool.id
+        tool.dynamic_tool_uuid = dynamic_tool.uuid if isinstance(dynamic_tool.uuid, UUID) else None
+        tool.is_unprivileged_tool = not bool(dynamic_tool.public)
+        tool.dynamic_tool_active = bool(dynamic_tool.active)
         return tool
 
     def tool_for_job(
@@ -691,14 +697,15 @@ class ToolBox(AbstractToolBox):
         tool_version: Optional[str] = None,
     ) -> Optional["Tool"]:
         if (dynamic_tool := job.dynamic_tool) is not None:
-            if check_access:
-                if not user:
-                    return None
-                if not dynamic_tool.public:
-                    self.app.dynamic_tool_manager.ensure_can_use_unprivileged_tool(user)
+            if check_access and not dynamic_tool.public:
+                if user is None or dynamic_tool.uuid is None:
+                    raise exceptions.ItemAccessibilityException("Tool not accessible.")
+                tool = self.get_unprivileged_tool(user, tool_uuid=dynamic_tool.uuid)
+                if tool is None:
+                    raise exceptions.ItemAccessibilityException("Tool not accessible.")
+                return tool
             return self.dynamic_tool_to_tool(dynamic_tool)
-        else:
-            return self.get_tool(job.tool_id, tool_version=tool_version or job.tool_version, exact=exact)
+        return self.get_tool(job.tool_id, tool_version=tool_version or job.tool_version, exact=exact)
 
     def create_dynamic_tool(self, dynamic_tool: "DynamicTool") -> "Tool":
         tool = self.dynamic_tool_to_tool(dynamic_tool)
@@ -1051,6 +1058,12 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
         self.rerun = False
         # This will be non-None for tools loaded from the database (DynamicTool objects).
         self.dynamic_tool: Optional[DynamicTool] = None
+        # Primitives snapshotted from DynamicTool so allow_user_access never
+        # touches a possibly-detached ORM row.
+        self.dynamic_tool_id: Optional[int] = None
+        self.dynamic_tool_uuid: Optional[UUID] = None
+        self.is_unprivileged_tool: bool = False
+        self.dynamic_tool_active: bool = True
         # Define a place to keep track of all input   These
         # differ from the inputs dictionary in that inputs can be page
         # elements like conditionals, but input_params are basic form
@@ -1299,26 +1312,21 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
     def get_panel_section(self) -> Union[tuple[str, str], tuple[None, None]]:
         return self.app.toolbox.get_section_for_tool(self)
 
-    def allow_user_access(self, user, attempting_access=True):
+    def allow_user_access(self, user, attempting_access: bool = True) -> bool:
         """
         :returns: bool -- Whether the user is allowed to access the tool.
         """
         if self.require_login and user is None:
             return False
-        if self.dynamic_tool:
-            try:
-                is_public = self.dynamic_tool.public
-            except Exception:
-                # DynamicTool not bound to session, access was validated at load time
-                is_public = True
-            if not is_public:
-                if user is None:
-                    return False
-                try:
-                    self.app.dynamic_tool_manager.ensure_can_use_unprivileged_tool(user)
-                except Exception:
-                    return False
-        return True
+        if not self.is_unprivileged_tool:
+            return True
+        if user is None or not self.dynamic_tool_active or self.dynamic_tool_uuid is None:
+            return False
+        try:
+            owned = self.app.dynamic_tool_manager.get_unprivileged_tool_by_uuid(user, self.dynamic_tool_uuid)
+        except exceptions.InsufficientPermissionsException:
+            return False
+        return owned is not None
 
     def parse(self, tool_source: ToolSource, guid: Optional[str] = None, dynamic: bool = False) -> None:
         """
@@ -3034,6 +3042,8 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
         if io_details:
             tool_dict["inputs"] = [input.to_dict(trans) for input in self.inputs.values()]
             tool_dict["outputs"] = [output.to_dict(app=self.app) for output in self.outputs.values()]
+
+        tool_dict["has_parameters"] = self.parameters is not None
 
         tool_dict["panel_section_id"], tool_dict["panel_section_name"] = self.get_panel_section()
 

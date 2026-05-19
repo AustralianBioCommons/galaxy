@@ -430,6 +430,9 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
             return None
 
         tool = self.create_dynamic_tool(dynamic_tool)
+        if dynamic_tool.tool_format == "GalaxyUserTool":
+            # UDTs are resolved per-request via DynamicToolManager; never cache.
+            return tool
         self.register_tool(tool)
         assert isinstance(dynamic_tool.uuid, UUID)
         self._tools_by_uuid[dynamic_tool.uuid] = tool

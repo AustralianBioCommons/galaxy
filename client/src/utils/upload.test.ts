@@ -357,6 +357,7 @@ describe("createFileUploadItem", () => {
         expect(item.space_to_tab).toBe(uploadItemDefaults.space_to_tab);
         expect(item.to_posix_lines).toBe(uploadItemDefaults.to_posix_lines);
         expect(item.deferred).toBe(uploadItemDefaults.deferred);
+        expect(item.auto_decompress).toBe(uploadItemDefaults.auto_decompress);
     });
 
     test("creates file upload item with custom options", () => {
@@ -368,6 +369,7 @@ describe("createFileUploadItem", () => {
             space_to_tab: true,
             to_posix_lines: false,
             deferred: true,
+            auto_decompress: false,
         });
 
         expect(item.name).toBe("custom.bed");
@@ -376,6 +378,7 @@ describe("createFileUploadItem", () => {
         expect(item.space_to_tab).toBe(true);
         expect(item.to_posix_lines).toBe(false);
         expect(item.deferred).toBe(true);
+        expect(item.auto_decompress).toBe(false);
     });
 });
 
@@ -390,11 +393,17 @@ describe("createPastedUploadItem", () => {
         expect(item.size).toBe("pasted content".length);
         expect(item.dbkey).toBe(uploadItemDefaults.dbkey);
         expect(item.ext).toBe(uploadItemDefaults.ext);
+        expect(item.auto_decompress).toBe(uploadItemDefaults.auto_decompress);
     });
 
     test("creates pasted upload item with custom name", () => {
         const item = createPastedUploadItem("content", "historyId", { name: "MyPaste.txt" });
         expect(item.name).toBe("MyPaste.txt");
+    });
+
+    test("creates pasted upload item with custom auto_decompress", () => {
+        const item = createPastedUploadItem("content", "historyId", { auto_decompress: false });
+        expect(item.auto_decompress).toBe(false);
     });
 });
 
@@ -409,6 +418,7 @@ describe("createUrlUploadItem", () => {
         expect(item.size).toBe(0);
         expect(item.dbkey).toBe(uploadItemDefaults.dbkey);
         expect(item.deferred).toBe(uploadItemDefaults.deferred);
+        expect(item.auto_decompress).toBe(uploadItemDefaults.auto_decompress);
     });
 
     test("extracts filename from URL path", () => {
@@ -421,11 +431,13 @@ describe("createUrlUploadItem", () => {
             name: "custom-name.bed",
             deferred: true,
             dbkey: "hg38",
+            auto_decompress: false,
         });
 
         expect(item.name).toBe("custom-name.bed");
         expect(item.deferred).toBe(true);
         expect(item.dbkey).toBe("hg38");
+        expect(item.auto_decompress).toBe(false);
     });
 
     test("trims surrounding whitespace from URL", () => {
@@ -522,6 +534,22 @@ describe("buildUploadPayload", () => {
         expect(result.targets).toHaveLength(1);
         expect(result.targets[0]!.destination).toEqual({ type: "hdas" });
         expect(result.targets[0]!.elements).toHaveLength(1);
+
+        const element = result.targets[0]!.elements![0] as { auto_decompress: boolean };
+        expect(element.auto_decompress).toBe(true);
+    });
+
+    test("builds payload preserving item auto_decompress setting", () => {
+        const items: ApiUploadItem[] = [
+            createPastedUploadItem("content", "historyId", {
+                name: "manual.txt",
+                auto_decompress: false,
+            }),
+        ];
+
+        const result = buildUploadPayload(items);
+        const element = result.targets[0]!.elements![0] as { auto_decompress: boolean };
+        expect(element.auto_decompress).toBe(false);
     });
 
     test("builds composite payload", () => {

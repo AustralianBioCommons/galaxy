@@ -10055,6 +10055,56 @@ outer_input:
             workflow = self.workflow_populator.download_workflow(workflow_id)
             assert workflow["steps"]["0"]["tool_representation"]["class"] == "GalaxyUserTool"
 
+    def _build_user_defined_workflow_dict(self) -> dict[str, Any]:
+        return {
+            "a_galaxy_workflow": "true",
+            "name": "wf with embedded UDT",
+            "annotation": "",
+            "format-version": "0.1",
+            "steps": {
+                "0": {
+                    "id": 0,
+                    "type": "tool",
+                    "name": "Embedded user tool",
+                    "tool_representation": TOOL_WITH_SHELL_COMMAND,
+                    "input_connections": {},
+                    "inputs": [],
+                    "outputs": [],
+                    "workflow_outputs": [],
+                    "post_job_actions": {},
+                    "tool_state": "{}",
+                    "label": None,
+                    "uuid": str(uuid4()),
+                },
+            },
+        }
+
+    def test_import_workflow_with_user_defined_tool_representation_requires_role(self):
+        # Non-admin without USER_TOOL_EXECUTE must not be able to import a
+        # workflow that embeds a GalaxyUserTool representation.
+        wf = self._build_user_defined_workflow_dict()
+        response = self._post("workflows", data={"workflow": json.dumps(wf)})
+        assert response.status_code == 403, response.text
+        assert "not allowed to run unprivileged tools" in response.text
+
+    def test_import_workflow_with_user_defined_tool_representation(self):
+        # Non-admin with USER_TOOL_EXECUTE can import a workflow that embeds a
+        # GalaxyUserTool representation; a private UDT is created in their account.
+        with self.dataset_populator.user_tool_execute_permissions():
+            wf = self._build_user_defined_workflow_dict()
+            response = self._post("workflows", data={"workflow": json.dumps(wf)})
+            assert response.status_code == 200, response.text
+            workflow_id = response.json()["id"]
+            downloaded = self.workflow_populator.download_workflow(workflow_id)
+            step_dict = downloaded["steps"]["0"]
+            assert step_dict["tool_representation"]["class"] == "GalaxyUserTool"
+
+            # The importer now owns a private UDT matching the embedded representation.
+            owned = self.dataset_populator.get_unprivileged_tools()
+            assert any(
+                t["representation"]["name"] == TOOL_WITH_SHELL_COMMAND["name"] for t in owned
+            ), f"Expected an owned UDT after workflow import: {owned}"
+
     def _invoke_paused_workflow(self, history_id):
         workflow = self.workflow_populator.load_workflow_from_resource("test_workflow_pause")
         workflow_id = self.workflow_populator.create_workflow(workflow)

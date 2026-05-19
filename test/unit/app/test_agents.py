@@ -45,6 +45,7 @@ from galaxy.agents import (
     CustomToolAgent,
     ErrorAnalysisAgent,
     GalaxyAgentDependencies,
+    GTNTrainingAgent,
     HistoryAgent,
     QueryRouterAgent,
 )
@@ -58,6 +59,7 @@ from galaxy.agents.base import (
     AgentType,
 )
 from galaxy.agents.error_analysis import ErrorAnalysisResult
+from galaxy.agents.gtn_training import GTNSearchResponse
 from galaxy.agents.orchestrator import (
     AgentPlan,
     WorkflowOrchestratorAgent,
@@ -183,7 +185,8 @@ class TestAgentUnitMocked:
         assert registry.is_registered("orchestrator")
         assert registry.is_registered("tool_recommendation")
         assert registry.is_registered("history")
-        assert len(registry.list_agents()) == 6
+        assert registry.is_registered("gtn_training")
+        assert len(registry.list_agents()) == 7
 
     def test_disabled_agent_not_registered(self):
         """Disabled agent should not be in registry."""
@@ -208,7 +211,7 @@ class TestAgentUnitMocked:
     def test_build_registry_no_config_registers_all(self):
         """Without config, all agents registered (backwards compat)."""
         registry = build_default_registry()
-        assert len(registry.list_agents()) == 6
+        assert len(registry.list_agents()) == 7
 
     def test_disabled_agent_registry_get_agent_raises(self):
         """Registry.get_agent for a disabled agent gives 'Unknown agent type' error."""
@@ -433,7 +436,12 @@ class TestAgentUnitMocked:
     def test_extract_message_history_returns_none_for_unsupported_history_shape(self):
         assert (
             QueryRouterAgent._extract_message_history(
-                {"conversation_history": {"role": "user", "content": "Not a message list"}}
+                {
+                    "conversation_history": {
+                        "role": "user",
+                        "content": "Not a message list",
+                    }
+                }
             )
             is None
         )
@@ -583,7 +591,8 @@ class TestAgentUnitMocked:
             # Mock agent responses
             mock_error_agent = AsyncMock()
             mock_error_agent.process.return_value = MagicMock(
-                content="Error diagnosis: memory limit exceeded", agent_type="error_analysis"
+                content="Error diagnosis: memory limit exceeded",
+                agent_type="error_analysis",
             )
 
             mock_custom_tool_agent = AsyncMock()
@@ -610,14 +619,14 @@ class TestAgentUnitMocked:
             assert "Custom tool" in response.content
 
     @pytest.mark.asyncio
-    async def test_workflow_orchestrator_maps_legacy_gtn_training_to_history(self):
+    async def test_workflow_orchestrator_routes_gtn_training_directly(self):
         agent = WorkflowOrchestratorAgent(self.deps)
 
         with patch.object(agent, "_get_agent_plan") as mock_get_plan:
             mock_get_plan.return_value = AgentPlan(
                 agents=["history", "gtn_training"],
                 sequential=True,
-                reasoning="Legacy planner output",
+                reasoning="History summary plus training recommendations",
             )
 
             mock_history_agent = AsyncMock()
@@ -625,13 +634,71 @@ class TestAgentUnitMocked:
                 content="You should inspect the failed datasets and rerun with corrected inputs.",
                 agent_type="history",
             )
-            self.deps.get_agent = MagicMock(return_value=mock_history_agent)
+            mock_gtn_agent = AsyncMock()
+            mock_gtn_agent.process.return_value = MagicMock(
+                content="The RNA-seq reads to counts tutorial is relevant.",
+                agent_type="gtn_training",
+            )
+
+            def get_agent_side_effect(agent_type, deps):
+                if agent_type == "history":
+                    return mock_history_agent
+                if agent_type == "gtn_training":
+                    return mock_gtn_agent
+                raise ValueError(f"Unexpected agent type: {agent_type}")
+
+            self.deps.get_agent = MagicMock(side_effect=get_agent_side_effect)
 
             response = await agent.process("What should I do next?")
 
-            assert response.metadata.get("agents_used") == ["history"]
-            self.deps.get_agent.assert_called_once_with("history", self.deps)
+            assert response.metadata.get("agents_used") == ["history", "gtn_training"]
+            assert self.deps.get_agent.call_args_list == [
+                mock.call("history", self.deps),
+                mock.call("gtn_training", self.deps),
+            ]
             assert "rerun with corrected inputs" in response.content
+            assert "RNA-seq reads to counts" in response.content
+
+    def test_gtn_simple_text_parser_splits_tutorials_on_commas(self):
+        # The simple-text prompt instructs the model to emit a comma-separated
+        # TUTORIALS line, so the parser has to split on commas to recover
+        # individual tutorial names.
+        agent = GTNTrainingAgent.__new__(GTNTrainingAgent)
+        agent.gtn_db = None
+
+        response_text = (
+            "TUTORIALS: Galaxy 101, RNA-seq analysis with Salmon\n"
+            "TOPICS: Introduction, Transcriptomics\n"
+            "SUMMARY: Start with Galaxy 101, then move to RNA-seq.\n"
+            "CONFIDENCE: high\n"
+        )
+        parsed = agent._parse_simple_response(response_text)
+
+        assert parsed["tutorial_count"] == 2
+
+    def test_gtn_format_response_renders_faq_section(self):
+        # FAQ-only responses (short definitional questions) should render as
+        # "Relevant FAQs", not be silently dropped because tutorials is empty.
+        agent = GTNTrainingAgent.__new__(GTNTrainingAgent)
+        response_data = GTNSearchResponse(
+            tutorials=[],
+            faqs=[
+                {
+                    "title": "How do I archive a history?",
+                    "category": "galaxy",
+                    "area": "histories",
+                    "url": "https://training.galaxyproject.org/training-material/faqs/galaxy/#how-do-i-archive-a-history",
+                    "snippet": "Histories can be archived...",
+                }
+            ],
+            summary="See the archive FAQ.",
+        )
+
+        content = agent._format_gtn_response(response_data)
+
+        assert "**Relevant FAQs:**" in content
+        assert "How do I archive a history?" in content
+        assert "**Relevant Tutorials:**" not in content
 
     @pytest.mark.asyncio
     async def test_workflow_orchestrator_generic_fallback_behavior(self):
@@ -815,7 +882,10 @@ class TestAgentUnitMocked:
             return mock_result
 
         with mock.patch.object(agent, "_run_with_retry", side_effect=fake_run_with_retry):
-            await agent.process("Summarize my history", context={"run_state": run_state, "history_id": "abc123"})
+            await agent.process(
+                "Summarize my history",
+                context={"run_state": run_state, "history_id": "abc123"},
+            )
 
         assert len(captured_prompts) == 1
         prompt = captured_prompts[0]
