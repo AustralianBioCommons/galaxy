@@ -2120,7 +2120,8 @@ class TestToolsApi(ApiTestCase, TestsTools):
     #     assert output_content == "abc\n"
 
     def test_dynamic_tool_shell_command(self):
-        tool_response = self.dataset_populator.create_tool(TOOL_WITH_SHELL_COMMAND)
+        shell_command_tool = dict(TOOL_WITH_SHELL_COMMAND, **{"class": "GalaxyTool"})
+        tool_response = self.dataset_populator.create_tool(shell_command_tool)
         self._assert_has_keys(tool_response, "uuid")
 
         # Run tool.
