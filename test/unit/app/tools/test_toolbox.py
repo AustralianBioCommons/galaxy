@@ -15,7 +15,6 @@ import routes
 
 from galaxy import model
 from galaxy.app_unittest_utils.toolbox_support import BaseToolBoxTestCase
-from galaxy.exceptions import InsufficientPermissionsException
 from galaxy.managers.tools import DynamicToolManager
 from galaxy.tool_util.ontologies import ontology_data
 from galaxy.tool_util.unittest_utils import mock_trans
