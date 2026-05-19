@@ -9,7 +9,14 @@ import { type FilterSettings, type Tool, useToolStore } from "@/stores/toolStore
 import { type ListViewMode, useUserStore } from "@/stores/userStore";
 import Filtering, { contains, type ValidFilter } from "@/utils/filtering";
 
-import { buildToolTagClause, createWhooshQuery, FAVORITES_KEYS } from "../Panels/utilities";
+import {
+    buildToolTagClause,
+    createWhooshQuery,
+    escapeQuotedWhooshToken,
+    FAVORITES_KEYS,
+    normalizeToolTagValue,
+    quoteToolTagValue,
+} from "../Panels/utilities";
 
 import GButton from "../BaseComponents/GButton.vue";
 import GButtonGroup from "../BaseComponents/GButtonGroup.vue";
@@ -62,25 +69,6 @@ const tagAutocompleteValues = computed(() =>
         left.localeCompare(right),
     ),
 );
-
-// Escape backslashes first so a backslash in user input never combines with the
-// quote we add to form an unintended escape (and to keep CodeQL's incomplete
-// string escaping rule satisfied).
-function escapeQuotedWhooshToken(value: string) {
-    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function normalizeToolTagValue(tag: string | string[]) {
-    return String(tag)
-        .trim()
-        .replace(/^"(.*)"$/, "$1")
-        .replace(/^'(.*)'$/, "$1");
-}
-
-function quoteToolTagValue(tag: string | string[]): string | string[] {
-    const normalizedValue = normalizeToolTagValue(tag);
-    return /\s/.test(normalizedValue) ? `"${escapeQuotedWhooshToken(normalizedValue)}"` : normalizedValue;
-}
 
 function normalizeInlineFilterValue(value: string) {
     const normalized = value

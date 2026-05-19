@@ -89,14 +89,26 @@ export const UNSECTIONED_SECTION: ToolSection = {
 // (KeywordAnalyzer(lowercase=True, commas=True) — see lib/galaxy/tools/search/__init__.py).
 // We lowercase the search clause too so a query for `tag:"Get Data"` matches an
 // indexed `get data` regardless of how the parser handles case folding.
-function escapeQuotedWhooshToken(value: string) {
+export function escapeQuotedWhooshToken(value: string) {
     return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+/** Strip surrounding quotes/whitespace from a user-typed tag value. */
+export function normalizeToolTagValue(tag: string | string[]): string {
+    return String(tag)
+        .trim()
+        .replace(/^"(.*)"$/, "$1")
+        .replace(/^'(.*)'$/, "$1");
+}
+
+/** Quote a tag for inline filter text (`tag:foo` vs `tag:"foo bar"`) without lowercasing. */
+export function quoteToolTagValue(tag: string | string[]): string {
+    const normalizedValue = normalizeToolTagValue(tag);
+    return /\s/.test(normalizedValue) ? `"${escapeQuotedWhooshToken(normalizedValue)}"` : normalizedValue;
+}
+
 function normalizeToolTagQueryValue(tag: string): string {
-    const trimmedTag = tag.trim();
-    const unquotedTag = trimmedTag.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
-    const lowered = unquotedTag.toLowerCase();
+    const lowered = normalizeToolTagValue(tag).toLowerCase();
     return /\s/.test(lowered) ? `"${escapeQuotedWhooshToken(lowered)}"` : lowered;
 }
 

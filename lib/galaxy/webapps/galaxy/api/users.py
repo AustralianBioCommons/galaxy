@@ -32,6 +32,7 @@ from galaxy.managers.context import (
     ProvidesHistoryContext,
     ProvidesUserContext,
 )
+from galaxy.managers.favorites import FavoritesManager
 from galaxy.model import (
     Dataset,
     FormDefinition,
@@ -140,135 +141,6 @@ RecalculateDiskUsageResponseDescriptions = {
     },
 }
 
-FAVORITE_OBJECT_TYPE_VALUES = tuple(object_type.value for object_type in FavoriteObjectType)
-
-
-def _favorite_order_entry(object_type: str, object_id: str) -> dict[str, str]:
-    return {
-        "object_type": object_type,
-        "object_id": object_id,
-    }
-
-
-def _normalize_favorites(favorites: dict[str, Any]) -> dict[str, Any]:
-    normalized: dict[str, Any] = {}
-    for object_type in FAVORITE_OBJECT_TYPE_VALUES:
-        object_ids = favorites.get(object_type) or []
-        seen_ids: set[str] = set()
-        deduped: list[str] = []
-        for object_id in object_ids:
-            if isinstance(object_id, str) and object_id and object_id not in seen_ids:
-                seen_ids.add(object_id)
-                deduped.append(object_id)
-        normalized[object_type] = deduped
-
-    seen_entries: set[tuple[str, str]] = set()
-    order: list[dict[str, str]] = []
-    for raw_entry in favorites.get("order") or []:
-        if not isinstance(raw_entry, dict):
-            continue
-        raw_object_type = raw_entry.get("object_type")
-        raw_object_id = raw_entry.get("object_id")
-        if not isinstance(raw_object_type, str) or not isinstance(raw_object_id, str):
-            continue
-        object_type = raw_object_type
-        object_id = raw_object_id
-        entry_key = (object_type, object_id)
-        if (
-            object_type in FAVORITE_OBJECT_TYPE_VALUES
-            and object_id in normalized[object_type]
-            and entry_key not in seen_entries
-        ):
-            seen_entries.add(entry_key)
-            order.append(_favorite_order_entry(object_type, object_id))
-
-    for object_type in FAVORITE_OBJECT_TYPE_VALUES:
-        for object_id in normalized[object_type]:
-            entry_key = (object_type, object_id)
-            if entry_key not in seen_entries:
-                seen_entries.add(entry_key)
-                order.append(_favorite_order_entry(object_type, object_id))
-
-    normalized["order"] = order
-    return normalized
-
-
-def _resolve_favorite_tool_id(trans: ProvidesUserContext, user: User, raw_object_id: str) -> str:
-    tool = trans.app.toolbox.get_tool(raw_object_id)
-    if not tool:
-        raise exceptions.ObjectNotFound(f"Could not find tool with id '{raw_object_id}'.")
-    if not tool.allow_user_access(user):
-        raise exceptions.AuthenticationFailed(f"Access denied for tool with id '{raw_object_id}'.")
-    # `get_tool` resolves aliases, old_ids, and versioned ids; persist the
-    # canonical `tool.id` so the client (which keys `toolStore.toolsById` by
-    # the canonical id) can always render the favorite. Without this, posting
-    # an alias like `cat1/1.0.0` would be accepted, stored verbatim, and then
-    # silently dropped from the My Tools panel because `localToolsById` has
-    # no `cat1/1.0.0` entry. `Tool.id` is typed Optional only because tools
-    # mid-construction may not yet have one; a fully-loaded toolbox tool
-    # always does.
-    assert tool.id is not None
-    return tool.id
-
-
-def _resolve_favorite_against_set(
-    raw_object_id: str,
-    valid_ids: frozenset[str],
-    empty_message: str,
-    not_found_template: str,
-) -> str:
-    object_id = raw_object_id.strip()
-    if not object_id:
-        raise exceptions.RequestParameterInvalidException(empty_message)
-    if object_id not in valid_ids:
-        raise exceptions.ObjectNotFound(not_found_template.format(object_id=object_id))
-    return object_id
-
-
-def _resolve_favorite_object_id(
-    object_type: FavoriteObjectType,
-    raw_object_id: str,
-    trans: ProvidesUserContext,
-    user: User,
-) -> str:
-    """Validate `raw_object_id` for `object_type` and return its canonical form.
-
-    Raises Galaxy exceptions on missing/empty input and on unknown ids.
-    """
-    if object_type.value == FavoriteObjectType.tools.value:
-        return _resolve_favorite_tool_id(trans, user, raw_object_id)
-    if object_type.value == FavoriteObjectType.tags.value:
-        return _resolve_favorite_against_set(
-            raw_object_id,
-            trans.app.toolbox.curated_tool_tags,
-            "Favorite tag cannot be empty.",
-            "Could not find a curated tool tag named '{object_id}'.",
-        )
-    if object_type.value == FavoriteObjectType.edam_operations.value:
-        return _resolve_favorite_against_set(
-            raw_object_id,
-            trans.app.toolbox.tool_edam_operations,
-            "Favorite EDAM operation cannot be empty.",
-            "Could not find an EDAM operation named '{object_id}'.",
-        )
-    if object_type.value == FavoriteObjectType.edam_topics.value:
-        return _resolve_favorite_against_set(
-            raw_object_id,
-            trans.app.toolbox.tool_edam_topics,
-            "Favorite EDAM topic cannot be empty.",
-            "Could not find an EDAM topic named '{object_id}'.",
-        )
-    # FavoriteObjectType is exhaustive; FastAPI rejects unknown values upstream.
-    raise exceptions.RequestParameterInvalidException(f"Unsupported favorite object type '{object_type}'.")
-
-
-def _persist_favorites(user: User, trans: ProvidesUserContext, favorites: dict[str, Any]) -> dict[str, Any]:
-    normalized = _normalize_favorites(favorites)
-    user.preferences["favorites"] = json.dumps(normalized)
-    trans.sa_session.commit()
-    return normalized
-
-
 UserUpdateBody = Body(default=..., title="Update user", description="The user values to update.")
 FavoriteObjectBody = Body(
     default=..., title="Set favorite", description="The id of an object the user wants to favorite."
@@ -285,6 +157,7 @@ AnyUserModel = Union[DetailedUserModel, AnonUserModel]
 class FastAPIUsers:
     service: UsersService = depends(UsersService)
     user_serializer: users.UserSerializer = depends(users.UserSerializer)
+    favorites_manager: FavoritesManager = depends(FavoritesManager)
 
     @router.put(
         "/api/users/current/recalculate_disk_usage",
@@ -525,20 +398,13 @@ class FastAPIUsers:
         object_id: str = ObjectIDPathParam,
     ) -> FavoriteObjectsSummary:
         user = self.service.get_user(trans, user_id)
-        favorites = _normalize_favorites(
-            json.loads(user.preferences["favorites"]) if "favorites" in user.preferences else {}
-        )
-        favorite_list = favorites.get(object_type.value, [])
-        if object_id not in favorite_list:
-            raise exceptions.ObjectNotFound("Given object is not in the list of favorites")
-        favorite_list.remove(object_id)
-        favorites = _persist_favorites(user, trans, favorites)
+        favorites = self.favorites_manager.remove(trans, user, object_type, object_id)
         return FavoriteObjectsSummary.model_validate(favorites)
 
     @router.put(
         "/api/users/{user_id}/favorites/order",
         name="set_favorite_order",
-        summary="Persist the user's top-level favorites order",
+        summary="Persist the order of the user's favorites",
     )
     def set_favorite_order(
         self,
@@ -547,30 +413,7 @@ class FastAPIUsers:
         payload: FavoriteOrderPayload = FavoriteOrderBody,
     ) -> FavoriteObjectsSummary:
         user = self.service.get_user(trans, user_id)
-        favorites = _normalize_favorites(
-            json.loads(user.preferences["favorites"]) if "favorites" in user.preferences else {}
-        )
-
-        # `Model` (base of `FavoriteOrderItem`) sets `use_enum_values=True`, so
-        # pydantic stores `object_type` as the string value of the enum at
-        # deserialization — accessing `.value` on it would AttributeError.
-        requested_order = [
-            _favorite_order_entry(order_item.object_type, order_item.object_id) for order_item in payload.order
-        ]
-        expected_keys = {(entry["object_type"], entry["object_id"]) for entry in favorites["order"]}
-        requested_keys = {(entry["object_type"], entry["object_id"]) for entry in requested_order}
-
-        if len(requested_order) != len(favorites["order"]) or requested_keys != expected_keys:
-            raise exceptions.RequestParameterInvalidException(
-                "Favorite order must contain every current favorite exactly once."
-            )
-
-        favorites["order"] = requested_order
-        for object_type in FAVORITE_OBJECT_TYPE_VALUES:
-            favorites[object_type] = [
-                entry["object_id"] for entry in requested_order if entry["object_type"] == object_type
-            ]
-        favorites = _persist_favorites(user, trans, favorites)
+        favorites = self.favorites_manager.set_order(trans, user, payload)
         return FavoriteObjectsSummary.model_validate(favorites)
 
     @router.put(
@@ -586,15 +429,7 @@ class FastAPIUsers:
         payload: FavoriteObject = FavoriteObjectBody,
     ) -> FavoriteObjectsSummary:
         user = self.service.get_user(trans, user_id)
-        favorites = _normalize_favorites(
-            json.loads(user.preferences["favorites"]) if "favorites" in user.preferences else {}
-        )
-        canonical_object_id = _resolve_favorite_object_id(object_type, payload.object_id, trans, user)
-        favorite_list = favorites.get(object_type.value, [])
-        if canonical_object_id not in favorite_list:
-            favorite_list.append(canonical_object_id)
-            favorites[object_type.value] = favorite_list
-            favorites = _persist_favorites(user, trans, favorites)
+        favorites = self.favorites_manager.add(trans, user, object_type, payload.object_id)
         return FavoriteObjectsSummary.model_validate(favorites)
 
     @router.put(

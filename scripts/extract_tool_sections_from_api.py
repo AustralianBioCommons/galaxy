@@ -14,6 +14,10 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import (
+    Any,
+    Optional,
+)
 
 import yaml
 from yaml.events import (
@@ -71,14 +75,14 @@ class QuotingDumper(yaml.SafeDumper):
         )
 
 
-def represent_quoted_string(dumper, data):
+def represent_quoted_string(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
 
 
 QuotingDumper.add_representer(QuotedString, represent_quoted_string)
 
 
-def fetch_tools(api_url=None, timeout=DEFAULT_TIMEOUT_SECONDS):
+def fetch_tools(api_url: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> list[dict[str, Any]]:
     """Fetch tools from a Galaxy `/api/tools` endpoint.
 
     Raises ``RuntimeError`` on transport / HTTP / decoding failures so the caller
@@ -95,11 +99,11 @@ def fetch_tools(api_url=None, timeout=DEFAULT_TIMEOUT_SECONDS):
         raise RuntimeError(f"Server at {target_url} returned an unparseable response: {exc}") from exc
 
 
-def normalize_section_alias(value):
+def normalize_section_alias(value: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", value.lower())).strip("_")
 
 
-def tool_id_candidates(tool_id):
+def tool_id_candidates(tool_id: str) -> list[str]:
     candidates = [tool_id]
     if tool_id.startswith("toolshed.") and tool_id.count("/") >= 5:
         short_id = tool_id.rsplit("/", 1)[0]
@@ -108,10 +112,10 @@ def tool_id_candidates(tool_id):
     return candidates
 
 
-def extract_sections_and_tools(data):
+def extract_sections_and_tools(data: list[dict[str, Any]]) -> tuple[dict[str, list[str]], dict[str, str]]:
     """Extract ToolSections and their tools from API response."""
-    sections = {}
-    section_ids = {}
+    sections: dict[str, list[str]] = {}
+    section_ids: dict[str, str] = {}
 
     for item in data:
         if item.get("model_class") == "ToolSection":
@@ -139,7 +143,7 @@ def extract_sections_and_tools(data):
     return sections, section_ids
 
 
-def load_existing_mappings():
+def load_existing_mappings() -> dict[str, Any]:
     """Load existing tool_tag_mappings.yml"""
     if OUTPUT_FILE.exists():
         with open(OUTPUT_FILE, encoding="utf-8") as f:
@@ -147,10 +151,10 @@ def load_existing_mappings():
     return {"tool_tags": {}}
 
 
-def normalize_tool_tags(tool_tags):
-    normalized = {}
+def normalize_tool_tags(tool_tags: dict[str, list[str]]) -> dict[str, list[str]]:
+    normalized: dict[str, list[str]] = {}
     for tool_id, tags in tool_tags.items():
-        unique_tags = []
+        unique_tags: list[str] = []
         for tag in tags:
             if tag not in unique_tags:
                 unique_tags.append(tag)
@@ -158,7 +162,7 @@ def normalize_tool_tags(tool_tags):
     return normalized
 
 
-def validate_mappings_data(data):
+def validate_mappings_data(data: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
     tool_tags = data.get("tool_tags", {})
     if not isinstance(tool_tags, dict):
         raise ValueError("tool_tag_mappings.yml must contain a top-level 'tool_tags' mapping.")
@@ -170,11 +174,11 @@ def validate_mappings_data(data):
     return {"tool_tags": normalize_tool_tags(tool_tags)}
 
 
-def needs_quotes(value):
+def needs_quotes(value: str) -> bool:
     return value in YAML_BOOLEAN_LIKE_VALUES or not SAFE_UNQUOTED_RE.fullmatch(value)
 
 
-def prepare_for_dump(value):
+def prepare_for_dump(value: Any) -> Any:
     if isinstance(value, dict):
         return {prepare_for_dump(key): prepare_for_dump(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -184,10 +188,14 @@ def prepare_for_dump(value):
     return value
 
 
-def update_mappings(existing_data, sections, section_ids):
+def update_mappings(
+    existing_data: dict[str, Any],
+    sections: dict[str, list[str]],
+    section_ids: dict[str, str],
+) -> dict[str, dict[str, list[str]]]:
     """Refresh section tags while preserving existing non-section curated tags."""
     section_aliases = {normalize_section_alias(alias) for alias in set(section_ids) | set(section_ids.values())}
-    tool_tags = {}
+    tool_tags: dict[str, list[str]] = {}
 
     for tool_id, tags in existing_data.get("tool_tags", {}).items():
         custom_tags = [tag for tag in tags if normalize_section_alias(tag) not in section_aliases]
@@ -221,7 +229,7 @@ def update_mappings(existing_data, sections, section_ids):
     return {"tool_tags": normalize_tool_tags(tool_tags)}
 
 
-def save_mappings(data):
+def save_mappings(data: dict[str, Any]) -> None:
     """Save updated tool_tag_mappings.yml"""
     validated_data = validate_mappings_data(data)
     serialized = yaml.dump(
@@ -266,7 +274,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv=None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     args = _build_arg_parser().parse_args(argv)
 
     global API_URL, OUTPUT_FILE

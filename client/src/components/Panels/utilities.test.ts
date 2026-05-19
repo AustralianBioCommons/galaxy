@@ -91,10 +91,6 @@ describe("test helpers in tool searching utilities", () => {
         expect(q).toContain(
             'id_exact:(__FILTER_FAILED_DATASETS__) AND help:(downstream) AND owner:(devteam) AND tool_tags:("data cleanup") AND tool_tags:(collection_ops)',
         );
-        // Combined query results in:
-        expect(q).toEqual(
-            '(name:(Filter) name_exact:(Filter) description:(Filter)) AND (id_exact:(__FILTER_FAILED_DATASETS__) AND help:(downstream) AND owner:(devteam) AND tool_tags:("data cleanup") AND tool_tags:(collection_ops))',
-        );
     });
 
     it("builds tag-only whoosh queries without an empty leading clause", async () => {

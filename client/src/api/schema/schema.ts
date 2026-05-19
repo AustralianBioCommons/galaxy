@@ -5004,6 +5004,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags/tool_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the curated tool-id to tag-name mapping for currently-loaded tools. */
+        get: operations["tags__tool_tags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/result": {
         parameters: {
             query?: never;
@@ -5328,23 +5345,6 @@ export interface paths {
         put?: never;
         /** Generate a template workbook to use with the activity builder UI */
         post: operations["tools__fetch_workbook_parse"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tools/tags": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Return the curated tool-id to tag-name mapping for currently-loaded tools. */
-        get: operations["tools__tags"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5881,7 +5881,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Persist the user's top-level favorites order */
+        /** Persist the order of the user's favorites */
         put: operations["set_favorite_order_api_users__user_id__favorites_order_put"];
         post?: never;
         delete?: never;
@@ -10079,7 +10079,7 @@ export interface components {
             name: string;
         };
         /**
-         * CustomBuildsCollection
+         * Custom builds collection
          * @description The custom builds associated with the user.
          */
         CustomBuildsCollection: components["schemas"]["CustomBuildModel"][];
@@ -10963,7 +10963,7 @@ export interface components {
             model_class: "DatasetHash";
         };
         /**
-         * DatasetInheritanceChain
+         * Dataset inheritance chain
          * @default []
          */
         DatasetInheritanceChain: components["schemas"]["DatasetInheritanceChainEntry"][];
@@ -11200,7 +11200,7 @@ export interface components {
             tool_id: string;
         };
         /**
-         * DatatypeConverterList
+         * List of data type converters
          * @default []
          */
         DatatypeConverterList: components["schemas"]["DatatypeConverter"][];
@@ -11285,7 +11285,7 @@ export interface components {
             visualization: string;
         };
         /**
-         * DatatypeVisualizationMappingsList
+         * List of datatype visualization mappings
          * @default []
          */
         DatatypeVisualizationMappingsList: components["schemas"]["DatatypeVisualizationMapping"][];
@@ -11303,7 +11303,7 @@ export interface components {
             datatypes_mapping: components["schemas"]["DatatypesMap"];
         };
         /**
-         * DatatypesEDAMDetailsDict
+         * Dict of EDAM details for formats
          * @default {}
          */
         DatatypesEDAMDetailsDict: {
@@ -12827,8 +12827,17 @@ export interface components {
             writable: boolean;
         };
         /**
-         * FilesSourcePluginList
+         * List of files source plugins
          * @default []
+         * @example {
+         *       "browsable": true,
+         *       "doc": "Galaxy's library import directory",
+         *       "id": "_import",
+         *       "label": "Library Import Directory",
+         *       "type": "gximport",
+         *       "uri_root": "gximport://",
+         *       "writable": false
+         *     }
          */
         FilesSourcePluginList: (
             | components["schemas"]["BrowsableFilesSourcePlugin"]
@@ -17453,7 +17462,7 @@ export interface components {
             value: string;
         };
         /**
-         * JobMetricCollection
+         * Job Metrics
          * @description Represents a collection of metrics associated with a Job.
          * @default []
          */
@@ -18654,7 +18663,7 @@ export interface components {
             synopsis?: string | null;
         };
         /**
-         * LibrarySummaryList
+         * List with summary information of Libraries.
          * @default []
          */
         LibrarySummaryList: components["schemas"]["LibrarySummary"][];
@@ -18753,14 +18762,14 @@ export interface components {
          */
         LinkDataOnly: "copy_files" | "link_to_files";
         /**
-         * ListJstreeResponse
+         * List of files
          * @deprecated
          * @description List of files in Jstree format.
          * @default []
          */
         ListJstreeResponse: unknown[];
         /**
-         * ListUriResponse
+         * List of remote entries
          * @description List of directories and files.
          * @default []
          */
@@ -19693,7 +19702,7 @@ export interface components {
             username: string;
         };
         /**
-         * PageSummaryList
+         * List with summary information of Pages.
          * @default []
          */
         PageSummaryList: components["schemas"]["PageSummary"][];
@@ -20462,7 +20471,7 @@ export interface components {
             url: string;
         };
         /**
-         * QuotaSummaryList
+         * List with summary information of Quotas.
          * @default []
          */
         QuotaSummaryList: components["schemas"]["QuotaSummary"][];
@@ -23411,7 +23420,7 @@ export interface components {
              */
             name: string;
         };
-        /** ToolDataEntryList */
+        /** A list with details on individual data tables. */
         ToolDataEntryList: components["schemas"]["ToolDataEntry"][];
         /** ToolDataField */
         ToolDataField: {
@@ -23823,7 +23832,7 @@ export interface components {
             title_default?: string | null;
         };
         /**
-         * TourList
+         * List of tours
          * @default []
          */
         TourList: components["schemas"]["Tour"][];
@@ -25537,7 +25546,7 @@ export interface components {
             [key: string]: unknown;
         };
         /**
-         * VisualizationSummaryList
+         * List with detailed information of Visualizations.
          * @default []
          */
         VisualizationSummaryList: components["schemas"]["VisualizationSummary"][];
@@ -46039,6 +46048,49 @@ export interface operations {
             };
         };
     };
+    tags__tool_tags: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string[];
+                    };
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
     get_result_api_tasks__task_id__result_get: {
         parameters: {
             query?: never;
@@ -46904,49 +46956,6 @@ export interface operations {
                     "application/json":
                         | components["schemas"]["ParsedFetchWorkbookForDatasets"]
                         | components["schemas"]["ParsedFetchWorkbookForCollections"];
-                };
-            };
-            /** @description Request Error */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-            /** @description Server Error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageExceptionModel"];
-                };
-            };
-        };
-    };
-    tools__tags: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
-                "run-as"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string[];
-                    };
                 };
             };
             /** @description Request Error */

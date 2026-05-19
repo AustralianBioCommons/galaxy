@@ -93,14 +93,16 @@ describe("ToolsListCard", () => {
         expect(wrapper.emitted("apply-filter")).toEqual([["tag", "collection_ops"]]);
     });
 
+    const SIGNED_IN_USER = {
+        id: "user-id",
+        username: "test-user",
+        email: "test@example.org",
+        isAnonymous: false,
+    } as any;
+
     it("adds and removes favorite tags for signed-in users", async () => {
         const { wrapper } = mountCard({
-            currentUser: {
-                id: "user-id",
-                username: "test-user",
-                email: "test@example.org",
-                isAnonymous: false,
-            },
+            currentUser: SIGNED_IN_USER,
             favorites: { tools: [], tags: ["collection_ops"], edam_operations: ["operation_2409"], edam_topics: [] },
         });
         const userStore = useUserStore();
@@ -113,43 +115,36 @@ describe("ToolsListCard", () => {
         expect(userStore.addFavoriteTag).toHaveBeenCalledWith("data_cleanup");
     });
 
-    it("adds and removes favorite EDAM operations for signed-in users", async () => {
-        const { wrapper } = mountCard({
-            currentUser: {
-                id: "user-id",
-                username: "test-user",
-                email: "test@example.org",
-                isAnonymous: false,
-            },
+    // EDAM operations and topics share their entire dispatch path (`useToolsListCardActions`),
+    // so verify one button per dispatch target with a parameterized test rather
+    // than repeating the setup.
+    it.each([
+        {
+            label: "EDAM operations",
             favorites: { tools: [], tags: [], edam_operations: ["operation_2409"], edam_topics: [] },
-        });
-        const userStore = useUserStore();
-
-        const ontologyButton = wrapper.find(".inline-ontology-button");
-        expect(wrapper.text()).toContain("Data handling");
-        await ontologyButton.trigger("click");
-
-        expect(userStore.removeFavoriteEdamOperation).toHaveBeenCalledWith("operation_2409");
-    });
-
-    it("adds and removes favorite EDAM topics for signed-in users", async () => {
-        const { wrapper } = mountCard({
-            currentUser: {
-                id: "user-id",
-                username: "test-user",
-                email: "test@example.org",
-                isAnonymous: false,
-            },
+            selector: ".inline-ontology-button",
+            visibleSectionLabel: "Data handling",
+            action: "removeFavoriteEdamOperation" as const,
+            actionArg: "operation_2409",
+        },
+        {
+            label: "EDAM topics",
             favorites: { tools: [], tags: [], edam_operations: [], edam_topics: ["topic_0091"] },
-        });
-        const userStore = useUserStore();
-
-        const topicButton = wrapper.find('[data-description="favorite-edam-topic-button"]');
-        expect(wrapper.text()).toContain("Data formats");
-        await topicButton.trigger("click");
-
-        expect(userStore.removeFavoriteEdamTopic).toHaveBeenCalledWith("topic_0091");
-    });
+            selector: '[data-description="favorite-edam-topic-button"]',
+            visibleSectionLabel: "Data formats",
+            action: "removeFavoriteEdamTopic" as const,
+            actionArg: "topic_0091",
+        },
+    ])(
+        "removes a favorite $label entry for signed-in users",
+        async ({ favorites, selector, visibleSectionLabel, action, actionArg }) => {
+            const { wrapper } = mountCard({ currentUser: SIGNED_IN_USER, favorites });
+            const userStore = useUserStore() as any;
+            expect(wrapper.text()).toContain(visibleSectionLabel);
+            await wrapper.find(selector).trigger("click");
+            expect(userStore[action]).toHaveBeenCalledWith(actionArg);
+        },
+    );
 
     it("shows a login affordance for anonymous users", async () => {
         const { wrapper } = mountCard();

@@ -162,8 +162,8 @@ class TestToolsApi(ApiTestCase, TestsTools):
         # lives under. Verify the sidecar API and the Whoosh-backed search
         # both respect the mapping.
 
-        # /api/tools/tags exposes the raw mapping consumed by the My Tools panel.
-        tag_map = self._get("tools/tags").json()
+        # /api/tags/tool_tags exposes the raw mapping consumed by the My Tools panel.
+        tag_map = self._get("tags/tool_tags").json()
         assert tag_map.get("__UNZIP_COLLECTION__") == ["Collection Operations"]
         assert tag_map.get("liftOver1") == ["Lift-Over"]
         assert tag_map.get("upload1") == ["Get Data"]
