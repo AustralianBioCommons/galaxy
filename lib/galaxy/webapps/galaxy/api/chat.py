@@ -53,6 +53,7 @@ try:
     from galaxy.agents import (
         AgentType,
         GalaxyAgentDependencies,
+        WorkflowReportAgent,
     )
 
     HAS_AGENTS = True
@@ -60,6 +61,7 @@ except ImportError:
     HAS_AGENTS = False
     AgentType = None  # type: ignore[assignment,misc,unused-ignore]
     GalaxyAgentDependencies = None  # type: ignore[assignment,misc,unused-ignore]
+    WorkflowReportAgent = None  # type: ignore[assignment,misc,unused-ignore]
 
 # Import pydantic-ai components (required dependency)
 from pydantic_ai import Agent
@@ -409,20 +411,19 @@ class ChatAPI:
         user: User = DependsOnUser,
     ) -> str | None:
         """Generate a report for the specified workflow."""
-        # TODO: Need to handle version (ik there's a way to first deal with version, then check instance)
-        workflow = self.workflow_manager.get_stored_accessible_workflow(trans, workflow_id, by_stored_id=not instance)
-        if not workflow:
-            raise ObjectNotFound("Workflow not found.")
         if not HAS_AGENTS:
             raise ConfigurationError("AI agent system is not available.")
-        assert AgentType is not None
+        assert WorkflowReportAgent is not None
 
-        response = await self.agent_service.execute_agent(
-            agent_type=AgentType.WORKFLOW_REPORT,
-            query=workflow.name,
-            trans=trans,
-            user=user,
-        )
+        stored = self.workflow_manager.get_stored_accessible_workflow(trans, workflow_id, by_stored_id=not instance)
+        if not stored:
+            raise ObjectNotFound("Workflow not found.")
+
+        workflow = stored.get_internal_version(version) if version is not None else stored.latest_workflow
+
+        deps = self.agent_service.create_dependencies(trans, user)
+        agent = WorkflowReportAgent(deps)
+        response = await agent.generate_workflow_report(workflow)
         return response.content
 
     @router.put("/api/chat/exchange/{exchange_id}/feedback", unstable=True)
