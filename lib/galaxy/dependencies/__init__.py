@@ -273,7 +273,7 @@ class ConditionalDependencies:
     def check_fs_sshfs(self):
         return "ssh" in self.file_sources
 
-    def check_fs_googledrivefs(self):
+    def check_gdrive_fsspec(self):
         return "googledrive" in self.file_sources
 
     def check_gcsfs(self):

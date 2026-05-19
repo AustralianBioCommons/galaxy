@@ -21,9 +21,10 @@ backends:
    - id: files1
      type: azure_blob
 """
-FILES_SOURCES_DROPBOX = """
+FILES_SOURCES_CONFIG = """
 - type: webdav
 - type: dropbox
+- type: googledrive
 """
 JOB_CONF_YAML = """
 runners:
@@ -79,17 +80,19 @@ def test_azure_objectstore_nested_yaml():
 def test_fs_default():
     with _config_context() as cc:
         cds = cc.get_cond_deps()
+        assert not cds.check_gdrive_fsspec()
         assert not cds.check_dropboxdrivefs()
         assert not cds.check_webdav4()
 
 
 def test_fs_configured():
     with _config_context() as cc:
-        file_sources_conf = cc.write_config("file_sources.yml", FILES_SOURCES_DROPBOX)
+        file_sources_conf = cc.write_config("file_sources.yml", FILES_SOURCES_CONFIG)
         config = {
             "file_sources_config_file": file_sources_conf,
         }
         cds = cc.get_cond_deps(config=config)
+        assert cds.check_gdrive_fsspec()
         assert cds.check_dropboxdrivefs()
         assert cds.check_webdav4()
 
