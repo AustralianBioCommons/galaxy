@@ -16,6 +16,8 @@ from typing import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from galaxy.util import nice_size
+
 log = logging.getLogger(__name__)
 
 
@@ -161,8 +163,8 @@ async def get_dataset_info(
             f"Collection: {hdca.name} (HID {hid}, history_dataset_collection_id={_enc(hdca.id)})",
             f"Type: {hdca.collection.collection_type}",
         ]
-        if hdca.collection and hdca.collection.elements:
-            lines.append(f"Elements: {len(hdca.collection.elements)}")
+        if hdca.collection and hdca.collection.element_count:
+            lines.append(f"Elements: {hdca.collection.element_count}")
         if hdca.create_time:
             lines.append(f"Created: {hdca.create_time.isoformat()}")
         if hdca.deleted:
@@ -276,12 +278,7 @@ async def resolve_hid(
 
 
 def _format_size(size_bytes: Union[int, float, None]) -> str:
-    """Format byte size to human-readable string."""
+    """Human-readable byte size via galaxy.util.nice_size; "" for missing/negative."""
     if size_bytes is None or size_bytes < 0:
         return ""
-    size: float = float(size_bytes)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size < 1024:
-            return f"{size:.1f}{unit}" if unit != "B" else f"{int(size)}B"
-        size /= 1024
-    return f"{size:.1f}PB"
+    return nice_size(size_bytes)

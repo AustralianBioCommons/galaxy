@@ -33,19 +33,19 @@ class TestFormatSize:
         assert _format_size(-1) == ""
 
     def test_zero(self):
-        assert _format_size(0) == "0B"
+        assert _format_size(0) == "0 bytes"
 
     def test_bytes(self):
-        assert _format_size(512) == "512B"
+        assert _format_size(512) == "512 bytes"
 
     def test_kilobytes(self):
-        assert _format_size(1024) == "1.0KB"
+        assert _format_size(1024) == "1.0 KB"
 
     def test_megabytes(self):
-        assert _format_size(1_500_000) == "1.4MB"
+        assert _format_size(1_500_000) == "1.5 MB"
 
     def test_gigabytes(self):
-        assert _format_size(2_147_483_648) == "2.0GB"
+        assert _format_size(2_147_483_648) == "2.1 GB"
 
 
 # Row format: (id, hid, name, ext, state, deleted, visible, file_size)
@@ -242,7 +242,7 @@ class TestGetDatasetInfo:
         assert "reads.fastq" in result
         assert "history_dataset_id=42" in result
         assert "fastqsanger" in result
-        assert "1.1GB" in result
+        assert "1.2 GB" in result
 
     @pytest.mark.asyncio
     async def test_hda_with_encode_id(self):
