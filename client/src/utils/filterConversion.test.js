@@ -1,23 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import { HistoryFilters } from "@/components/History/HistoryFilters";
+import { quoteToolTagValue } from "@/components/Panels/utilities";
 import { getWorkflowFilters } from "@/components/Workflow/List/workflowFilters";
 import Filtering, { contains } from "@/utils/filtering";
 
 describe("test filtering helpers to convert filters to filter text", () => {
     const MyWorkflowFilters = getWorkflowFilters("my");
     const PublishedWorkflowFilters = getWorkflowFilters("published");
+    // Mirror ToolsList.vue's real wiring — same `quoteToolTagValue` import —
+    // so a regression in the production helper trips this test instead of the
+    // test silently agreeing with itself via an inline reimplementation.
     const ToolTagFilters = new Filtering(
         {
             tag: {
                 type: "MultiTags",
-                handler: contains("tag", undefined, (value) => {
-                    const normalizedValue = String(value)
-                        .trim()
-                        .replace(/^"(.*)"$/, "$1")
-                        .replace(/^'(.*)'$/, "$1");
-                    return /\s/.test(normalizedValue) ? `"${normalizedValue}"` : normalizedValue;
-                }),
+                handler: contains("tag", undefined, quoteToolTagValue),
                 menuItem: true,
             },
         },

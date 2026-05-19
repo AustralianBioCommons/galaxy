@@ -237,7 +237,7 @@ new tool panel without referencing the original sections at all.
 Curated tool tags
 -----------------
 
-Galaxy 26.0 introduces curated tool *tags* alongside EDAM operations and
+Galaxy 26.1 introduces curated tool *tags* alongside EDAM operations and
 topics. Curated tags map a tool id to one or more user-friendly labels (e.g.
 ``Get Data``, ``Statistics``) and feed three pieces of UI: the
 ``tag:`` autocompletion in the tool panel and the *Discover Tools* page,

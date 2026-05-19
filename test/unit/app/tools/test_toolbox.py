@@ -151,22 +151,10 @@ class TestToolBox(BaseToolBoxTestCase):
         tool.tool_tags = ["curated_tag"]
 
         # The bulk /api/tools payload never carries `tool_tags`; clients pull
-        # them from /api/tools/tags via `curated_tool_tags_by_id`.
+        # them from /api/tags/tool_tags (served by ToolsService).
         as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
         assert as_dict[0]["id"] == "test_tool"
         assert "tool_tags" not in as_dict[0]
-
-    def test_curated_tool_tags_by_id_returns_loaded_mapping(self):
-        self._init_tool_in_section()
-        mapper = routes.Mapper()
-        mapper.connect("tool_runner", "/test/tool_runner")
-
-        tool = self.toolbox.get_tool("test_tool")
-        tool.tool_tags = ["curated_tag", "another_tag"]
-        # Re-register so the curated id caches pick up the mutation.
-        self.toolbox.register_tool(tool)
-
-        assert self.toolbox.curated_tool_tags_by_id == {"test_tool": ["curated_tag", "another_tag"]}
 
     def test_curated_id_caches_invalidate_on_tool_change(self):
         self._init_tool_in_section()
@@ -188,17 +176,21 @@ class TestToolBox(BaseToolBoxTestCase):
         assert "operation_0224" in self.toolbox.tool_edam_operations
         assert "topic_3173" in self.toolbox.tool_edam_topics
 
-    def test_to_dict_cache_drops_when_tool_removed(self):
+    def test_to_dict_omits_removed_tool(self):
         self._init_tool_in_section()
         mapper = routes.Mapper()
         mapper.connect("tool_runner", "/test/tool_runner")
 
-        # Populate the to_dict cache.
-        self.toolbox.to_dict(mock_trans(), in_panel=False)
-        assert "test_tool" in self.toolbox._tool_to_dict_cache
+        # Populate the to_dict payload (and its cache).
+        before = self.toolbox.to_dict(mock_trans(), in_panel=False)
+        assert any(entry["id"] == "test_tool" for entry in before)
 
+        # Removing the tool must reflect in the next payload — proving the
+        # cache is invalidated through observable behavior, not by poking
+        # `_tool_to_dict_cache` directly.
         self.toolbox.remove_tool_by_id("test_tool")
-        assert "test_tool" not in self.toolbox._tool_to_dict_cache
+        after = self.toolbox.to_dict(mock_trans(), in_panel=False)
+        assert not any(entry["id"] == "test_tool" for entry in after)
 
     def test_my_tools_panel_view_is_registered(self):
         self._init_tool_in_section()
@@ -362,7 +354,7 @@ class TestToolBox(BaseToolBoxTestCase):
         self._setup_two_versions()
         monkeypatch.setattr(
             ontology_data,
-            "TOOL_TAG_MAPPING",
+            "_TOOL_TAG_MAPPING_OVERRIDE",
             {
                 "github.com/galaxyproject/example/test_tool/0.2": ["version_specific", "shared"],
                 "github.com/galaxyproject/example/test_tool": ["toolshed_family", "shared"],
@@ -381,7 +373,7 @@ class TestToolBox(BaseToolBoxTestCase):
     def test_curated_tool_tags_support_tool_ids_with_spaces(self, monkeypatch):
         monkeypatch.setattr(
             ontology_data,
-            "TOOL_TAG_MAPPING",
+            "_TOOL_TAG_MAPPING_OVERRIDE",
             {
                 "Remove beginning1": ["Text Manipulation"],
             },

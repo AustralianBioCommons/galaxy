@@ -423,14 +423,12 @@ class FetchTools:
         )
 
     @router.get(
-        "/api/tools/tags",
-        operation_id="tools__tags",
+        "/api/tags/tool_tags",
+        operation_id="tags__tool_tags",
         summary="Return the curated tool-id to tag-name mapping for currently-loaded tools.",
     )
     def tool_tags(self, trans: ProvidesHistoryContext = DependsOnTrans) -> dict[str, list[str]]:
-        # Sidecar for the My Tools panel: keeps `tool_tags` out of the bulk
-        # /api/tools payload and out of its toolbox-level cache key.
-        return trans.app.toolbox.curated_tool_tags_by_id
+        return self.service.curated_tool_tags_by_id(trans)
 
 
 class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):

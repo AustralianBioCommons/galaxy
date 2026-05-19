@@ -210,10 +210,6 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         self._curated_tool_tags: Optional[FrozenSet[str]] = None
         self._tool_edam_operations: Optional[FrozenSet[str]] = None
         self._tool_edam_topics: Optional[FrozenSet[str]] = None
-        # Lazy {tool_id -> [tag, ...]} mapping for tools that carry curated tags.
-        # Served verbatim from the /api/tools/tags endpoint to keep tool_tags
-        # out of the bulk /api/tools payload (and out of its cache key).
-        self._curated_tool_tags_by_id: Optional[Dict[str, List[str]]] = None
         # In-memory dictionary that defines the layout of the tool panel.
         self._tool_panel = ToolPanelElements()
         self._index = 0
@@ -1315,7 +1311,6 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         self._curated_tool_tags = None
         self._tool_edam_operations = None
         self._tool_edam_topics = None
-        self._curated_tool_tags_by_id = None
 
     def _collect_tool_attribute_set(self, attribute: str) -> FrozenSet[str]:
         values: set = set()
@@ -1344,23 +1339,6 @@ class AbstractToolBox(ManagesIntegratedToolPanelMixin):
         if self._tool_edam_topics is None:
             self._tool_edam_topics = self._collect_tool_attribute_set("edam_topics")
         return self._tool_edam_topics
-
-    @property
-    def curated_tool_tags_by_id(self) -> Dict[str, List[str]]:
-        """Mapping of tool id -> curated tag names for tools that carry any.
-
-        Served from the /api/tools/tags endpoint so the My Tools panel can
-        fetch the curated tag mapping out-of-band, instead of bloating
-        /api/tools.
-        """
-        if self._curated_tool_tags_by_id is None:
-            mapping: Dict[str, List[str]] = {}
-            for _, tool in self.tools():
-                tags = getattr(tool, "tool_tags", None)
-                if tags:
-                    mapping[tool.id] = list(tags)
-            self._curated_tool_tags_by_id = mapping
-        return self._curated_tool_tags_by_id
 
     def package_tool(self, trans, tool_id):
         """

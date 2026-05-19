@@ -9,8 +9,6 @@ import toolsListUntyped from "@/components/ToolsView/testData/toolsList.json";
 import type { Tool } from "@/stores/toolStore";
 import { useToolStore } from "@/stores/toolStore";
 
-import { createWhooshQuery } from "../Panels/utilities";
-
 import ToolsList from "./ToolsList.vue";
 import ToolsListTable from "./ToolsListTable.vue";
 
@@ -28,11 +26,16 @@ const FILTER_SETTINGS = {
     owner: "owner-filter",
     help: "help-filter",
 };
-const WHOOSH_QUERY = createWhooshQuery(FILTER_SETTINGS);
+// Expected Whoosh queries are hard-coded so a regression in `createWhooshQuery`
+// can't make both sides of the assertion wrong simultaneously. The canonical
+// `createWhooshQuery` test lives in `../Panels/utilities.test.ts`.
+const WHOOSH_QUERY =
+    "(name:(name-filter) name_exact:(name-filter) description:(name-filter))" +
+    " AND (ontology:(ontology-filter) AND id_exact:(id-filter) AND owner:(owner-filter) AND help:(help-filter))";
 const TAG_FILTER_SETTINGS = {
     tag: ["collection_ops", "data cleanup"],
 };
-const TAG_WHOOSH_QUERY = createWhooshQuery(TAG_FILTER_SETTINGS);
+const TAG_WHOOSH_QUERY = '(tool_tags:(collection_ops) AND tool_tags:("data cleanup"))';
 const RAW_TAG_SEARCH = 'tag:"data cleanup" OR tag:collection_ops';
 const RAW_TAG_WHOOSH_QUERY = 'tool_tags:("data cleanup") OR tool_tags:(collection_ops)';
 const MIXED_TAG_SEARCH = 'tag:"data cleanup" trim';
@@ -42,11 +45,15 @@ const MIXED_TAG_AND_ONTOLOGY_FILTER_SETTINGS = {
     tag: ["Join, Subtract and Group"],
     ontology: '"operation_3695"',
 };
-const MIXED_TAG_AND_ONTOLOGY_WHOOSH_QUERY = createWhooshQuery(MIXED_TAG_AND_ONTOLOGY_FILTER_SETTINGS);
+const MIXED_TAG_AND_ONTOLOGY_WHOOSH_QUERY =
+    '(tool_tags:("join, subtract and group") AND edam_operations:("operation_3695"))';
 const toolsList = toolsListUntyped as unknown as Tool[];
 
 const routerPushMock = vi.fn();
 
+// The component reads the router via `useRouter()` (mocked here) while child
+// components (e.g. GButton's `<RouterLink>`) need a real router on the mount
+// option to render — keep both wired up.
 vi.mock("vue-router/composables", () => ({
     useRouter: () => ({
         push: routerPushMock,
@@ -198,7 +205,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { tag: ["data cleanup"] },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }));
+        expect(fetchToolsMock).toHaveBeenLastCalledWith('(tool_tags:("data cleanup"))');
     });
 
     it("does not re-open autocomplete for a complete multi-word tag missing only the closing quote", async () => {
@@ -246,7 +253,7 @@ describe("ToolsList", () => {
             path: "/tools/list",
             query: { tag: ["data cleanup"] },
         });
-        expect(fetchToolsMock).toHaveBeenLastCalledWith(createWhooshQuery({ tag: ["data cleanup"] }));
+        expect(fetchToolsMock).toHaveBeenLastCalledWith('(tool_tags:("data cleanup"))');
     });
 
     it("renders route-provided multi-word tags with quotes in the search bar", async () => {

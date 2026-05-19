@@ -273,7 +273,7 @@ export const useToolStore = defineStore("toolStore", () => {
     }
 
     /**
-     * Fetch the curated `{tool_id: [tag, ...]}` mapping from `/api/tools/tags`
+     * Fetch the curated `{tool_id: [tag, ...]}` mapping from `/api/tags/tool_tags`
      * and merge it into `toolsById`. Idempotent: subsequent calls are no-ops
      * once the mapping has been loaded for the current toolbox.
      *
@@ -286,7 +286,7 @@ export const useToolStore = defineStore("toolStore", () => {
             return;
         }
         try {
-            const { data } = await axios.get(`${getAppRoot()}api/tools/tags`);
+            const { data } = await axios.get(`${getAppRoot()}api/tags/tool_tags`);
             const mapping = (data ?? {}) as Record<string, string[]>;
             const merged: Record<string, Tool> = {};
             for (const [id, tool] of Object.entries(toolsById.value)) {

@@ -30,23 +30,7 @@ class TestToolPanelSearchPlaywright(SeleniumTestCase):
             f'[data-favorite-type="{source_type}"] [data-description="favorite-top-level-drag-target"]'
         )
         target_item = self.page.locator(f'[data-favorite-type="{target_type}"]')
-        source_handle.scroll_into_view_if_needed()
-        target_item.scroll_into_view_if_needed()
-        source_box = source_handle.bounding_box()
-        target_box = target_item.bounding_box()
-        assert source_box is not None
-        assert target_box is not None
-
-        source_x = source_box["x"] + (source_box["width"] / 2)
-        source_y = source_box["y"] + (source_box["height"] / 2)
-        target_x = target_box["x"] + (target_box["width"] / 2)
-        target_y = target_box["y"] + min(8, target_box["height"] / 4)
-
-        self.page.mouse.move(source_x, source_y)
-        self.page.mouse.down()
-        self.page.mouse.move(source_x, source_y + 12, steps=4)
-        self.page.mouse.move(target_x, target_y, steps=20)
-        self.page.mouse.up()
+        self.playwright_drag_item_above(source_handle, target_item)
 
     @playwright_only("Validates tool panel search behavior with Playwright backend.")
     @selenium_test
