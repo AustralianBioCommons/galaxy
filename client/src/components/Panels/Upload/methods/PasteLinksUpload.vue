@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faLink, faPlus, faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faLink, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BFormInput } from "bootstrap-vue";
 import { computed, nextTick, ref, watch } from "vue";
@@ -361,12 +361,11 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
                             v-g-tooltip.hover
                             class="remove-btn"
                             :data-test-id="`upload-row-${index + 1}-remove`"
-                            color="red"
                             outline
                             transparent
                             title="Remove URL from list"
                             @click="removeItem(item.id)">
-                            <FontAwesomeIcon :icon="faTimes" />
+                            <FontAwesomeIcon :icon="faTrash" />
                         </GButton>
                     </template>
                 </GTable>
