@@ -22,7 +22,7 @@ redis>=5.3.0,<6
 
 # For file sources plugins
 webdav4[fsspec]  # type: webdav
-fs.dropboxfs>=1.0.3  # type: dropbox
+dropboxdrivefs>=1.4.1  # type: dropbox
 fs.sshfs  # type: ssh
 fs.anvilfs # type: anvil
 fs.googledrivefs # type: googledrive

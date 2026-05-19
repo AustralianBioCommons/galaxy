@@ -260,7 +260,7 @@ class ConditionalDependencies:
     def check_python_irodsclient(self):
         return "irods" in self.object_stores
 
-    def check_fs_dropboxfs(self):
+    def check_dropboxdrivefs(self):
         return "dropbox" in self.file_sources
 
     def check_webdav4(self):
