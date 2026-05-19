@@ -116,7 +116,11 @@ const titleIcon = computed<TitleIcon>(() => {
     <GCard
         :class="{ disabled: Boolean(props.job.invalid) }"
         :badges="badges"
-        :title="isWorkflowExtractionInput(props.job) ? props.job.newName : props.job.tool_name || 'Unnamed Step'"
+        :title="
+            isWorkflowExtractionInput(props.job)
+                ? props.job.newName
+                : props.job.tool_name || props.job.tool_id || 'Unnamed Step'
+        "
         :title-icon="titleIcon"
         :can-rename-title="props.job.step_type !== 'tool' && props.job.checked"
         selectable

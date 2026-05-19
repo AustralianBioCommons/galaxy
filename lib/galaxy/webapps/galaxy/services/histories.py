@@ -864,7 +864,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
                         WorkflowExtractionJob(
                             id=job.id,
                             step_type="tool",
-                            tool_name=getattr(job, "tool_id", None),
+                            tool_name=None,
                             tool_id=job.tool_id,
                             tool_version=job.tool_version,
                             checked=False,
