@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faFolder, faGlobe, faPlus, faTimes, faUser } from "@fortawesome/free-solid-svg-icons";
+import { faFolder, faGlobe, faPlus, faTrash, faUser } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert, BFormCheckbox, BFormInput, BPagination } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -863,13 +863,15 @@ defineExpose<UploadMethodComponent>({ prepareUpload, reset });
 
                     <!-- Actions column -->
                     <template v-slot:cell(actions)="{ item }">
-                        <button
+                        <GButton
                             v-g-tooltip.hover
-                            class="btn btn-link text-danger remove-btn"
+                            class="remove-btn"
+                            outline
+                            transparent
                             title="Remove file from list"
                             @click="removeItem(item.id)">
-                            <FontAwesomeIcon :icon="faTimes" />
-                        </button>
+                            <FontAwesomeIcon :icon="faTrash" />
+                        </GButton>
                     </template>
                 </GTable>
             </div>
