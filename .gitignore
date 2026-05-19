@@ -34,6 +34,7 @@ lib/galaxy/web/framework/meta.json
 
 # Celery state files
 celerybeat-schedule
+celery-beat-schedule
 celerybeat-schedule.db
 
 # Tool Shed runtime files
