@@ -24,7 +24,6 @@ from galaxy.model import (
     Role,
     User,
 )
-from galaxy.util import now
 from galaxy.schema.notifications import (
     BroadcastNotificationContent,
     BroadcastNotificationCreateRequest,
@@ -40,6 +39,7 @@ from galaxy.schema.notifications import (
     UserNotificationPreferences,
     UserNotificationUpdateRequest,
 )
+from galaxy.util import now
 from .base import BaseTestCase
 
 

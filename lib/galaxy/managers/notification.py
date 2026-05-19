@@ -48,7 +48,6 @@ from galaxy.model import (
     UserNotificationAssociation,
     UserRoleAssociation,
 )
-from galaxy.util import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.schema.notifications import (
     AnyNotificationContent,
@@ -72,6 +71,7 @@ from galaxy.schema.notifications import (
     UserNotificationUpdateRequest,
 )
 from galaxy.schema.schema import AsyncTaskResultSummary
+from galaxy.util import now
 
 log = logging.getLogger(__name__)
 

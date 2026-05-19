@@ -49,13 +49,15 @@ from galaxy.model.db.role import (
     get_npns_roles,
     get_private_user_role,
 )
-from galaxy.util import now
 from galaxy.security import (
     Action,
     get_permitted_actions,
     RBACAgent,
 )
-from galaxy.util import listify
+from galaxy.util import (
+    listify,
+    now,
+)
 from galaxy.util.bunch import Bunch
 
 log = logging.getLogger(__name__)

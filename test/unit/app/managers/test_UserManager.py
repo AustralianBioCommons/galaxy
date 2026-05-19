@@ -20,8 +20,8 @@ from galaxy.managers import (
     histories,
     users,
 )
-from galaxy.util import now
 from galaxy.security.passwords import check_password
+from galaxy.util import now
 from .base import BaseTestCase
 
 # =============================================================================

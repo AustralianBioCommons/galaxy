@@ -19,13 +19,13 @@ from galaxy import (
 from galaxy.exceptions import Conflict
 from galaxy.managers import users
 from galaxy.model.db.user import get_user_by_email
-from galaxy.util import now
 from galaxy.security.validate_user_input import (
     is_valid_email_str,
     validate_email,
     validate_publicname,
 )
 from galaxy.structured_app import StructuredApp
+from galaxy.util import now
 from galaxy.web import (
     expose_api_anonymous_and_sessionless,
     url_for,

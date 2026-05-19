@@ -8,8 +8,10 @@ except ImportError:
     # This middleware will never be used without influxdb.
     influxdb = None
 
-from galaxy.util import now
-from galaxy.util import unicodify
+from galaxy.util import (
+    now,
+    unicodify,
+)
 from . import ErrorPlugin
 
 log = logging.getLogger(__name__)

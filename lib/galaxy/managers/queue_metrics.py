@@ -34,11 +34,11 @@ from sqlalchemy import (
 from galaxy.managers.sse import SSEConnectionManager
 from galaxy.model import WorkerProcess
 from galaxy.model.mapping import GalaxyModelMapping
-from galaxy.util import now
 from galaxy.queues import (
     all_control_queues_for_declare,
     DEFAULT_ACTIVE_PROCESS_WINDOW_SECONDS,
 )
+from galaxy.util import now
 from galaxy.web_stack import ApplicationStack
 
 if TYPE_CHECKING:
