@@ -67,6 +67,14 @@ from typing_extensions import (
     Self,
 )
 
+
+def now():
+    """
+    Return the current time in UTC without any timezone information.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 try:
     import grp
 except ImportError:

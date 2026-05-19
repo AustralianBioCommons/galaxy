@@ -16,7 +16,8 @@ try:
 except ImportError:
     BlobServiceClient = None  # type: ignore[assignment,unused-ignore,misc]
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
+
 from ._caching_base import CachingConcreteObjectStore
 from .caching import (
     enable_cache_monitor,
