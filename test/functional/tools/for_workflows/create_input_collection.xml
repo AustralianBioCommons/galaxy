@@ -1,5 +1,5 @@
-<tool id="create_input_collection" name="Create input collection" version="0.1.0">
-  <description>generate a list collection of N text files</description>
+<tool id="create_input_collection" name="create_input_collection" version="0.1.0">
+  <description>This tool is used to create a collection of text files.</description>
   <command detect_errors="exit_code">
     mkdir outputs; cd outputs; python $script
   </command>

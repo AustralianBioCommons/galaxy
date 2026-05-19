@@ -1,5 +1,4 @@
 <tool id="mapper_two" name="Mapper producing two BAMs" version="0.1.0">
-    <description>map reads producing two BAMs and two log files (test stub)</description>
     <command>
         echo 'text 0' > '$text0';
         cp '$__tool_directory__/1.bam' '$out_file1';
@@ -11,10 +10,10 @@
         <param name="reference" type="data" format="txt" label="Fasta Input"/>
     </inputs>
     <outputs>
-        <data name="text0" format="txt" label="Mapping log (pre)"/>
-        <data name="out_file1" format="bam" label="Aligned reads (primary)"/>
-        <data name="out_file2" format="bam" label="Aligned reads (secondary)"/>
-        <data name="text1" format="txt" label="Mapping log (post)"/>
+        <data name="text0" format="txt" />
+        <data name="out_file1" format="bam" />
+        <data name="out_file2" format="bam" />
+        <data name="text1" format="txt" />
     </outputs>
     <tests>
     </tests>

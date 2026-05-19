@@ -1,5 +1,5 @@
-<tool id="cat_default" name="Concatenate (default input)" version="1.0.0">
-    <description>copy a dataset, defaulting to a remote BED file</description>
+<tool id="cat_default" name="cat_default" version="1.0.0">
+    <description></description>
     <command><![CDATA[
 cat '$input1' > '$out_file1'
     ]]></command>
