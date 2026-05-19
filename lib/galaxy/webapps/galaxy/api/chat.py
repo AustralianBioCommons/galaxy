@@ -69,7 +69,10 @@ except ImportError:
 
 # Import pydantic-ai components (required dependency)
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 
 # Keep OpenAI as a fallback option
 try:
@@ -428,7 +431,16 @@ class ChatAPI:
         deps = self.agent_service.create_dependencies(trans, user)
         agent = WorkflowReportAgent(deps)
 
-        response = await agent.generate_workflow_report(workflow)
+        try:
+            response = await agent.generate_workflow_report(workflow)
+        except ModelHTTPError as e:
+            body_msg = e.body.get("message", str(e)) if isinstance(e.body, dict) else str(e)
+            raise MessageException(f"AI model error ({e.status_code}): {body_msg}")
+        except UnexpectedModelBehavior as e:
+            raise MessageException(f"AI model returned an unexpected response: {e}")
+        except Exception as e:
+            raise MessageException(f"Failed to generate workflow report: {e}")
+
         if response.metadata.get("validation_error"):
             raise MessageException(response.content)
         if response.metadata.get("error"):

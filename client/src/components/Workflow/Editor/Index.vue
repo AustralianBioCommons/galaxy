@@ -1142,6 +1142,7 @@ export default {
                     `Report generated using ${model}${total_tokens ? `, total tokens used: ${total_tokens}` : ""}.`,
                     "AI Report generated successfully.",
                 );
+                this.hideModal();
             } catch (e) {
                 this.onWorkflowError(
                     "Generating AI report failed",
@@ -1152,8 +1153,6 @@ export default {
                         },
                     },
                 );
-            } finally {
-                this.hideModal();
             }
         },
         onReportUpdate(markdown) {
