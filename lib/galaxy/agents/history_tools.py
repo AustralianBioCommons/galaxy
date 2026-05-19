@@ -8,11 +8,13 @@ Designed for MCP reuse: string inputs, string outputs, no Galaxy manager depende
 import logging
 import re
 from collections.abc import Callable
+from functools import partial
 from typing import (
     Optional,
     Union,
 )
 
+import anyio
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ from galaxy.util import nice_size
 log = logging.getLogger(__name__)
 
 
-async def list_history_items(
+def _list_history_items_impl(
     session: Session,
     history_id: int,
     offset: int = 0,
@@ -103,7 +105,34 @@ async def list_history_items(
     return "\n".join(lines)
 
 
-async def get_dataset_info(
+async def list_history_items(
+    session: Session,
+    history_id: int,
+    offset: int = 0,
+    limit: int = 50,
+    include_deleted: bool = False,
+    include_hidden: bool = False,
+    encode_id: Optional[Callable[[int], str]] = None,
+) -> str:
+    """List datasets and collections in a history, ordered by HID.
+
+    Runs the synchronous SQLAlchemy query off the event loop.
+    """
+    return await anyio.to_thread.run_sync(
+        partial(
+            _list_history_items_impl,
+            session,
+            history_id,
+            offset=offset,
+            limit=limit,
+            include_deleted=include_deleted,
+            include_hidden=include_hidden,
+            encode_id=encode_id,
+        )
+    )
+
+
+def _get_dataset_info_impl(
     session: Session,
     history_id: int,
     hid: int,
@@ -176,7 +205,22 @@ async def get_dataset_info(
     return f"No dataset or collection found with HID {hid} in this history."
 
 
-async def get_dataset_peek(session: Session, history_id: int, hid: int) -> str:
+async def get_dataset_info(
+    session: Session,
+    history_id: int,
+    hid: int,
+    encode_id: Optional[Callable[[int], str]] = None,
+) -> str:
+    """Get detailed information about a dataset or collection by HID.
+
+    Runs the synchronous SQLAlchemy query off the event loop.
+    """
+    return await anyio.to_thread.run_sync(
+        partial(_get_dataset_info_impl, session, history_id, hid, encode_id=encode_id)
+    )
+
+
+def _get_dataset_peek_impl(session: Session, history_id: int, hid: int) -> str:
     """Get a preview of a dataset's contents using the pre-computed peek field."""
     from galaxy.model import HistoryDatasetAssociation as HDA
 
@@ -195,7 +239,15 @@ async def get_dataset_peek(session: Session, history_id: int, hid: int) -> str:
     return f"Preview of {hda.name} (HID {hid}, {hda.extension}):\n{peek_text}"
 
 
-async def get_collection_structure(
+async def get_dataset_peek(session: Session, history_id: int, hid: int) -> str:
+    """Get a preview of a dataset's contents using the pre-computed peek field.
+
+    Runs the synchronous SQLAlchemy query off the event loop.
+    """
+    return await anyio.to_thread.run_sync(partial(_get_dataset_peek_impl, session, history_id, hid))
+
+
+def _get_collection_structure_impl(
     session: Session,
     history_id: int,
     hid: int,
@@ -236,7 +288,22 @@ async def get_collection_structure(
     return "\n".join(lines)
 
 
-async def resolve_hid(
+async def get_collection_structure(
+    session: Session,
+    history_id: int,
+    hid: int,
+    max_elements: int = 50,
+) -> str:
+    """Get the structure and element listing of a dataset collection.
+
+    Runs the synchronous SQLAlchemy query off the event loop.
+    """
+    return await anyio.to_thread.run_sync(
+        partial(_get_collection_structure_impl, session, history_id, hid, max_elements=max_elements)
+    )
+
+
+def _resolve_hid_impl(
     session: Session,
     history_id: int,
     hid: int,
@@ -275,6 +342,19 @@ async def resolve_hid(
         )
 
     return f"No dataset or collection found with HID {hid} in this history."
+
+
+async def resolve_hid(
+    session: Session,
+    history_id: int,
+    hid: int,
+    encode_id: Optional[Callable[[int], str]] = None,
+) -> str:
+    """Resolve a HID to the directive argument needed for Galaxy markdown.
+
+    Runs the synchronous SQLAlchemy query off the event loop.
+    """
+    return await anyio.to_thread.run_sync(partial(_resolve_hid_impl, session, history_id, hid, encode_id=encode_id))
 
 
 def _format_size(size_bytes: Union[int, float, None]) -> str:
