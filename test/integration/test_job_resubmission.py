@@ -10,7 +10,7 @@ JOB_RESUBMISSION_JOB_CONFIG_FILE = os.path.join(SCRIPT_DIRECTORY, "resubmission_
 JOB_RESUBMISSION_DEFAULT_JOB_CONFIG_FILE = os.path.join(SCRIPT_DIRECTORY, "resubmission_default_job_conf.xml")
 JOB_RESUBMISSION_DYNAMIC_JOB_CONFIG_FILE = os.path.join(SCRIPT_DIRECTORY, "resubmission_dynamic_job_conf.xml")
 JOB_RESUBMISSION_DYNAMIC_MULTIPLE_JOB_CONFIG_FILE = os.path.join(
-    SCRIPT_DIRECTORY, "resubmission_dynamic_multiple_job_conf.xml"
+    SCRIPT_DIRECTORY, "resubmission_dynamic_multiple_job_conf.yml"
 )
 JOB_RESUBMISSION_SMALL_MEMORY_JOB_CONFIG_FILE = os.path.join(SCRIPT_DIRECTORY, "resubmission_small_memory_job_conf.xml")
 JOB_RESUBMISSION_SMALL_MEMORY_RESUBMISSION_TO_LARGE_JOB_CONFIG_FILE = os.path.join(
