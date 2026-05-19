@@ -379,11 +379,19 @@ const {
             <div v-else-if="props.summary && !showHelp" v-html="props.summary"></div>
 
             <div v-if="props.help" class="mt-2">
-                <GLink v-if="!showHelp" unselectable @click="() => (showHelp = true)">
+                <GLink
+                    v-if="!showHelp"
+                    data-description="tools list toggle tool help"
+                    unselectable
+                    @click="() => (showHelp = true)">
                     <FontAwesomeIcon :icon="faAngleDown" />
                     Show tool help
                 </GLink>
-                <GLink v-else unselectable @click="() => (showHelp = false)">
+                <GLink
+                    v-else
+                    data-description="tools list toggle tool help"
+                    unselectable
+                    @click="() => (showHelp = false)">
                     <FontAwesomeIcon :icon="faAngleUp" />
                     Hide tool help
                 </GLink>

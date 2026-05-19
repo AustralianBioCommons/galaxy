@@ -17,8 +17,8 @@ class TestToolPanelSearchPlaywright(SeleniumTestCase):
             order.append((item.get_attribute("data-favorite-type"), item.get_attribute("data-favorite-id")))
         return order
 
-    def _favorite_order_from_api(self, user_id):
-        user_response = self._get(f"users/{user_id}")
+    def _favorite_order_from_api(self, interactor, user_id):
+        user_response = interactor.get(f"users/{user_id}")
         assert user_response.status_code == 200, user_response.text
         favorites = user_response.json()["preferences"]["favorites"]
         if isinstance(favorites, str):
@@ -53,16 +53,19 @@ class TestToolPanelSearchPlaywright(SeleniumTestCase):
     @skip_without_tool("cat1")
     def test_tool_panel_favorites_reorder_my_panel(self):
         self.login()
-        user_id = self.api_get("users/current")["id"]
+        interactor = self.api_interactor_for_logged_in_user()
+        user_response = interactor.get("users/current")
+        assert user_response.status_code == 200, user_response.text
+        user_id = user_response.json()["id"]
 
-        tool_favorite_response = self._put(
+        tool_favorite_response = interactor.put(
             f"users/{user_id}/favorites/tools",
             data={"object_id": "cat1"},
             json=True,
         )
         assert tool_favorite_response.status_code == 200, tool_favorite_response.text
 
-        tag_favorite_response = self._put(
+        tag_favorite_response = interactor.put(
             f"users/{user_id}/favorites/tags",
             data={"object_id": "Text Manipulation"},
             json=True,
@@ -91,7 +94,7 @@ class TestToolPanelSearchPlaywright(SeleniumTestCase):
             {"object_type": "tools", "object_id": "cat1"},
         ]
         self._wait_on(
-            lambda: self._favorite_order_from_api(user_id)[:2] == expected_order,
+            lambda: self._favorite_order_from_api(interactor, user_id)[:2] == expected_order,
             "favorite order to persist after drag-and-drop",
         )
         self._wait_on(

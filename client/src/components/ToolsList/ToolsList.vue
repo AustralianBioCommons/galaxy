@@ -183,7 +183,7 @@ const validFilters = computed<Record<string, ValidFilter<string | string[]>>>(()
         tag: {
             placeholder: "tag",
             type: "MultiTags",
-            handler: contains("tag", undefined, quoteToolTagValue),
+            handler: contains<string | string[]>("tag", undefined, quoteToolTagValue),
             menuItem: false,
         },
     };

@@ -428,7 +428,7 @@ tools_list:
     tool_card: '#g-card-content-${tool_id}'
     version_button: '#tools-list-${tool_id}'
     favorite_tool_button: '#g-card-action-favorite-tool-${tool_id}'
-    toggle_help: '#g-card-description-${tool_id} .g-link.g-unselectable'
+    toggle_help: '#g-card-content-${tool_id} [data-description="tools list toggle tool help"]'
     tool_help: '#g-card-content-${tool_id} [data-description="tools list tool help"]'
     open_tool_button: '#g-card-action-open-tool-${tool_id}'
 
