@@ -165,7 +165,7 @@ from galaxy.model.item_attrs import (
     get_item_annotation_str,
     UsesAnnotations,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.model.orm.util import add_object_to_object_session
 from galaxy.objectstore import USER_OBJECTS_SCHEME
 from galaxy.objectstore.templates import (

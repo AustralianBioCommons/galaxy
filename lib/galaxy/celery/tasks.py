@@ -53,7 +53,7 @@ from galaxy.model import (
     Job,
     User,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.objectstore import BaseObjectStore
 from galaxy.objectstore.caching import check_caches

@@ -12,7 +12,7 @@ from sqlalchemy import (
 
 from galaxy.model import WorkerProcess
 from galaxy.model.base import check_database_connection
-from galaxy.model.orm.now import now
+from galaxy.util import now
 
 log = logging.getLogger(__name__)
 

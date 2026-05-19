@@ -30,7 +30,7 @@ from galaxy.model.custom_types import (
     MutableJSONType,
     TrimmedString,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.tool_util.toolbox.base import (
     AbstractToolBox,
     DynamicToolConfDict,

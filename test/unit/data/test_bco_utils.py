@@ -1,7 +1,7 @@
 import json
 
 from galaxy.model import WorkflowStep
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.model.store._bco_convert_utils import SoftwarePrerequisiteTracker
 from galaxy.schema.bco import (
     BioComputeObjectCore,
