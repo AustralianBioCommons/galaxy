@@ -85,6 +85,7 @@ from galaxy.schema.tasks import (
 )
 from galaxy.schema.types import LatestLiteral
 from galaxy.schema.workflows import (
+    InvalidWorkflowExtractionJobReason,
     WorkflowExtractionJob,
     WorkflowExtractionOutput,
     WorkflowExtractionSummary,
@@ -842,14 +843,37 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
                         checked=checked,
                         tool_version_warning=None,
                         outputs=outputs,
+                        invalid=None,
                     )
                 )
             else:
-                tool = trans.app.toolbox.get_tool(job.tool_id, tool_version=job.tool_version)
+                custom_tools_inaccessible = False
+                try:
+                    tool = trans.app.toolbox.tool_for_job(job, user=trans.user)
+                except glx_exceptions.InsufficientPermissionsException:
+                    tool = None
+                    custom_tools_inaccessible = True
                 if tool is None:
-                    # Tool missing
-                    continue
-                if not tool.is_workflow_compatible:
+                    # Tool missing or inaccessible
+                    invalid_reason = (
+                        InvalidWorkflowExtractionJobReason.CUSTOM_TOOL_INACCESSIBLE
+                        if custom_tools_inaccessible
+                        else InvalidWorkflowExtractionJobReason.TOOL_MISSING_OR_INACCESSIBLE
+                    )
+                    jobs_list.append(
+                        WorkflowExtractionJob(
+                            id=job.id,
+                            step_type="tool",
+                            tool_name=None,
+                            tool_id=job.tool_id,
+                            tool_version=job.tool_version,
+                            checked=False,
+                            tool_version_warning=None,
+                            outputs=outputs,
+                            invalid=invalid_reason,
+                        )
+                    )
+                elif not tool.is_workflow_compatible:
                     # Not a workflow step (e.g. upload, data fetch) — treat as input.
                     jobs_list.append(
                         WorkflowExtractionJob(
@@ -861,6 +885,7 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
                             checked=checked,
                             tool_version_warning=None,
                             outputs=outputs,
+                            invalid=None,
                         )
                     )
                 else:
@@ -873,17 +898,16 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
                         else None
                     )
                     jobs_list.append(
-                        WorkflowExtractionJob.model_validate(
-                            {
-                                "id": job.id,
-                                "step_type": "tool",
-                                "tool_name": tool.name,
-                                "tool_id": job.tool_id,
-                                "tool_version": job.tool_version,
-                                "checked": checked,
-                                "tool_version_warning": tool_version_warning,
-                                "outputs": outputs,
-                            }
+                        WorkflowExtractionJob(
+                            id=job.id,
+                            step_type="tool",
+                            tool_name=tool.name,
+                            tool_id=job.tool_id,
+                            tool_version=job.tool_version,
+                            checked=checked,
+                            tool_version_warning=tool_version_warning,
+                            outputs=outputs,
+                            invalid=None,
                         )
                     )
 

@@ -16066,6 +16066,12 @@ export interface components {
             /** Value */
             value?: number | null;
         };
+        /**
+         * InvalidWorkflowExtractionJobReason
+         * @description Reasons a workflow extraction job may be invalid and disabled for extraction.
+         * @enum {string}
+         */
+        InvalidWorkflowExtractionJobReason: "tool_missing_or_inaccessible" | "custom_tool_inaccessible";
         /** InvocationCancellationHistoryDeletedResponse */
         InvocationCancellationHistoryDeletedResponse: {
             /**
@@ -25556,6 +25562,11 @@ export interface components {
              * @description Encoded job ID, or null for fake input dataset entries.
              */
             id: string | null;
+            /**
+             * Invalid
+             * @description Reason this job is invalid for extraction.
+             */
+            invalid?: components["schemas"]["InvalidWorkflowExtractionJobReason"] | null;
             /**
              * Outputs
              * @description The history items produced by this job.

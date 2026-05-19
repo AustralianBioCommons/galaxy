@@ -559,6 +559,7 @@ async function onCancel() {
         transform 0.25s ease;
 }
 
+// TODO(vue3): rename .header-collapse-enter to .header-collapse-enter-from
 .header-collapse-enter,
 .header-collapse-leave-to {
     max-height: 0;

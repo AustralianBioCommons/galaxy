@@ -719,6 +719,11 @@ function onKeyDown(event: KeyboardEvent) {
             opacity 0.15s ease;
     }
 
+    &.g-card-dim:hover .g-card-content {
+        filter: none;
+        opacity: 1;
+    }
+
     &.g-card-current .g-card-content {
         background-color: $brand-light;
         border-width: 2px;
