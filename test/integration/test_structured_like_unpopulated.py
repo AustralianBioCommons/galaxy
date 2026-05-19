@@ -75,7 +75,7 @@ class TestStructuredLikeUnpopulatedRaisesNotReady(integration_util.IntegrationTe
                 "shape": {"src": "hdca", "id": shape_hdca["id"]},
             }
             response = self.dataset_populator.run_tool_raw(
-                tool_id="collection_mapped_over_empty_structured_like",
+                tool_id="collection_paired_structured_like_with_data_input",
                 inputs=inputs,
                 history_id=history_id,
             )

@@ -1,4 +1,4 @@
-<tool id="collection_mapped_over_empty_structured_like" name="collection_mapped_over_empty_structured_like" version="0.1.0">
+<tool id="collection_paired_structured_like_with_data_input" name="collection_paired_structured_like_with_data_input" version="0.1.0">
   <command><![CDATA[
         cat '$input1' '${shape.forward}' '${shape.reverse}' > '${list_output.forward}';
         cat '$input1' '${shape.reverse}' '${shape.forward}' > '${list_output.reverse}'

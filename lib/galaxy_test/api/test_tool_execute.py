@@ -256,7 +256,7 @@ def test_map_over_empty_collection(target_history: TargetHistory, required_tool:
     assert "on collection 1" in name
 
 
-@requires_tool_id("collection_mapped_over_empty_structured_like")
+@requires_tool_id("collection_paired_structured_like_with_data_input")
 def test_map_over_empty_with_structured_like_non_mapped_collection_input(
     target_history: TargetHistory, required_tool: RequiredTool
 ):
