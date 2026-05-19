@@ -13,7 +13,7 @@ from babel import default_locale
 from babel.dates import format_timedelta
 from routes import url_for
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.util.json import safe_dumps as dumps  # noqa: F401
 from .tags import (
     javascript_link,

@@ -44,7 +44,7 @@ from galaxy.model.db.user import (
     get_user_by_email,
     get_user_by_username,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.security.validate_user_input import (
     VALID_EMAIL_RE,
     validate_email,

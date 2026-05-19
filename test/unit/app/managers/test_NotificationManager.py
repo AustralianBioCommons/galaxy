@@ -24,7 +24,7 @@ from galaxy.model import (
     Role,
     User,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.schema.notifications import (
     BroadcastNotificationContent,
     BroadcastNotificationCreateRequest,

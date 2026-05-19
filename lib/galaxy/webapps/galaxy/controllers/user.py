@@ -19,7 +19,7 @@ from galaxy import (
 from galaxy.exceptions import Conflict
 from galaxy.managers import users
 from galaxy.model.db.user import get_user_by_email
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.security.validate_user_input import (
     is_valid_email_str,
     validate_email,

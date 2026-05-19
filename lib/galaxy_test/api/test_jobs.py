@@ -9,7 +9,7 @@ from unittest import SkipTest
 import requests
 from dateutil.parser import isoparse
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.util.unittest_utils import transient_failure
 from galaxy_test.api.test_tools import TestsTools
 from galaxy_test.base.api_asserts import assert_status_code_is_ok

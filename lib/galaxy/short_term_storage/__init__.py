@@ -33,7 +33,7 @@ from galaxy.exceptions import (
 )
 from galaxy.exceptions.error_codes import error_codes_by_int_code
 from galaxy.exceptions.utils import api_error_to_dict
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.schema.schema import OptionalNumberT
 from galaxy.util import (
     directory_hash_id,

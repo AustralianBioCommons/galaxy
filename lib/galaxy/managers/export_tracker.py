@@ -15,7 +15,7 @@ from sqlalchemy.orm.scoping import scoped_session
 
 from galaxy.exceptions import ObjectNotFound
 from galaxy.model import StoreExportAssociation
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.schema.fields import Security
 from galaxy.schema.schema import ExportObjectType
 from galaxy.structured_app import MinimalManagerApp

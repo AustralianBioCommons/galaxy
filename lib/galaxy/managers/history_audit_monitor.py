@@ -33,7 +33,7 @@ from galaxy.model import (
     HistoryAudit,
 )
 from galaxy.model.mapping import GalaxyModelMapping
-from galaxy.model.orm.now import now
+from galaxy.util import now
 
 log = logging.getLogger(__name__)
 

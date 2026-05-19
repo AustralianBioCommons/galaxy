@@ -49,7 +49,7 @@ from galaxy.model.db.role import (
     get_npns_roles,
     get_private_user_role,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.security import (
     Action,
     get_permitted_actions,

@@ -53,7 +53,7 @@ from galaxy.jobs.runners.util.pykube_util import (
     Service,
     service_object_dict,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.util.bytesize import ByteSize
 
 if TYPE_CHECKING:

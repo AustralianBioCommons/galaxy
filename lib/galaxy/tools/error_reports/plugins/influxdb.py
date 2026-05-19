@@ -8,7 +8,7 @@ except ImportError:
     # This middleware will never be used without influxdb.
     influxdb = None
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.util import unicodify
 from . import ErrorPlugin
 

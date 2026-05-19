@@ -20,7 +20,7 @@ from galaxy.managers import (
     histories,
     users,
 )
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.security.passwords import check_password
 from .base import BaseTestCase
 

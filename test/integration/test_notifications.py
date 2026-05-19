@@ -8,7 +8,7 @@ from typing import (
 )
 from uuid import uuid4
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy_test.base.populators import (
     DatasetPopulator,
     WorkflowPopulator,

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from galaxy import model
 from galaxy.jobs.runners import JobState
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from ._safe_eval import safe_eval
 
 if TYPE_CHECKING:
