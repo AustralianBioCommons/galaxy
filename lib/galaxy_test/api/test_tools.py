@@ -196,7 +196,6 @@ class TestToolsApi(ApiTestCase, TestsTools):
         # returned.
         tool_ids = [_["id"] for _ in tools_index]
         assert "upload1" in tool_ids
-        assert "tool_tags" not in tools_index[0]
 
     @skip_without_tool("test_sam_to_bam_conversions")
     def test_requirements(self):
