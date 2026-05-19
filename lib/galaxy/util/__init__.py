@@ -641,22 +641,22 @@ def pretty_print_time_interval(time=False, precise=False, utc=False):
     credit: http://stackoverflow.com/questions/1551382/user-friendly-time-format-in-python
     """
     if utc:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        current_time = now()
     else:
-        now = datetime.now()
+        current_time = datetime.now()
     if isinstance(time, (int, float)):
-        diff = now - datetime.fromtimestamp(time)
+        diff = current_time - datetime.fromtimestamp(time)
     elif isinstance(time, datetime):
-        diff = now - time
+        diff = current_time - time
     elif isinstance(time, str):
         try:
             time = datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f")
         except ValueError:
             # MySQL may not support microseconds precision
             time = datetime.strptime(time, "%Y-%m-%dT%H:%M:%S")
-        diff = now - time
+        diff = current_time - time
     else:
-        diff = now - now
+        diff = current_time - current_time
     second_diff = diff.seconds
     day_diff = diff.days
 
