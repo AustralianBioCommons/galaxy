@@ -164,7 +164,7 @@ function onFinishedPageChange(page: number) {
 </script>
 
 <template>
-    <div class="storage-operation-history-view p-3">
+    <div class="storage-operation-history-view">
         <Heading h2 separator size="md">{{ localize("History Storage Operations") }}</Heading>
 
         <p class="mb-3">
