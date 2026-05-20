@@ -17,7 +17,6 @@ from galaxy import model
 from galaxy.exceptions import HandlerAssignmentError
 from galaxy.jobs.handler import InvocationGrabber
 from galaxy.model.base import check_database_connection
-from galaxy.model.orm.now import now
 from galaxy.schema.invocation import (
     FailureReason,
     InvocationFailureDatasetFailed,
@@ -29,6 +28,7 @@ from galaxy.schema.tasks import (
     RequestUser,
 )
 from galaxy.util import (
+    now,
     plugin_config,
     unicodify,
 )

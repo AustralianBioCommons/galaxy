@@ -1,7 +1,4 @@
-from datetime import (
-    datetime,
-    timezone,
-)
+from galaxy.util import now
 
 # NOTE REGARDING TIMESTAMPS:
 #   It is currently difficult to have the timestamps calculated by the
@@ -9,13 +6,8 @@ from datetime import (
 #   also saves us from needing to postfetch on postgres. HOWEVER: it
 #   relies on the client's clock being set correctly, so if clustering
 #   web servers, use a time server to ensure synchronization
-
-
-def now():
-    """
-    Return the current time in UTC without any timezone information.
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+#
+# This function lives since 26.1 in galaxy.utils.
 
 
 __all__ = ("now",)

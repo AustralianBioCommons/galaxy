@@ -50,10 +50,12 @@ from galaxy.model.custom_types import (
     MutableJSONType,
     TrimmedString,
 )
-from galaxy.model.orm.now import now
 from galaxy.model.orm.util import add_object_to_object_session
 from galaxy.security.validate_user_input import validate_password_str
-from galaxy.util import unique_id
+from galaxy.util import (
+    now,
+    unique_id,
+)
 from galaxy.util.bunch import Bunch
 from galaxy.util.dictifiable import Dictifiable
 from galaxy.util.hash_util import new_insecure_hash

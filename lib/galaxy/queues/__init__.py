@@ -20,7 +20,7 @@ from kombu import (
 from sqlalchemy import select
 
 from galaxy.model import WorkerProcess
-from galaxy.model.orm.now import now
+from galaxy.util import now
 
 if TYPE_CHECKING:
     from galaxy.web_stack import ApplicationStack

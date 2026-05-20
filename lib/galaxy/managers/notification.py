@@ -71,6 +71,7 @@ from galaxy.schema.notifications import (
     UserNotificationUpdateRequest,
 )
 from galaxy.schema.schema import AsyncTaskResultSummary
+from galaxy.util import now
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class NotificationManager:
 
     @property
     def _now(self):
-        return datetime.utcnow()
+        return now()
 
     @property
     def _notification_is_active(self):

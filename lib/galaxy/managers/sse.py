@@ -19,7 +19,7 @@ from typing import (
     Optional,
 )
 
-from galaxy.model.orm.now import now
+from galaxy.util import now
 from galaxy.web.statsd_client import VanillaGalaxyStatsdClient
 
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 def make_event_id() -> str:
     """Return an SSE ``id`` string for Last-Event-ID replay.
 
-    Uses ``galaxy.model.orm.now`` so the timestamp format matches the rest of
+    Uses ``galaxy.util.now`` so the timestamp format matches the rest of
     Galaxy's database-backed timestamps (timezone-naive UTC). Kept in one place
     so producers and the parse path cannot drift.
     """

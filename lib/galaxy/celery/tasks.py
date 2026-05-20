@@ -53,7 +53,6 @@ from galaxy.model import (
     Job,
     User,
 )
-from galaxy.model.orm.now import now
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.objectstore import BaseObjectStore
 from galaxy.objectstore.caching import check_caches
@@ -85,7 +84,10 @@ from galaxy.short_term_storage import ShortTermStorageMonitor
 from galaxy.structured_app import MinimalManagerApp
 from galaxy.tools import create_tool_from_representation
 from galaxy.tools.data_fetch import do_fetch
-from galaxy.util import galaxy_directory
+from galaxy.util import (
+    galaxy_directory,
+    now,
+)
 from galaxy.util.custom_logging import get_logger
 from galaxy.workflow.completion_hooks import WorkflowCompletionHookRegistry
 
