@@ -18,14 +18,13 @@ import { computed, onMounted, ref, toRef } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { type HistorySummaryExtended, userOwnsHistory } from "@/api";
-import { getGalaxyInstance } from "@/app";
-import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
 import { HistoryFilters } from "@/components/History/HistoryFilters.js";
 import { PAGE_LABELS } from "@/components/Page/constants";
 import { useConfig } from "@/composables/config";
 import { useHistoryContentStats } from "@/composables/historyContentStats";
 import { useToast } from "@/composables/toast";
 import { useSSEConnectionStatus } from "@/composables/useNotificationSSE";
+import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 import { useUserStore } from "@/stores/userStore";
 import localize from "@/utils/localization";
@@ -53,6 +52,7 @@ const props = withDefaults(
 const emit = defineEmits(["update:filter-text", "reloadContents"]);
 
 const router = useRouter();
+const { pushToFrameOrPage } = useWindowAwareNavigation();
 const { currentUser, isAnonymous } = storeToRefs(useUserStore());
 const { config } = useConfig();
 const { connected: sseConnected, hasEverConnected: sseHasEverConnected } = useSSEConnectionStatus();
@@ -154,22 +154,14 @@ async function navigateToCurrentPage() {
     isResolvingPage.value = true;
     try {
         const pageId = await pageStore.resolveCurrentPage(props.history.id);
-        const Galaxy = getGalaxyInstance();
-        const isWmActive = Galaxy?.frame?.active;
-
-        if (isWmActive) {
-            const page = pageStore.pages.find((n) => n.id === pageId);
-            const title = page?.title || PAGE_LABELS.history.entityName;
-            const url = `/histories/${props.history.id}/pages/${pageId}?displayOnly=true`;
-            const options: RouterPushOptions = {
-                title: `${PAGE_LABELS.history.entityName}: ${title}`,
-                preventWindowManager: false,
-            };
-            // @ts-ignore - monkeypatched router, drop with migration.
-            router.push(url, options);
-        } else {
-            router.push(`/histories/${props.history.id}/pages/${pageId}`);
-        }
+        const page = pageStore.pages.find((n) => n.id === pageId);
+        const pageTitle = page?.title || PAGE_LABELS.history.entityName;
+        const inlineUrl = `/histories/${props.history.id}/pages/${pageId}`;
+        pushToFrameOrPage({
+            framedUrl: `${inlineUrl}?displayOnly=true`,
+            inlineUrl,
+            title: `${PAGE_LABELS.history.entityName}: ${pageTitle}`,
+        });
     } catch (e: any) {
         toast.error(e.message || "Failed to open page");
     } finally {

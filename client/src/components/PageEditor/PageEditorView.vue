@@ -18,15 +18,16 @@ import { getGalaxyInstance } from "@/app";
 import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
 import { PAGE_LABELS, PERMISSIONS_LABELS } from "@/components/Page/constants";
 import { useConfig } from "@/composables/config";
+import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
 
-import EditorSplitView from "./EditorSplitView.vue";
 import ObjectPermissionsModal from "./ObjectPermissionsModal.vue";
 import PageChatPanel from "./PageChatPanel.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
 import ClickToEdit from "@/components/ClickToEdit.vue";
+import SplitView from "@/components/Common/SplitView.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
@@ -37,6 +38,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
+const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
 const historyStore = useHistoryStore();
 const { config } = useConfig();
@@ -113,20 +115,13 @@ function handlePreview() {
     if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages/${props.pageId}?displayOnly=true`);
     } else {
-        // Standalone: open in window manager or navigate
-        const Galaxy = getGalaxyInstance();
-        const isWmActive = Galaxy?.frame?.active;
-        if (isWmActive) {
-            const url = `/pages/editor?id=${props.pageId}&displayOnly=true`;
-            const options: RouterPushOptions = {
-                title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
-                preventWindowManager: false,
-            };
-            // @ts-ignore - monkeypatched router
-            router.push(url, options);
-        } else {
-            router.push(`/pages/editor?id=${props.pageId}&displayOnly=true`);
-        }
+        // Standalone: open in window manager when active, else navigate inline.
+        const previewUrl = `/pages/editor?id=${props.pageId}&displayOnly=true`;
+        pushToFrameOrPage({
+            framedUrl: previewUrl,
+            inlineUrl: previewUrl,
+            title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
+        });
     }
 }
 
@@ -321,19 +316,21 @@ function handleRevisionRestore(revisionId: string) {
             </div>
 
             <div class="page-body d-flex flex-grow-1 overflow-hidden">
-                <EditorSplitView v-if="store.showChatPanel">
-                    <template v-slot:editor>
-                        <MarkdownEditor
-                            :markdown-text="store.currentContent"
-                            :mode="markdownEditorMode"
-                            :title="editorTitle"
-                            :hide-toolbox="true"
-                            @update="handleContentUpdate" />
+                <SplitView v-if="store.showChatPanel">
+                    <template v-slot:left>
+                        <div class="page-editor-pane">
+                            <MarkdownEditor
+                                :markdown-text="store.currentContent"
+                                :mode="markdownEditorMode"
+                                :title="editorTitle"
+                                :hide-toolbox="true"
+                                @update="handleContentUpdate" />
+                        </div>
                     </template>
-                    <template v-slot:chat>
+                    <template v-slot:right>
                         <PageChatPanel :history-id="historyId" :page-id="pageId" :page-content="store.currentContent" />
                     </template>
-                </EditorSplitView>
+                </SplitView>
                 <template v-else>
                     <div class="page-content flex-grow-1 overflow-auto">
                         <MarkdownEditor
@@ -372,5 +369,12 @@ function handleRevisionRestore(revisionId: string) {
     min-width: 300px;
     overflow-y: auto;
     background: var(--body-bg);
+}
+.page-editor-pane {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
 }
 </style>

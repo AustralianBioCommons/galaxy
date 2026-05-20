@@ -10,12 +10,12 @@ import { ref } from "vue";
 import type { HistoryPageDetails, PageRevisionDetails, PageRevisionSummary } from "@/api/pages";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
-import EditorSplitView from "./EditorSplitView.vue";
 import PageChatPanel from "./PageChatPanel.vue";
 import PageEditorView from "./PageEditorView.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
 import ClickToEdit from "@/components/ClickToEdit.vue";
+import SplitView from "@/components/Common/SplitView.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
@@ -560,7 +560,7 @@ describe("PageEditorView", () => {
             const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
             await flushPromises();
 
-            expect(wrapper.findComponent(EditorSplitView).exists()).toBe(true);
+            expect(wrapper.findComponent(SplitView).exists()).toBe(true);
             expect(wrapper.findComponent(PageChatPanel).exists()).toBe(true);
         });
 
@@ -570,7 +570,7 @@ describe("PageEditorView", () => {
             const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
             await flushPromises();
 
-            expect(wrapper.findComponent(EditorSplitView).exists()).toBe(false);
+            expect(wrapper.findComponent(SplitView).exists()).toBe(false);
         });
 
         it("hides Chat button when llm_api_configured is false", async () => {

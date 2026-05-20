@@ -5,9 +5,8 @@ import { BAlert, BButton } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
-import { getGalaxyInstance } from "@/app";
-import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
 import { PAGE_LABELS } from "@/components/Page/constants";
+import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 import HistoryPageList from "./HistoryPageList.vue";
@@ -21,6 +20,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
+const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
 const labels = PAGE_LABELS.history;
 
@@ -73,22 +73,14 @@ watch(
 );
 
 function handleSelect(pageId: string) {
-    const Galaxy = getGalaxyInstance();
-    const isWmActive = Galaxy?.frame?.active;
-
-    if (isWmActive) {
-        const page = store.pages.find((n) => n.id === pageId);
-        const title = page?.title || labels.entityName;
-        const url = `/histories/${props.historyId}/pages/${pageId}?displayOnly=true`;
-        const options: RouterPushOptions = {
-            title: `${labels.entityName}: ${title}`,
-            preventWindowManager: false,
-        };
-        // @ts-ignore - monkeypatched router, drop with migration.
-        router.push(url, options);
-    } else {
-        router.push(`/histories/${props.historyId}/pages/${pageId}`);
-    }
+    const page = store.pages.find((n) => n.id === pageId);
+    const pageTitle = page?.title || labels.entityName;
+    const inlineUrl = `/histories/${props.historyId}/pages/${pageId}`;
+    pushToFrameOrPage({
+        framedUrl: `${inlineUrl}?displayOnly=true`,
+        inlineUrl,
+        title: `${labels.entityName}: ${pageTitle}`,
+    });
 }
 
 async function handleCreate() {
