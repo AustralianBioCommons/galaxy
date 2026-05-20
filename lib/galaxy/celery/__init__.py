@@ -172,6 +172,16 @@ def tear_down_pool(sig, how, exitcode, **kwargs):
 def galaxy_task(*args, action=None, **celery_task_kwd):
     if "serializer" not in celery_task_kwd:
         celery_task_kwd["serializer"] = PYDANTIC_AWARE_SERIALIZER_NAME
+    # Galaxy tasks rely on ``app.magic_partial(func)`` (below) to inject
+    # DI dependencies — typically ``sa_session`` and manager instances —
+    # at task-execution time. Celery's ``apply_async`` runs
+    # ``check_arguments`` against the wrapped function's *original*
+    # signature *before* the task body fires, so any DI-injected
+    # positional shows up as missing (``TypeError: set_job_metadata()
+    # missing 1 required positional argument: 'sa_session'``). Disabling
+    # ``typing`` for every Galaxy task lets the DI flow work as designed;
+    # individual call sites still pass their non-DI args explicitly.
+    celery_task_kwd.setdefault("typing", False)
 
     def decorate(func: Callable):
         @shared_task(base=GalaxyTask, **celery_task_kwd)
