@@ -8228,6 +8228,8 @@ export interface components {
             history_id: unknown;
             /** Landing Uuid */
             landing_uuid?: unknown;
+            /** Preferred Object Store Id */
+            preferred_object_store_id?: unknown;
             /** Targets */
             targets: unknown;
         };
@@ -12737,6 +12739,11 @@ export interface components {
             history_id: string;
             /** Landing Uuid */
             landing_uuid?: string | null;
+            /**
+             * Preferred Object Store Id
+             * @description Optional preferred storage location id used when creating fetched datasets.
+             */
+            preferred_object_store_id?: string | null;
             /** Targets */
             targets: (
                 | components["schemas"]["DataElementsTarget"]
