@@ -33,13 +33,20 @@ export function useWindowAwareNavigation() {
     function pushToFrameOrPage({ framedUrl, inlineUrl, title, force }: FrameOrPageOptions): void {
         const Galaxy = getGalaxyInstance();
         if (Galaxy?.frame?.active) {
-            const options: RouterPushOptions = { title, preventWindowManager: false, force };
+            const options: RouterPushOptions = { title, preventWindowManager: false };
+            if (force) {
+                options.force = true;
+            }
             // @ts-ignore - monkeypatched router accepts {title}; drop with migration.
             router.push(framedUrl, options);
         } else {
-            const options: RouterPushOptions = { force };
-            // @ts-ignore - monkeypatched router accepts {force}; drop with migration.
-            router.push(inlineUrl ?? framedUrl, options);
+            const target = inlineUrl ?? framedUrl;
+            if (force) {
+                // @ts-ignore - monkeypatched router accepts {force}; drop with migration.
+                router.push(target, { force: true });
+            } else {
+                router.push(target);
+            }
         }
     }
 

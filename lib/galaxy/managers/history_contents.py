@@ -162,10 +162,11 @@ class HistoryContentsManager(base.SortableManager):
         Implicitly-converted HDAs share the original's HID but are
         ``visible=False``; filtering by visibility yields the canonical
         user-facing dataset. If no visible row matches (e.g. the user
-        hid the original), falls back to the row with no parent in
-        ``implicitly_converted_parent_datasets``.
+        hid the original), falls back to the row that has no row in
+        ``ImplicitlyConvertedDatasetAssociation`` claiming it as a child.
         """
         HDA = model.HistoryDatasetAssociation
+        ICDA = model.ImplicitlyConvertedDatasetAssociation
         session = self._session()
         stmt = (
             select(HDA)
@@ -175,12 +176,8 @@ class HistoryContentsManager(base.SortableManager):
         result = session.execute(stmt).scalars().first()
         if result is not None:
             return result
-        stmt = (
-            select(HDA)
-            .where(HDA.history_id == history_id, HDA.hid == hid)
-            .where(~HDA.implicitly_converted_parent_datasets.any())
-            .order_by(HDA.id.asc())
-        )
+        not_a_conversion = ~select(ICDA.id).where(ICDA.hda_id == HDA.id).exists()
+        stmt = select(HDA).where(HDA.history_id == history_id, HDA.hid == hid, not_a_conversion).order_by(HDA.id.asc())
         return session.execute(stmt).scalars().first()
 
     def get_hdca_by_hid(self, history_id, hid):
