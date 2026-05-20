@@ -901,12 +901,54 @@ class AgentOperationsManager:
         )
 
     def import_workflow_from_iwc(self, trs_id: str) -> dict[str, Any]:
-        """Import an IWC workflow into the user's stored workflows.
+        """Import an IWC workflow into the user's stored workflows by TRS id.
 
-        Thin wrapper around WorkflowsService.import_from_iwc so the MCP layer,
-        REST API, and direct agent callers all share one implementation.
+        IWC ships its catalog on Dockstore, so this delegates to the shared TRS
+        import pipeline (same one ``POST /api/workflows`` uses for
+        ``archive_source=trs_tool``) rather than building from the manifest's
+        embedded definition. That preserves de-dup by (trs_id, trs_version, user),
+        source-metadata recording, and the shared subworkflow-from-TRS resolution.
+        Tools that aren't installed locally are surfaced as ``missing_tools`` so
+        the agent can flag a workflow that imported but won't run yet.
         """
-        return self.workflows_service.import_from_iwc(self.trans, trs_id)
+        if not trs_id:
+            raise ValueError("trs_id is required")
+        user = self.trans.user
+        if not user:
+            raise ValueError("User must be authenticated to import a workflow")
+
+        contents_manager = self.app.workflow_contents_manager
+        stored_workflow = contents_manager.get_or_create_workflow_from_trs(
+            self.trans,
+            trs_url=None,
+            trs_id=trs_id,
+            trs_version="main",
+            trs_server="dockstore",
+        )
+
+        missing_tools: list[str] = []
+        latest = stored_workflow.latest_workflow
+        if latest is not None:
+            toolbox = self.app.toolbox
+            seen: set[str] = set()
+            for tool in contents_manager.get_all_tools(latest):
+                tool_id = tool["tool_id"]
+                if tool_id in seen:
+                    continue
+                seen.add(tool_id)
+                if not toolbox.has_tool(
+                    tool_id,
+                    tool_version=tool.get("tool_version"),
+                    tool_uuid=tool.get("tool_uuid"),
+                ):
+                    missing_tools.append(tool_id)
+
+        return {
+            "id": self.trans.security.encode_id(stored_workflow.id),
+            "name": stored_workflow.name,
+            "trsID": trs_id,
+            "missing_tools": missing_tools,
+        }
 
     def get_user(self) -> dict[str, Any]:
         user = self.trans.user

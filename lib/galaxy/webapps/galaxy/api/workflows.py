@@ -86,8 +86,6 @@ from galaxy.schema.schema import (
     WorkflowSortByEnum,
 )
 from galaxy.schema.workflows import (
-    ImportFromIwcPayload,
-    ImportFromIwcResponse,
     InvokeWorkflowPayload,
     StoredWorkflowDetailed,
     WorkflowExtractionByIdsPayload,
@@ -1195,18 +1193,6 @@ class FastAPIWorkflows:
         trans: ProvidesHistoryContext = DependsOnTrans,
     ) -> StoredWorkflowDetailed:
         return self.service.show_workflow(trans, workflow_id, instance, legacy, version)
-
-    @router.post(
-        "/api/workflows/from_iwc",
-        summary="Import an IWC workflow into the user's stored workflows by TRS id.",
-    )
-    def import_from_iwc(
-        self,
-        payload: ImportFromIwcPayload = Body(...),
-        trans: ProvidesUserContext = DependsOnTrans,
-    ) -> ImportFromIwcResponse:
-        result = self.service.import_from_iwc(trans, payload.trs_id)
-        return ImportFromIwcResponse(**result)
 
     @router.post("/api/workflow_landings", public=True, allow_cors=True)
     def create_landing(

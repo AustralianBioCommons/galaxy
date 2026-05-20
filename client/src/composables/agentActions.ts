@@ -2,6 +2,7 @@
  * Composable for handling AI agent action suggestions in the UI
  */
 
+import axios from "axios";
 import { ref } from "vue";
 import { useRouter } from "vue-router/composables";
 import { parse } from "yaml";
@@ -10,6 +11,7 @@ import { type DynamicUnprivilegedToolCreatePayload, GalaxyApi } from "@/api";
 import { useConfig } from "@/composables/config";
 import { useToast } from "@/composables/toast";
 import { useUnprivilegedToolStore } from "@/stores/unprivilegedToolStore";
+import { withPrefix } from "@/utils/redirect";
 import { errorMessageAsString } from "@/utils/simple-error";
 
 /* eslint-disable no-unused-vars */
@@ -196,6 +198,12 @@ export function useAgentActions() {
 
     /**
      * Handle WORKFLOW_IMPORT action - import an IWC workflow by trsID
+     *
+     * Goes through the shared TRS import route (POST /api/workflows with
+     * archive_source=trs_tool) so we share one import code path with the rest
+     * of Galaxy. IWC's catalog is hosted on Dockstore, hence trs_server.
+     * The legacy POST /api/workflows endpoint isn't in the OpenAPI schema,
+     * so this uses axios directly (same pattern as components/Workflow/services.js).
      */
     async function handleWorkflowImport(action: ActionSuggestion) {
         const trsId = action.parameters.trs_id;
@@ -206,23 +214,19 @@ export function useAgentActions() {
             return;
         }
 
-        const { data, error } = await GalaxyApi().POST("/api/workflows/from_iwc", {
-            body: { trs_id: trsId },
-        });
-
-        if (error) {
-            toast.error(`Failed to import ${name}: ${errorMessageAsString(error)}`);
-            return;
+        try {
+            const response = await axios.post(withPrefix("/api/workflows"), {
+                archive_source: "trs_tool",
+                trs_server: "dockstore",
+                trs_tool_id: trsId,
+                trs_version_id: "main",
+            });
+            const data = response.data;
+            toast.success(`Imported ${name} from IWC`);
+            router.push(`/workflows/edit?id=${data.id}`);
+        } catch (err) {
+            toast.error(`Failed to import ${name}: ${errorMessageAsString(err)}`);
         }
-
-        if (data.missing_tools && data.missing_tools.length > 0) {
-            toast.warning(
-                `${data.name} imported, but ${data.missing_tools.length} tool(s) are not installed on this server.`,
-            );
-        } else {
-            toast.success(`Imported ${data.name} from IWC`);
-        }
-        router.push(`/workflows/edit?id=${data.id}`);
     }
 
     /**

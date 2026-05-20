@@ -1,109 +1,117 @@
 from types import SimpleNamespace
-from typing import (
-    Any,
-    cast,
-)
+from typing import cast
 from unittest import mock
-from unittest.mock import patch
 
 import pytest
 
-from galaxy import exceptions
+from galaxy.agents.operations import AgentOperationsManager
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.managers.workflows import WorkflowContentsManager
-from galaxy.webapps.galaxy.services.workflows import WorkflowsService
+from galaxy.structured_app import MinimalManagerApp
 
 
-def _mutating_build(trans, raw_workflow_description, create_options, source=None):
-    raw_workflow_description.as_dict["steps"]["0"]["subworkflow"] = object()
-    return SimpleNamespace(
-        stored_workflow=SimpleNamespace(id=1, name="Imported IWC workflow"),
-        missing_tools=[("missing/tool", "Missing Tool", "1.0", "0")],
-    )
-
-
-def _make_service() -> WorkflowsService:
-    service = WorkflowsService.__new__(WorkflowsService)
+def _make_app(stored_workflow=None, tools=None, toolbox_has=lambda **_: True) -> MinimalManagerApp:
     contents_manager = mock.Mock(spec=WorkflowContentsManager)
-    contents_manager.ensure_raw_description.side_effect = lambda d: SimpleNamespace(as_dict=d)
-    contents_manager.build_workflow_from_raw_description.side_effect = _mutating_build
-    service._workflow_contents_manager = contents_manager
-    return service
+    contents_manager.get_or_create_workflow_from_trs.return_value = stored_workflow
+    contents_manager.get_all_tools.return_value = tools or []
+    toolbox = SimpleNamespace(has_tool=lambda tool_id, **kwargs: toolbox_has(tool_id=tool_id, **kwargs))
+    return cast(
+        MinimalManagerApp,
+        SimpleNamespace(workflow_contents_manager=contents_manager, toolbox=toolbox),
+    )
 
 
-def test_import_from_iwc_does_not_mutate_cached_definition():
-    definition: dict[str, Any] = {
-        "name": "IWC workflow with subworkflow",
-        "annotation": "",
-        "tags": [],
-        "steps": {
-            "0": {
-                "id": 0,
-                "type": "subworkflow",
-                "subworkflow": {
-                    "name": "Embedded subworkflow",
-                    "annotation": "",
-                    "tags": [],
-                    "steps": {},
-                },
-            }
-        },
+def _make_trans():
+    return cast(
+        ProvidesUserContext,
+        SimpleNamespace(
+            user=SimpleNamespace(id=42),
+            security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"),
+        ),
+    )
+
+
+def _make_ops(app, trans=None) -> AgentOperationsManager:
+    return AgentOperationsManager(app=app, trans=trans or _make_trans())
+
+
+def test_import_workflow_from_iwc_delegates_to_trs_pipeline():
+    trs_id = "#workflow/github.com/iwc-workflows/rna-seq/main"
+    stored = SimpleNamespace(id=7, name="rna-seq", latest_workflow=SimpleNamespace())
+    app = _make_app(stored_workflow=stored, tools=[])
+    ops = _make_ops(app)
+
+    result = ops.import_workflow_from_iwc(trs_id)
+
+    app.workflow_contents_manager.get_or_create_workflow_from_trs.assert_called_once_with(
+        ops.trans,
+        trs_url=None,
+        trs_id=trs_id,
+        trs_version="main",
+        trs_server="dockstore",
+    )
+    assert result == {
+        "id": "encoded-7",
+        "name": "rna-seq",
+        "trsID": trs_id,
+        "missing_tools": [],
     }
-    manifest = [
-        {
-            "workflows": [
-                {
-                    "trsID": "#workflow/github.com/iwc-workflows/with-subworkflow/main",
-                    "definition": definition,
-                }
-            ]
-        }
+
+
+def test_import_workflow_from_iwc_surfaces_missing_tools_via_toolbox():
+    trs_id = "#workflow/github.com/iwc-workflows/needs-tools/main"
+    stored = SimpleNamespace(id=9, name="needs-tools", latest_workflow=SimpleNamespace())
+    # Two distinct tool refs (one installed, one not) plus a duplicate of the missing id
+    # to confirm de-duplication.
+    tools = [
+        {"tool_id": "installed/tool", "tool_version": "1.0", "tool_uuid": None},
+        {"tool_id": "missing/tool", "tool_version": "2.0", "tool_uuid": None},
+        {"tool_id": "missing/tool", "tool_version": "2.0", "tool_uuid": None},
     ]
-    trans = SimpleNamespace(
-        user=SimpleNamespace(id=42),
-        security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"),
+    app = _make_app(
+        stored_workflow=stored,
+        tools=tools,
+        toolbox_has=lambda tool_id, **_: tool_id == "installed/tool",
     )
-    service = _make_service()
+    ops = _make_ops(app)
 
-    with patch("galaxy.agents.iwc.fetch_manifest", return_value=manifest):
-        result = service.import_from_iwc(
-            cast(ProvidesUserContext, trans),
-            "#workflow/github.com/iwc-workflows/with-subworkflow/main",
-        )
+    result = ops.import_workflow_from_iwc(trs_id)
 
-    assert result["id"] == "encoded-1"
     assert result["missing_tools"] == ["missing/tool"]
-    assert isinstance(definition["steps"]["0"]["subworkflow"], dict)
 
 
-def test_import_from_iwc_requires_authenticated_user():
-    trans = SimpleNamespace(user=None)
-    service = _make_service()
+def test_import_workflow_from_iwc_handles_no_latest_workflow():
+    stored = SimpleNamespace(id=3, name="empty", latest_workflow=None)
+    app = _make_app(stored_workflow=stored, tools=[])
+    ops = _make_ops(app)
 
-    with pytest.raises(exceptions.AuthenticationRequired):
-        service.import_from_iwc(cast(ProvidesUserContext, trans), "#workflow/anything/main")
+    result = ops.import_workflow_from_iwc("#workflow/github.com/iwc-workflows/empty/main")
+
+    assert result["missing_tools"] == []
+    app.workflow_contents_manager.get_all_tools.assert_not_called()
 
 
-def test_import_from_iwc_raises_object_not_found_for_unknown_trs_id():
-    manifest = [
-        {
-            "workflows": [
-                {
-                    "trsID": "#workflow/github.com/iwc-workflows/known/main",
-                    "definition": {"name": "Known", "steps": {}},
-                }
-            ]
-        }
-    ]
-    trans = SimpleNamespace(
-        user=SimpleNamespace(id=1),
-        security=SimpleNamespace(encode_id=lambda value: f"encoded-{value}"),
-    )
-    service = _make_service()
+def test_import_workflow_from_iwc_requires_authenticated_user():
+    app = _make_app()
+    trans = cast(ProvidesUserContext, SimpleNamespace(user=None))
+    ops = _make_ops(app, trans=trans)
 
-    with patch("galaxy.agents.iwc.fetch_manifest", return_value=manifest):
-        with pytest.raises(exceptions.ObjectNotFound, match="not found"):
-            service.import_from_iwc(
-                cast(ProvidesUserContext, trans),
-                "#workflow/github.com/iwc-workflows/missing/main",
-            )
+    with pytest.raises(ValueError, match="authenticated"):
+        ops.import_workflow_from_iwc("#workflow/anything/main")
+
+
+def test_import_workflow_from_iwc_rejects_empty_trs_id():
+    app = _make_app()
+    ops = _make_ops(app)
+
+    with pytest.raises(ValueError, match="trs_id is required"):
+        ops.import_workflow_from_iwc("")
+
+
+def test_import_workflow_from_iwc_propagates_trs_lookup_errors():
+    app = _make_app()
+    app.workflow_contents_manager.get_or_create_workflow_from_trs.side_effect = RuntimeError("trs lookup blew up")
+    ops = _make_ops(app)
+
+    with pytest.raises(RuntimeError, match="trs lookup blew up"):
+        ops.import_workflow_from_iwc("#workflow/github.com/iwc-workflows/missing/main")
