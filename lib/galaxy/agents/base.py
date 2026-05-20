@@ -619,9 +619,7 @@ class BaseGalaxyAgent(ABC):
                     prompt_parts.insert(0, f"{entity_desc}\n")
 
             skip_keys = self._INTERNAL_CONTEXT_KEYS | {"interface_context", "conversation_history", "entities"}
-            context_str = "\n".join(
-                [f"{k}: {v}" for k, v in context.items() if v and k not in skip_keys]
-            )
+            context_str = "\n".join([f"{k}: {v}" for k, v in context.items() if v and k not in skip_keys])
             if context_str:
                 prompt_parts.insert(0, f"Context:\n{context_str}\n")
 
