@@ -778,12 +778,19 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         target_card = self.get_history_card(card_name)
 
         if is_in_extra:
+            # Open the extra-actions dropdown and click the menu item directly.
+            # Bootstrap-vue keeps menu items in the DOM for every card, so the
+            # action lookup must be scoped to target_card to avoid picking a
+            # match from a closed dropdown on another card.
             target_card.find_element(By.CSS_SELECTOR, '[id^="g-card-extra-actions-history-"]').click()
+            self.sleep_for(self.wait_types.UX_RENDER)
+            target_card.find_element(By.CSS_SELECTOR, action_selector).click()
+            return
 
-        action_selector = target_card.find_element(By.CSS_SELECTOR, action_selector)
+        action_element = target_card.find_element(By.CSS_SELECTOR, action_selector)
         # Hover over parent card first to activate hover state in headless mode
         self.action_chains().move_to_element(target_card).perform()
-        self.move_to_and_click(action_selector)
+        self.move_to_and_click(action_element)
 
     def edit_dataset_dbkey(self, dbkey_text):
         # precondition: need to be on the dataset edit component
