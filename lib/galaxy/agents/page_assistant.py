@@ -238,13 +238,12 @@ class PageAssistantAgent(BaseGalaxyAgent):
             if not agent_self.history_id:
                 return _NO_HISTORY_MSG
             return await _list_history_items(
-                ctx.deps.trans.sa_session,
+                ctx.deps.trans,
                 agent_self.history_id,
                 offset=offset,
                 limit=limit,
                 include_deleted=include_deleted,
                 include_hidden=include_hidden,
-                encode_id=ctx.deps.trans.security.encode_id,
             )
 
         @agent.tool
@@ -259,9 +258,7 @@ class PageAssistantAgent(BaseGalaxyAgent):
             """
             if not agent_self.history_id:
                 return _NO_HISTORY_MSG
-            return await _get_dataset_info(
-                ctx.deps.trans.sa_session, agent_self.history_id, hid, encode_id=ctx.deps.trans.security.encode_id
-            )
+            return await _get_dataset_info(ctx.deps.trans, agent_self.history_id, hid)
 
         @agent.tool
         async def get_dataset_peek(
@@ -275,7 +272,7 @@ class PageAssistantAgent(BaseGalaxyAgent):
             """
             if not agent_self.history_id:
                 return _NO_HISTORY_MSG
-            return await _get_dataset_peek(ctx.deps.trans.sa_session, agent_self.history_id, hid)
+            return await _get_dataset_peek(ctx.deps.trans, agent_self.history_id, hid)
 
         @agent.tool
         async def get_collection_structure(
@@ -291,7 +288,7 @@ class PageAssistantAgent(BaseGalaxyAgent):
             if not agent_self.history_id:
                 return _NO_HISTORY_MSG
             return await _get_collection_structure(
-                ctx.deps.trans.sa_session,
+                ctx.deps.trans,
                 agent_self.history_id,
                 hid,
                 max_elements=max_elements,
@@ -310,9 +307,7 @@ class PageAssistantAgent(BaseGalaxyAgent):
             """
             if not agent_self.history_id:
                 return _NO_HISTORY_MSG
-            return await _resolve_hid(
-                ctx.deps.trans.sa_session, agent_self.history_id, hid, encode_id=ctx.deps.trans.security.encode_id
-            )
+            return await _resolve_hid(ctx.deps.trans, agent_self.history_id, hid)
 
         return agent
 

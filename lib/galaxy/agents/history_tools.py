@@ -1,157 +1,114 @@
 """
 History data access helpers for the page assistant agent.
 
-Standalone functions using direct SQLAlchemy queries via session parameter.
-Designed for MCP reuse: string inputs, string outputs, no Galaxy manager dependencies.
+Thin string-formatting wrappers over Galaxy managers (HistoryManager,
+HistoryContentsManager, HDAManager, DatasetCollectionManager). The
+manager layer owns pagination, visibility/deleted filtering, and the
+implicit-conversion HID-uniqueness handling so this file does not
+re-implement them.
 """
 
 import logging
 import re
-from collections.abc import Callable
 from functools import partial
-from typing import (
-    Optional,
-    Union,
-)
+from typing import Union
 
 import anyio
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import (
+    false,
+    sql,
+    true,
+)
 
+from galaxy.managers import base as manager_base
+from galaxy.managers.collections import DatasetCollectionManager
+from galaxy.managers.context import ProvidesUserContext
+from galaxy.managers.histories import HistoryManager
+from galaxy.managers.history_contents import HistoryContentsManager
+from galaxy.model import HistoryDatasetAssociation
 from galaxy.util import nice_size
 
 log = logging.getLogger(__name__)
 
+_parsed_filter = manager_base.ModelFilterParser.parsed_filter
+
 
 def _list_history_items_impl(
-    session: Session,
+    trans: ProvidesUserContext,
     history_id: int,
     offset: int = 0,
     limit: int = 50,
     include_deleted: bool = False,
     include_hidden: bool = False,
-    encode_id: Optional[Callable[[int], str]] = None,
 ) -> str:
-    """List datasets and collections in a history, ordered by HID.
-
-    Returns a compact one-line-per-item format suitable for LLM consumption.
-    """
-    from galaxy.model import (
-        Dataset,
-        DatasetCollection as DC,
-        HistoryDatasetAssociation as HDA,
-        HistoryDatasetCollectionAssociation as HDCA,
-    )
-
     limit = min(limit, 200)
-
-    hda_rows = session.execute(
-        select(
-            HDA.id,
-            HDA.hid,
-            HDA.name,
-            HDA.extension,
-            HDA._state,
-            HDA.deleted,
-            HDA.visible,
-            Dataset.file_size,
-        )
-        .join(Dataset, HDA.dataset_id == Dataset.id)
-        .where(HDA.history_id == history_id)
-    ).all()
-
-    hdca_rows = session.execute(
-        select(HDCA.id, HDCA.hid, HDCA.name, DC.collection_type, HDCA.deleted, HDCA.visible)
-        .join(DC, HDCA.collection_id == DC.id)
-        .where(HDCA.history_id == history_id)
-    ).all()
-
-    _enc = encode_id or str
-
-    items = []
-    for hda_row in hda_rows:
-        item_id, hid, name, ext, state, deleted, visible, file_size = hda_row
-        if not include_deleted and deleted:
-            continue
-        if not include_hidden and not visible:
-            continue
-        size_str = _format_size(file_size) if file_size else ""
-        size_part = f" size={size_str}" if size_str else ""
-        encoded = _enc(item_id)
-        items.append(
-            (hid, f"HID {hid} (history_dataset_id={encoded}): {name} [dataset, {ext}] state={state}{size_part}")
-        )
-
-    for hdca_row in hdca_rows:
-        item_id, hid, name, collection_type, deleted, visible = hdca_row
-        if not include_deleted and deleted:
-            continue
-        if not include_hidden and not visible:
-            continue
-        encoded = _enc(item_id)
-        items.append(
-            (hid, f"HID {hid} (history_dataset_collection_id={encoded}): {name} [collection, {collection_type}]")
-        )
-
-    items.sort(key=lambda x: x[0])
-    total = len(items)
-    items = items[offset : offset + limit]
-
+    history = trans.app[HistoryManager].get_accessible(history_id, trans.user)
+    contents_manager = trans.app[HistoryContentsManager]
+    filters = []
+    if not include_deleted:
+        filters.append(_parsed_filter("orm", sql.column("deleted") == false()))
+    if not include_hidden:
+        filters.append(_parsed_filter("orm", sql.column("visible") == true()))
+    items = contents_manager.contents(history, filters=filters, limit=limit, offset=offset)
+    total = contents_manager.contents_count(history, filters=filters)
     if not items:
         return "No items found in history."
 
+    encode_id = trans.security.encode_id
     lines = [f"History items: {len(items)} shown (total={total}, offset={offset}, limit={limit})"]
-    lines.extend(line for _, line in items)
+    for item in items:
+        lines.append(_format_item_line(item, encode_id))
     return "\n".join(lines)
 
 
+def _format_item_line(item, encode_id) -> str:
+    if isinstance(item, HistoryDatasetAssociation):
+        size = item.get_size() if hasattr(item, "get_size") else None
+        size_str = _format_size(size)
+        size_part = f" size={size_str}" if size_str else ""
+        encoded = encode_id(item.id)
+        return (
+            f"HID {item.hid} (history_dataset_id={encoded}): {item.name} "
+            f"[dataset, {item.extension}] state={item.state}{size_part}"
+        )
+    collection_type = item.collection.collection_type if item.collection else "unknown"
+    encoded = encode_id(item.id)
+    return f"HID {item.hid} (history_dataset_collection_id={encoded}): {item.name} [collection, {collection_type}]"
+
+
 async def list_history_items(
-    session: Session,
+    trans: ProvidesUserContext,
     history_id: int,
     offset: int = 0,
     limit: int = 50,
     include_deleted: bool = False,
     include_hidden: bool = False,
-    encode_id: Optional[Callable[[int], str]] = None,
 ) -> str:
     """List datasets and collections in a history, ordered by HID.
 
-    Runs the synchronous SQLAlchemy query off the event loop.
+    Runs the synchronous manager calls off the event loop.
     """
     return await anyio.to_thread.run_sync(
         partial(
             _list_history_items_impl,
-            session,
+            trans,
             history_id,
             offset=offset,
             limit=limit,
             include_deleted=include_deleted,
             include_hidden=include_hidden,
-            encode_id=encode_id,
         )
     )
 
 
-def _get_dataset_info_impl(
-    session: Session,
-    history_id: int,
-    hid: int,
-    encode_id: Optional[Callable[[int], str]] = None,
-) -> str:
-    """Get detailed information about a dataset or collection by HID."""
-    from galaxy.model import (
-        HistoryDatasetAssociation as HDA,
-        HistoryDatasetCollectionAssociation as HDCA,
-    )
+def _get_dataset_info_impl(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    contents_manager = trans.app[HistoryContentsManager]
+    encode_id = trans.security.encode_id
 
-    _enc = encode_id or str
-
-    # Try HDA first
-    hda = session.execute(select(HDA).where(HDA.history_id == history_id, HDA.hid == hid)).scalar_one_or_none()
-
+    hda = contents_manager.get_hda_by_hid(history_id, hid)
     if hda:
         lines = [
-            f"Dataset: {hda.name} (HID {hid}, history_dataset_id={_enc(hda.id)})",
+            f"Dataset: {hda.name} (HID {hid}, history_dataset_id={encode_id(hda.id)})",
             f"Format: {hda.extension}",
             f"State: {hda.state}",
         ]
@@ -161,20 +118,15 @@ def _get_dataset_info_impl(
                 lines.append(f"Size: {_format_size(size)}")
         except Exception:
             pass
-        create_time = getattr(hda, "create_time", None)
-        if create_time:
-            lines.append(f"Created: {create_time.isoformat()}")
+        if hda.create_time:
+            lines.append(f"Created: {hda.create_time.isoformat()}")
         if hda.info:
             lines.append(f"Info: {hda.info[:200]}")
         if hda.creating_job:
             job = hda.creating_job
-            lines.append(f"Created by tool: {job.tool_id} (v{job.tool_version}), job_id={_enc(job.id)}")
-        # Metadata fields
+            lines.append(f"Created by tool: {job.tool_id} (v{job.tool_version}), job_id={encode_id(job.id)}")
         if hda.metadata and hasattr(hda.metadata, "items"):
-            meta_lines = []
-            for key, val in list(hda.metadata.items())[:20]:
-                val_str = str(val)[:200]
-                meta_lines.append(f"  {key}: {val_str}")
+            meta_lines = [f"  {key}: {str(val)[:200]}" for key, val in list(hda.metadata.items())[:20]]
             if meta_lines:
                 lines.append("Metadata:")
                 lines.extend(meta_lines)
@@ -184,13 +136,12 @@ def _get_dataset_info_impl(
             lines.append("Status: HIDDEN")
         return "\n".join(lines)
 
-    # Try HDCA
-    hdca = session.execute(select(HDCA).where(HDCA.history_id == history_id, HDCA.hid == hid)).scalar_one_or_none()
-
+    hdca = contents_manager.get_hdca_by_hid(history_id, hid)
     if hdca:
+        collection_type = hdca.collection.collection_type if hdca.collection else "unknown"
         lines = [
-            f"Collection: {hdca.name} (HID {hid}, history_dataset_collection_id={_enc(hdca.id)})",
-            f"Type: {hdca.collection.collection_type}",
+            f"Collection: {hdca.name} (HID {hid}, history_dataset_collection_id={encode_id(hdca.id)})",
+            f"Type: {collection_type}",
         ]
         if hdca.collection and hdca.collection.element_count:
             lines.append(f"Elements: {hdca.collection.element_count}")
@@ -205,59 +156,35 @@ def _get_dataset_info_impl(
     return f"No dataset or collection found with HID {hid} in this history."
 
 
-async def get_dataset_info(
-    session: Session,
-    history_id: int,
-    hid: int,
-    encode_id: Optional[Callable[[int], str]] = None,
-) -> str:
-    """Get detailed information about a dataset or collection by HID.
-
-    Runs the synchronous SQLAlchemy query off the event loop.
-    """
-    return await anyio.to_thread.run_sync(
-        partial(_get_dataset_info_impl, session, history_id, hid, encode_id=encode_id)
-    )
+async def get_dataset_info(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    """Get detailed information about a dataset or collection by HID."""
+    return await anyio.to_thread.run_sync(partial(_get_dataset_info_impl, trans, history_id, hid))
 
 
-def _get_dataset_peek_impl(session: Session, history_id: int, hid: int) -> str:
-    """Get a preview of a dataset's contents using the pre-computed peek field."""
-    from galaxy.model import HistoryDatasetAssociation as HDA
-
-    hda = session.execute(select(HDA).where(HDA.history_id == history_id, HDA.hid == hid)).scalar_one_or_none()
-
+def _get_dataset_peek_impl(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    hda = trans.app[HistoryContentsManager].get_hda_by_hid(history_id, hid)
     if not hda:
         return f"No dataset found with HID {hid} in this history."
 
     if not hda.peek:
         return f"No preview available for {hda.name} (HID {hid}). Format: {hda.extension}."
 
-    # Strip HTML tags from peek (it's stored as HTML for the UI)
-    peek_text = re.sub(r"<[^>]+>", "", hda.peek)
-    peek_text = peek_text.strip()
-
+    peek_text = re.sub(r"<[^>]+>", "", hda.peek).strip()
     return f"Preview of {hda.name} (HID {hid}, {hda.extension}):\n{peek_text}"
 
 
-async def get_dataset_peek(session: Session, history_id: int, hid: int) -> str:
-    """Get a preview of a dataset's contents using the pre-computed peek field.
-
-    Runs the synchronous SQLAlchemy query off the event loop.
-    """
-    return await anyio.to_thread.run_sync(partial(_get_dataset_peek_impl, session, history_id, hid))
+async def get_dataset_peek(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    """Get a preview of a dataset's contents using the pre-computed peek field."""
+    return await anyio.to_thread.run_sync(partial(_get_dataset_peek_impl, trans, history_id, hid))
 
 
 def _get_collection_structure_impl(
-    session: Session,
+    trans: ProvidesUserContext,
     history_id: int,
     hid: int,
     max_elements: int = 50,
 ) -> str:
-    """Get the structure and element listing of a dataset collection."""
-    from galaxy.model import HistoryDatasetCollectionAssociation as HDCA
-
-    hdca = session.execute(select(HDCA).where(HDCA.history_id == history_id, HDCA.hid == hid)).scalar_one_or_none()
-
+    hdca = trans.app[HistoryContentsManager].get_hdca_by_hid(history_id, hid)
     if not hdca:
         return f"No collection found with HID {hid} in this history."
 
@@ -265,16 +192,18 @@ def _get_collection_structure_impl(
     if not collection:
         return f"Collection {hdca.name} (HID {hid}) has no associated dataset collection."
 
-    elements = list(collection.elements) if collection.elements else []
-    total = len(elements)
+    total = collection.element_count or 0
+    page = trans.app[DatasetCollectionManager].get_collection_contents(
+        trans, collection.id, limit=max_elements, offset=0
+    )
 
     lines = [
         f"Collection: {hdca.name} (HID {hid})",
-        f"Type: {hdca.collection.collection_type}",
+        f"Type: {collection.collection_type}",
         f"Elements: {total}",
     ]
 
-    for elem in elements[:max_elements]:
+    for elem in page:
         if elem.hda:
             lines.append(f"  {elem.element_identifier}: {elem.hda.name} [{elem.hda.extension}] state={elem.hda.state}")
         elif elem.child_collection:
@@ -289,72 +218,44 @@ def _get_collection_structure_impl(
 
 
 async def get_collection_structure(
-    session: Session,
+    trans: ProvidesUserContext,
     history_id: int,
     hid: int,
     max_elements: int = 50,
 ) -> str:
-    """Get the structure and element listing of a dataset collection.
-
-    Runs the synchronous SQLAlchemy query off the event loop.
-    """
+    """Get the structure and element listing of a dataset collection."""
     return await anyio.to_thread.run_sync(
-        partial(_get_collection_structure_impl, session, history_id, hid, max_elements=max_elements)
+        partial(_get_collection_structure_impl, trans, history_id, hid, max_elements=max_elements)
     )
 
 
-def _resolve_hid_impl(
-    session: Session,
-    history_id: int,
-    hid: int,
-    encode_id: Optional[Callable[[int], str]] = None,
-) -> str:
-    """Resolve a HID to the directive argument needed for Galaxy markdown.
+def _resolve_hid_impl(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    contents_manager = trans.app[HistoryContentsManager]
+    encode_id = trans.security.encode_id
 
-    Returns the appropriate directive argument string:
-    - For datasets: "history_dataset_id=<id>"
-    - For collections: "history_dataset_collection_id=<id>"
-
-    Also returns the job_id if a creating job exists (for job directives).
-    When encode_id is provided, IDs are encoded for use in API-facing directives.
-    """
-    from galaxy.model import (
-        HistoryDatasetAssociation as HDA,
-        HistoryDatasetCollectionAssociation as HDCA,
-    )
-
-    _enc = encode_id or str
-
-    hda = session.execute(select(HDA).where(HDA.history_id == history_id, HDA.hid == hid)).scalar_one_or_none()
+    hda = contents_manager.get_hda_by_hid(history_id, hid)
     if hda:
         lines = [
             f"HID {hid} is a dataset: {hda.name}",
-            f"Directive argument: history_dataset_id={_enc(hda.id)}",
+            f"Directive argument: history_dataset_id={encode_id(hda.id)}",
         ]
         if hda.creating_job:
-            lines.append(f"Creating job: job_id={_enc(hda.creating_job.id)}")
+            lines.append(f"Creating job: job_id={encode_id(hda.creating_job.id)}")
         return "\n".join(lines)
 
-    hdca = session.execute(select(HDCA).where(HDCA.history_id == history_id, HDCA.hid == hid)).scalar_one_or_none()
+    hdca = contents_manager.get_hdca_by_hid(history_id, hid)
     if hdca:
         return (
-            f"HID {hid} is a collection: {hdca.name}\nDirective argument: history_dataset_collection_id={_enc(hdca.id)}"
+            f"HID {hid} is a collection: {hdca.name}\n"
+            f"Directive argument: history_dataset_collection_id={encode_id(hdca.id)}"
         )
 
     return f"No dataset or collection found with HID {hid} in this history."
 
 
-async def resolve_hid(
-    session: Session,
-    history_id: int,
-    hid: int,
-    encode_id: Optional[Callable[[int], str]] = None,
-) -> str:
-    """Resolve a HID to the directive argument needed for Galaxy markdown.
-
-    Runs the synchronous SQLAlchemy query off the event loop.
-    """
-    return await anyio.to_thread.run_sync(partial(_resolve_hid_impl, session, history_id, hid, encode_id=encode_id))
+async def resolve_hid(trans: ProvidesUserContext, history_id: int, hid: int) -> str:
+    """Resolve a HID to the directive argument needed for Galaxy markdown."""
+    return await anyio.to_thread.run_sync(partial(_resolve_hid_impl, trans, history_id, hid))
 
 
 def _format_size(size_bytes: Union[int, float, None]) -> str:
