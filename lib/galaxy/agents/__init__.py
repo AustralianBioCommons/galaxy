@@ -14,6 +14,7 @@ from .error_analysis import ErrorAnalysisAgent
 from .gtn_training import GTNTrainingAgent
 from .history import HistoryAgent
 from .orchestrator import WorkflowOrchestratorAgent
+from .page_assistant import PageAssistantAgent
 from .registry import (
     AgentRegistry,
     build_default_registry,
@@ -30,6 +31,7 @@ __all__ = [
     "QueryRouterAgent",
     "ErrorAnalysisAgent",
     "CustomToolAgent",
+    "PageAssistantAgent",
     "WorkflowOrchestratorAgent",
     "ToolRecommendationAgent",
     "HistoryAgent",

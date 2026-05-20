@@ -10,14 +10,12 @@
                     </FormElementLabel>
                     <FormElementLabel
                         title="Identifier"
-                        help="A unique identifier that will be used for public links to this page. This field can only contain lowercase letters, numbers, and dashes (-)."
+                        :help="FORM_LABELS.slugHelp"
                         :required="true"
                         :condition="!!slug">
                         <FormInput id="page-slug" v-model="slug" />
                     </FormElementLabel>
-                    <FormElementLabel
-                        title="Annotation"
-                        help="A description of the page. The annotation is shown alongside published pages.">
+                    <FormElementLabel title="Annotation" :help="FORM_LABELS.annotationHelp">
                         <FormInput id="page-annotation" v-model="annotation" />
                     </FormElementLabel>
                 </template>
@@ -38,6 +36,7 @@ import { ref, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { GalaxyApi } from "@/api";
+import { FORM_LABELS } from "@/components/Page/constants";
 import pageTemplate from "@/components/PageDisplay/pageTemplate.yml";
 
 import FormInput from "@/components/Form/Elements/FormInput.vue";
@@ -60,7 +59,7 @@ const title = ref("");
 
 const router = useRouter();
 
-const cardTitle = props.mode === "edit" ? "Edit Page" : "Create a new Page";
+const cardTitle = props.mode === "edit" ? FORM_LABELS.editTitle : FORM_LABELS.createTitle;
 const buttonText = props.mode === "edit" ? "Update" : "Create";
 
 async function fetchData() {
@@ -89,7 +88,7 @@ async function fetchData() {
             errorMessage.value = "";
             annotation.value = data.annotation || "";
             content.value = data.content;
-            slug.value = data.slug;
+            slug.value = data.slug ?? "";
             title.value = data.title;
         }
         loading.value = false;
@@ -110,6 +109,7 @@ async function onSubmit() {
                 content_format: "markdown",
                 slug: slug.value,
                 title: title.value,
+                ...(props.invocationId && { invocation_id: props.invocationId }),
             },
         });
         if (error) {
