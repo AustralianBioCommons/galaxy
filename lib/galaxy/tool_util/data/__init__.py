@@ -577,8 +577,6 @@ class TabularToolDataTable(ToolDataTable):
         self.columns, self.largest_index, parsed_empty_field_values = self.parse_column_spec_element(config_element)
         self.empty_field_values.update(parsed_empty_field_values)
         assert "value" in self.columns, "Required 'value' column missing from column def"
-        if "name" not in self.columns:
-            self.columns["name"] = self.columns["value"]
 
     def extend_data_with(self, filename: str, errors: Optional[ErrorListT] = None) -> None:
         here = os.path.dirname(os.path.abspath(filename))
