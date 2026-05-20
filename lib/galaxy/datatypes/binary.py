@@ -12,7 +12,6 @@ import struct
 import subprocess
 import tarfile
 import tempfile
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable
 from json import dumps
@@ -23,6 +22,7 @@ from typing import (
     Union,
 )
 
+import defusedxml.ElementTree as ET
 import h5py
 import numpy as np
 import pysam
@@ -3216,6 +3216,10 @@ class Xlsx(Binary):
     compressed = True
     display_behavior = "download"  # Office documents trigger downloads
 
+    MAX_WORKBOOK_XML_BYTES = 4 * 1024 * 1024
+    MAX_SHEET_NAMES = 1024
+    MAX_SHEET_NAME_LEN = 255
+
     MetadataElement(
         name="sheet_names",
         default=[],
@@ -3228,42 +3232,39 @@ class Xlsx(Binary):
 
     def set_meta(self, dataset, **kwd):
         super().set_meta(dataset, **kwd)
-        dataset.metadata.sheet_names = self.get_xlsx_sheet_names(
-            dataset.get_file_name()
-        )
-        log.debug(f"Sheets found : {dataset.metadata.sheet_names}")
+        dataset.metadata.sheet_names = self.get_xlsx_sheet_names(dataset.get_file_name())
 
     def get_xlsx_sheet_names(self, file_path):
-        """Extract sheet names from XLSX file.
+        """Extract sheet names from the workbook part of an XLSX file.
 
-        Reads the workbook.xml file from the XLSX archive to extract
-        sheet names without loading the entire workbook into memory.
-
-        :param file_path: Path to the XLSX file
-        :type file_path: str
-        :returns: List of sheet names found in the workbook
-        :rtype: list
-
-        .. note::
-            This method uses zipfile to read only the workbook structure,
-            not the cell data.
+        Reads only ``xl/workbook.xml`` from the zip container, with bounds on
+        the part size, number of sheets, and individual name length so that a
+        crafted file cannot blow up memory or the metadata store.
         """
-        sheet_names = []
+        sheet_names: list[str] = []
         try:
             with zipfile.ZipFile(file_path, "r") as zf:
-                with zf.open("xl/workbook.xml") as f:
-                    tree = ET.parse(f)
-                    root = tree.getroot()
-                    ns = {'ns': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-                    sheets = root.find("ns:sheets", ns)
-                    if sheets is not None:
-                        for sheet in sheets.findall("ns:sheet", ns):
-                            name = sheet.attrib.get("name")
-                            if name:
-                                sheet_names.append(name)
-        except Exception as e:
-            log.warning(f"Unable to read XLSX sheets:: {e}")
-            pass
+                info = zf.getinfo("xl/workbook.xml")
+                if info.file_size > self.MAX_WORKBOOK_XML_BYTES:
+                    log.warning(
+                        "xlsx workbook.xml too large (%d bytes); skipping sheet_names for %s",
+                        info.file_size,
+                        file_path,
+                    )
+                    return []
+                with zf.open(info) as f:
+                    root = ET.parse(f).getroot()
+            ns = {"ns": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+            sheets = root.find("ns:sheets", ns)
+            if sheets is not None:
+                for sheet in sheets.findall("ns:sheet", ns):
+                    name = sheet.attrib.get("name")
+                    if name:
+                        sheet_names.append(name[: self.MAX_SHEET_NAME_LEN])
+                    if len(sheet_names) >= self.MAX_SHEET_NAMES:
+                        break
+        except (OSError, KeyError, zipfile.BadZipFile, ET.ParseError) as e:
+            log.warning("Unable to read XLSX sheets from %s: %s", file_path, e)
         return sheet_names
 
     def sniff_prefix(self, file_prefix: FilePrefix) -> bool:
