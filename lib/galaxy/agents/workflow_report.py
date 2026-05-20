@@ -23,7 +23,21 @@ class WorkflowReportAgent(SimpleGalaxyAgent):
     agent_type = "workflow_report"
 
     def get_system_prompt(self) -> str:
-        return (Path(__file__).parent / "prompts" / "workflow_report.md").read_text()
+        prompts_dir = Path(__file__).parent / "prompts"
+        prompt = (prompts_dir / "workflow_report.md").read_text()
+
+        # Inject directive descriptions from page_assistant.md (single source of truth).
+        # Extract from ## Directive Descriptions up to (not including) ## Directive Examples
+        # to get the tables only — the examples use history_dataset_id= syntax which
+        # does not apply in workflow report templates.
+        page_prompt = (prompts_dir / "page_assistant.md").read_text()
+        start = page_prompt.find("## Directive Descriptions")
+        end = page_prompt.find("## Directive Examples")
+        if start != -1 and end != -1:
+            directive_docs = page_prompt[start:end].strip()
+            prompt = prompt.replace("{directive_docs}", directive_docs)
+
+        return prompt
 
     def _get_agent_config(self, key: str, default: Any = None) -> Any:
         if key == "max_query_length":

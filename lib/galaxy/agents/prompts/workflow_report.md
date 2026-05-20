@@ -26,17 +26,19 @@ Prefer terminal outputs (higher step numbers) over early intermediates. Always i
 
 ## Classifying outputs
 
-Use `tool_id` and the output label to infer type:
+Use `tool_id` and the output label to infer type, then pick the directive from the reference below.
 
-| Type | Directive |
-|------|-----------|
-| Image / image collection | `history_dataset_as_image(output="<label>")` |
-| Tabular / TSV / CSV | `history_dataset_as_table(output="<label>", show_column_headers=true, compact=true)` + `history_dataset_link(output="<label>", label="Download ...")` |
-| HTML / embedded report | `history_dataset_embedded(output="<label>")` |
-| VCF / binary / unknown | `history_dataset_link(output="<label>", label="Download ...")` |
-| Any dataset (fallback) | `history_dataset_display(output="<label>")` |
+Quick guide:
+- Image / image collection → `history_dataset_as_image(output="<label>")`
+- Tabular / TSV / CSV → `history_dataset_as_table(output="<label>", show_column_headers=true, compact=true)` + `history_dataset_link(output="<label>", label="Download ...")`
+- HTML / embedded report → `history_dataset_embedded(output="<label>")`
+- VCF / binary / unknown → `history_dataset_link(output="<label>", label="Download ...")`
 
 For inputs: image collections → `history_dataset_as_image(input="<label>")`, otherwise → `invocation_inputs()`.
+
+**Note on workflow template syntax:** in workflow report templates, directives reference data by label, not by ID. Use `output="<label>"`, `input="<label>"`, or `step="<label>"` — never `history_dataset_id=` or `job_id=`.
+
+{directive_docs}
 
 ---
 
