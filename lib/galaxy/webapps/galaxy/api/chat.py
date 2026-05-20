@@ -27,6 +27,7 @@ from galaxy.managers.agents import AgentService
 from galaxy.managers.chat import ChatManager
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.managers.jobs import JobManager
+from galaxy.managers.markdown_util import ready_galaxy_markdown_for_export
 from galaxy.model import User
 from galaxy.schema.agents import AgentResponse
 from galaxy.schema.fields import DecodedDatabaseIdField
@@ -198,8 +199,6 @@ class ChatAPI:
                                 full_context["history_id"] = session_history.id
                                 full_context["history_is_session"] = True
                         if page_obj.latest_revision_id:
-                            from galaxy.managers.markdown_util import ready_galaxy_markdown_for_export
-
                             rev = page_obj.latest_revision
                             if rev and rev.content:
                                 exported, _, _ = ready_galaxy_markdown_for_export(trans, rev.content)

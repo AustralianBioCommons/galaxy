@@ -23,6 +23,11 @@ from pydantic_ai import (
     ToolOutput,
 )
 
+from galaxy.managers.markdown_parse import (
+    DynamicArguments,
+    EMBED_CAPABLE_DIRECTIVES,
+    VALID_ARGUMENTS,
+)
 from galaxy.schema.agents import ConfidenceLevel
 from .base import (
     ActionSuggestion,
@@ -57,12 +62,6 @@ def _build_directive_reference() -> str:
 
     Keeps the prompt in sync with the actual set of valid directives automatically.
     """
-    from galaxy.managers.markdown_parse import (
-        DynamicArguments,
-        EMBED_CAPABLE_DIRECTIVES,
-        VALID_ARGUMENTS,
-    )
-
     # Addressing args hidden from display — they're the primary key shown in the signature
     DATASET_ADDRESSING = {
         "history_dataset_id",
