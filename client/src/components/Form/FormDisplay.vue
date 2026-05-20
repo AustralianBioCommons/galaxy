@@ -80,8 +80,8 @@ const emit = defineEmits<{
     (e: "onValidation", validation: [string, string] | null): void;
     (e: "stop-flagging"): void;
     (e: "update:active-node-id", id: number): void;
-    (e: "load-more", payload: unknown): void;
-    (e: "search-change", payload: unknown): void;
+    (e: "load-more", payload: { name: string; src: string; offset: number; limit: number; search?: string }): void;
+    (e: "search-change", payload: { name: string; src: string; query: string; limit: number }): void;
 }>();
 
 const {

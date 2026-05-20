@@ -450,24 +450,54 @@ class TestToolsApi(ApiTestCase, TestsTools):
         """``options_pagination[...].search`` filters HDAs by name (ilike)
         before pagination, so users can find datasets outside the default page
         window by typing into the dropdown."""
+        sentinel = "unique-zebra-xyz"
         with self.dataset_populator.test_history() as history_id:
-            # Distinct names so we can assert exact match counts.
-            hdas = self.dataset_populator.fetch_hdas(
+            # 60 distinct "Sample N" HDAs plus one sentinel name that shares
+            # no substring with the others. Searching for the sentinel proves
+            # ilike is actually filtering (rather than passing everything
+            # through).
+            self.dataset_populator.fetch_hdas(
                 history_id,
                 [{"src": "pasted", "paste_content": "x", "name": f"Sample {i}"} for i in range(60)],
             )
-            target_name = hdas[7]["name"]  # e.g., "Sample 7"
-            payload = {
-                "history_id": history_id,
-                "options_pagination": {"input1": {"hda": {"search": target_name}}},
-            }
-            response = self.dataset_populator._post("tools/cat1/build", data=payload, json=True)
+            self.dataset_populator.fetch_hdas(
+                history_id,
+                [{"src": "pasted", "paste_content": "x", "name": sentinel}],
+            )
+
+            # Sentinel: exactly one match, with the expected name.
+            response = self.dataset_populator._post(
+                "tools/cat1/build",
+                data={
+                    "history_id": history_id,
+                    "options_pagination": {"input1": {"hda": {"search": "zebra"}}},
+                },
+                json=True,
+            )
             response.raise_for_status()
             build = response.json()
             input_param = next(i for i in build["inputs"] if i["name"] == "input1")
-            returned_names = [entry["name"] for entry in input_param["options"]["hda"]]
-            assert all(target_name in n for n in returned_names), returned_names
-            assert input_param["options_meta"]["hda"]["total_estimate"] == len(returned_names)
+            returned = input_param["options"]["hda"]
+            assert len(returned) == 1, returned
+            assert returned[0]["name"] == sentinel
+            assert input_param["options_meta"]["hda"]["total_estimate"] == 1
+
+            # Broad term ("Sample") matches all 60 Sample HDAs — exceeds the
+            # default 50-page so we get a partial page with has_more=True.
+            response = self.dataset_populator._post(
+                "tools/cat1/build",
+                data={
+                    "history_id": history_id,
+                    "options_pagination": {"input1": {"hda": {"search": "Sample"}}},
+                },
+                json=True,
+            )
+            response.raise_for_status()
+            build = response.json()
+            input_param = next(i for i in build["inputs"] if i["name"] == "input1")
+            assert len(input_param["options"]["hda"]) == 50
+            assert input_param["options_meta"]["hda"]["has_more"] is True
+            assert all("Sample" in entry["name"] for entry in input_param["options"]["hda"])
 
     @skip_without_tool("cat1")
     def test_build_data_options_search_by_hid(self):

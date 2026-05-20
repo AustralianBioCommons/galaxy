@@ -129,6 +129,13 @@ class TestWorkflowRun(SeleniumTestCase, UsesHistoryItemAssertions, RunsWorkflows
         and asserts the dropdown narrows to the backend-matched options."""
         history_id = self.current_history_id()
         self.dataset_populator.fetch_hdas(history_id, [{"src": "pasted", "paste_content": "x"}] * 60)
+        # Sentinel-named HDA so we can prove options are *actually rendering*
+        # (a vacuous pass — empty dropdown — would clear the ``<= 50`` upper bound).
+        legacy_sentinel = "unique-pagination-sentinel"
+        self.dataset_populator.fetch_hdas(
+            history_id,
+            [{"src": "pasted", "paste_content": "y", "name": legacy_sentinel}],
+        )
         self.home()
         # A single cat1 step with no workflow-level inputs — the step's
         # ``input1`` is unconnected, so it renders as a dropdown the user
@@ -144,6 +151,11 @@ class TestWorkflowRun(SeleniumTestCase, UsesHistoryItemAssertions, RunsWorkflows
         self.sleep_for(self.wait_types.UX_RENDER)
         baseline_options = select_field.find_elements(By.CSS_SELECTOR, "[role='option']")
         assert len(baseline_options) <= 50, f"Expected default page to cap at 50 options, got {len(baseline_options)}"
+        # Positive lower-bound: the sentinel HDA is newest (hid=61) so it must
+        # appear in the first page of (newest-first) options. Without this the
+        # ``<= 50`` upper bound passes vacuously on an empty dropdown.
+        baseline_labels = [opt.text for opt in baseline_options]
+        assert any(legacy_sentinel in label for label in baseline_labels), baseline_labels
         search_input = select_field.find_element(By.CSS_SELECTOR, "input.multiselect__input")
         search_input.send_keys("1")
         # Wait past the FormSelect search debounce (300 ms) plus the network
@@ -171,6 +183,12 @@ class TestWorkflowRun(SeleniumTestCase, UsesHistoryItemAssertions, RunsWorkflows
         component doesn't yet wire interactive load-more."""
         history_id = self.current_history_id()
         self.dataset_populator.fetch_hdas(history_id, [{"src": "pasted", "paste_content": "x"}] * 60)
+        # Sentinel for positive lower-bound (see legacy-form test).
+        simplified_sentinel = "unique-simplified-sentinel"
+        self.dataset_populator.fetch_hdas(
+            history_id,
+            [{"src": "pasted", "paste_content": "y", "name": simplified_sentinel}],
+        )
         self.home()
         self.workflow_run_open_workflow(WORKFLOW_SIMPLE_CAT_TWICE)
         # Ensure the legacy/expanded form is fully rendered before reaching for
@@ -196,6 +214,11 @@ class TestWorkflowRun(SeleniumTestCase, UsesHistoryItemAssertions, RunsWorkflows
         assert (
             len(options) <= 50
         ), f"Simplified form dropdown must respect the 50-per-page cap; got {len(options)} options"
+        # Positive lower-bound: the sentinel HDA is newest (hid=61) so it must
+        # appear in the first page of options. Without this the ``<= 50`` upper
+        # bound passes vacuously on an empty dropdown.
+        labels = [opt.text for opt in options]
+        assert any(simplified_sentinel in label for label in labels), labels
 
     @selenium_only("Not yet migrated to support Playwright backend")
     @selenium_test
