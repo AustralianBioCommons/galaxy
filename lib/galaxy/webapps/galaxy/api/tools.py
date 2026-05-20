@@ -425,6 +425,14 @@ class FetchTools:
             inputs,
         )
 
+    @router.get(
+        "/api/tags/tool_tags",
+        operation_id="tags__tool_tags",
+        summary="Return the curated tool-id to tag-name mapping for currently-loaded tools.",
+    )
+    def tool_tags(self, trans: ProvidesHistoryContext = DependsOnTrans) -> dict[str, list[str]]:
+        return self.service.curated_tool_tags_by_id(trans)
+
 
 class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
     """

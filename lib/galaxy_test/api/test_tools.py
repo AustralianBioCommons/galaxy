@@ -152,6 +152,43 @@ class TestToolsApi(ApiTestCase, TestsTools):
         get_response = get(url, payload).json()
         assert "Grep1" in get_response
 
+    @skip_without_tool("__FILTER_EMPTY_DATASETS__")
+    @skip_without_tool("liftOver1")
+    @skip_without_tool("upload1")
+    @skip_without_tool("export_remote")
+    def test_search_curated_tool_tags(self):
+        # The bundled mapping (lib/galaxy/tool_util/ontologies/tool_tag_mappings.yml)
+        # tags every tool from `tool_conf.xml.sample` with the section name it
+        # lives under. Verify the sidecar API and the Whoosh-backed search
+        # both respect the mapping.
+
+        # /api/tags/tool_tags exposes the raw mapping consumed by the My Tools panel.
+        tag_map = self._get("tags/tool_tags").json()
+        assert tag_map.get("__UNZIP_COLLECTION__") == ["Collection Operations"]
+        assert tag_map.get("liftOver1") == ["Lift-Over"]
+        assert tag_map.get("upload1") == ["Get Data"]
+        assert tag_map.get("export_remote") == ["Send Data"]
+
+        # Multi-word phrase, lowercase as the client emits it.
+        response = self._get("tools", data=dict(q='tool_tags:"send data"')).json()
+        assert set(response) == {"export_remote"}
+
+        # Same query, title-case — schema-aware parser lowercases at query time.
+        response = self._get("tools", data=dict(q='tool_tags:"Send Data"')).json()
+        assert set(response) == {"export_remote"}
+
+        # A tag that fans out: every Collection Operations tool should be hit.
+        response = self._get("tools", data=dict(q='tool_tags:"collection operations"')).json()
+        for expected in ("__UNZIP_COLLECTION__", "__ZIP_COLLECTION__", "__APPLY_RULES__"):
+            assert expected in response, expected
+
+        # Boolean OR across two tags should union the matches.
+        response = self._get(
+            "tools",
+            data=dict(q='tool_tags:"send data" OR tool_tags:"lift-over"'),
+        ).json()
+        assert set(response) == {"export_remote", "liftOver1"}
+
     def test_no_panel_index(self):
         index = self._get("tools", data=dict(in_panel=False))
         tools_index = index.json()

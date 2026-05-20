@@ -5004,6 +5004,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags/tool_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the curated tool-id to tag-name mapping for currently-loaded tools. */
+        get: operations["tags__tool_tags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/result": {
         parameters: {
             query?: never;
@@ -5851,6 +5868,23 @@ export interface paths {
         post?: never;
         /** Delete a custom build */
         delete: operations["delete_custom_build_api_users__user_id__custom_builds__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{user_id}/favorites/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Persist the order of the user's favorites */
+        put: operations["set_favorite_order_api_users__user_id__favorites_order_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -12307,14 +12341,55 @@ export interface components {
          * FavoriteObjectType
          * @enum {string}
          */
-        FavoriteObjectType: "tools";
+        FavoriteObjectType: "tools" | "tags" | "edam_operations" | "edam_topics";
         /** FavoriteObjectsSummary */
         FavoriteObjectsSummary: {
+            /**
+             * Favorite EDAM operations
+             * @description The EDAM operation identifiers the user favored.
+             */
+            edam_operations?: string[];
+            /**
+             * Favorite EDAM topics
+             * @description The EDAM topic identifiers the user favored.
+             */
+            edam_topics?: string[];
+            /**
+             * Favorite order
+             * @description The persisted order of top-level favorite tools and favorite sections.
+             */
+            order?: components["schemas"]["FavoriteOrderItem"][];
+            /**
+             * Favorite tags
+             * @description The curated tool tags the user favored.
+             */
+            tags?: string[];
             /**
              * Favorite tools
              * @description The name of the tools the user favored.
              */
-            tools: string[];
+            tools?: string[];
+        };
+        /** FavoriteOrderItem */
+        FavoriteOrderItem: {
+            /**
+             * Favorite object ID
+             * @description The ID of the favorite object in the ordered favorites list.
+             */
+            object_id: string;
+            /**
+             * Favorite object type
+             * @description The type of favorite object in the ordered favorites list.
+             */
+            object_type: components["schemas"]["FavoriteObjectType"];
+        };
+        /** FavoriteOrderPayload */
+        FavoriteOrderPayload: {
+            /**
+             * Favorite order
+             * @description The complete ordered list of top-level favorite entries.
+             */
+            order?: components["schemas"]["FavoriteOrderItem"][];
         };
         /** FetchDataPayload */
         FetchDataPayload: {
@@ -46000,6 +46075,49 @@ export interface operations {
             };
         };
     };
+    tags__tool_tags: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string[];
+                    };
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
     get_result_api_tasks__task_id__result_get: {
         parameters: {
             query?: never;
@@ -48751,6 +48869,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeletedCustomBuild"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    set_favorite_order_api_users__user_id__favorites_order_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The ID of the user. */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FavoriteOrderPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteObjectsSummary"];
                 };
             };
             /** @description Request Error */

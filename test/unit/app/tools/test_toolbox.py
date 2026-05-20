@@ -16,6 +16,7 @@ import routes
 from galaxy import model
 from galaxy.app_unittest_utils.toolbox_support import BaseToolBoxTestCase
 from galaxy.managers.tools import DynamicToolManager
+from galaxy.tool_util.ontologies import ontology_data
 from galaxy.tool_util.unittest_utils import mock_trans
 from galaxy.tool_util.unittest_utils.sample_data import (
     SIMPLE_MACRO,
@@ -151,6 +152,73 @@ class TestToolBox(BaseToolBoxTestCase):
             mapper.connect("tool_runner", "/test/tool_runner")
             as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
             assert as_dict[0]["id"] == "test_tool"
+
+    def test_to_dict_omits_tool_tags(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        tool = self.toolbox.get_tool("test_tool")
+        tool.tool_tags = ["curated_tag"]
+
+        # The bulk /api/tools payload never carries `tool_tags`; clients pull
+        # them from /api/tags/tool_tags (served by ToolsService).
+        as_dict = self.toolbox.to_dict(mock_trans(), in_panel=False)
+        assert as_dict[0]["id"] == "test_tool"
+        assert "tool_tags" not in as_dict[0]
+
+    def test_curated_id_caches_invalidate_on_tool_change(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        tool = self.toolbox.get_tool("test_tool")
+        # First access populates the cached id sets.
+        assert "curated_tag" not in self.toolbox.curated_tool_tags
+
+        tool.tool_tags = ["curated_tag"]
+        tool.edam_operations = ["operation_0224"]
+        tool.edam_topics = ["topic_3173"]
+        # Re-registering the tool must drop the stale id-set caches; otherwise the
+        # favorite-validation API rejects newly-introduced curated tags / EDAM ids.
+        self.toolbox.register_tool(tool)
+
+        assert "curated_tag" in self.toolbox.curated_tool_tags
+        assert "operation_0224" in self.toolbox.tool_edam_operations
+        assert "topic_3173" in self.toolbox.tool_edam_topics
+
+    def test_to_dict_omits_removed_tool(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        # Populate the to_dict payload (and its cache).
+        before = self.toolbox.to_dict(mock_trans(), in_panel=False)
+        assert any(entry["id"] == "test_tool" for entry in before)
+
+        # Removing the tool must reflect in the next payload — proving the
+        # cache is invalidated through observable behavior, not by poking
+        # `_tool_to_dict_cache` directly.
+        self.toolbox.remove_tool_by_id("test_tool")
+        after = self.toolbox.to_dict(mock_trans(), in_panel=False)
+        assert not any(entry["id"] == "test_tool" for entry in after)
+
+    def test_my_tools_panel_view_is_registered(self):
+        self._init_tool_in_section()
+        mapper = routes.Mapper()
+        mapper.connect("tool_runner", "/test/tool_runner")
+
+        panel_views = self.toolbox.panel_view_dicts()
+        assert "my_panel" in panel_views
+        assert panel_views["my_panel"]["name"] == "My Tools"
+        assert panel_views["my_panel"]["view_type"] == "favorites"
+
+        my_tools_panel = self.toolbox.to_panel_view(mock_trans(), view="my_panel")
+        assert list(my_tools_panel.keys()) == ["favorites"]
+        favorites_section = my_tools_panel["favorites"]
+        assert favorites_section["model_class"] == "ToolSection"
+        assert favorites_section["name"] == "Favorites"
+        assert favorites_section["tools"] == []
 
     def test_out_of_panel_filtering(self):
         self._init_tool_in_section()
@@ -359,6 +427,39 @@ class TestToolBox(BaseToolBoxTestCase):
 
         # Assert tools merged in tool panel.
         assert len(self.toolbox._tool_panel) == 2  # 1 tool (w 2 versions) + built-in converters
+
+    def test_curated_tool_tags_merge_all_ids_in_order(self, monkeypatch):
+        self._init_tool()
+        self._setup_two_versions_in_config(section=False)
+        self._setup_two_versions()
+        monkeypatch.setattr(
+            ontology_data,
+            "_TOOL_TAG_MAPPING_OVERRIDE",
+            {
+                "github.com/galaxyproject/example/test_tool/0.2": ["version_specific", "shared"],
+                "github.com/galaxyproject/example/test_tool": ["toolshed_family", "shared"],
+                "test_tool": ["short_id", "shared"],
+            },
+        )
+
+        tool = self.toolbox.get_tool("test_tool", tool_version="0.2")
+        assert tool.all_ids == [
+            "github.com/galaxyproject/example/test_tool/0.2",
+            "github.com/galaxyproject/example/test_tool",
+            "test_tool",
+        ]
+        assert tool.tool_tags == ["version_specific", "shared", "toolshed_family", "short_id"]
+
+    def test_curated_tool_tags_support_tool_ids_with_spaces(self, monkeypatch):
+        monkeypatch.setattr(
+            ontology_data,
+            "_TOOL_TAG_MAPPING_OVERRIDE",
+            {
+                "Remove beginning1": ["Text Manipulation"],
+            },
+        )
+
+        assert ontology_data.curated_tool_tags(["Remove beginning1"]) == ["Text Manipulation"]
 
     def test_get_section_by_label(self):
         self._add_config(

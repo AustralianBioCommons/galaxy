@@ -910,6 +910,19 @@ mapping:
         desc:
           Directory in which the toolbox search index is stored.
 
+      tool_tag_mappings_file:
+        type: str
+        required: false
+        desc: |
+          Optional YAML file mapping tool ids to curated tag names. Tags drive the
+          `tag:` autocompletion, the favorite-tags grouping in the My Tools panel,
+          and the `tool_tags` Whoosh search field. If unset, Galaxy ships a small
+          example covering the tools used by its own integration tests; admins
+          who want production-grade tag coverage can generate a snapshot for
+          their instance with `scripts/extract_tool_sections_from_api.py`.
+          The file must be a YAML document with a top-level `tool_tags:` mapping
+          from tool id to a list of tag names.
+
       biotools_content_directory:
         type: str
         required: false

@@ -1546,19 +1546,15 @@ class Tool(UsesDictVisibleKeys, MaybeToolParameterBundle):
 
         self.citations = self._parse_citations(tool_source)
         biotools_metadata_source = getattr(self.app, "biotools_metadata_source", None)
-        if biotools_metadata_source:
-            ontology_data = expand_ontology_data(
-                tool_source,
-                self.all_ids,
-                biotools_metadata_source,
-            )
-            self.xrefs = ontology_data.xrefs
-            self.edam_operations = ontology_data.edam_operations
-            self.edam_topics = ontology_data.edam_topics
-        else:
-            self.xrefs = []
-            self.edam_operations = None
-            self.edam_topics = None
+        ontology_data = expand_ontology_data(
+            tool_source,
+            self.all_ids,
+            biotools_metadata_source,
+        )
+        self.xrefs = ontology_data.xrefs
+        self.edam_operations = ontology_data.edam_operations
+        self.edam_topics = ontology_data.edam_topics
+        self.tool_tags = ontology_data.tool_tags
 
         # Record macro paths so we can reload a tool if any of its macro has changes
         self._macro_paths = tool_source.macro_paths
