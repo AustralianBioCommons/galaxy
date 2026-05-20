@@ -23,19 +23,23 @@ interface FrameOrPageOptions {
     inlineUrl?: string;
     /** Title shown on the floating frame's tab. Required for the monkeypatch to open a frame. */
     title: string;
+    /** Forwards ``RouterPushOptions.force`` -- the monkeypatch's ``__vkey__`` trick for re-pushing the same URL. */
+    force?: boolean;
 }
 
 export function useWindowAwareNavigation() {
     const router = useRouter();
 
-    function pushToFrameOrPage({ framedUrl, inlineUrl, title }: FrameOrPageOptions): void {
+    function pushToFrameOrPage({ framedUrl, inlineUrl, title, force }: FrameOrPageOptions): void {
         const Galaxy = getGalaxyInstance();
         if (Galaxy?.frame?.active) {
-            const options: RouterPushOptions = { title, preventWindowManager: false };
+            const options: RouterPushOptions = { title, preventWindowManager: false, force };
             // @ts-ignore - monkeypatched router accepts {title}; drop with migration.
             router.push(framedUrl, options);
         } else {
-            router.push(inlineUrl ?? framedUrl);
+            const options: RouterPushOptions = { force };
+            // @ts-ignore - monkeypatched router accepts {force}; drop with migration.
+            router.push(inlineUrl ?? framedUrl, options);
         }
     }
 
