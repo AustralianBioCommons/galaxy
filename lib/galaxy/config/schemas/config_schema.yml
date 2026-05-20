@@ -4170,6 +4170,24 @@ mapping:
           Set static_responses to a YAML file path to replace all LLM calls with
           deterministic responses for testing:
           inference_services: { static_responses: test/integration/static_agents.yml }
+          Per-agent or default-block ``structured_output_override: true|false``
+          beats the model capability table -- see ``agent_model_capabilities_file``
+          for the table's location and contents.
+
+      agent_model_capabilities_file:
+        type: str
+        default: agent_model_capabilities.yml
+        path_resolves_to: config_dir
+        required: false
+        desc: |
+          YAML file with capability hints for agent inference models. Maps
+          fnmatch-style globs against model names to features such as
+          structured-output (tool-calling / JSON-mode) support. Galaxy ships a
+          sample populated with common model families; admins can drop a file
+          named ``agent_model_capabilities.yml`` in ``config_dir`` to override
+          the shipped table for private models. ``inference_services``
+          ``structured_output_override`` overrides this table for a specific
+          agent or default block.
 
       gtn_database_path:
         type: str

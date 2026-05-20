@@ -54,7 +54,10 @@ from galaxy.agents.base import truncate_message_history
 from galaxy.agents.registry import build_default_registry
 
 agent_registry = build_default_registry()
+from galaxy.agents import base as agents_base
 from galaxy.agents.base import (
+    _capability_for_model,
+    _load_model_capabilities,
     AgentResponse,
     AgentRunState,
     AgentType,
@@ -80,6 +83,15 @@ class TestAgentUnitMocked:
         self.mock_config.ai_api_key = "test-key"
         self.mock_config.ai_model = "llama-4-scout"
         self.mock_config.ai_api_base_url = "http://localhost:4000/v1/"
+        # Point at the shipped capability sample so _supports_structured_output
+        # exercises the real table rather than the built-in fallback.
+        self.mock_config.agent_model_capabilities_file = os.path.join(
+            os.path.dirname(agents_base.__file__),
+            "..",
+            "config",
+            "sample",
+            "agent_model_capabilities.yml.sample",
+        )
 
         self.mock_user = mock.Mock()
         self.mock_user.id = 1
@@ -902,6 +914,69 @@ class TestAgentUnitMocked:
     def _orchestrator_agent(self):
         agent = WorkflowOrchestratorAgent(self.deps)
         return agent
+
+    def test_supports_structured_output_capability_table_match(self):
+        """Glob-matched models in the capability table should answer correctly."""
+        self.mock_config.inference_services = None
+
+        self.mock_config.ai_model = "deepseek-r1"
+        deepseek_agent = ErrorAnalysisAgent(self.deps)
+        assert deepseek_agent._supports_structured_output() is False
+
+        self.mock_config.ai_model = "gpt-4o"
+        gpt_agent = ErrorAnalysisAgent(self.deps)
+        assert gpt_agent._supports_structured_output() is True
+
+    def test_supports_structured_output_admin_override_takes_precedence(self):
+        """Admin override beats whatever the capability table says."""
+        # Per-agent override flips deepseek (table says False) to True.
+        self.mock_config.ai_model = "deepseek-r1"
+        self.mock_config.inference_services = {
+            "error_analysis": {"structured_output_override": True},
+        }
+        agent = ErrorAnalysisAgent(self.deps)
+        assert agent._supports_structured_output() is True
+
+        # Default-block override applies when there's no per-agent setting.
+        self.mock_config.inference_services = {
+            "default": {"structured_output_override": False},
+        }
+        self.mock_config.ai_model = "gpt-4o"
+        gpt_agent = ErrorAnalysisAgent(self.deps)
+        assert gpt_agent._supports_structured_output() is False
+
+    def test_supports_structured_output_falls_back_to_default(self):
+        """Unknown model names hit the table's default block."""
+        self.mock_config.inference_services = None
+        self.mock_config.ai_model = "some-totally-new-model-2030"
+        agent = ErrorAnalysisAgent(self.deps)
+        # Shipped sample sets default.structured_output: true.
+        assert agent._supports_structured_output() is True
+
+    def test_capability_table_glob_matching(self):
+        """Globs should match wildcard suffixes (e.g. gpt-4-turbo)."""
+        table = _load_model_capabilities(self.mock_config.agent_model_capabilities_file)
+        assert _capability_for_model("gpt-4-turbo", "structured_output", table) is True
+        assert _capability_for_model("gpt-4o-mini", "structured_output", table) is True
+        assert _capability_for_model("claude-3-5-sonnet", "structured_output", table) is True
+        # Provider prefixes get stripped before matching.
+        assert _capability_for_model("openai:gpt-4o", "structured_output", table) is True
+        assert _capability_for_model("anthropic:claude-3-5-sonnet", "structured_output", table) is True
+        # DeepSeek family is explicitly opted out.
+        assert _capability_for_model("deepseek-r1", "structured_output", table) is False
+        assert _capability_for_model("deepseek-v3", "structured_output", table) is False
+
+    def test_capability_table_falls_back_when_file_is_missing(self):
+        """Pointing at a non-existent path should fall back to the built-in defaults."""
+        table = _load_model_capabilities("/nonexistent/path/agent_model_capabilities.yml", force_reload=True)
+        assert table is agents_base._DEFAULT_MODEL_CAPABILITIES
+        assert _capability_for_model("deepseek-r1", "structured_output", table) is False
+        assert _capability_for_model("gpt-4o", "structured_output", table) is True
+
+    def test_capability_table_falls_back_when_path_is_unset(self):
+        """A None or non-string path (e.g. unset config option) yields the built-in defaults."""
+        assert _load_model_capabilities(None) is agents_base._DEFAULT_MODEL_CAPABILITIES
+        assert _load_model_capabilities("") is agents_base._DEFAULT_MODEL_CAPABILITIES
 
 
 class TestPageAssistantAgent:
