@@ -48,7 +48,10 @@ from galaxy.schema.history import (
     HistoryIndexQueryPayload,
     HistorySortByEnum,
 )
-from galaxy.schema.history_graph import HistoryGraphResponse
+from galaxy.schema.history_graph import (
+    HistoryGraphResponse,
+    NodeSrc,
+)
 from galaxy.schema.schema import (
     AnyArchivedHistoryView,
     AnyHistoryView,
@@ -375,10 +378,13 @@ class FastAPIHistories:
             default=False,
             description="Include deleted datasets and collections.",
         ),
-        seed: Optional[str] = Query(
+        seed_src: Optional[NodeSrc] = Query(
             default=None,
-            description="Optional: focus on subgraph reachable from this node (e.g. d<encoded_id>).",
-            pattern=r"^[dcr].+$",
+            description="Optional: src of the node to focus the subgraph on. Provide with seed_id.",
+        ),
+        seed_id: Optional[str] = Query(
+            default=None,
+            description="Optional: encoded id of the node to focus the subgraph on. Provide with seed_src.",
         ),
         direction: Literal["backward", "forward", "both"] = Query(
             default="both",
@@ -390,10 +396,13 @@ class FastAPIHistories:
             ge=1,
             le=20,
         ),
-        seed_scope: Optional[str] = Query(
+        seed_scope_src: Optional[Literal["hda", "hdca"]] = Query(
             default=None,
-            description="Center the selection window on this item. Format: d{encoded_id} or c{encoded_id}.",
-            pattern=r"^[dc].+$",
+            description="src of the item to center the selection window on. Required with seed_scope_id.",
+        ),
+        seed_scope_id: Optional[str] = Query(
+            default=None,
+            description="Center the selection window on this encoded id. Provide with seed_scope_src.",
         ),
         trans: ProvidesHistoryContext = DependsOnTrans,
     ) -> HistoryGraphResponse:
@@ -402,10 +411,12 @@ class FastAPIHistories:
             history_id,
             limit=limit,
             include_deleted=include_deleted,
-            seed=seed,
+            seed_src=seed_src,
+            seed_id=seed_id,
             direction=direction,
             depth=depth,
-            seed_scope=seed_scope,
+            seed_scope_src=seed_scope_src,
+            seed_scope_id=seed_scope_id,
         )
 
     @router.post(

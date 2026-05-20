@@ -432,7 +432,8 @@ export function getRouter(Galaxy) {
                         component: HistoryGraphView,
                         props: (route) => ({
                             historyId: route.params.historyId,
-                            seedNodeId: route.query.seed || undefined,
+                            seedSrc: route.query.seed_src || undefined,
+                            seedId: route.query.seed_id || undefined,
                         }),
                     },
                     {
