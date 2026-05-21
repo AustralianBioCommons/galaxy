@@ -18,7 +18,6 @@ import { patchRouterPush } from "./router-push";
 import CenterFrame from "./modules/CenterFrame.vue";
 import AboutGalaxy from "@/components/AboutGalaxy.vue";
 import AvailableDatatypes from "@/components/AvailableDatatypes/AvailableDatatypes.vue";
-import ChatGXY from "@/components/ChatGXY.vue";
 import CitationsList from "@/components/Citation/CitationsList.vue";
 import ClientError from "@/components/ClientError.vue";
 import CollectionEditView from "@/components/Collections/common/CollectionEditView.vue";
@@ -36,6 +35,7 @@ import ManageFileSourceIndex from "@/components/FileSources/Instances/ManageInde
 import UpgradeFileSourceInstance from "@/components/FileSources/Instances/UpgradeInstance.vue";
 import CreateUserFileSource from "@/components/FileSources/Templates/CreateUserFileSource.vue";
 import FormGeneric from "@/components/Form/FormGeneric.vue";
+import GalaxyAI from "@/components/GalaxyAI.vue";
 import GalaxyWizard from "@/components/GalaxyWizard.vue";
 import GridInvocation from "@/components/Grid/GridInvocation.vue";
 import GridPage from "@/components/Grid/GridPage.vue";
@@ -618,8 +618,8 @@ export function getRouter(Galaxy) {
                         component: TourList,
                     },
                     {
-                        path: "chatgxy/:exchangeId?",
-                        component: ChatGXY,
+                        path: "galaxyai/:exchangeId?",
+                        component: GalaxyAI,
                         redirect: redirectAnon(),
                         props: (route) => ({
                             exchangeId: route.params.exchangeId || undefined,

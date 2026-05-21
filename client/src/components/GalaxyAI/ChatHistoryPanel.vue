@@ -58,9 +58,9 @@ function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent
     const Galaxy = getGalaxyInstance();
     if (Galaxy?.frame?.active) {
         // @ts-ignore - monkeypatched router, second arg is RouterPushOptions
-        router.push(`/chatgxy/${item.id}?compact=true`, { title: "ChatGXY" });
+        router.push(`/galaxyai/${item.id}?compact=true`, { title: "GalaxyAI" });
     } else {
-        router.push(`/chatgxy/${item.id}`);
+        router.push(`/galaxyai/${item.id}`);
     }
 }
 
@@ -68,9 +68,9 @@ function startNewChat() {
     const Galaxy = getGalaxyInstance();
     if (Galaxy?.frame?.active) {
         // @ts-ignore - monkeypatched router, second arg is RouterPushOptions
-        router.push("/chatgxy?compact=true", { title: "ChatGXY" });
+        router.push("/galaxyai?compact=true", { title: "GalaxyAI" });
     } else {
-        router.push("/chatgxy");
+        router.push("/galaxyai");
     }
 }
 
@@ -94,7 +94,7 @@ async function deleteSelected() {
 </script>
 
 <template>
-    <ActivityPanel title="ChatGXY" go-to-all-title="Open ChatGXY" href="/chatgxy">
+    <ActivityPanel title="GalaxyAI" go-to-all-title="Open GalaxyAI" href="/galaxyai">
         <template v-slot:header-buttons>
             <button class="btn btn-sm btn-outline-primary" title="New Chat" @click="startNewChat">
                 <FontAwesomeIcon :icon="faPlus" fixed-width />

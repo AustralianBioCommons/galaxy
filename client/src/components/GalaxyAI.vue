@@ -10,12 +10,12 @@ import { type AgentResponse, useAgentActions } from "@/composables/agentActions"
 import { useMarkdown } from "@/composables/markdown";
 import { errorMessageAsString } from "@/utils/simple-error";
 
-import { getAgentIcon } from "./ChatGXY/agentTypes";
-import type { ChatHistoryItem, ChatMessage } from "./ChatGXY/chatTypes";
-import { generateId, scrollToBottom } from "./ChatGXY/chatUtils";
+import { getAgentIcon } from "./GalaxyAI/agentTypes";
+import type { ChatHistoryItem, ChatMessage } from "./GalaxyAI/chatTypes";
+import { generateId, scrollToBottom } from "./GalaxyAI/chatUtils";
 
-import ChatInput from "./ChatGXY/ChatInput.vue";
-import ChatMessageCell from "./ChatGXY/ChatMessageCell.vue";
+import ChatInput from "./GalaxyAI/ChatInput.vue";
+import ChatMessageCell from "./GalaxyAI/ChatMessageCell.vue";
 import Heading from "@/components/Common/Heading.vue";
 
 const props = withDefaults(
@@ -71,7 +71,7 @@ function showWelcome() {
         id: generateId(),
         role: "assistant",
         content:
-            "Welcome to ChatGXY. Ask about tools, workflows, errors, or data quality " +
+            "Welcome to GalaxyAI. Ask about tools, workflows, errors, or data quality " +
             "and your question will be routed to the appropriate specialist agent.",
         timestamp: new Date(),
         agentType: "router",
@@ -118,7 +118,7 @@ async function submitQuery() {
         });
 
         if (error) {
-            const errorText = errorMessageAsString(error, "Failed to get response from ChatGXY.");
+            const errorText = errorMessageAsString(error, "Failed to get response from GalaxyAI.");
             const errorMsg: ChatMessage = {
                 id: generateId(),
                 role: "assistant",
@@ -322,17 +322,17 @@ async function deleteCurrentChat() {
 
 function popOutToWindowManager() {
     const Galaxy = getGalaxyInstance();
-    const path = currentChatId.value ? `/chatgxy/${currentChatId.value}` : "/chatgxy";
+    const path = currentChatId.value ? `/galaxyai/${currentChatId.value}` : "/galaxyai";
     const url = `${path}?compact=true`;
-    Galaxy.frame.add({ title: "ChatGXY", url });
+    Galaxy.frame.add({ title: "GalaxyAI", url });
 }
 </script>
 
 <template>
-    <div class="chatgxy-container" :class="{ 'chatgxy-compact': compact }">
-        <div v-if="!compact" class="chatgxy-header">
+    <div class="galaxyai-container" :class="{ 'galaxyai-compact': compact }">
+        <div v-if="!compact" class="galaxyai-header">
             <Heading h2 :icon="faMagic" size="lg">
-                <span>ChatGXY</span>
+                <span>GalaxyAI</span>
             </Heading>
             <div class="header-actions">
                 <button class="btn btn-sm btn-outline-primary" title="Start New Chat" @click="startNewChat">
@@ -380,7 +380,7 @@ function popOutToWindowManager() {
             </div>
         </div>
 
-        <div class="chatgxy-footer">
+        <div class="galaxyai-footer">
             <ChatInput v-model="query" :busy="busy" @submit="submitQuery" />
         </div>
     </div>
@@ -389,7 +389,7 @@ function popOutToWindowManager() {
 <style lang="scss" scoped>
 @import "@/style/scss/theme/blue.scss";
 
-.chatgxy-container {
+.galaxyai-container {
     height: calc(100vh - #{$masthead-height} - 2rem);
     display: flex;
     flex-direction: column;
@@ -398,19 +398,19 @@ function popOutToWindowManager() {
     overflow: hidden;
 }
 
-.chatgxy-compact {
+.galaxyai-compact {
     height: 100vh;
 
     .chat-messages {
         padding: 0.75rem 1rem;
     }
 
-    .chatgxy-footer {
+    .galaxyai-footer {
         padding: 0.5rem 0.75rem;
     }
 }
 
-.chatgxy-header {
+.galaxyai-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -424,7 +424,7 @@ function popOutToWindowManager() {
     }
 }
 
-.chatgxy-footer {
+.galaxyai-footer {
     padding: 0.75rem 1rem;
     background: $panel-bg-color;
     border-top: $border-default;

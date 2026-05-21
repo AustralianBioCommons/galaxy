@@ -10,8 +10,8 @@ import { BAlert, BButton, BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import { GalaxyApi } from "@/api";
-import type { ChatMessage } from "@/components/ChatGXY/chatTypes";
-import { generateId, scrollToBottom } from "@/components/ChatGXY/chatUtils";
+import type { ChatMessage } from "@/components/GalaxyAI/chatTypes";
+import { generateId, scrollToBottom } from "@/components/GalaxyAI/chatUtils";
 import { PAGE_LABELS } from "@/components/Page/constants";
 import { type AgentResponse, type EditProposal, useAgentActions } from "@/composables/agentActions";
 import { useMarkdown } from "@/composables/markdown";
@@ -23,8 +23,8 @@ import { applySectionEdit } from "./sectionDiffUtils";
 import PageChatHistoryList from "./PageChatHistoryList.vue";
 import ProposalDiffView from "./ProposalDiffView.vue";
 import SectionPatchView from "./SectionPatchView.vue";
-import ChatInput from "@/components/ChatGXY/ChatInput.vue";
-import ChatMessageCell from "@/components/ChatGXY/ChatMessageCell.vue";
+import ChatInput from "@/components/GalaxyAI/ChatInput.vue";
+import ChatMessageCell from "@/components/GalaxyAI/ChatMessageCell.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 
 const props = withDefaults(
