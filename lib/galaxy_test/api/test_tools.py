@@ -6,6 +6,7 @@ import zipfile
 from io import BytesIO
 from typing import (
     Any,
+    Literal,
     Optional,
 )
 from uuid import uuid4
@@ -518,7 +519,12 @@ class TestToolsApi(ApiTestCase, TestsTools):
             # not include it. Search by "1" must surface it.
             assert 1 in returned_hids, returned_hids
 
-    def _create_hdca(self, history_id, kind, hidden=False):
+    def _create_hdca(
+        self,
+        history_id: str,
+        kind: Literal["pair", "list_of_pairs", "list", "list_of_list"],
+        hidden: bool = False,
+    ) -> dict[str, Any]:
         """Create an HDCA of ``kind`` and return its dict (with ``id``/``hid``).
 
         ``kind`` ∈ ``"pair"`` (paired), ``"list_of_pairs"`` (list:paired),
@@ -542,7 +548,14 @@ class TestToolsApi(ApiTestCase, TestsTools):
             self.dataset_populator.hide_dataset_collection(hdca["id"])
         return hdca
 
-    def _build_tool_param(self, tool_id, history_id, *, options_pagination=None, param_name="f1"):
+    def _build_tool_param(
+        self,
+        tool_id: str,
+        history_id: str,
+        *,
+        options_pagination: Optional[dict[str, Any]] = None,
+        param_name: str = "f1",
+    ) -> dict[str, Any]:
         """POST ``tools/{tool_id}/build`` and return the named input dict."""
         payload: dict[str, Any] = {"history_id": history_id}
         if options_pagination is not None:
