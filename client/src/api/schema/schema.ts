@@ -6508,6 +6508,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workflows/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract a workflow from selected jobs and history items by encoded IDs.
+         * @description ID-based workflow extraction.
+         *
+         *     Per-item permission checks make this history-optional and allow
+         *     cross-history extraction.
+         */
+        post: operations["extract_by_ids_api_workflows_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workflows/menu": {
         parameters: {
             query?: never;
@@ -26238,6 +26261,44 @@ export interface components {
              */
             workflow_engine_version?: string[] | null;
         };
+        /** WorkflowExtractionByIdsPayload */
+        WorkflowExtractionByIdsPayload: {
+            /**
+             * Dataset Collection Names
+             * @description Names for the input dataset collections, parallel to hdca_ids.
+             */
+            dataset_collection_names?: string[];
+            /**
+             * Dataset Names
+             * @description Names for the input datasets, parallel to hda_ids.
+             */
+            dataset_names?: string[];
+            /**
+             * HDA IDs
+             * @description Decoded IDs of HistoryDatasetAssociations to treat as workflow inputs.
+             */
+            hda_ids?: string[];
+            /**
+             * HDCA IDs
+             * @description Decoded IDs of HistoryDatasetCollectionAssociations to treat as workflow inputs.
+             */
+            hdca_ids?: string[];
+            /**
+             * Implicit Collection Jobs IDs
+             * @description Decoded IDs of ImplicitCollectionJobs (map-over job groups) to include as mapped workflow steps. Use this for steps that ran with a map/over instead of passing a constituent job id in job_ids.
+             */
+            implicit_collection_jobs_ids?: string[];
+            /**
+             * Job IDs
+             * @description Decoded IDs of compatible tool jobs to include as workflow steps.
+             */
+            job_ids?: string[];
+            /**
+             * Workflow Name
+             * @description The name for the extracted workflow.
+             */
+            workflow_name: string;
+        };
         /** WorkflowExtractionJob */
         WorkflowExtractionJob: {
             /**
@@ -26250,6 +26311,16 @@ export interface components {
              * @description Encoded job ID, or null for fake input dataset entries.
              */
             id: string | null;
+            /**
+             * Implicit Collection Jobs ID
+             * @description Encoded ID of the ImplicitCollectionJobs this job belongs to, or null if the job is not part of a mapped/implicit collection. Callers should submit mapped jobs via implicit_collection_jobs_ids rather than job_ids in the extract-by-ids payload.
+             */
+            implicit_collection_jobs_id?: string | null;
+            /**
+             * Implicit Collection Jobs Size
+             * @description Number of constituent jobs in the ICJ (only set when implicit_collection_jobs_id is non-null).
+             */
+            implicit_collection_jobs_size?: number | null;
             /**
              * Invalid
              * @description Reason this job is invalid for extraction.
@@ -51306,6 +51377,51 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    extract_by_ids_api_workflows_extract_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowExtractionByIdsPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowExtractionResult"];
                 };
             };
             /** @description Request Error */
