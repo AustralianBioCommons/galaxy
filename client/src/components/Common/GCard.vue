@@ -707,10 +707,16 @@ function onKeyDown(event: KeyboardEvent) {
 
     // While the extra-actions dropdown is open, raise this card above its
     // siblings so the menu does not get pixel-intercepted by a neighboring
-    // card's primary action buttons drawn at the same screen coordinates.
+    // card's primary action buttons drawn at the same screen coordinates,
+    // and relax the content's overflow:hidden so popper-positioned menu
+    // items (especially when flipped above the toggle) are not clipped.
     &.g-card-dropdown-open {
         position: relative;
         z-index: 2;
+
+        .g-card-content {
+            overflow: visible;
+        }
     }
 
     &.g-card-grid-view {
