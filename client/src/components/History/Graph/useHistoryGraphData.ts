@@ -1,4 +1,4 @@
-import { type Ref, ref, watch } from "vue";
+import { type Ref, ref, watch, type WatchSource } from "vue";
 
 import { GalaxyApi } from "@/api";
 
@@ -54,7 +54,7 @@ export function useHistoryGraphData(
         }
     }
 
-    const watchSources = [historyId, limit];
+    const watchSources: WatchSource[] = [historyId, limit];
     if (seedSrc) {
         watchSources.push(seedSrc);
     }
