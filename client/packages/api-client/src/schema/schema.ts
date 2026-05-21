@@ -265,6 +265,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/{workflow_id}/generate_report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generate Report
+         * @description **Warning**: This API is unstable and may change without notice.
+         */
+        get: operations["generate_report_api_chat__workflow_id__generate_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/configuration": {
         parameters: {
             query?: never;
@@ -2332,6 +2352,74 @@ export interface paths {
          *     The items to be processed can be explicitly set or determined by a dynamic query.
          */
         put: operations["bulk_operation_api_histories__history_id__contents_bulk_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/histories/{history_id}/contents/bulk/storage/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Executes a previously previewed storage bulk operation snapshot. */
+        post: operations["bulk_storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/histories/{history_id}/contents/bulk/storage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Previews a storage bulk operation for selected history contents. */
+        post: operations["bulk_storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Returns run status summary for a storage bulk operation. */
+        get: operations["bulk_storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Returns paginated per-item details for a storage bulk operation run. */
+        get: operations["bulk_storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -6414,6 +6502,29 @@ export interface paths {
         get: operations["index_api_workflows_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workflows/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract a workflow from selected jobs and history items by encoded IDs.
+         * @description ID-based workflow extraction.
+         *
+         *     Per-item permission checks make this history-optional and allow
+         *     cross-history extraction.
+         */
+        post: operations["extract_by_ids_api_workflows_extract_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11295,6 +11406,22 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /**
+         * DatasetStorageOperationFailureReasonCode
+         * @enum {string}
+         */
+        DatasetStorageOperationFailureReasonCode:
+            | "dataset_not_found"
+            | "invalid_target_object_store"
+            | "missing_source_object_store"
+            | "already_in_target"
+            | "target_quota_exceeded"
+            | "shared_dataset"
+            | "insufficient_permissions"
+            | "dataset_in_use"
+            | "target_expiration_imminent"
+            | "checksum_verification_failed"
+            | "execution_error";
         /** DatasetTextContentDetails */
         DatasetTextContentDetails: {
             /**
@@ -13340,10 +13467,8 @@ export interface components {
         };
         /** GraphEdge */
         GraphEdge: {
-            /** Source */
-            source: string;
-            /** Target */
-            target: string;
+            source: components["schemas"]["NodeRef"];
+            target: components["schemas"]["NodeRef"];
             /**
              * Type
              * @enum {string}
@@ -13364,17 +13489,17 @@ export interface components {
             id: string;
             /** Name */
             name?: string | null;
+            /**
+             * Src
+             * @enum {string}
+             */
+            src: "hda" | "hdca" | "tool_request";
             /** State */
             state?: string | null;
             /** Tool Id */
             tool_id?: string | null;
             /** Tool Name */
             tool_name?: string | null;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dataset" | "collection" | "tool_request";
             /** Visible */
             visible?: boolean | null;
         };
@@ -19216,6 +19341,20 @@ export interface components {
             type: "no_options";
         };
         /**
+         * NodeRef
+         * @description A (src, id) reference to a graph node. Frozen so it is hashable
+         *     and usable directly as an edge endpoint and as an internal key.
+         */
+        NodeRef: {
+            /** Id */
+            id: string;
+            /**
+             * Src
+             * @enum {string}
+             */
+            src: "hda" | "hdca" | "tool_request";
+        };
+        /**
          * NotificationBroadcastUpdateRequest
          * @description A notification update request specific for broadcasting.
          */
@@ -19304,6 +19443,7 @@ export interface components {
             content:
                 | components["schemas"]["MessageNotificationContent"]
                 | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"]
                 | components["schemas"]["BroadcastNotificationContent"];
             /**
              * Expiration time
@@ -19392,6 +19532,7 @@ export interface components {
             content:
                 | components["schemas"]["MessageNotificationContent"]
                 | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"]
                 | components["schemas"]["BroadcastNotificationContent"];
             /**
              * Create time
@@ -20479,7 +20620,7 @@ export interface components {
          *     displayed in the notification preferences.
          * @enum {string}
          */
-        PersonalNotificationCategory: "message" | "new_shared_item";
+        PersonalNotificationCategory: "message" | "new_shared_item" | "storage_operation";
         /** PluginAspectStatus */
         PluginAspectStatus: {
             /** Message */
@@ -22555,6 +22696,267 @@ export interface components {
             /** Total Item Count */
             total_item_count: number;
         };
+        /** StorageOperationEligibilityReasonSummary */
+        StorageOperationEligibilityReasonSummary: {
+            /** Count */
+            count: number;
+            reason_code: components["schemas"]["DatasetStorageOperationFailureReasonCode"];
+        };
+        /** StorageOperationEligibilitySummary */
+        StorageOperationEligibilitySummary: {
+            /** Eligible Count */
+            eligible_count: number;
+            /** Ineligible Count */
+            ineligible_count: number;
+            /** Reasons */
+            reasons?: components["schemas"]["StorageOperationEligibilityReasonSummary"][];
+        };
+        /** StorageOperationEstimateSummary */
+        StorageOperationEstimateSummary: {
+            /**
+             * Bytes To Transfer
+             * @default 0
+             */
+            bytes_to_transfer: number;
+            /** Quota Delta Transfers */
+            quota_delta_transfers?: components["schemas"]["StorageOperationQuotaDeltaTransfer"][];
+            quota_projection?: components["schemas"]["StorageOperationQuotaProjectionSummary"] | null;
+        };
+        /** StorageOperationExecutePolicy */
+        StorageOperationExecutePolicy: {
+            /** Max Retries */
+            max_retries?: number | null;
+            /**
+             * Skip Ineligible
+             * @default true
+             */
+            skip_ineligible: boolean;
+        };
+        /** StorageOperationExecuteRequest */
+        StorageOperationExecuteRequest: {
+            execution_policy?: components["schemas"]["StorageOperationExecutePolicy"];
+            /**
+             * Notify On Completion
+             * @default true
+             */
+            notify_on_completion: boolean;
+            /**
+             * Snapshot Id
+             * @example 0123456789ABCDEF
+             */
+            snapshot_id: string;
+        };
+        /** StorageOperationExecuteResponse */
+        StorageOperationExecuteResponse: {
+            run: components["schemas"]["StorageOperationRunSummary"];
+        };
+        /**
+         * StorageOperationMode
+         * @enum {string}
+         */
+        StorageOperationMode: "move";
+        /** StorageOperationNotificationContent */
+        StorageOperationNotificationContent: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            category: "storage_operation";
+            /**
+             * Failed Count
+             * @description Failed datasets count.
+             * @default 0
+             */
+            failed_count: number;
+            /**
+             * History ID
+             * @description The encoded history ID.
+             * @example 0123456789ABCDEF
+             */
+            history_id: string;
+            /**
+             * Message
+             * @description The message of the notification (supports Markdown).
+             */
+            message: string;
+            /**
+             * Mode
+             * @description Storage operation mode.
+             */
+            mode: string;
+            /**
+             * Run ID
+             * @description The encoded storage operation run ID.
+             * @example 0123456789ABCDEF
+             */
+            run_id: string;
+            /**
+             * Run URL
+             * @description Absolute or relative URL to the storage operation run status view.
+             */
+            run_url: string;
+            /**
+             * Skipped Count
+             * @description Skipped datasets count.
+             * @default 0
+             */
+            skipped_count: number;
+            /**
+             * State
+             * @description The current state of the storage operation run when this notification was generated.
+             */
+            state: components["schemas"]["StorageOperationRunState"];
+            /**
+             * Subject
+             * @description The subject of the notification.
+             */
+            subject: string;
+            /**
+             * Succeeded Count
+             * @description Succeeded datasets count.
+             * @default 0
+             */
+            succeeded_count: number;
+            /**
+             * Total Count
+             * @description Total datasets in the run.
+             */
+            total_count: number;
+        };
+        /** StorageOperationPreviewRequest */
+        StorageOperationPreviewRequest: {
+            /** Items */
+            items?:
+                | {
+                      [key: string]: unknown;
+                  }[]
+                | null;
+            mode: components["schemas"]["StorageOperationMode"];
+            /** Target Object Store Id */
+            target_object_store_id: string;
+        };
+        /** StorageOperationPreviewResponse */
+        StorageOperationPreviewResponse: {
+            eligibility: components["schemas"]["StorageOperationEligibilitySummary"];
+            estimates: components["schemas"]["StorageOperationEstimateSummary"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            selection_counts: components["schemas"]["StorageOperationSelectionCounts"];
+            /**
+             * Snapshot Id
+             * @example 0123456789ABCDEF
+             */
+            snapshot_id: string;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** StorageOperationQuotaDeltaTransfer */
+        StorageOperationQuotaDeltaTransfer: {
+            /**
+             * Bytes
+             * @default 0
+             */
+            bytes: number;
+            /** Source Object Store Id */
+            source_object_store_id: string;
+            /** Target Object Store Id */
+            target_object_store_id: string;
+        };
+        /** StorageOperationQuotaProjectionSummary */
+        StorageOperationQuotaProjectionSummary: {
+            /** Projected Usage */
+            projected_usage: number;
+            /** Quota Limit */
+            quota_limit: number;
+        };
+        /**
+         * StorageOperationRunItemState
+         * @enum {string}
+         */
+        StorageOperationRunItemState: "pending" | "running" | "succeeded" | "failed" | "skipped";
+        /** StorageOperationRunItemStatus */
+        StorageOperationRunItemStatus: {
+            /** Bytes Processed */
+            bytes_processed: number;
+            /**
+             * Create Time
+             * Format: date-time
+             * @description The time and date this item was created.
+             */
+            create_time: string;
+            /**
+             * Dataset Id
+             * @example 0123456789ABCDEF
+             */
+            dataset_id: string;
+            reason_code?: components["schemas"]["DatasetStorageOperationFailureReasonCode"] | null;
+            state: components["schemas"]["StorageOperationRunItemState"];
+            /**
+             * Update Time
+             * Format: date-time
+             * @description The last time and date this item was updated.
+             */
+            update_time: string;
+        };
+        /** StorageOperationRunResponse */
+        StorageOperationRunResponse: {
+            /** Items */
+            items?: components["schemas"]["StorageOperationRunItemStatus"][];
+            run: components["schemas"]["StorageOperationRunSummary"];
+        };
+        /**
+         * StorageOperationRunState
+         * @enum {string}
+         */
+        StorageOperationRunState: "pending" | "running" | "completed" | "failed";
+        /** StorageOperationRunSummary */
+        StorageOperationRunSummary: {
+            /**
+             * Create Time
+             * Format: date-time
+             * @description The time and date this item was created.
+             */
+            create_time: string;
+            /** Failed Count */
+            failed_count: number;
+            mode: components["schemas"]["StorageOperationMode"];
+            /**
+             * Run Id
+             * @example 0123456789ABCDEF
+             */
+            run_id: string;
+            /** Skipped Count */
+            skipped_count: number;
+            state: components["schemas"]["StorageOperationRunState"];
+            /** Succeeded Count */
+            succeeded_count: number;
+            /** Target Object Store Id */
+            target_object_store_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Total Bytes Processed */
+            total_bytes_processed: number;
+            /** Total Count */
+            total_count: number;
+            /**
+             * Update Time
+             * Format: date-time
+             * @description The last time and date this item was updated.
+             */
+            update_time: string;
+        };
+        /** StorageOperationSelectionCounts */
+        StorageOperationSelectionCounts: {
+            /** Expanded Leaf Count */
+            expanded_leaf_count: number;
+            /** Selected Items Count */
+            selected_items_count: number;
+            /** Unique Dataset Count */
+            unique_dataset_count: number;
+        };
         /** StoreExportPayload */
         StoreExportPayload: {
             /**
@@ -24580,6 +24982,13 @@ export interface components {
          *             "push": true
          *           },
          *           "enabled": true
+         *         },
+         *         "storage_operation": {
+         *           "channels": {
+         *             "email": true,
+         *             "push": true
+         *           },
+         *           "enabled": true
          *         }
          *       }
          *     }
@@ -24983,6 +25392,13 @@ export interface components {
          *             "push": true
          *           },
          *           "enabled": true
+         *         },
+         *         "storage_operation": {
+         *           "channels": {
+         *             "email": true,
+         *             "push": true
+         *           },
+         *           "enabled": true
          *         }
          *       }
          *     }
@@ -25012,7 +25428,8 @@ export interface components {
              */
             content:
                 | components["schemas"]["MessageNotificationContent"]
-                | components["schemas"]["NewSharedItemNotificationContent"];
+                | components["schemas"]["NewSharedItemNotificationContent"]
+                | components["schemas"]["StorageOperationNotificationContent"];
             /**
              * Create time
              * Format: date-time
@@ -25853,6 +26270,44 @@ export interface components {
              */
             workflow_engine_version?: string[] | null;
         };
+        /** WorkflowExtractionByIdsPayload */
+        WorkflowExtractionByIdsPayload: {
+            /**
+             * Dataset Collection Names
+             * @description Names for the input dataset collections, parallel to hdca_ids.
+             */
+            dataset_collection_names?: string[];
+            /**
+             * Dataset Names
+             * @description Names for the input datasets, parallel to hda_ids.
+             */
+            dataset_names?: string[];
+            /**
+             * HDA IDs
+             * @description Decoded IDs of HistoryDatasetAssociations to treat as workflow inputs.
+             */
+            hda_ids?: string[];
+            /**
+             * HDCA IDs
+             * @description Decoded IDs of HistoryDatasetCollectionAssociations to treat as workflow inputs.
+             */
+            hdca_ids?: string[];
+            /**
+             * Implicit Collection Jobs IDs
+             * @description Decoded IDs of ImplicitCollectionJobs (map-over job groups) to include as mapped workflow steps. Use this for steps that ran with a map/over instead of passing a constituent job id in job_ids.
+             */
+            implicit_collection_jobs_ids?: string[];
+            /**
+             * Job IDs
+             * @description Decoded IDs of compatible tool jobs to include as workflow steps.
+             */
+            job_ids?: string[];
+            /**
+             * Workflow Name
+             * @description The name for the extracted workflow.
+             */
+            workflow_name: string;
+        };
         /** WorkflowExtractionJob */
         WorkflowExtractionJob: {
             /**
@@ -25865,6 +26320,16 @@ export interface components {
              * @description Encoded job ID, or null for fake input dataset entries.
              */
             id: string | null;
+            /**
+             * Implicit Collection Jobs ID
+             * @description Encoded ID of the ImplicitCollectionJobs this job belongs to, or null if the job is not part of a mapped/implicit collection. Callers should submit mapped jobs via implicit_collection_jobs_ids rather than job_ids in the extract-by-ids payload.
+             */
+            implicit_collection_jobs_id?: string | null;
+            /**
+             * Implicit Collection Jobs Size
+             * @description Number of constituent jobs in the ICJ (only set when implicit_collection_jobs_id is non-null).
+             */
+            implicit_collection_jobs_size?: number | null;
             /**
              * Invalid
              * @description Reason this job is invalid for extraction.
@@ -26391,6 +26856,27 @@ export interface components {
              * @enum {string}
              */
             workflow_target_type: "stored_workflow" | "workflow" | "trs_url" | "url";
+        };
+        /**
+         * WorkflowReportResponse
+         * @description Response from the workflow report generation agent.
+         */
+        WorkflowReportResponse: {
+            /**
+             * Model
+             * @description LLM model used to generate the report
+             */
+            model?: string | null;
+            /**
+             * Report
+             * @description Generated markdown report for the workflow
+             */
+            report: string;
+            /**
+             * Total Tokens
+             * @description Total tokens consumed by the generation
+             */
+            total_tokens?: number | null;
         };
         /** WorkflowTypeVersion */
         WorkflowTypeVersion: {
@@ -31102,6 +31588,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": number | null;
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    generate_report_api_chat__workflow_id__generate_report_get: {
+        parameters: {
+            query?: {
+                /** @description Version of the workflow */
+                version?: number | null;
+                /** @description Whether the workflow_id is an instance ID */
+                instance?: boolean;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description Workflow ID to generate the report for */
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowReportResponse"];
                 };
             };
             /** @description Request Error */
@@ -37762,6 +38297,236 @@ export interface operations {
             };
         };
     };
+    bulk_storage_operation_execute_api_histories__history_id__contents_bulk_storage_execute_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The encoded database identifier of the History. */
+                history_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageOperationExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOperationExecuteResponse"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    bulk_storage_operation_preview_api_histories__history_id__contents_bulk_storage_preview_post: {
+        parameters: {
+            query?: {
+                /** @description Generally a property name to filter by followed by an (often optional) hyphen and operator string. */
+                q?: string[] | null;
+                /** @description The value to filter by. */
+                qv?: string[] | null;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The encoded database identifier of the History. */
+                history_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageOperationPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOperationPreviewResponse"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    bulk_storage_operation_run_api_histories__history_id__contents_bulk_storage_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The encoded database identifier of the History. */
+                history_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOperationRunResponse"];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    bulk_storage_operation_run_items_api_histories__history_id__contents_bulk_storage_runs__run_id__items_get: {
+        parameters: {
+            query?: {
+                /** @description The offset for paginated per-item run details. */
+                offset?: number;
+                /** @description The maximum number of per-item run details to return. */
+                limit?: number;
+                /**
+                 * @description A mix of free text and GitHub-style tags used to filter the index operation.
+                 *
+                 *     ## Query Structure
+                 *
+                 *     GitHub-style filter tags (not be confused with Galaxy tags) are tags of the form
+                 *     `<tag_name>:<text_no_spaces>` or `<tag_name>:'<text with potential spaces>'`. The tag name
+                 *     *generally* (but not exclusively) corresponds to the name of an attribute on the model
+                 *     being indexed (i.e. a column in the database).
+                 *
+                 *     If the tag is quoted, the attribute will be filtered exactly. If the tag is unquoted,
+                 *     generally a partial match will be used to filter the query (i.e. in terms of the implementation
+                 *     this means the database operation `ILIKE` will typically be used).
+                 *
+                 *     Once the tagged filters are extracted from the search query, the remaining text is just
+                 *     used to search various documented attributes of the object.
+                 *
+                 *     ## GitHub-style Tags Available
+                 *
+                 *     `state`
+                 *     : Item state.
+                 *
+                 *     `reason_code`
+                 *     : Item reason code. (The tag `reason` can be used a short hand alias for this tag to filter on this attribute.)
+                 *
+                 *     `dataset_id`
+                 *     : Encoded dataset id. (The tag `dataset` can be used a short hand alias for this tag to filter on this attribute.)
+                 *
+                 *     ## Free Text
+                 *
+                 *     Free text search terms will be searched against the following attributes of the
+                 *     Storage operation run items: `state`, `reason_code`, `dataset_id`.
+                 */
+                search?: string | null;
+            };
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path: {
+                /** @description The encoded database identifier of the History. */
+                history_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOperationRunItemStatus"][];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
     history_contents__download_collection: {
         parameters: {
             query?: never;
@@ -39620,14 +40385,18 @@ export interface operations {
                 limit?: number;
                 /** @description Include deleted datasets and collections. */
                 include_deleted?: boolean;
-                /** @description Optional: focus on subgraph reachable from this node (e.g. d<encoded_id>). */
-                seed?: string | null;
+                /** @description Optional: src of the node to focus the subgraph on. Provide with seed_id. */
+                seed_src?: ("hda" | "hdca" | "tool_request") | null;
+                /** @description Optional: encoded id of the node to focus the subgraph on. Provide with seed_src. */
+                seed_id?: string | null;
                 /** @description Direction for seed-based subgraph extraction. */
                 direction?: "backward" | "forward" | "both";
                 /** @description Max depth for seed-based subgraph extraction. */
                 depth?: number;
-                /** @description Center the selection window on this item. Format: d{encoded_id} or c{encoded_id}. */
-                seed_scope?: string | null;
+                /** @description src of the item to center the selection window on. Required with seed_scope_id. */
+                seed_scope_src?: ("hda" | "hdca") | null;
+                /** @description Center the selection window on this encoded id. Provide with seed_scope_src. */
+                seed_scope_id?: string | null;
             };
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
@@ -50621,6 +51390,51 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Request Error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+            /** @description Server Error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageExceptionModel"];
+                };
+            };
+        };
+    };
+    extract_by_ids_api_workflows_extract_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+                "run-as"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowExtractionByIdsPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowExtractionResult"];
                 };
             };
             /** @description Request Error */

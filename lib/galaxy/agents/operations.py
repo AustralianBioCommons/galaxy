@@ -77,7 +77,7 @@ class AgentOperationsManager:
 
     def _search_toolbox(self, query: str) -> list[str]:
         panel_view = self.app.config.default_panel_view
-        return self.app.toolbox_search.search(q=query, panel_view=panel_view, config=self.app.config)  # type: ignore[attr-defined]
+        return self.app.toolbox_search.search(q=query, panel_view=panel_view, config=self.app.config)
 
     def _get_toolbox_tool(self, tool_id: str):
         return self.app.toolbox.get_tool(tool_id)
