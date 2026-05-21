@@ -25690,7 +25690,7 @@ export interface components {
             help?: components["schemas"]["HelpContent"] | null;
             /**
              * id
-             * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
+             * @description Unique identifier for the tool. Lowercase, must start with a letter, may contain letters, digits, '_' and '-'.
              * @example my-cool-tool
              */
             id?: string | null;
@@ -25789,7 +25789,7 @@ export interface components {
             help?: components["schemas"]["HelpContent"] | null;
             /**
              * id
-             * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
+             * @description Unique identifier for the tool. Lowercase, must start with a letter, may contain letters, digits, '_' and '-'.
              * @example my-cool-tool
              */
             id?: string | null;
@@ -27570,7 +27570,7 @@ export interface components {
             help?: components["schemas"]["HelpContent"] | null;
             /**
              * id
-             * @description Unique identifier for the tool. Should be all lower-case and should not include whitespace.
+             * @description Unique identifier for the tool. Lowercase, must start with a letter, may contain letters, digits, '_' and '-'.
              * @example my-cool-tool
              */
             id?: string | null;
