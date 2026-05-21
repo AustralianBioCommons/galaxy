@@ -3694,5 +3694,51 @@ class TestToolsApi(ApiTestCase, TestsTools):
                 yield other_history_id
 
 
+class TestDataManagerToolsApi(ApiTestCase, TestsTools):
+    """API tests that need the test case to act as an admin (e.g. data managers)."""
+
+    require_admin_user = True
+    dataset_populator: DatasetPopulator
+
+    def setUp(self):
+        super().setUp()
+        self.dataset_populator = DatasetPopulator(self.galaxy_interactor)
+        self.dataset_collection_populator = DatasetCollectionPopulator(self.galaxy_interactor)
+
+    def test_build_does_not_leak_hda_from_user_bundle(self):
+        # Regression for https://github.com/galaxyproject/galaxy/issues/22674
+        # When the user already has a ``data_manager_json`` bundle in their
+        # history for a tool data table, ``DynamicOptions.get_user_options``
+        # builds a synthetic option row from it. A 2025-02-18 refactor
+        # (172ef05f269) prepended the bundle's HDA to that row, shifting every
+        # declared column index by one and leaking the raw HDA into the
+        # option's ``value`` field. ``/api/tools/{id}/build`` then 500s with
+        #   TypeError: Object of type HistoryDatasetAssociation is not JSON serializable
+        # Reproduce by producing a real bundle (data_manager_mode=bundle), then
+        # loading the same tool's form.
+        history_id = self.dataset_populator.new_history()
+        payload = self.dataset_populator.run_tool_payload(
+            tool_id="data_manager_select",
+            inputs={"index": "hg19_value"},
+            data_manager_mode="bundle",
+            history_id=history_id,
+        )
+        create_response = self.dataset_populator._post("tools", data=payload)
+        create_response.raise_for_status()
+        self.dataset_populator.wait_for_history(history_id, assert_ok=True)
+        dataset = self.dataset_populator.get_history_dataset_details(history_id)
+        assert dataset["extension"] == "data_manager_json"
+
+        build = self.dataset_populator.build_tool_state("data_manager_select", history_id, inputs={})
+        index_input = next(i for i in build["inputs"] if i["name"] == "index")
+        option_names = [option[0] for option in index_input["options"]]
+        # On-disk fasta_indexes.loc entries...
+        assert "hg19_name" in option_names
+        # ...plus the synthetic option contributed by the user's bundle. Before
+        # the fix the bundle's HDA was wired into ``value`` instead of
+        # ``dataset`` and JSON encoding crashed before this assertion ran.
+        assert "regression_name" in option_names
+
+
 def dataset_to_param(dataset):
     return dict(src="hda", id=dataset["id"])
