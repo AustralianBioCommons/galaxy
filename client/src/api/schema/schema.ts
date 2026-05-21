@@ -13470,10 +13470,8 @@ export interface components {
         };
         /** GraphEdge */
         GraphEdge: {
-            /** Source */
-            source: string;
-            /** Target */
-            target: string;
+            source: components["schemas"]["NodeRef"];
+            target: components["schemas"]["NodeRef"];
             /**
              * Type
              * @enum {string}
@@ -13494,17 +13492,17 @@ export interface components {
             id: string;
             /** Name */
             name?: string | null;
+            /**
+             * Src
+             * @enum {string}
+             */
+            src: "hda" | "hdca" | "tool_request";
             /** State */
             state?: string | null;
             /** Tool Id */
             tool_id?: string | null;
             /** Tool Name */
             tool_name?: string | null;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dataset" | "collection" | "tool_request";
             /** Visible */
             visible?: boolean | null;
         };
@@ -19344,6 +19342,20 @@ export interface components {
              * @constant
              */
             type: "no_options";
+        };
+        /**
+         * NodeRef
+         * @description A (src, id) reference to a graph node. Frozen so it is hashable
+         *     and usable directly as an edge endpoint and as an internal key.
+         */
+        NodeRef: {
+            /** Id */
+            id: string;
+            /**
+             * Src
+             * @enum {string}
+             */
+            src: "hda" | "hdca" | "tool_request";
         };
         /**
          * NotificationBroadcastUpdateRequest
@@ -40376,14 +40388,18 @@ export interface operations {
                 limit?: number;
                 /** @description Include deleted datasets and collections. */
                 include_deleted?: boolean;
-                /** @description Optional: focus on subgraph reachable from this node (e.g. d<encoded_id>). */
-                seed?: string | null;
+                /** @description Optional: src of the node to focus the subgraph on. Provide with seed_id. */
+                seed_src?: ("hda" | "hdca" | "tool_request") | null;
+                /** @description Optional: encoded id of the node to focus the subgraph on. Provide with seed_src. */
+                seed_id?: string | null;
                 /** @description Direction for seed-based subgraph extraction. */
                 direction?: "backward" | "forward" | "both";
                 /** @description Max depth for seed-based subgraph extraction. */
                 depth?: number;
-                /** @description Center the selection window on this item. Format: d{encoded_id} or c{encoded_id}. */
-                seed_scope?: string | null;
+                /** @description src of the item to center the selection window on. Required with seed_scope_id. */
+                seed_scope_src?: ("hda" | "hdca") | null;
+                /** @description Center the selection window on this encoded id. Provide with seed_scope_src. */
+                seed_scope_id?: string | null;
             };
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */

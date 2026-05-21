@@ -57,7 +57,11 @@ from galaxy.schema import (
 )
 from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.history import HistoryIndexQueryPayload
-from galaxy.schema.history_graph import HistoryGraphResponse
+from galaxy.schema.history_graph import (
+    HistoryGraphResponse,
+    NodeRef,
+    NodeSrc,
+)
 from galaxy.schema.schema import (
     AnyArchivedHistoryView,
     AnyHistoryView,
@@ -396,13 +400,17 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
         history_id: DecodedDatabaseIdField,
         limit: int = 500,
         include_deleted: bool = False,
-        seed: Optional[str] = None,
+        seed_src: Optional[NodeSrc] = None,
+        seed_id: Optional[str] = None,
         direction: Literal["backward", "forward", "both"] = "both",
         depth: int = 20,
-        seed_scope: Optional[str] = None,
+        seed_scope_src: Optional[Literal["hda", "hdca"]] = None,
+        seed_scope_id: Optional[str] = None,
     ) -> HistoryGraphResponse:
         history = self.manager.get_accessible(history_id, trans.user, current_history=trans.history)
-        seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope else None
+        seed = self._build_node_ref("seed", seed_src, seed_id)
+        seed_scope = self._build_node_ref("seed_scope", seed_scope_src, seed_scope_id)
+        seed_scope_hid = self._resolve_seed_scope_hid(trans, history.id, seed_scope) if seed_scope is not None else None
         return self.history_graph_manager.build(
             sa_session=trans.sa_session,
             history_id=history.id,
@@ -414,14 +422,24 @@ class HistoriesService(ServiceBase, ConsumesModelStores, ServesExportStores):
             seed_scope_hid=seed_scope_hid,
         )
 
-    def _resolve_seed_scope_hid(self, trans: ProvidesHistoryContext, history_id: int, seed_scope: str) -> int:
-        db_id = self.security.decode_id(seed_scope[1:])
-        model_class = HistoryDatasetAssociation if seed_scope[0] == "d" else HistoryDatasetCollectionAssociation
+    @staticmethod
+    def _build_node_ref(param: str, src: Optional[str], id: Optional[str]) -> Optional[NodeRef]:
+        if src is None and id is None:
+            return None
+        if src is None or id is None:
+            raise glx_exceptions.RequestParameterInvalidException(
+                f"{param}_src and {param}_id must be provided together."
+            )
+        return NodeRef(src=src, id=id)
+
+    def _resolve_seed_scope_hid(self, trans: ProvidesHistoryContext, history_id: int, seed_scope: NodeRef) -> int:
+        db_id = self.security.decode_id(seed_scope.id)
+        model_class = HistoryDatasetAssociation if seed_scope.src == "hda" else HistoryDatasetCollectionAssociation
         row = trans.sa_session.execute(
             select(model_class.hid).where(model_class.id == db_id, model_class.history_id == history_id)
         ).first()
         if row is None or row.hid is None:
-            raise glx_exceptions.ObjectNotFound(f"seed_scope {seed_scope} not found in history.")
+            raise glx_exceptions.ObjectNotFound(f"seed_scope {seed_scope.src}:{seed_scope.id} not found in history.")
         return row.hid
 
     def prepare_download(
