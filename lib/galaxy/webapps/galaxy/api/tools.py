@@ -40,7 +40,6 @@ from galaxy.managers.context import (
 from galaxy.managers.hdas import HDAManager
 from galaxy.managers.histories import HistoryManager
 from galaxy.managers.landing import LandingRequestManager
-from galaxy.managers.tool_form_options import OptionsPaginationT
 from galaxy.managers.tools import ToolRunReference
 from galaxy.model import ToolRequest
 from galaxy.model.dataset_collections.workbook_util import workbook_to_bytes
@@ -78,6 +77,7 @@ from galaxy.tools.fetch.workbooks import (
     ParsedFetchWorkbook,
     ParseFetchWorkbook,
 )
+from galaxy.tools.parameters.pagination import OptionsPaginationT
 from galaxy.util.hash_util import (
     HashFunctionNameEnum,
     memory_bound_hexdigest,

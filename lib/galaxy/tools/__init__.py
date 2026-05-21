@@ -50,7 +50,6 @@ from galaxy.job_execution.output_collect import (
     PermissionProvider,
 )
 from galaxy.managers.credentials import build_credentials_context_response
-from galaxy.managers.tool_form_options import OptionsPaginationT
 from galaxy.metadata import get_metadata_compute_strategy
 from galaxy.model import (
     History,
@@ -193,6 +192,7 @@ from galaxy.tools.parameters.meta import (
     expand_meta_parameters,
     expand_meta_parameters_async,
 )
+from galaxy.tools.parameters.pagination import OptionsPaginationT
 from galaxy.tools.parameters.populate_model import populate_model
 from galaxy.tools.parameters.workflow_utils import workflow_building_modes
 from galaxy.tools.parameters.wrapped_json import json_wrap

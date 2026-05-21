@@ -28,15 +28,6 @@ from webob.compat import cgi_FieldStorage
 from galaxy import util
 from galaxy.files import ProvidesFileSourcesUserContext
 from galaxy.managers.dbkeys import read_dbnames
-from galaxy.managers.tool_form_options import (
-    DataOptionsBuilder,
-    make_dce_entry,
-    make_hda_entry,
-    make_hdca_entry,
-    make_ldda_entry,
-    MAX_OPTIONS_PAGE_SIZE,
-    ParameterPaginationT,
-)
 from galaxy.model import (
     cached_id,
     Dataset,
@@ -72,6 +63,15 @@ from galaxy.tool_util.parser.util import (
 )
 from galaxy.tool_util_models.tool_source import DrillDownOptionsDict
 from galaxy.tools.parameters.options import ParameterOption
+from galaxy.tools.parameters.pagination import (
+    DataOptionsBuilder,
+    make_dce_entry,
+    make_hda_entry,
+    make_hdca_entry,
+    make_ldda_entry,
+    MAX_OPTIONS_PAGE_SIZE,
+    ParameterPaginationT,
+)
 from galaxy.tools.parameters.workflow_utils import (
     NO_REPLACEMENT,
     workflow_building_modes,
