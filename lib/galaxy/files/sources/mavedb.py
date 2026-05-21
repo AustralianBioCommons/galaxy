@@ -63,6 +63,7 @@ class MaveDBFilesSource(FsspecFilesSource[MaveDBFileSourceTemplateConfiguration,
             base_url=config.base_url,
             api_key=config.api_key,
             timeout=config.timeout,
+            skip_instance_cache=True,
             **cache_options,
         )
 
@@ -84,12 +85,17 @@ class MaveDBFilesSource(FsspecFilesSource[MaveDBFileSourceTemplateConfiguration,
         try:
             cache_options = self._get_cache_options(context.config)
             fs = self._open_fs(context, cache_options)
-            entries, total_count = fs.list_score_sets(
-                collection=collection,
-                limit=limit,
-                offset=offset,
-                query=query,
-            )
+            try:
+                entries, total_count = fs.list_score_sets(
+                    collection=collection,
+                    limit=limit,
+                    offset=offset,
+                    query=query,
+                )
+            finally:
+                close = getattr(fs, "close", None)
+                if close is not None:
+                    close()
             return [self._info_to_entry(entry, context.config) for entry in entries], total_count
         except PermissionError as e:
             raise AuthenticationRequired(
