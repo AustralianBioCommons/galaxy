@@ -69,6 +69,7 @@ class AgentOperationsManager:
         self._hda_manager: Optional[HDAManager] = None
         self._dataset_collections_service: Optional[Any] = None
         self._dynamic_tools_manager: Optional[Any] = None
+        self._file_source_instances_manager: Optional[Any] = None
 
     def _encode_id(self, value: int) -> str:
         return self.trans.security.encode_id(value)
@@ -161,6 +162,14 @@ class AgentOperationsManager:
         if self._dynamic_tools_manager is None:
             self._dynamic_tools_manager = self.app[DynamicToolManager]
         return self._dynamic_tools_manager
+
+    @property
+    def file_source_instances_manager(self):
+        if self._file_source_instances_manager is None:
+            from galaxy.managers.file_source_instances import FileSourceInstancesManager
+
+            self._file_source_instances_manager = self.app[FileSourceInstancesManager]
+        return self._file_source_instances_manager
 
     def connect(self) -> dict[str, Any]:
         config = self.app.config
@@ -947,3 +956,35 @@ class AgentOperationsManager:
         }
         result = self.tools_service._create(self.trans, payload)
         return self._encode_ids_in_response(result)
+
+    # ==================== File sources (remote data repositories) ====================
+
+    def list_file_source_templates(self) -> dict[str, Any]:
+        """Return the catalog of file source plugin templates available to configure.
+
+        Each template corresponds to a remote data repository Galaxy can connect
+        to (Omero, Dropbox, S3, Zenodo, etc.). Templates are the catalog; the
+        user instantiates one to get a working file source. Hidden (deprecated)
+        templates are filtered out.
+        """
+        summaries = self.file_source_instances_manager.summaries
+        templates = [t.model_dump(mode="json") for t in summaries.root if not t.hidden]
+        return {
+            "templates": templates,
+            "count": len(templates),
+        }
+
+    def list_user_file_sources(self) -> dict[str, Any]:
+        """Return the file source instances configured by the current user.
+
+        These are the user's active connections to remote data repositories,
+        usable as both data sources and export destinations.
+        """
+        if not self.trans.user:
+            raise ValueError("User must be authenticated")
+        instances = self.file_source_instances_manager.index(self.trans)
+        file_sources = [i.model_dump(mode="json") for i in instances]
+        return {
+            "file_sources": file_sources,
+            "count": len(file_sources),
+        }

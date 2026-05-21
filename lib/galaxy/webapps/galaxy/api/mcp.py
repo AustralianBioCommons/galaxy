@@ -1025,6 +1025,34 @@ def get_mcp_app(gx_app):
             ops_manager = get_operations_manager(api_key, ctx)
             return ops_manager.run_user_tool(history_id, tool_uuid, inputs)
 
+    # ==================== File sources (remote data repositories) ====================
+
+    @mcp.tool()
+    def list_file_source_templates(api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """List remote-repository plugin templates Galaxy can connect to.
+
+        Returns templates like Omero, Dropbox, S3, Zenodo, Invenio, Google
+        Drive -- the catalog of remote data sources/destinations a user can
+        configure. For the user's already-configured instances use
+        list_user_file_sources().
+        """
+        with _mcp_error_handler("list_file_source_templates"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.list_file_source_templates()
+
+    @mcp.tool()
+    def list_user_file_sources(api_key: str, ctx: MCPContext) -> dict[str, Any]:
+        """List the current user's configured remote-repository file source instances.
+
+        Each instance is an active connection (Omero server, Dropbox account,
+        S3 bucket, etc.) usable as both a data source and an export
+        destination. For the catalog of plugin templates use
+        list_file_source_templates().
+        """
+        with _mcp_error_handler("list_user_file_sources"):
+            ops_manager = get_operations_manager(api_key, ctx)
+            return ops_manager.list_user_file_sources()
+
     mcp_app = mcp.http_app(path="/")
     mcp_app.state.mcp_server = mcp
 
