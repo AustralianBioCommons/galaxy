@@ -26,12 +26,12 @@ import { buildEntityContext, parseMentions, resolveMentions } from "@/composable
 import { useChatStore } from "@/stores/chatStore";
 import { errorMessageAsString } from "@/utils/simple-error";
 
-import { getAgentIcon } from "./ChatGXY/agentTypes";
-import type { ChatHistoryItem, ChatMessage } from "./ChatGXY/chatTypes";
-import { generateId, scrollToBottom } from "./ChatGXY/chatUtils";
+import { getAgentIcon } from "./GalaxyAI/agentTypes";
+import type { ChatHistoryItem, ChatMessage } from "./GalaxyAI/chatTypes";
+import { generateId, scrollToBottom } from "./GalaxyAI/chatUtils";
 
-import ChatInput from "./ChatGXY/ChatInput.vue";
-import ChatMessageCell from "./ChatGXY/ChatMessageCell.vue";
+import ChatInput from "./GalaxyAI/ChatInput.vue";
+import ChatMessageCell from "./GalaxyAI/ChatMessageCell.vue";
 import Heading from "@/components/Common/Heading.vue";
 
 const props = withDefaults(
@@ -130,7 +130,7 @@ function showWelcome() {
         id: generateId(),
         role: "assistant",
         content:
-            "Welcome to ChatGXY. Ask about tools, workflows, errors, or data quality " +
+            "Welcome to GalaxyAI. Ask about tools, workflows, errors, or data quality " +
             "and your question will be routed to the appropriate specialist agent.",
         timestamp: new Date(),
         agentType: "router",
@@ -182,7 +182,7 @@ async function submitQuery() {
         });
 
         if (error) {
-            const errorText = errorMessageAsString(error, "Failed to get response from ChatGXY.");
+            const errorText = errorMessageAsString(error, "Failed to get response from GalaxyAI.");
             const errorMsg: ChatMessage = {
                 id: generateId(),
                 role: "assistant",
@@ -390,16 +390,16 @@ async function deleteCurrentChat() {
 
 function popOutToWindowManager() {
     const Galaxy = getGalaxyInstance();
-    const path = currentChatId.value ? `/chatgxy/${currentChatId.value}` : "/chatgxy";
+    const path = currentChatId.value ? `/galaxyai/${currentChatId.value}` : "/galaxyai";
     const url = `${path}?compact=true`;
-    Galaxy.frame.add({ title: "ChatGXY", url });
+    Galaxy.frame.add({ title: "GalaxyAI", url });
 }
 
 function dockTo(location: "right" | "bottom") {
     chatStore.setActiveChatId(currentChatId.value);
     chatStore.setLocation(location);
     chatStore.showChat();
-    if (route.path.startsWith("/chatgxy")) {
+    if (route.path.startsWith("/galaxyai")) {
         router.push("/");
     }
 }
@@ -413,13 +413,13 @@ watch(currentChatId, (newId) => {
 
 <template>
     <div
-        class="chatgxy-container"
-        :class="{ 'chatgxy-compact': compact, 'chatgxy-docked': docked, 'chatgxy-panel': panel }">
+        class="galaxyai-container"
+        :class="{ 'galaxyai-compact': compact, 'galaxyai-docked': docked, 'galaxyai-panel': panel }">
         <!-- Docked side panel header -->
-        <div v-if="docked" class="chatgxy-header chatgxy-header-docked">
+        <div v-if="docked" class="galaxyai-header galaxyai-header-docked">
             <span class="docked-title">
                 <FontAwesomeIcon :icon="faMagic" fixed-width />
-                ChatGXY
+                GalaxyAI
             </span>
             <div class="header-actions">
                 <button class="btn btn-sm btn-outline-primary" title="Start New Chat" @click="startNewChat">
@@ -434,9 +434,9 @@ watch(currentChatId, (newId) => {
             </div>
         </div>
         <!-- Center view header -->
-        <div v-else-if="!compact && !panel" class="chatgxy-header">
+        <div v-else-if="!compact && !panel" class="galaxyai-header">
             <Heading h2 :icon="faMagic" size="lg">
-                <span>ChatGXY</span>
+                <span>GalaxyAI</span>
             </Heading>
             <div class="header-actions">
                 <button class="btn btn-sm btn-outline-primary" title="Start New Chat" @click="startNewChat">
@@ -500,7 +500,7 @@ watch(currentChatId, (newId) => {
             </div>
         </div>
 
-        <div class="chatgxy-footer">
+        <div class="galaxyai-footer">
             <ChatInput v-model="query" :busy="busy" @submit="submitQuery" />
         </div>
     </div>
@@ -509,7 +509,7 @@ watch(currentChatId, (newId) => {
 <style lang="scss" scoped>
 @import "@/style/scss/theme/blue.scss";
 
-.chatgxy-container {
+.galaxyai-container {
     height: calc(100vh - #{$masthead-height} - 2rem);
     display: flex;
     flex-direction: column;
@@ -518,25 +518,25 @@ watch(currentChatId, (newId) => {
     overflow: hidden;
 }
 
-.chatgxy-compact {
+.galaxyai-compact {
     height: 100vh;
 
     .chat-messages {
         padding: 0.75rem 1rem;
     }
 
-    .chatgxy-footer {
+    .galaxyai-footer {
         padding: 0.5rem 0.75rem;
     }
 }
 
-.chatgxy-docked,
-.chatgxy-panel {
+.galaxyai-docked,
+.galaxyai-panel {
     height: 100%;
     border-radius: 0;
 }
 
-.chatgxy-header-docked {
+.galaxyai-header-docked {
     padding: 0.5rem 0.75rem;
 
     .docked-title {
@@ -579,7 +579,7 @@ watch(currentChatId, (newId) => {
     }
 }
 
-.chatgxy-header {
+.galaxyai-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -593,7 +593,7 @@ watch(currentChatId, (newId) => {
     }
 }
 
-.chatgxy-footer {
+.galaxyai-footer {
     padding: 0.75rem 1rem;
     background: $panel-bg-color;
     border-top: $border-default;

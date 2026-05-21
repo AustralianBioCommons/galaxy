@@ -8,7 +8,7 @@ import { useRouter } from "vue-router/composables";
 import { getGalaxyInstance } from "@/app";
 import { useChatStore } from "@/stores/chatStore";
 
-import ChatGXY from "@/components/ChatGXY.vue";
+import GalaxyAI from "@/components/GalaxyAI.vue";
 
 const router = useRouter();
 const chatStore = useChatStore();
@@ -17,7 +17,7 @@ const { activeChatId } = storeToRefs(chatStore);
 const collapsed = ref(false);
 
 function maximize() {
-    const path = activeChatId.value ? `/chatgxy/${activeChatId.value}` : "/chatgxy";
+    const path = activeChatId.value ? `/galaxyai/${activeChatId.value}` : "/galaxyai";
     chatStore.setLocation("center");
     chatStore.hideChat();
     router.push(path);
@@ -26,8 +26,8 @@ function maximize() {
 function popOut() {
     const Galaxy = getGalaxyInstance();
     const id = activeChatId.value;
-    const path = id ? `/chatgxy/${id}` : "/chatgxy";
-    Galaxy.frame.add({ title: "ChatGXY", url: `${path}?compact=true` });
+    const path = id ? `/galaxyai/${id}` : "/galaxyai";
+    Galaxy.frame.add({ title: "GalaxyAI", url: `${path}?compact=true` });
     chatStore.hideChat();
 }
 
@@ -39,7 +39,7 @@ function close() {
 <template>
     <div class="chat-panel" :class="collapsed ? 'collapsed' : 'expanded'">
         <div class="chat-panel-header">
-            <span class="chat-panel-title">ChatGXY</span>
+            <span class="chat-panel-title">GalaxyAI</span>
             <div class="chat-panel-actions">
                 <button class="chat-panel-btn" title="Open full view" @click="maximize">
                     <FontAwesomeIcon :icon="faExpand" fixed-width />
@@ -56,7 +56,7 @@ function close() {
             </div>
         </div>
         <div v-show="!collapsed" class="chat-panel-body">
-            <ChatGXY :exchange-id="activeChatId || undefined" panel />
+            <GalaxyAI :exchange-id="activeChatId || undefined" panel />
         </div>
     </div>
 </template>

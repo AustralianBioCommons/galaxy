@@ -131,7 +131,7 @@
                 <template v-slot:buttons>
                     <GButton
                         tooltip
-                        title="Generate AI ChatGXY report based on the workflow and its expected results"
+                        title="Generate AI GalaxyAI report based on the workflow and its expected results"
                         variant="link"
                         color="blue"
                         transparent

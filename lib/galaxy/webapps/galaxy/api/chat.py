@@ -134,7 +134,7 @@ class ChatAPI:
         trans: ProvidesUserContext = DependsOnTrans,
         user: User = DependsOnUser,
     ) -> ChatResponse:
-        """ChatGXY endpoint - handles both job-based and general chat queries
+        """GalaxyAI endpoint - handles both job-based and general chat queries
 
         Backwards compatible with both formats:
         1. Old format: job_id in query params + payload body with query/context

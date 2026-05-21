@@ -1646,31 +1646,31 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         self.components.invocations.activity.wait_for_and_click()
         self.components.invocations.activity_expand.wait_for_and_click()
 
-    def navigate_to_chatgxy(self):
+    def navigate_to_galaxyai(self):
         self.home()
-        self.components.chatgxy.activity.wait_for_and_click()
+        self.components.galaxyai.activity.wait_for_and_click()
 
-    def chatgxy_ensure_new_chat(self):
-        """Ensure ChatGXY center panel shows an empty conversation."""
-        chatgxy = self.components.chatgxy
-        chatgxy._.wait_for_visible()
-        if len(chatgxy.query_cell.all()) > 0 or len(chatgxy.response_content.all()) > 0:
-            chatgxy.new_chat_button.wait_for_and_click()
-        self._chatgxy_assert_chat_empty()
+    def galaxyai_ensure_new_chat(self):
+        """Ensure GalaxyAI center panel shows an empty conversation."""
+        galaxyai = self.components.galaxyai
+        galaxyai._.wait_for_visible()
+        if len(galaxyai.query_cell.all()) > 0 or len(galaxyai.response_content.all()) > 0:
+            galaxyai.new_chat_button.wait_for_and_click()
+        self._galaxyai_assert_chat_empty()
 
-    def chatgxy_send_message(self, text):
+    def galaxyai_send_message(self, text):
         """Type a message, click send, and wait for the response to appear."""
-        chatgxy = self.components.chatgxy
-        chatgxy.input.wait_for_and_send_keys(text)
-        chatgxy.send_button.wait_for_and_click()
-        chatgxy.loading.wait_for_absent_or_hidden()
-        chatgxy.response_content.wait_for_visible()
+        galaxyai = self.components.galaxyai
+        galaxyai.input.wait_for_and_send_keys(text)
+        galaxyai.send_button.wait_for_and_click()
+        galaxyai.loading.wait_for_absent_or_hidden()
+        galaxyai.response_content.wait_for_visible()
 
     @retry_during_transitions
-    def _chatgxy_assert_chat_empty(self):
-        chatgxy = self.components.chatgxy
-        assert len(chatgxy.query_cell.all()) == 0
-        assert len(chatgxy.response_content.all()) == 0
+    def _galaxyai_assert_chat_empty(self):
+        galaxyai = self.components.galaxyai
+        assert len(galaxyai.query_cell.all()) == 0
+        assert len(galaxyai.response_content.all()) == 0
 
     def navigate_to_dataset_error(self, hid):
         """Display a dataset and click the error tab."""

@@ -12,8 +12,8 @@ import { useUserStore } from "@/stores/userStore";
 import CenterFrame from "./CenterFrame.vue";
 import ActivityBar from "@/components/ActivityBar/ActivityBar.vue";
 import GButton from "@/components/BaseComponents/GButton.vue";
-import ChatGXY from "@/components/ChatGXY.vue";
-import ChatPanel from "@/components/ChatGXY/ChatPanel.vue";
+import GalaxyAI from "@/components/GalaxyAI.vue";
+import ChatPanel from "@/components/GalaxyAI/ChatPanel.vue";
 import HistoryIndex from "@/components/History/Index.vue";
 import FlexPanel from "@/components/Panels/FlexPanel.vue";
 import DragAndDropModal from "@/components/Upload/DragAndDropModal.vue";
@@ -28,7 +28,7 @@ const router = useRouter();
 watch(
     () => route.path,
     (newPath) => {
-        if (newPath.startsWith("/chatgxy")) {
+        if (newPath.startsWith("/galaxyai")) {
             chatStore.hideChat();
         }
     },
@@ -59,7 +59,7 @@ function handleUndock() {
     const chatId = activeChatId.value;
     chatStore.setLocation("center");
     chatStore.hideChat();
-    router.push(chatId ? `/chatgxy/${chatId}` : "/chatgxy");
+    router.push(chatId ? `/galaxyai/${chatId}` : "/galaxyai");
 }
 
 // life cycle
@@ -103,7 +103,7 @@ onUnmounted(() => {
             side="right"
             :reactive-width.sync="chatPanelWidth"
             @close="chatStore.hideChat()">
-            <ChatGXY
+            <GalaxyAI
                 :exchange-id="activeChatId || undefined"
                 docked
                 @close="chatStore.hideChat()"

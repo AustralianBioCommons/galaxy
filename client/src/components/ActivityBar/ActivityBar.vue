@@ -17,7 +17,7 @@ import { useUnprivilegedToolStore } from "@/stores/unprivilegedToolStore";
 import { useUserStore } from "@/stores/userStore";
 import localize from "@/utils/localization";
 
-import ChatHistoryPanel from "../ChatGXY/ChatHistoryPanel.vue";
+import ChatHistoryPanel from "../GalaxyAI/ChatHistoryPanel.vue";
 import InvocationsPanel from "../Panels/InvocationsPanel.vue";
 import ActivityBarHeader from "./ActivityBarHeader.vue";
 import ActivityBarSeparator from "./ActivityBarSeparator.vue";
@@ -130,7 +130,7 @@ const activities = computed({
             if (activity.id === "interactivetools" && !config.value?.interactivetools_enable) {
                 return false;
             }
-            if (activity.id === "chatgxy" && !config.value?.llm_api_configured) {
+            if (activity.id === "galaxyai" && !config.value?.llm_api_configured) {
                 return false;
             }
             return true;
@@ -142,7 +142,7 @@ const activities = computed({
             (activity) =>
                 (activity.id === "user-defined-tools" && !canUseUnprivilegedTools.value) ||
                 (activity.id === "interactivetools" && !config.value?.interactivetools_enable) ||
-                (activity.id === "chatgxy" && !config.value?.llm_api_configured),
+                (activity.id === "galaxyai" && !config.value?.llm_api_configured),
         );
         storeActivities.value = [...newActivities, ...filteredOut];
     },
@@ -176,7 +176,7 @@ function isActiveSideBar(menuKey: string) {
  * Checks if an activity that has a panel should have the `is-active` prop
  */
 function panelActivityIsActive(activity: Activity) {
-    if (activity.id === "chatgxy" && !chatStore.isCenterMode && chatStore.chatVisible) {
+    if (activity.id === "galaxyai" && !chatStore.isCenterMode && chatStore.chatVisible) {
         return true;
     }
     return isActiveSideBar(activity.id) || isActiveRoute(activity.to);
@@ -240,11 +240,11 @@ function toggleSidebar(toggle: string = "", to: string | null = null) {
 
 function onChatGxyClick() {
     if (chatStore.isCenterMode) {
-        toggleSidebar("chatgxy");
-        if (route.path.startsWith("/chatgxy")) {
+        toggleSidebar("galaxyai");
+        if (route.path.startsWith("/galaxyai")) {
             router.push("/");
         } else {
-            router.push("/chatgxy");
+            router.push("/galaxyai");
         }
     } else {
         chatStore.toggleChat();
@@ -321,7 +321,7 @@ defineExpose({
                                 :to="activity.to"
                                 @click="toggleSidebar(activity.id, activity.to)" />
                             <ActivityItem
-                                v-else-if="activity.id === 'chatgxy'"
+                                v-else-if="activity.id === 'galaxyai'"
                                 :id="`${activity.id}`"
                                 :key="activity.id"
                                 :activity-bar-id="props.activityBarId"
@@ -454,7 +454,7 @@ defineExpose({
             <InvocationsPanel v-else-if="isActiveSideBar('invocation')" />
             <VisualizationPanel v-else-if="isActiveSideBar('visualizations')" />
             <MultiviewPanel v-else-if="isActiveSideBar('multiview')" />
-            <ChatHistoryPanel v-else-if="isActiveSideBar('chatgxy')" />
+            <ChatHistoryPanel v-else-if="isActiveSideBar('galaxyai')" />
             <NotificationsPanel v-else-if="isActiveSideBar('notifications')" />
             <UserToolPanel v-if="isActiveSideBar('user-defined-tools')" in-panel />
             <InteractiveToolsPanel v-else-if="isActiveSideBar('interactivetools')" />

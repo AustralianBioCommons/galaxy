@@ -1193,9 +1193,12 @@ workflow_extract:
     create_button: '[data-description="create-workflow-button"]'
     no_workflow_message: '[data-description="no-workflow-message"]'
     tool_card: '[data-step-type="tool"]'
+    mapped_tool_card: '[data-step-kind="mapped-tool"]'
     tool_card_checkbox: '[data-step-type="tool"] input[id^="g-card-select-"]'
     tool_card_checkbox_checked: '[data-step-type="tool"] input[id^="g-card-select-"]:checked'
     card_checkbox_by_job_id: '[data-job-id="${job_id}"] input[id^="g-card-select-"]'
+    card_by_icj_id: '[data-icj-id="${icj_id}"]'
+    mapped_badge: '[id^="g-card-badge-mapped-tool-"]'
     all_card_checkboxes_checked: '[data-description="workflow-extraction-form"] input[id^="g-card-select-"]:checked'
 
 invocations:
@@ -1633,13 +1636,13 @@ job_details:
       selector: '//td[@id="galaxy-tool-id"][normalize-space(text()) = "${tool_id}"]'
     tool_exit_code: '#exit-code'
 
-chatgxy:
+galaxyai:
   selectors:
-    activity: '#activity-chatgxy'
-    _: '.chatgxy-container'
-    header: '.chatgxy-header'
-    new_chat_button: '.chatgxy-header .btn-outline-primary'
-    delete_chat_button: '.chatgxy-header .btn-outline-danger'
+    activity: '#activity-galaxyai'
+    _: '.galaxyai-container'
+    header: '.galaxyai-header'
+    new_chat_button: '.galaxyai-header .btn-outline-primary'
+    delete_chat_button: '.galaxyai-header .btn-outline-danger'
     messages: '.chat-messages'
     input: '#chat-input'
     send_button: '.send-button'
@@ -1656,7 +1659,7 @@ chatgxy:
 
   history_panel:
     selectors:
-      _: '.activity-panel[data-description="ChatGXY"]'
+      _: '.activity-panel[data-description="GalaxyAI"]'
       toggle_selection_mode: 'button[title="Select chats to delete"]'
       cancel_selection: 'button[title="Cancel selection"]'
       history_item: '[data-description="sidebar item"]'

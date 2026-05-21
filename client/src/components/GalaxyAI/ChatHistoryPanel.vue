@@ -57,7 +57,7 @@ function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent
         return;
     }
     if (chatStore.isCenterMode) {
-        router.push(`/chatgxy/${item.id}`);
+        router.push(`/galaxyai/${item.id}`);
     } else {
         chatStore.setActiveChatId(item.id);
         chatStore.showChat();
@@ -66,7 +66,7 @@ function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent
 
 function startNewChat() {
     if (chatStore.isCenterMode) {
-        router.push("/chatgxy");
+        router.push("/galaxyai");
     } else {
         chatStore.setActiveChatId(null);
         chatStore.showChat();
@@ -101,7 +101,7 @@ async function deleteSelected() {
 </script>
 
 <template>
-    <ActivityPanel title="ChatGXY" go-to-all-title="Open ChatGXY" href="/chatgxy">
+    <ActivityPanel title="GalaxyAI" go-to-all-title="Open GalaxyAI" href="/galaxyai">
         <template v-slot:header-buttons>
             <button class="btn btn-sm btn-outline-primary" title="New Chat" @click="startNewChat">
                 <FontAwesomeIcon :icon="faPlus" fixed-width />
