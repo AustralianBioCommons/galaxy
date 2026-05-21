@@ -43,7 +43,7 @@ def test_import_workflow_from_iwc_delegates_to_trs_pipeline():
 
     result = ops.import_workflow_from_iwc(trs_id)
 
-    app.workflow_contents_manager.get_or_create_workflow_from_trs.assert_called_once_with(
+    app.workflow_contents_manager.get_or_create_workflow_from_trs.assert_called_once_with(  # type: ignore[attr-defined]
         ops.trans,
         trs_url=None,
         trs_id=trs_id,
@@ -88,7 +88,7 @@ def test_import_workflow_from_iwc_handles_no_latest_workflow():
     result = ops.import_workflow_from_iwc("#workflow/github.com/iwc-workflows/empty/main")
 
     assert result["missing_tools"] == []
-    app.workflow_contents_manager.get_all_tools.assert_not_called()
+    app.workflow_contents_manager.get_all_tools.assert_not_called()  # type: ignore[attr-defined]
 
 
 def test_import_workflow_from_iwc_requires_authenticated_user():
@@ -110,7 +110,7 @@ def test_import_workflow_from_iwc_rejects_empty_trs_id():
 
 def test_import_workflow_from_iwc_propagates_trs_lookup_errors():
     app = _make_app()
-    app.workflow_contents_manager.get_or_create_workflow_from_trs.side_effect = RuntimeError("trs lookup blew up")
+    app.workflow_contents_manager.get_or_create_workflow_from_trs.side_effect = RuntimeError("trs lookup blew up")  # type: ignore[attr-defined]
     ops = _make_ops(app)
 
     with pytest.raises(RuntimeError, match="trs lookup blew up"):
