@@ -7,10 +7,12 @@ for reasoning about tool state externally from Galaxy.
 import re
 from typing import (
     Any,
+    ClassVar,
     Dict,
     List,
     Optional,
     Set,
+    Tuple,
     Union,
 )
 
@@ -21,8 +23,10 @@ from pydantic import (
     Discriminator,
     Field,
     field_validator,
+    model_serializer,
     model_validator,
     RootModel,
+    SerializerFunctionWrapHandler,
     Tag,
     ValidationError,
 )
@@ -248,6 +252,31 @@ class UserToolSource(_DynamicToolSourceBase):
         str, Field(description="Container image to use for this tool.", examples=["quay.io/biocontainers/python:3.13"])
     ]
 
+    # Field declaration order puts subclass fields (class_, container) after
+    # parent ones, which serializes them at the end. Re-order on dump so the
+    # YAML the tool editor renders leads with identity + runtime.
+    _CANONICAL_FIELD_ORDER: ClassVar[Tuple[str, ...]] = (
+        "class_",
+        "id",
+        "name",
+        "version",
+        "description",
+        "container",
+        "requirements",
+        "shell_command",
+        "configfiles",
+        "inputs",
+        "outputs",
+        "citations",
+        "license",
+        "profile",
+        "edam_operations",
+        "edam_topics",
+        "xrefs",
+        "help",
+        "tests",
+    )
+
     @field_validator("container", mode="after")
     @classmethod
     def _reject_blank_container(cls, value: str) -> str:
@@ -257,6 +286,28 @@ class UserToolSource(_DynamicToolSourceBase):
                 "container must not be empty",
             )
         return value
+
+    @model_serializer(mode="wrap")
+    def _canonical_order(self, handler: SerializerFunctionWrapHandler, info: Any):
+        # Runs for both direct ``model_dump`` calls and nested serialization
+        # (e.g. inside ``UnprivilegedToolResponse``), where pydantic_core
+        # bypasses ``model_dump`` on the child.
+        # No return annotation so pydantic derives the output JSON schema from
+        # the model fields instead of treating the result as opaque dict.
+        data = handler(self)
+        if not isinstance(data, dict):
+            return data
+        by_alias = bool(getattr(info, "by_alias", False))
+        fields = type(self).model_fields
+        ordered: Dict[str, Any] = {}
+        for field_name in self._CANONICAL_FIELD_ORDER:
+            field_info = fields.get(field_name)
+            key = (field_info.alias or field_name) if by_alias and field_info and field_info.alias else field_name
+            if key in data:
+                ordered[key] = data.pop(key)
+        # Preserve any unexpected keys (forward compat) at the end.
+        ordered.update(data)
+        return ordered
 
 
 class YamlToolSource(_DynamicToolSourceBase):
