@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
     (e: "update:reactive-width", width: number): void;
+    (e: "close"): void;
 }>();
 
 const localPanelWidth = ref(DEFAULT_WIDTH);
@@ -109,7 +110,10 @@ defineExpose({
             class="collapse-button open"
             :class="{ ...sideClasses, show: showToggle }"
             title="Close panel"
-            @click="show = false"
+            @click="
+                show = false;
+                emit('close');
+            "
             @mouseenter="hoverToggle = true"
             @focusin="hoverToggle = true"
             @mouseout="hoverToggle = false"

@@ -32,6 +32,7 @@ watch(
             chatStore.hideChat();
         }
     },
+    { immediate: true },
 );
 
 const showCenter = ref(false);
@@ -100,7 +101,8 @@ onUnmounted(() => {
             v-if="showPanels && isRightPanelOpen"
             panel-id="chat-panel"
             side="right"
-            :reactive-width.sync="chatPanelWidth">
+            :reactive-width.sync="chatPanelWidth"
+            @close="chatStore.hideChat()">
             <ChatGXY
                 :exchange-id="activeChatId || undefined"
                 docked
