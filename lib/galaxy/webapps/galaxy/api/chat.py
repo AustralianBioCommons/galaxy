@@ -22,14 +22,22 @@ from fastapi import (
 from pydantic import Field
 
 from galaxy.config import GalaxyAppConfiguration
-from galaxy.exceptions import ConfigurationError
+from galaxy.exceptions import (
+    ConfigurationError,
+    MessageException,
+    ObjectNotFound,
+)
 from galaxy.managers.agents import AgentService
 from galaxy.managers.chat import ChatManager
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.managers.jobs import JobManager
 from galaxy.managers.markdown_util import ready_galaxy_markdown_for_export
+from galaxy.managers.workflows import WorkflowsManager
 from galaxy.model import User
-from galaxy.schema.agents import AgentResponse
+from galaxy.schema.agents import (
+    AgentResponse,
+    WorkflowReportResponse,
+)
 from galaxy.schema.fields import DecodedDatabaseIdField
 from galaxy.schema.schema import (
     ChatExchangeBatchDeletePayload,
@@ -46,16 +54,25 @@ from galaxy.webapps.galaxy.api import (
 
 # Import agent system
 try:
-    from galaxy.agents import GalaxyAgentDependencies
+    from galaxy.agents import (
+        AgentType,
+        GalaxyAgentDependencies,
+        WorkflowReportAgent,
+    )
 
     HAS_AGENTS = True
 except ImportError:
     HAS_AGENTS = False
+    AgentType = None  # type: ignore[assignment,misc,unused-ignore]
     GalaxyAgentDependencies = None  # type: ignore[assignment,misc,unused-ignore]
+    WorkflowReportAgent = None  # type: ignore[assignment,misc,unused-ignore]
 
 # Import pydantic-ai components (required dependency)
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 
 # Keep OpenAI as a fallback option
 try:
@@ -99,6 +116,7 @@ class ChatAPI:
     chat_manager: ChatManager = depends(ChatManager)
     job_manager: JobManager = depends(JobManager)
     agent_service: AgentService = depends(AgentService)
+    workflow_manager: WorkflowsManager = depends(WorkflowsManager)
 
     @router.post("/api/chat", unstable=True)
     async def query(
@@ -389,6 +407,49 @@ class ChatAPI:
         job = self.job_manager.get_accessible_job(trans, job_id)
         chat_response = self.chat_manager.set_feedback_for_job(trans, job.id, feedback)
         return chat_response.messages[0].feedback
+
+    @router.get("/api/chat/{workflow_id}/generate_report", unstable=True)
+    async def generate_report(
+        self,
+        workflow_id: str = Path(..., description="Workflow ID to generate the report for"),
+        version: Optional[int] = Query(None, description="Version of the workflow"),
+        instance: bool = Query(False, description="Whether the workflow_id is an instance ID"),
+        trans: ProvidesUserContext = DependsOnTrans,
+        user: User = DependsOnUser,
+    ) -> WorkflowReportResponse:
+        """Generate a report for the specified workflow."""
+        if not HAS_AGENTS:
+            raise ConfigurationError("AI agent system is not available.")
+        assert WorkflowReportAgent is not None
+
+        stored = self.workflow_manager.get_stored_accessible_workflow(trans, workflow_id, by_stored_id=not instance)
+        if not stored:
+            raise ObjectNotFound("Workflow not found.")
+
+        workflow = stored.get_internal_version(version) if version is not None else stored.latest_workflow
+
+        deps = self.agent_service.create_dependencies(trans, user)
+        agent = WorkflowReportAgent(deps)
+
+        try:
+            response = await agent.generate_workflow_report(workflow)
+        except ModelHTTPError as e:
+            body_msg = e.body.get("message", str(e)) if isinstance(e.body, dict) else str(e)
+            raise MessageException(f"AI model error ({e.status_code}): {body_msg}")
+        except UnexpectedModelBehavior as e:
+            raise MessageException(f"AI model returned an unexpected response: {e}")
+        except Exception as e:
+            raise MessageException(f"Failed to generate workflow report: {e}")
+
+        if response.metadata.get("validation_error"):
+            raise MessageException(response.content)
+        if response.metadata.get("error"):
+            raise MessageException(response.metadata.get("error"))
+        return WorkflowReportResponse(
+            report=response.content,
+            total_tokens=response.metadata.get("total_tokens"),
+            model=response.metadata.get("model"),
+        )
 
     @router.put("/api/chat/exchange/{exchange_id}/feedback", unstable=True)
     def set_exchange_feedback(
