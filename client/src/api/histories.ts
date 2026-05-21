@@ -52,6 +52,11 @@ export type PublishedHistory = SharedHistory & {
 export type AnyHistoryEntry = MyHistory | SharedHistory | PublishedHistory | ArchivedHistorySummary;
 
 /**
+ * Represents a reference to a history, containing only the fields necessary for identifying a history in API calls.
+ */
+export type HistoryReference = Pick<HistorySummary, "id" | "model_class">;
+
+/**
  * Represents the options for fetching histories.
  */
 export interface GetHistoriesOptions {
@@ -299,6 +304,73 @@ export async function getHistoryCounts(historyId: string): Promise<HistoryCounts
     }
 
     return data as HistoryCounts;
+}
+
+export type StorageOperationMode = components["schemas"]["StorageOperationMode"];
+export type StorageOperationExecutePolicy = components["schemas"]["StorageOperationExecutePolicy"];
+export type StorageOperationPreviewResponse = components["schemas"]["StorageOperationPreviewResponse"];
+export type StorageOperationExecuteResponse = components["schemas"]["StorageOperationExecuteResponse"];
+export type StorageOperationRunResponse = components["schemas"]["StorageOperationRunResponse"];
+export type StorageOperationRunItemStatus = components["schemas"]["StorageOperationRunItemStatus"];
+
+export interface StorageOperationRunItemsOptions {
+    offset?: number;
+    limit?: number;
+    search?: string;
+}
+
+export interface StorageOperationRunItemsWithTotal {
+    data: StorageOperationRunItemStatus[];
+    totalMatches: number | null;
+}
+
+export async function getStorageOperationRunStatus(
+    history: HistoryReference,
+    runId: string,
+): Promise<StorageOperationRunResponse> {
+    const { data, error } = await GalaxyApi().GET("/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}", {
+        params: {
+            path: { history_id: history.id, run_id: runId },
+        },
+    });
+
+    if (error) {
+        rethrowSimple(error);
+    }
+
+    return data;
+}
+
+export async function getStorageOperationRunItemsWithTotal(
+    history: HistoryReference,
+    runId: string,
+    options: StorageOperationRunItemsOptions = {},
+): Promise<StorageOperationRunItemsWithTotal> {
+    const { offset = 0, limit = 50, search } = options;
+    const { response, data, error } = await GalaxyApi().GET(
+        "/api/histories/{history_id}/contents/bulk/storage/runs/{run_id}/items",
+        {
+            params: {
+                path: { history_id: history.id, run_id: runId },
+                query: {
+                    offset,
+                    limit,
+                    search,
+                },
+            },
+        },
+    );
+
+    if (error) {
+        rethrowSimple(error);
+    }
+
+    const totalMatchesHeader = response.headers.get("total_matches");
+    const totalMatches = totalMatchesHeader !== null ? parseInt(totalMatchesHeader, 10) : null;
+    return {
+        data,
+        totalMatches: Number.isNaN(totalMatches) ? null : totalMatches,
+    };
 }
 
 /**

@@ -12726,6 +12726,65 @@ class CeleryUserActiveTask(Base):
     started_at: Mapped[datetime]
 
 
+class DatasetStorageOperationSnapshot(Base):
+    """Immutable snapshot of a resolved storage operation selection."""
+
+    __tablename__ = "dataset_storage_operation_snapshot"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    history_id: Mapped[int] = mapped_column(ForeignKey("history.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("galaxy_user.id", ondelete="CASCADE"), index=True)
+    mode: Mapped[str] = mapped_column(String(32), index=True)
+    target_object_store_id: Mapped[str] = mapped_column(String(255))
+    resolved_dataset_ids: Mapped[list[int]] = mapped_column(JSONType)
+    eligible_dataset_ids: Mapped[list[int]] = mapped_column(JSONType)
+    create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
+    update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(index=True)
+
+
+class DatasetStorageOperationRun(Base):
+    """Tracks one execution attempt for a storage operation snapshot."""
+
+    __tablename__ = "dataset_storage_operation_run"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_storage_operation_snapshot.id", ondelete="CASCADE"), index=True
+    )
+    history_id: Mapped[int] = mapped_column(ForeignKey("history.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("galaxy_user.id", ondelete="CASCADE"), index=True)
+    mode: Mapped[str] = mapped_column(String(32), index=True)
+    target_object_store_id: Mapped[str] = mapped_column(String(255))
+    state: Mapped[str] = mapped_column(String(32), index=True)
+    skip_ineligible: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_on_completion: Mapped[bool] = mapped_column(Boolean, default=True)
+    task_id: Mapped[Optional[Union[UUID, str]]] = mapped_column(UUIDType(), index=True)
+    total_count: Mapped[int] = mapped_column(default=0)
+    succeeded_count: Mapped[int] = mapped_column(default=0)
+    failed_count: Mapped[int] = mapped_column(default=0)
+    skipped_count: Mapped[int] = mapped_column(default=0)
+    total_bytes_processed: Mapped[int] = mapped_column(default=0)
+    create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
+    update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, nullable=True)
+
+
+class DatasetStorageOperationRunItem(Base):
+    """Per-dataset status for a storage operation run."""
+
+    __tablename__ = "dataset_storage_operation_run_item"
+    __table_args__ = (UniqueConstraint("run_id", "dataset_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("dataset_storage_operation_run.id", ondelete="CASCADE"), index=True)
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("dataset.id", ondelete="CASCADE"), index=True)
+    state: Mapped[str] = mapped_column(String(32), index=True)
+    reason_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    bytes_processed: Mapped[int] = mapped_column(default=0)
+    create_time: Mapped[datetime] = mapped_column(default=now, nullable=True)
+    update_time: Mapped[datetime] = mapped_column(default=now, onupdate=now, nullable=True)
+
+
 class UserCredentials(Base):
     """
     Represents a credential associated with a user for a specific service.

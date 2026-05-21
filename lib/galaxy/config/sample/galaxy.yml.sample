@@ -742,6 +742,27 @@ galaxy:
   # cleaned up in default Celery task configuration.
   #short_term_storage_cleanup_interval: 3600
 
+  # Minimum remaining lifetime, in days, required before a dataset can
+  # be moved into an object store with automatic expiration. This
+  # prevents moving data into a target store where it would be close to
+  # expiring immediately. Defaults to 7 days.
+  #bulk_storage_operation_dataset_minimum_days_to_expiration: 7
+
+  # How long completed bulk dataset storage operation runs are kept in
+  # the database before Galaxy prunes their run records. Snapshot
+  # cleanup is handled separately. Defaults to 30 days.
+  #bulk_storage_operation_completed_run_retention_days: 30
+
+  # How many seconds between attempts to prune expired bulk dataset
+  # storage operation snapshots and old completed run records. Set to 0
+  # to disable the periodic pruning task. Defaults to every 24 hours.
+  #prune_expired_bulk_storage_operations_interval: 86400
+
+  # How many seconds between attempts to recover bulk dataset storage
+  # operation runs that were left pending or running after a worker
+  # stopped updating them. Defaults to every hour.
+  #recover_stale_bulk_storage_operation_runs_interval: 3600
+
   # Configured FileSource plugins.
   # The value of this option will be resolved with respect to
   # <config_dir>.

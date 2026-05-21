@@ -260,8 +260,12 @@ def setup_periodic_tasks(config, celery_app):
 
     beat_schedule: dict[str, dict[str, Any]] = {}
     schedule_task("prune_history_audit_table", config.history_audit_table_prune_interval)
+    schedule_task("prune_expired_bulk_storage_operations", config.prune_expired_bulk_storage_operations_interval)
     schedule_task("cleanup_short_term_storage", config.short_term_storage_cleanup_interval)
     schedule_task("prune_kombu_sqla_transport", config.kombu_sqla_transport_cleanup_interval)
+    schedule_task(
+        "recover_stale_bulk_storage_operation_runs", config.recover_stale_bulk_storage_operation_runs_interval
+    )
 
     if config.statsd_host:
         schedule_task("emit_queue_metrics_task", config.queue_metrics_interval)
