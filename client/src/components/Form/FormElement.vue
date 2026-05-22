@@ -462,7 +462,11 @@ const extendedCollectionType = computed<ExtendedCollectionType>(() => {
                 <FormColor v-else-if="props.type === 'color'" :id="props.id" v-model="currentValue" />
                 <FormDirectory v-else-if="props.type === 'directory_uri'" v-model="currentValue" />
                 <FormUpload v-else-if="props.type === 'upload'" v-model="currentValue" />
-                <FormRulesEdit v-else-if="props.type == 'rules'" v-model="currentValue" :target="attrs.target" />
+                <FormRulesEdit
+                    v-else-if="props.type == 'rules'"
+                    :id="props.id"
+                    v-model="currentValue"
+                    :target="attrs.target" />
                 <FormTags
                     v-else-if="props.type === 'tags'"
                     v-model="currentValue"
