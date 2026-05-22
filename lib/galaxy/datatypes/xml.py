@@ -25,7 +25,10 @@ log = logging.getLogger(__name__)
 OWL_MARKER = re.compile(r"\<owl:")
 SBML_MARKER = re.compile(r"\<sbml")
 TEI_MARKER = re.compile(
-    r"^\s*(?:<\?xml[^>]*>\s*)?(?:<!--.*?-->\s*)*<([A-Za-z_][\w.-]*:)?TEI(?:\s|>|/)",
+    # XML-spec comment body: `[^-]` or a lone `-` not followed by `-`. Avoids the
+    # ambiguous `.*?` inside `(...)*` that triggers exponential backtracking on
+    # repeated `--><!--` runs (CodeQL py/redos).
+    r"^\s*(?:<\?xml[^>]*>\s*)?(?:<!--(?:[^-]|-(?!-))*-->\s*)*<([A-Za-z_][\w.-]*:)?TEI(?:\s|>|/)",
     re.DOTALL,
 )
 
