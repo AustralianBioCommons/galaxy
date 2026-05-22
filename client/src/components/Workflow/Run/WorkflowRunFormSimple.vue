@@ -455,6 +455,14 @@ async function onExecute() {
         if (inputType == "replacement_parameter") {
             replacementParams[inputName] = value;
         } else if (inputType && isWorkflowInput(inputType as Step["type"])) {
+            // Unset optional `data` / `data_collection` inputs surface here as `null`
+            // (FormData.vue's createValue returns null for `undefined`). Omit them so
+            // the server-side workflow scheduler sees a missing key rather than `None`,
+            // matching the working API submission shape and the rerun-branch filter above.
+            const isData = inputType === "data_input" || inputType === "data_collection_input";
+            if (isData && (value === null || value === undefined)) {
+                continue;
+            }
             inputs[inputName] = value;
         }
     }
