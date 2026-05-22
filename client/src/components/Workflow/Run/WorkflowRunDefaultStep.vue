@@ -34,6 +34,7 @@
 <script>
 import { faEdit, faKey, faUndo } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { debounce } from "lodash";
 import { mapState } from "pinia";
 
 import { findInputByDottedName, visitInputs } from "@/components/Form/utilities";
@@ -114,6 +115,14 @@ export default {
         historyStatusKey() {
             this.onHistoryChange();
         },
+    },
+    created() {
+        // Debounce the per-keystroke options refetch so rapid typing in the
+        // dropdown search box coalesces into a single backend round trip.
+        this.onSearchChange = debounce(this.onSearchChange, 400);
+    },
+    beforeDestroy() {
+        this.onSearchChange.cancel?.();
     },
     methods: {
         onCreateIndex() {

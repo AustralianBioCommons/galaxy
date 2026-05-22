@@ -112,6 +112,7 @@
 </template>
 
 <script>
+import { debounce } from "lodash";
 import { mapActions, mapState, storeToRefs } from "pinia";
 
 import { canMutateHistory } from "@/api";
@@ -311,7 +312,14 @@ export default {
         },
     },
     created() {
+        // Debounce the per-keystroke options refetch so rapid typing in the
+        // dropdown search box coalesces into a single backend round trip
+        // (and doesn't race with the change-on-selection refetch).
+        this.onSearchChange = debounce(this.onSearchChange, 400);
         this.requestTool();
+    },
+    beforeDestroy() {
+        this.onSearchChange.cancel?.();
     },
     methods: {
         ...mapActions(useJobStore, ["saveLatestResponse"]),

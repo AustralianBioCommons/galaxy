@@ -17,6 +17,8 @@
 </template>
 
 <script>
+import { debounce } from "lodash";
+
 import WorkflowIcons from "@/components/Workflow/icons";
 
 import { searchHistoryContents } from "./services";
@@ -99,6 +101,14 @@ export default {
                 hide_label: this._isSimpleInputType(this.model.step_type),
             }));
         },
+    },
+    created() {
+        // Debounce the per-keystroke options refetch so rapid typing in the
+        // dropdown search box coalesces into a single backend round trip.
+        this.onSearchChange = debounce(this.onSearchChange, 400);
+    },
+    beforeDestroy() {
+        this.onSearchChange.cancel?.();
     },
     methods: {
         onChange(data) {
