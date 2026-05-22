@@ -2134,6 +2134,25 @@ ItemFromSrcCollection = Union[
 ]
 
 
+def _decode_dataset_id(value, security: "IdEncodingHelper", parameter_name: str) -> int:
+    """Coerce a value into an integer dataset PK or raise ParameterValueError.
+
+    Accepts int, digit string, or 16-char encoded id. Anything else
+    (including ``src:...``-prefixed strings, which should arrive as
+    ``{src, id}`` dicts via :func:`src_id_to_item`) is rejected so
+    malformed input surfaces as a 4xx instead of a SQL crash.
+    """
+    if isinstance(value, int):
+        return value
+    s = str(value)
+    if s.isdigit():
+        return int(s)
+    if len(s) == 16:
+        log.warning("Encoded ID where unencoded ID expected.")
+        return int(security.decode_id(s))
+    raise ParameterValueError(f"invalid dataset id {value!r}", parameter_name)
+
+
 def src_id_to_item(
     sa_session: "Session", value: typing.MutableMapping[str, Any], security: "IdEncodingHelper"
 ) -> ItemFromSrcAny:
@@ -2292,14 +2311,8 @@ class DataToolParameter(BaseDataToolParameter):
                 ):
                     rval.append(single_value)
                 else:
-                    if len(str(single_value)) == 16:
-                        # Could never really have an ID this big anyway - postgres doesn't
-                        # support that for integer column types.
-                        log.warning("Encoded ID where unencoded ID expected.")
-                        single_value = trans.security.decode_id(single_value)
-                    if single_value is None:
-                        raise ParameterValueError("unexpected None in data parameter value list", self.name)
-                    rval.append(trans.sa_session.get(HistoryDatasetAssociation, single_value))
+                    pk = _decode_dataset_id(single_value, trans.security, self.name)
+                    rval.append(trans.sa_session.get(HistoryDatasetAssociation, pk))
                 if len(found_srcs) > 1 and "hdca" in found_srcs:
                     raise ParameterValueError(
                         "if collections are supplied to multiple data input parameter, only collections may be used",
@@ -2319,7 +2332,8 @@ class DataToolParameter(BaseDataToolParameter):
         elif isinstance(value, HistoryDatasetCollectionAssociation) or isinstance(value, DatasetCollectionElement):
             rval.append(value)
         else:
-            rval.append(session.get(HistoryDatasetAssociation, int(value)))
+            pk = _decode_dataset_id(value, trans.security, self.name)
+            rval.append(session.get(HistoryDatasetAssociation, pk))
         dataset_matcher_factory = get_dataset_matcher_factory(trans)
         dataset_matcher = dataset_matcher_factory.dataset_matcher(self, other_values)
         for v in rval:
