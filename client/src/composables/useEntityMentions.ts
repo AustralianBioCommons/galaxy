@@ -35,26 +35,24 @@ export interface ResolvedEntity {
 export const MENTION_PATTERN_SOURCE = "@(dataset|history):(\\S+)";
 
 export function detectMentionTrigger(text: string, cursorPos: number): MentionTrigger | null {
-    // Walk backwards from cursor to find the nearest unmatched `@`
     const before = text.slice(0, cursorPos);
     const atIndex = before.lastIndexOf("@");
     if (atIndex === -1) {
         return null;
     }
 
-    // `@` must be at the start of input or preceded by whitespace
+    // Require `@` at start-of-input or after whitespace so we don't trigger on emails etc.
     if (atIndex > 0 && !/\s/.test(before[atIndex - 1]!)) {
         return null;
     }
 
-    const fragment = before.slice(atIndex + 1); // text after `@`
+    const fragment = before.slice(atIndex + 1);
 
-    // If there's a space in the fragment, the user has moved past the mention
+    // Once the user types whitespace they've moved past the mention.
     if (/\s/.test(fragment)) {
         return null;
     }
 
-    // Check if user has typed an entity prefix like "dataset:" or "history:"
     const prefixMatch = fragment.match(/^(dataset|history):(.*)$/i);
     if (prefixMatch) {
         return {
@@ -65,7 +63,7 @@ export function detectMentionTrigger(text: string, cursorPos: number): MentionTr
         };
     }
 
-    // Still typing the entity type name (or just typed `@`)
+    // No prefix yet -- user is still picking an entity type (or just typed `@`).
     return {
         entityType: null,
         searchText: fragment,

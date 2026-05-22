@@ -19,7 +19,7 @@ export function useActiveContext() {
         const query = route.query;
         const params = route.params;
 
-        // Tool form: root route with tool_id query param (but not upload1)
+        // upload1 is the upload modal, not a normal tool form -- skip it.
         if ((path === "/" || path === "") && query.tool_id && query.tool_id !== "upload1") {
             const toolId = String(query.tool_id);
             const toolName = toolStore.getToolNameById(toolId);
@@ -32,7 +32,6 @@ export function useActiveContext() {
             };
         }
 
-        // Workflow run via root route
         if ((path === "/" || path === "") && query.workflow_id) {
             return {
                 contextType: "workflow_run",
@@ -40,7 +39,6 @@ export function useActiveContext() {
             };
         }
 
-        // Dataset view: /datasets/:datasetId
         if (path.startsWith("/datasets/") && params.datasetId) {
             return {
                 contextType: "dataset",
@@ -48,7 +46,6 @@ export function useActiveContext() {
             };
         }
 
-        // Workflow editor: /workflows/edit?id=X
         if (path === "/workflows/edit" && query.id) {
             return {
                 contextType: "workflow_editor",
@@ -56,7 +53,6 @@ export function useActiveContext() {
             };
         }
 
-        // Workflow run: /workflows/run?id=X
         if (path === "/workflows/run" && query.id) {
             return {
                 contextType: "workflow_run",
@@ -64,7 +60,6 @@ export function useActiveContext() {
             };
         }
 
-        // Job details: /jobs/:jobId
         if (path.startsWith("/jobs/") && params.jobId) {
             return {
                 contextType: "job",

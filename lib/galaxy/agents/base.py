@@ -85,19 +85,10 @@ log = logging.getLogger(__name__)
 ConfidenceLiteral = Literal["low", "medium", "high"]
 
 MAX_HISTORY_MESSAGES = 40
-"""Cap on prior messages passed as pydantic-ai ``message_history``.
-
-~20 turn-pairs; tool-heavy turns produce 3-5 messages each. Bounds total token
-load while preserving enough recent context to keep multi-turn conversations
-coherent.
-"""
+"""Cap on prior messages passed as pydantic-ai ``message_history`` to bound token load."""
 
 TOOL_HELPER_HISTORY_MESSAGES = 8
-"""Tighter cap when a sub-agent is invoked from inside a `@agent.tool` call.
-
-Tool-context turns burn token budget faster (tool call + tool return +
-follow-up), so we hand the sub-agent a smaller window.
-"""
+"""Tighter history cap for sub-agents invoked from inside a ``@agent.tool`` call."""
 
 # Hardcoded fallback if the capability YAML can't be located. Mirrors the
 # previous behaviour (deepseek -> no structured output, everything else yes).
@@ -112,15 +103,7 @@ _model_capabilities_cache: dict[str, dict[str, Any]] = {}
 
 
 def _load_model_capabilities(path: Optional[str], force_reload: bool = False) -> dict[str, Any]:
-    """Return the parsed model-capabilities table for ``path``.
-
-    ``path`` should come from ``config.agent_model_capabilities_file``, which
-    Galaxy resolves at startup (admin override in ``config_dir`` if present,
-    otherwise the shipped sample under ``sample_config_dir``). Falls back to a
-    sane hardcoded default when the input is missing, not a string, or points
-    at a file we can't parse -- we'd rather keep agents working than block on
-    a misconfigured deployment.
-    """
+    """Return the parsed model-capabilities table for ``path``, falling back to defaults on any failure."""
     if not isinstance(path, str) or not path:
         return _DEFAULT_MODEL_CAPABILITIES
 
