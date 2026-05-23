@@ -1,6 +1,14 @@
 import type { WorkflowExtractionJob } from "@/api/histories";
 
-export type WorkflowExtractionToolJob = WorkflowExtractionJob & { step_type: "tool" };
+export type WorkflowExtractionOutput = NonNullable<WorkflowExtractionJob["outputs"]>[number] & {
+    /** UI-local working label for the rename modal; not part of the API payload. */
+    outputLabel?: string;
+};
+
+export type WorkflowExtractionToolJob = Omit<WorkflowExtractionJob, "outputs"> & {
+    step_type: "tool";
+    outputs?: WorkflowExtractionOutput[];
+};
 
 export type WorkflowExtractionInputJob = WorkflowExtractionJob & {
     step_type: "input_dataset" | "input_collection";

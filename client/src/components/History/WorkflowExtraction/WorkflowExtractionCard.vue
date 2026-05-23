@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { faFile, faFolder } from "@fortawesome/free-regular-svg-icons";
+import { faFile, faFolder, faStar as faStarRegular } from "@fortawesome/free-regular-svg-icons";
 import {
     faBan,
     faExclamationTriangle,
     faInfoCircle,
     faLayerGroup,
     faPencilAlt,
+    faStar as faStarSolid,
     faWrench,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
@@ -13,7 +14,12 @@ import { computed } from "vue";
 
 import type { CardBadge, TitleIcon } from "@/components/Common/GCard.types";
 
-import { isMappedTool, isWorkflowExtractionInput, type WorkflowExtractionRow } from "./types";
+import {
+    isMappedTool,
+    isWorkflowExtractionInput,
+    type WorkflowExtractionOutput,
+    type WorkflowExtractionRow,
+} from "./types";
 
 import DisplayedItem from "../Content/DisplayedItem.vue";
 import GCard from "@/components/Common/GCard.vue";
@@ -60,6 +66,8 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: "rename"): void;
     (e: "select"): void;
+    (e: "toggle-output", outputIndex: number): void;
+    (e: "rename-output", outputIndex: number): void;
     (e: "view-job", jobId: string): void;
 }>();
 
@@ -130,6 +138,10 @@ const titleIcon = computed<TitleIcon>(() => {
     const { icon, label } = STEP_TYPE_META[props.job.step_type];
     return { icon, title: label };
 });
+
+function outputLabel(output: WorkflowExtractionOutput): string {
+    return output.outputLabel || output.suggested_name || output.name || output.output_name || "Output";
+}
 </script>
 
 <template>
@@ -158,7 +170,21 @@ const titleIcon = computed<TitleIcon>(() => {
         </template>
         <template v-slot:description>
             <template v-if="props.job.outputs?.length">
-                <div v-for="(output, outputIndex) in props.job.outputs" :key="outputIndex">
+                <div
+                    v-for="(output, outputIndex) in props.job.outputs"
+                    :key="outputIndex"
+                    class="workflow-extraction-output">
+                    <button
+                        v-if="props.job.step_type === 'tool' && output.output_name"
+                        type="button"
+                        class="output-star"
+                        data-output-star
+                        :class="{ active: output.exposed }"
+                        :disabled="Boolean(props.job.invalid) || output.deleted || !props.job.checked"
+                        :title="output.exposed ? 'Do not expose this output' : 'Expose this output'"
+                        @click.stop="emit('toggle-output', outputIndex)">
+                        <FontAwesomeIcon :icon="output.exposed ? faStarSolid : faStarRegular" fixed-width />
+                    </button>
                     <DisplayedItem
                         v-if="props.job.invalid === 'custom_tool_inaccessible'"
                         :item-id="output.id"
@@ -169,8 +195,19 @@ const titleIcon = computed<TitleIcon>(() => {
                         :state="output.state" />
                     <GenericHistoryItem
                         v-else
+                        class="workflow-output-item"
                         :item-id="output.id"
                         :item-src="output.history_content_type === 'dataset' ? 'hda' : 'hdca'" />
+                    <button
+                        v-if="props.job.step_type === 'tool' && output.output_name && output.exposed"
+                        type="button"
+                        class="output-label"
+                        data-output-label
+                        :title="`Rename workflow output ${outputLabel(output)}`"
+                        @click.stop="emit('rename-output', outputIndex)">
+                        <FontAwesomeIcon :icon="faPencilAlt" fixed-width />
+                        <span>{{ outputLabel(output) }}</span>
+                    </button>
                 </div>
             </template>
         </template>
@@ -188,6 +225,46 @@ const titleIcon = computed<TitleIcon>(() => {
         font-size: 0.8rem;
         padding: 0.25rem 0.5rem;
         border-radius: 0.25rem 0.25rem 0 0;
+    }
+
+    .workflow-extraction-output {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
+    .workflow-output-item {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .output-star,
+    .output-label {
+        border: 0;
+        background: transparent;
+        color: $brand-secondary;
+        min-width: 2rem;
+        min-height: 2rem;
+    }
+
+    .output-star.active {
+        color: $brand-warning;
+    }
+
+    .output-star:disabled {
+        color: $gray-300;
+        cursor: not-allowed;
+    }
+
+    .output-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        max-width: 16rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 }
 </style>
