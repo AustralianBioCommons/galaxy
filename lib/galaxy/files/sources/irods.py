@@ -24,12 +24,9 @@ from ._pyfilesystem2 import PyFilesystem2FilesSource
 
 try:
     from fs_irods import iRODSFS
-except ImportError:
-    iRODSFS = None
-
-try:
     from irods.session import iRODSSession
 except ImportError:
+    iRODSFS = None
     iRODSSession = None
 
 
