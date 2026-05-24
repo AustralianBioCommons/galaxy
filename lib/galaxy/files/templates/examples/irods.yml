@@ -16,32 +16,23 @@
       type: integer
       help: Port of the iRODS server.
       default: 1247
+    zone:
+      label: iRODS zone
+      type: string
+      help: Zone used for authentication (for example teamZone).
     username:
       label: iRODS user
       type: string
       help: Username used to authenticate against iRODS.
-    zone:
-      label: iRODS zone
+    subpath:
+      label: Subfolder path
       type: string
-      help: Zone used for authentication (for example tempZone).
-    root:
-      label: Root collection path
-      type: string
-      help: |
-        Collection path exposed in Galaxy, for example /tempZone/home/rods.
-    timeout:
-      label: Connection timeout (seconds)
-      type: integer
-      help: Timeout in seconds for iRODS connection attempts.
-      default: 30
-    refresh_time:
-      label: Session refresh time (seconds)
-      type: integer
-      help: Seconds between refresh checks for active iRODS sessions.
-      default: 300
+      optional: true
+      help: Optional subfolder under your personal directory (for example projectName).
     writable:
       label: Writable?
       type: boolean
+      optional: true
       help: Allow writing datasets back to iRODS.
       default: false
   secrets:
@@ -55,7 +46,7 @@
     username: "{{ variables.username }}"
     password: "{{ secrets.password }}"
     zone: "{{ variables.zone }}"
-    root: "{{ variables.root }}"
-    timeout: "{{ variables.timeout }}"
-    refresh_time: "{{ variables.refresh_time }}"
+    root: "/{{ variables.zone }}/home/{{ variables.username }}{% if variables.get('subpath') %}/{{ variables.get('subpath') | ensure_path_component }}{% endif %}"
+    timeout: 30
+    refresh_time: 300
     writable: "{{ variables.writable }}"
