@@ -10,18 +10,17 @@ import {
     extractWorkflowFromHistory,
     type OutputLabelHint,
     type WorkflowExtractionByIdsPayload,
-    type WorkflowExtractionJob,
 } from "@/api/histories";
 import { useToast } from "@/composables/toast";
 import { useHistoryStore } from "@/stores/historyStore";
 import { errorMessageAsString } from "@/utils/simple-error";
 
 import {
+    type ExtractionRow,
+    type InputStep,
+    isInputStep,
     isMappedTool,
-    isWorkflowExtractionInput,
-    type WorkflowExtractionInput,
-    type WorkflowExtractionOutput,
-    type WorkflowExtractionRow,
+    toExtractionRow,
 } from "./WorkflowExtraction/types";
 
 import GFormInput from "../BaseComponents/Form/GFormInput.vue";
@@ -58,7 +57,7 @@ const breadcrumbItems = computed(() => [
 const loading = ref(true);
 const submitting = ref(false);
 const errorMessage = ref<string | null>(null);
-const jobsList = ref<WorkflowExtractionRow[]>([]);
+const jobsList = ref<ExtractionRow[]>([]);
 const workflowName = ref("");
 const renameIndex = ref<number | null>(null);
 const outputRenameTarget = ref<{ jobIndex: number; outputIndex: number } | null>(null);
@@ -72,7 +71,7 @@ const toRenameInput = computed(() => {
         return null;
     }
     const job = jobsList.value[renameIndex.value];
-    if (job && isWorkflowExtractionInput(job)) {
+    if (job && isInputStep(job)) {
         return job;
     }
     return null;
@@ -87,7 +86,7 @@ const toRenameOutput = computed(() => {
     if (!job || job.step_type !== "tool") {
         return null;
     }
-    return job.outputs?.[target.outputIndex] || null;
+    return job.outputs[target.outputIndex] || null;
 });
 
 const submissionDisabled = computed(
@@ -153,20 +152,15 @@ const selectedInputs = computed<
     if (!jobsList.value?.length) {
         return [];
     }
-    const retVal = jobsList.value
-        .filter(
-            (job): job is WorkflowExtractionInput =>
-                job.checked && isWorkflowExtractionInput(job) && (job.outputs?.length ?? 0) > 0,
-        )
+    return jobsList.value
+        .filter((job): job is InputStep => job.checked && isInputStep(job) && job.outputs.length > 0)
         .flatMap((job) =>
-            job.outputs?.map((output) => ({
+            job.outputs.map((output) => ({
                 id: output.id,
                 newName: job.newName,
                 history_content_type: output.history_content_type,
             })),
-        )
-        .filter((item) => item !== undefined);
-    return retVal;
+        );
 });
 
 const selectedOutputLabels = computed<OutputLabelHint[]>(() => {
@@ -178,11 +172,11 @@ const selectedOutputLabels = computed<OutputLabelHint[]>(() => {
         if (!job.checked || job.step_type !== "tool") {
             continue;
         }
-        for (const output of job.outputs || []) {
+        for (const output of job.outputs) {
             if (!output.exposed || !output.output_name) {
                 continue;
             }
-            const label = (output.outputLabel || "").trim();
+            const label = output.label.trim();
             if (!label) {
                 continue;
             }
@@ -209,55 +203,11 @@ const hasUnnamedSelectedOutputs = computed(() => {
         if (!job.checked || job.step_type !== "tool") {
             return false;
         }
-        return (job.outputs || []).some(
-            (output) => output.exposed && Boolean(output.output_name) && !(output.outputLabel || "").trim(),
-        );
+        return job.outputs.some((output) => output.exposed && Boolean(output.output_name) && !output.label.trim());
     });
 });
 
 extractWorkflow();
-
-function toWorkflowExtractionRow(job: WorkflowExtractionJob): WorkflowExtractionRow {
-    const checked = job.checked ?? false;
-    if (job.step_type === "tool") {
-        return {
-            ...job,
-            checked,
-            step_type: "tool",
-            outputs: (job.outputs || []).map(toWorkflowExtractionOutput),
-        };
-    } else {
-        return {
-            ...job,
-            checked,
-            step_type: job.step_type,
-            newName: getInputName(job) || "",
-        };
-    }
-}
-
-function toWorkflowExtractionOutput(
-    output: NonNullable<WorkflowExtractionJob["outputs"]>[number],
-): WorkflowExtractionOutput {
-    const outputWithMetadata = output as WorkflowExtractionOutput;
-    return {
-        ...outputWithMetadata,
-        exposed: outputWithMetadata.exposed ?? false,
-        outputLabel:
-            outputWithMetadata.outputLabel ||
-            outputWithMetadata.suggested_name ||
-            outputWithMetadata.name ||
-            outputWithMetadata.output_name ||
-            "",
-    };
-}
-
-function getInputName(job: WorkflowExtractionJob): string | undefined {
-    if (job.outputs?.length && job.outputs[0]) {
-        const output = job.outputs[0];
-        return output.name || `Input ${output.hid}`;
-    }
-}
 
 function getSelectedInputs(type: "dataset" | "dataset_collection"): { ids: string[]; names: string[] } {
     const inputs = selectedInputs.value.filter(
@@ -273,7 +223,7 @@ async function extractWorkflow() {
     try {
         const result = await extractWorkflowFromHistory(props.historyId);
         if (result.jobs) {
-            jobsList.value = result.jobs.map(toWorkflowExtractionRow);
+            jobsList.value = result.jobs.map(toExtractionRow);
         }
 
         warnings.value = result.warnings || [];
@@ -300,7 +250,7 @@ function onJobSelect(index: number) {
     if (job) {
         job.checked = !job.checked;
         if (!job.checked && job.step_type === "tool") {
-            (job.outputs || []).forEach((output) => {
+            job.outputs.forEach((output) => {
                 output.exposed = false;
             });
         }
@@ -312,13 +262,13 @@ function onOutputToggle(jobIndex: number, outputIndex: number) {
     if (!job || job.step_type !== "tool" || !job.checked || job.invalid) {
         return;
     }
-    const output = job.outputs?.[outputIndex];
+    const output = job.outputs[outputIndex];
     if (!output || output.deleted || !output.output_name) {
         return;
     }
     output.exposed = !output.exposed;
-    if (output.exposed && !(output.outputLabel || "").trim()) {
-        output.outputLabel = output.suggested_name || output.name || output.output_name || "";
+    if (output.exposed && !output.label.trim()) {
+        output.label = output.suggested_name || output.name || output.output_name || "";
     }
 }
 
@@ -345,7 +295,7 @@ async function renameInput(newName: string) {
 
     // Instead of using the computed `toRenameInput`, we directly update the `newName` in the `jobsList`
     // to ensure reactivity and that the change is reflected in the UI immediately.
-    (jobsList.value[renameIndex.value] as WorkflowExtractionInput).newName = newName;
+    (jobsList.value[renameIndex.value] as InputStep).newName = newName;
 }
 
 async function renameOutput(newName: string) {
@@ -357,11 +307,11 @@ async function renameOutput(newName: string) {
     if (!job || job.step_type !== "tool") {
         throw new Error("Job not found or is not a tool");
     }
-    const output = job.outputs?.[target.outputIndex];
+    const output = job.outputs[target.outputIndex];
     if (!output) {
         throw new Error("Output not found");
     }
-    output.outputLabel = newName;
+    output.label = newName;
 }
 
 async function submitWorkflow() {
@@ -401,7 +351,7 @@ async function submitWorkflow() {
     }
 }
 
-function stepKind(job: WorkflowExtractionRow): string {
+function stepKind(job: ExtractionRow): string {
     if (isMappedTool(job)) {
         return "mapped-tool";
     }
@@ -477,7 +427,7 @@ function stepKind(job: WorkflowExtractionRow): string {
         <RenameModal
             v-if="toRenameOutput"
             item-type="output"
-            :name="toRenameOutput.outputLabel || ''"
+            :name="toRenameOutput.label"
             :rename-action="renameOutput"
             @close="outputRenameTarget = null" />
 

@@ -14,12 +14,7 @@ import { computed } from "vue";
 
 import type { CardBadge, TitleIcon } from "@/components/Common/GCard.types";
 
-import {
-    isMappedTool,
-    isWorkflowExtractionInput,
-    type WorkflowExtractionOutput,
-    type WorkflowExtractionRow,
-} from "./types";
+import { type ExtractionOutput, type ExtractionRow, isInputStep, isMappedTool } from "./types";
 
 import DisplayedItem from "../Content/DisplayedItem.vue";
 import GCard from "@/components/Common/GCard.vue";
@@ -60,7 +55,7 @@ function mappedBadge(size: number | null | undefined): CardBadge {
 }
 
 const props = defineProps<{
-    job: WorkflowExtractionRow;
+    job: ExtractionRow;
 }>();
 
 const emit = defineEmits<{
@@ -139,8 +134,8 @@ const titleIcon = computed<TitleIcon>(() => {
     return { icon, title: label };
 });
 
-function outputLabel(output: WorkflowExtractionOutput): string {
-    return output.outputLabel || output.suggested_name || output.name || output.output_name || "Output";
+function displayLabel(output: ExtractionOutput): string {
+    return output.label || output.suggested_name || output.name || output.output_name || "Output";
 }
 </script>
 
@@ -148,11 +143,7 @@ function outputLabel(output: WorkflowExtractionOutput): string {
     <GCard
         :class="{ disabled: Boolean(props.job.invalid) }"
         :badges="badges"
-        :title="
-            isWorkflowExtractionInput(props.job)
-                ? props.job.newName
-                : props.job.tool_name || props.job.tool_id || 'Unnamed Step'
-        "
+        :title="isInputStep(props.job) ? props.job.newName : props.job.tool_name || props.job.tool_id || 'Unnamed Step'"
         :title-icon="titleIcon"
         :can-rename-title="props.job.step_type !== 'tool' && props.job.checked"
         selectable
@@ -169,7 +160,7 @@ function outputLabel(output: WorkflowExtractionOutput): string {
                 fixed-width />
         </template>
         <template v-slot:description>
-            <template v-if="props.job.outputs?.length">
+            <template v-if="props.job.outputs.length">
                 <div
                     v-for="(output, outputIndex) in props.job.outputs"
                     :key="outputIndex"
@@ -203,10 +194,10 @@ function outputLabel(output: WorkflowExtractionOutput): string {
                         type="button"
                         class="output-label"
                         data-output-label
-                        :title="`Rename workflow output ${outputLabel(output)}`"
+                        :title="`Rename workflow output ${displayLabel(output)}`"
                         @click.stop="emit('rename-output', outputIndex)">
                         <FontAwesomeIcon :icon="faPencilAlt" fixed-width />
-                        <span>{{ outputLabel(output) }}</span>
+                        <span>{{ displayLabel(output) }}</span>
                     </button>
                 </div>
             </template>
