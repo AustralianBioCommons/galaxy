@@ -120,13 +120,12 @@ class IncomingToolOutputDataset(
 
 
 def lift_legacy_collection_structure(output_dict: Dict[str, Any]) -> Dict[str, Any]:
-    # Pre-convergence DynamicTool.value rows nest collection fields under
-    # ``structure:``. Inline them so downstream (parser + pydantic model) sees
-    # the same flat Shape A regardless of which form was authored. Top-level
-    # wins, but only when it carries a value — an explicit ``None`` at the
-    # top level mustn't shadow a real legacy value, or a partial-merge writer
-    # could silently drop fields. Returns the input untouched when there's no
-    # ``structure:`` wrapper to lift.
+    # Older DynamicTool.value rows nest collection fields under ``structure:``;
+    # the current model expects them flat on the output. Inline them so the
+    # parser and pydantic model both see the same flat form. Top-level keys
+    # win, but only when they carry a value — an explicit top-level ``None``
+    # mustn't shadow a real nested value, or a partial-merge writer could
+    # silently drop fields. Returns input untouched when there's no wrapper.
     structure = output_dict.get("structure")
     if not isinstance(structure, dict):
         return output_dict

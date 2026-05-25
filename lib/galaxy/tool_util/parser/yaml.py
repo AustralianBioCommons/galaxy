@@ -245,9 +245,8 @@ class YamlToolSource(ToolSource):
         label = output_dict.get("label")
         default_format = output_dict.get("format", "data")
         collection_type = output_dict.get("collection_type", None)
-        # ``type_source`` is the XML attribute name; ``collection_type_source``
-        # is the pydantic field name (Shape A authoring + stored UDT rows).
-        # Accept both so the parser sees the same value regardless of source.
+        # XML tools spell this ``type_source``; the pydantic UDT model spells it
+        # ``collection_type_source``. Accept both so the parser is shape-agnostic.
         collection_type_source = output_dict.get("collection_type_source") or output_dict.get("type_source", None)
         structured_like = output_dict.get("structured_like", None)
         inherit_format = False

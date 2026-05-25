@@ -137,16 +137,7 @@ def test_lift_does_not_mutate_input():
     assert original["inputs"][1] == snapshot["inputs"][1]
 
 
-# ---------------------------------------------------------------------------
-# Output collection convergence to Shape A (issue #22758).
-#
-# Stored rows authored before the schema converged nest collection fields
-# under ``structure:``. A pydantic ``model_validator(mode="before")`` on the
-# output inlines them so legacy rows still validate against the flat schema.
-# ---------------------------------------------------------------------------
-
-
-LEGACY_COLLECTION_OUTPUT_SHAPE_B: Dict[str, Any] = {
+LEGACY_NESTED_COLLECTION_OUTPUT: Dict[str, Any] = {
     "type": "collection",
     "name": "outs",
     "label": None,
@@ -185,7 +176,7 @@ def _collection_tool_value(output):
 
 
 def test_legacy_structure_wrapper_lifted_silently():
-    value = _collection_tool_value(LEGACY_COLLECTION_OUTPUT_SHAPE_B)
+    value = _collection_tool_value(LEGACY_NESTED_COLLECTION_OUTPUT)
     status, parsed, errors = lift_user_tool_source(value)
     assert status == "ok", errors
     assert isinstance(parsed, UserToolSource)
@@ -193,7 +184,7 @@ def test_legacy_structure_wrapper_lifted_silently():
     # Fields surface at the top level after the lift.
     assert output.collection_type == "list"
     assert output.discover_datasets and output.discover_datasets[0].pattern == "__name_and_ext__"
-    # Dumped representation is Shape A — no leftover wrapper.
+    # Dumped representation is flat — no leftover wrapper.
     dumped = parsed.model_dump(by_alias=True)
     assert "structure" not in dumped["outputs"][0]
     assert dumped["outputs"][0]["collection_type"] == "list"
@@ -210,7 +201,7 @@ def test_legacy_structure_not_shadowed_by_explicit_top_level_none():
         "collection_type": None,
         "structure": {
             "collection_type": "list",
-            "discover_datasets": LEGACY_COLLECTION_OUTPUT_SHAPE_B["structure"]["discover_datasets"],
+            "discover_datasets": LEGACY_NESTED_COLLECTION_OUTPUT["structure"]["discover_datasets"],
         },
     }
     value = _collection_tool_value(hybrid_output)
@@ -226,7 +217,7 @@ def test_shape_a_collection_output_validates_directly():
         "name": "outs",
         "hidden": False,
         "collection_type": "list",
-        "discover_datasets": LEGACY_COLLECTION_OUTPUT_SHAPE_B["structure"]["discover_datasets"],
+        "discover_datasets": LEGACY_NESTED_COLLECTION_OUTPUT["structure"]["discover_datasets"],
     }
     value = _collection_tool_value(shape_a_output)
     status, parsed, errors = lift_user_tool_source(value)

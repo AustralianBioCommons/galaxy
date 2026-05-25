@@ -12,6 +12,7 @@ from typing import (
 
 from galaxy.tool_util.parser.factory import get_tool_source
 from galaxy.tool_util.parser.output_objects import from_tool_source
+from galaxy.tool_util.parser.yaml import YamlToolSource
 from galaxy.tool_util.unittest_utils import functional_test_tool_path
 from galaxy.tool_util_models.tool_outputs import (
     ToolOutput,
@@ -931,12 +932,8 @@ class TestCollectionOutputYaml(FunctionalTestToolTestCase):
 
 
 def test_yaml_parser_accepts_collection_type_source_alias():
-    # ``collection_type_source`` is the pydantic field name (Shape A authoring +
-    # stored UDT rows). The parser historically only read the XML-style
-    # ``type_source`` attribute; accept both so a lifted legacy row carries
-    # through.
-    from galaxy.tool_util.parser.yaml import YamlToolSource
-
+    # XML tools use ``type_source``; the pydantic UDT model uses
+    # ``collection_type_source``. Parser must accept either.
     doc = {
         "class": "GalaxyTool",
         "id": "alias-tool",
@@ -964,11 +961,9 @@ def test_yaml_parser_accepts_collection_type_source_alias():
 
 
 def test_yaml_parser_lifts_legacy_structure_wrapper():
-    # Pre-convergence DynamicTool.value rows nest collection fields under
-    # ``structure:``. The YAML parser path bypasses pydantic (see
-    # ``Toolbox.dynamic_tool_to_tool``), so it normalizes the wrapper itself.
-    from galaxy.tool_util.parser.yaml import YamlToolSource
-
+    # Older DynamicTool.value rows nest collection fields under ``structure:``.
+    # The YAML parser path bypasses pydantic (see ``Toolbox.dynamic_tool_to_tool``),
+    # so it normalizes the wrapper itself.
     legacy_doc = {
         "class": "GalaxyTool",
         "id": "legacy-collection-tool",
