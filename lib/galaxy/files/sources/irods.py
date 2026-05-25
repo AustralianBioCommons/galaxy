@@ -1,5 +1,4 @@
 import os
-import ssl
 from fnmatch import fnmatch
 from typing import (
     Optional,
@@ -161,8 +160,11 @@ class IrodsFilesSource(PyFilesystem2FilesSource[IrodsFileSourceTemplateConfigura
             "encryption_salt_size": config.encryption_salt_size,
             "ssl_verify_server": config.ssl_verify_server,
             "ssl_ca_certificate_file": config.ssl_ca_certificate_file,
-            "ssl_context": ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH),
         }
+        ssl_context = getattr(config, "ssl_context", None)
+        if ssl_context is not None:
+            session_kwargs["ssl_context"] = ssl_context
+
         session = iRODSSession(**session_kwargs)
         session.connection_timeout = config.timeout
         if config.resource:
