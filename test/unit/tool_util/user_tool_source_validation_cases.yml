@@ -133,6 +133,22 @@ cases:
         msg_contains: from_work_dir
 
   - name: collection_output_without_discover
+    # Shape A — fields flat on the output. Surfaces the
+    # ``output_unclaimed`` check when ``discover_datasets`` is missing.
+    doc:
+      outputs:
+        - type: collection
+          name: outs
+          collection_type: list
+    expected_errors:
+      - code: dynamic_tool.output_unclaimed
+        msg_contains: discover_datasets
+
+  - name: collection_output_legacy_structure_lifted_then_unclaimed
+    # Shape B — fields nested under ``structure:``. Pre-convergence
+    # ``DynamicTool.value`` rows look like this. The before-validator inlines
+    # them onto the output, so the same ``output_unclaimed`` check then fires
+    # against Shape A. Same error code, same loc — that's the lift working.
     doc:
       outputs:
         - type: collection

@@ -741,8 +741,7 @@ class TestApplyRulesToolLoader(BaseLoaderTestCase):
         assert not output_model.hidden
         assert output_model.label == "${input.name} (re-organized)"
         output_collection_model = assert_output_model_of_type(output_model, ToolOutputCollection)
-        structure = output_collection_model.structure
-        assert structure.collection_type_from_rules == "rules"
+        assert output_collection_model.collection_type_from_rules == "rules"
 
 
 class TestBuildListToolLoader(BaseLoaderTestCase):
@@ -929,6 +928,77 @@ class TestCollectionOutputYaml(FunctionalTestToolTestCase):
     def test_tests(self):
         outputs, output_collections = self._tool_source.parse_outputs(None)
         assert len(output_collections) == 1
+
+
+def test_yaml_parser_accepts_collection_type_source_alias():
+    # ``collection_type_source`` is the pydantic field name (Shape A authoring +
+    # stored UDT rows). The parser historically only read the XML-style
+    # ``type_source`` attribute; accept both so a lifted legacy row carries
+    # through.
+    from galaxy.tool_util.parser.yaml import YamlToolSource
+
+    doc = {
+        "class": "GalaxyTool",
+        "id": "alias-tool",
+        "name": "Alias tool",
+        "version": "0.1",
+        "shell_command": "touch outs/a.txt",
+        "outputs": [
+            {
+                "name": "outs",
+                "type": "collection",
+                "collection_type_source": "input1",
+                "discover_datasets": [
+                    {
+                        "discover_via": "pattern",
+                        "pattern": "__name_and_ext__",
+                        "directory": "outs",
+                    }
+                ],
+            }
+        ],
+    }
+    tool_source = YamlToolSource(doc)
+    _outputs, output_collections = tool_source.parse_outputs(None)
+    assert output_collections["outs"].structure.collection_type_source == "input1"
+
+
+def test_yaml_parser_lifts_legacy_structure_wrapper():
+    # Pre-convergence DynamicTool.value rows nest collection fields under
+    # ``structure:``. The YAML parser path bypasses pydantic (see
+    # ``Toolbox.dynamic_tool_to_tool``), so it normalizes the wrapper itself.
+    from galaxy.tool_util.parser.yaml import YamlToolSource
+
+    legacy_doc = {
+        "class": "GalaxyTool",
+        "id": "legacy-collection-tool",
+        "name": "Legacy collection tool",
+        "version": "0.1",
+        "shell_command": "mkdir -p outs && touch outs/a.txt",
+        "outputs": [
+            {
+                "name": "outs",
+                "type": "collection",
+                "structure": {
+                    "collection_type": "list",
+                    "discover_datasets": [
+                        {
+                            "discover_via": "pattern",
+                            "pattern": "__name_and_ext__",
+                            "directory": "outs",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+    tool_source = YamlToolSource(legacy_doc)
+    outputs, output_collections = tool_source.parse_outputs(None)
+    assert "outs" in output_collections
+    output = output_collections["outs"]
+    assert output.structure.collection_type == "list"
+    assert output.structure.dataset_collector_descriptions
+    assert output.structure.dataset_collector_descriptions[0].discover_via == "pattern"
 
 
 class TestEnvironmentVariables(FunctionalTestToolTestCase):

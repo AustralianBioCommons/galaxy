@@ -37,6 +37,7 @@ from galaxy.tool_util_models.testing_types import (
     AssertionList,
     DirectCredential,
 )
+from galaxy.tool_util_models.tool_outputs import lift_legacy_collection_structure
 from galaxy.tool_util_models.tool_source import (
     HelpContent,
     JsonTestCollectionDefDict,
@@ -236,11 +237,18 @@ class YamlToolSource(ToolSource):
         return output
 
     def _parse_output_collection(self, tool, name, output_dict):
+        # YamlToolSource bypasses the pydantic UserToolSource model (see
+        # Toolbox.dynamic_tool_to_tool), so the legacy ``structure:`` wrapper
+        # has to be lifted here too — not just in the model_validator.
+        output_dict = lift_legacy_collection_structure(output_dict)
         name = output_dict.get("name")
         label = output_dict.get("label")
         default_format = output_dict.get("format", "data")
         collection_type = output_dict.get("collection_type", None)
-        collection_type_source = output_dict.get("type_source", None)
+        # ``type_source`` is the XML attribute name; ``collection_type_source``
+        # is the pydantic field name (Shape A authoring + stored UDT rows).
+        # Accept both so the parser sees the same value regardless of source.
+        collection_type_source = output_dict.get("collection_type_source") or output_dict.get("type_source", None)
         structured_like = output_dict.get("structured_like", None)
         inherit_format = False
         inherit_metadata = False

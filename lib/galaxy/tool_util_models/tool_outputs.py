@@ -6,13 +6,18 @@ code where actual tool objects aren't created.
 """
 
 from typing import (
+    Any,
+    Dict,
     Generic,
     List,
     Optional,
     Union,
 )
 
-from pydantic import Field
+from pydantic import (
+    Field,
+    model_validator,
+)
 from typing_extensions import (
     Annotated,
     Literal,
@@ -114,12 +119,22 @@ class IncomingToolOutputDataset(
     format: Annotated[Optional[str], Field(description="The short name for the output datatype.")] = None
 
 
-class ToolOutputCollectionStructure(ToolSourceBaseModel):
-    collection_type: Optional[str] = None
-    collection_type_source: Optional[str] = None
-    collection_type_from_rules: Optional[str] = None
-    structured_like: Optional[str] = None
-    discover_datasets: Optional[List[DatasetCollectionDescriptionT]] = None
+def lift_legacy_collection_structure(output_dict: Dict[str, Any]) -> Dict[str, Any]:
+    # Pre-convergence DynamicTool.value rows nest collection fields under
+    # ``structure:``. Inline them so downstream (parser + pydantic model) sees
+    # the same flat Shape A regardless of which form was authored. Top-level
+    # wins, but only when it carries a value — an explicit ``None`` at the
+    # top level mustn't shadow a real legacy value, or a partial-merge writer
+    # could silently drop fields. Returns the input untouched when there's no
+    # ``structure:`` wrapper to lift.
+    structure = output_dict.get("structure")
+    if not isinstance(structure, dict):
+        return output_dict
+    lifted = {k: v for k, v in output_dict.items() if k != "structure"}
+    for key, value in structure.items():
+        if lifted.get(key) is None:
+            lifted[key] = value
+    return lifted
 
 
 class GenericToolOutputCollection(
@@ -127,7 +142,18 @@ class GenericToolOutputCollection(
     Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
 ):
     type: Literal["collection"]
-    structure: ToolOutputCollectionStructure
+    collection_type: Optional[str] = None
+    collection_type_source: Optional[str] = None
+    collection_type_from_rules: Optional[str] = None
+    structured_like: Optional[str] = None
+    discover_datasets: Optional[List[DatasetCollectionDescriptionT]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_legacy_structure(cls, values):
+        if isinstance(values, dict):
+            return lift_legacy_collection_structure(values)
+        return values
 
 
 class ToolOutputCollection(GenericToolOutputCollection[bool, str]): ...
