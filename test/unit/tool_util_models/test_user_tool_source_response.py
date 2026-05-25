@@ -211,15 +211,15 @@ def test_legacy_structure_not_shadowed_by_explicit_top_level_none():
     assert parsed.outputs[0].collection_type == "list"
 
 
-def test_shape_a_collection_output_validates_directly():
-    shape_a_output = {
+def test_flat_collection_output_validates_directly():
+    flat_output = {
         "type": "collection",
         "name": "outs",
         "hidden": False,
         "collection_type": "list",
         "discover_datasets": LEGACY_NESTED_COLLECTION_OUTPUT["structure"]["discover_datasets"],
     }
-    value = _collection_tool_value(shape_a_output)
+    value = _collection_tool_value(flat_output)
     status, parsed, errors = lift_user_tool_source(value)
     assert status == "ok", errors
     assert isinstance(parsed, UserToolSource)
