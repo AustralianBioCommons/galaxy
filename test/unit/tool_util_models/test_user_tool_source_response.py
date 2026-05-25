@@ -16,6 +16,10 @@ from galaxy.tool_util_models import (
     lift_user_tool_source,
     UserToolSource,
 )
+from galaxy.tool_util_models.tool_outputs import (
+    FilePatternDatasetCollectionDescription,
+    IncomingToolOutputCollection,
+)
 
 LEGACY_DATA_INPUT: Dict[str, Any] = {
     "type": "data",
@@ -181,9 +185,13 @@ def test_legacy_structure_wrapper_lifted_silently():
     assert status == "ok", errors
     assert isinstance(parsed, UserToolSource)
     output = parsed.outputs[0]
+    assert isinstance(output, IncomingToolOutputCollection)
     # Fields surface at the top level after the lift.
     assert output.collection_type == "list"
-    assert output.discover_datasets and output.discover_datasets[0].pattern == "__name_and_ext__"
+    assert output.discover_datasets
+    discover = output.discover_datasets[0]
+    assert isinstance(discover, FilePatternDatasetCollectionDescription)
+    assert discover.pattern == "__name_and_ext__"
     # Dumped representation is flat — no leftover wrapper.
     dumped = parsed.model_dump(by_alias=True)
     assert "structure" not in dumped["outputs"][0]
@@ -208,7 +216,9 @@ def test_legacy_structure_not_shadowed_by_explicit_top_level_none():
     status, parsed, errors = lift_user_tool_source(value)
     assert status == "ok", errors
     assert isinstance(parsed, UserToolSource)
-    assert parsed.outputs[0].collection_type == "list"
+    output = parsed.outputs[0]
+    assert isinstance(output, IncomingToolOutputCollection)
+    assert output.collection_type == "list"
 
 
 def test_flat_collection_output_validates_directly():
@@ -223,4 +233,6 @@ def test_flat_collection_output_validates_directly():
     status, parsed, errors = lift_user_tool_source(value)
     assert status == "ok", errors
     assert isinstance(parsed, UserToolSource)
-    assert parsed.outputs[0].collection_type == "list"
+    output = parsed.outputs[0]
+    assert isinstance(output, IncomingToolOutputCollection)
+    assert output.collection_type == "list"
