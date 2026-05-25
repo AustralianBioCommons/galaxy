@@ -88,17 +88,6 @@ class IrodsFilesSource(PyFilesystem2FilesSource[IrodsFileSourceTemplateConfigura
             info = fs_handle.getinfo(entry_path, namespaces=["details"])
             yield entry_path, info
 
-    def _list_recursive(self, fs_handle, path: str) -> tuple[list[AnyRemoteEntry], int]:
-        result: list[AnyRemoteEntry] = []
-        pending = [path]
-        while pending:
-            current_path = pending.pop(0)
-            for entry_path, info in self._iter_directory_entries(fs_handle, current_path):
-                result.append(self._resource_info_to_dict(current_path, info))
-                if info.is_dir:
-                    pending.append(entry_path)
-        return result, len(result)
-
     def _list_non_recursive(
         self,
         fs_handle,
@@ -131,7 +120,7 @@ class IrodsFilesSource(PyFilesystem2FilesSource[IrodsFileSourceTemplateConfigura
         try:
             with self._open_fs(context) as fs_handle:
                 if recursive:
-                    return self._list_recursive(fs_handle, path)
+                    raise MessageException("Recursive listing is not supported for iRODS file sources.")
                 return self._list_non_recursive(fs_handle, path, limit, offset, query)
         except fs.errors.PermissionDenied as e:
             raise AuthenticationRequired(
