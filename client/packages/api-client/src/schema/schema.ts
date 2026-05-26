@@ -16039,6 +16039,19 @@ export interface components {
         };
         /** IncomingToolOutputCollection */
         IncomingToolOutputCollection: {
+            /** Collection Type */
+            collection_type?: string | null;
+            /** Collection Type From Rules */
+            collection_type_from_rules?: string | null;
+            /** Collection Type Source */
+            collection_type_source?: string | null;
+            /** Discover Datasets */
+            discover_datasets?:
+                | (
+                      | components["schemas"]["FilePatternDatasetCollectionDescription"]
+                      | components["schemas"]["ToolProvidedMetadataDatasetCollection"]
+                  )[]
+                | null;
             /**
              * Hidden
              * @description If true, the output will not be shown in the history.
@@ -16054,7 +16067,8 @@ export interface components {
              * @description Parameter name. Used when referencing parameter in workflows.
              */
             name?: string | null;
-            structure: components["schemas"]["ToolOutputCollectionStructure"];
+            /** Structured Like */
+            structured_like?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -24187,24 +24201,6 @@ export interface components {
              * @enum {string}
              */
             type: "boolean";
-        };
-        /** ToolOutputCollectionStructure */
-        ToolOutputCollectionStructure: {
-            /** Collection Type */
-            collection_type?: string | null;
-            /** Collection Type From Rules */
-            collection_type_from_rules?: string | null;
-            /** Collection Type Source */
-            collection_type_source?: string | null;
-            /** Discover Datasets */
-            discover_datasets?:
-                | (
-                      | components["schemas"]["FilePatternDatasetCollectionDescription"]
-                      | components["schemas"]["ToolProvidedMetadataDatasetCollection"]
-                  )[]
-                | null;
-            /** Structured Like */
-            structured_like?: string | null;
         };
         /** ToolOutputFloat */
         ToolOutputFloat: {
