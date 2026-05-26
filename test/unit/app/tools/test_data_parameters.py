@@ -3,8 +3,11 @@ from typing import (
     Optional,
 )
 
+import pytest
+
 from galaxy import model
 from galaxy.app_unittest_utils import galaxy_mock
+from galaxy.tools.parameters.basic import ParameterValueError
 from .util import BaseParameterTestCase
 
 
@@ -32,6 +35,15 @@ class TestDataToolParameter(BaseParameterTestCase):
         # not sure the UI should really allow this but easy enough
         # to just filter it out.
         assert [hda] == self.param.to_python(f"{hda.id},None", self.app)
+
+    def test_from_json_rejects_src_prefixed_string(self):
+        bogus = "hda:f9cad7b01a472135e2c8f5464c5c5ecb"
+        with pytest.raises(ParameterValueError, match="invalid dataset id"):
+            self.param.from_json([bogus], self.trans)
+
+    def test_from_json_rejects_garbage_string(self):
+        with pytest.raises(ParameterValueError, match="invalid dataset id"):
+            self.param.from_json("not-an-id", self.trans)
 
     def test_field_filter_on_types(self):
         hda1 = MockHistoryDatasetAssociation(name="hda1", id=1)

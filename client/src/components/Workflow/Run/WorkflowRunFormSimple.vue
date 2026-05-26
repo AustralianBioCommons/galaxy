@@ -195,9 +195,18 @@ function buildFormInputs() {
                         if (stepType === "data_input" || stepType === "data_collection_input") {
                             // Note: This is different from workflow landings because `WorkflowInvocationRequestModel`
                             //       does not provide an object with `values` property.
-                            stepAsInput.value = {
-                                values: !Array.isArray(value) ? [value] : value,
-                            };
+                            // Optional data inputs left empty on the original run come back as `null` (or
+                            // arrays containing `null`). Filter those out so we don't poison FormData with
+                            // `{values: [null]}`, which crashes its `onMounted` hook on `"src" in null` and
+                            // leaves the bad wrapper in formData to be sent to the server.
+                            const valuesArray = (Array.isArray(value) ? value : [value]).filter(
+                                (v) => v !== null && v !== undefined,
+                            );
+                            if (valuesArray.length > 0) {
+                                stepAsInput.value = {
+                                    values: valuesArray,
+                                };
+                            }
                         } else {
                             stepAsInput.value = value;
                         }
@@ -446,6 +455,14 @@ async function onExecute() {
         if (inputType == "replacement_parameter") {
             replacementParams[inputName] = value;
         } else if (inputType && isWorkflowInput(inputType as Step["type"])) {
+            // Unset optional `data` / `data_collection` inputs surface here as `null`
+            // (FormData.vue's createValue returns null for `undefined`). Omit them so
+            // the server-side workflow scheduler sees a missing key rather than `None`,
+            // matching the working API submission shape and the rerun-branch filter above.
+            const isData = inputType === "data_input" || inputType === "data_collection_input";
+            if (isData && (value === null || value === undefined)) {
+                continue;
+            }
             inputs[inputName] = value;
         }
     }
