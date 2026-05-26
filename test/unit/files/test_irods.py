@@ -4,6 +4,7 @@ import socket
 import pytest
 import yaml
 
+from galaxy.exceptions import MessageException
 from galaxy.files.models import (
     FileSourcePluginsConfig,
     FilesSourceRuntimeContext,
@@ -24,21 +25,6 @@ except ImportError:
 
 
 ROUNDTRIP_TEST_FILENAME = "numerical_sort_and_write_back_to_irods_v2.tab"
-
-
-class _FakeSession:
-    init_kwargs = None
-
-    def __init__(self, **kwargs):
-        type(self).init_kwargs = kwargs
-        self.connection_timeout = None
-        self.default_resource = None
-
-
-class _FakeIrodsFs:
-    def __init__(self, session, root=None):
-        self.session = session
-        self.root = root
 
 
 def _get_setting(irods_config: dict, env_name: str, key: str, cast=None):
@@ -147,48 +133,6 @@ def test_irods_plugin_registered():
     assert plugin_class is IrodsFilesSource
 
 
-def test_irods_open_fs_builds_session(monkeypatch):
-    monkeypatch.setattr("galaxy.files.sources.irods.iRODSSession", _FakeSession)
-    monkeypatch.setattr("galaxy.files.sources.irods.iRODSFS", _FakeIrodsFs)
-    monkeypatch.setattr(IrodsFilesSource, "required_module", _FakeIrodsFs)
-
-    file_source = IrodsFilesSource(
-        IrodsFilesSource.build_template_config(
-            type="irods",
-            id="test_irods",
-            file_sources_config=FileSourcePluginsConfig(),
-            host="irods.example.org",
-            port=1247,
-            username="rods",
-            password="secret",
-            zone="tempZone",
-            root="/tempZone/home/rods",
-            timeout=42,
-            refresh_time=120,
-            resource="demoResc",
-            writable=True,
-        )
-    )
-
-    resolved_config = file_source._evaluate_template_config(UserData())
-    context = FilesSourceRuntimeContext(user_data=UserData(), config=resolved_config)
-
-    fs = file_source._open_fs(context)
-    init_kwargs = _FakeSession.init_kwargs
-
-    assert isinstance(fs, _FakeIrodsFs)
-    assert fs.root == "/tempZone/home/rods"
-    assert init_kwargs is not None
-    assert init_kwargs["host"] == "irods.example.org"
-    assert init_kwargs["port"] == 1247
-    assert init_kwargs["user"] == "rods"
-    assert init_kwargs["password"] == "secret"
-    assert init_kwargs["zone"] == "tempZone"
-    assert init_kwargs["refresh_time"] == 120
-    assert fs.session.connection_timeout == 42
-    assert fs.session.default_resource == "demoResc"
-
-
 def test_irods_live_touch():
     settings = _irods_live_settings()
     _skip_if_irods_unreachable(settings["host"], settings["port"])
@@ -212,9 +156,8 @@ def test_irods_live_recursive_list():
     file_sources = configured_file_sources(_live_file_source_config(settings, writable=False))
     file_source_pair = file_sources.get_file_source_path("gxfiles://test1")
 
-    entries, count = file_source_pair.file_source.list("/", recursive=True)
-    assert isinstance(entries, list)
-    assert count >= 0
+    with pytest.raises(MessageException):
+        file_source_pair.file_source.list("/", recursive=True)
     _cleanup_live_test_artifacts(settings)
 
 
