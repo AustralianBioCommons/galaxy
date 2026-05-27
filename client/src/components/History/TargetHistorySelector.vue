@@ -94,13 +94,4 @@ function handleHistorySelected(history: { id: string }) {
         color: $brand-primary;
     }
 }
-
-.target-history-selector-row {
-    min-width: 0;
-}
-
-.target-history-selector-link {
-    flex: 1 1 auto;
-    min-width: 0;
-}
 </style>
