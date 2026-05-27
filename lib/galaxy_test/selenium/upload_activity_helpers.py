@@ -33,6 +33,7 @@ from typing import (
 from .framework import NavigatesGalaxyMixin
 
 T = TypeVar("T", bound="UploadItem")
+TUploadContext = TypeVar("TUploadContext", bound="BaseUploadContext")
 
 UploadMethodId = Literal[
     "local-file",
@@ -508,27 +509,27 @@ class BaseUploadContext:
         """Cancel all staged items without uploading."""
         self._context.cancel()
 
-    def select_target_history(self, history_id: str) -> "BaseUploadContext":
+    def select_target_history(self: TUploadContext, history_id: str) -> TUploadContext:
         """Change the upload target history using the TargetHistorySelector UI."""
         self._context.select_target_history(history_id)
         return self
 
-    def activate_advanced_mode(self) -> "BaseUploadContext":
+    def activate_advanced_mode(self: TUploadContext) -> TUploadContext:
         """Backward-compatible alias for enabling advanced mode via the UI switch."""
         self._context.activate_advanced_mode()
         return self
 
-    def set_advanced_mode(self, enabled: bool) -> "BaseUploadContext":
+    def set_advanced_mode(self: TUploadContext, enabled: bool) -> TUploadContext:
         """Set advanced mode state using the real upload panel switch control."""
         self._context.set_advanced_mode(enabled)
         return self
 
-    def toggle_advanced_mode(self) -> "BaseUploadContext":
+    def toggle_advanced_mode(self: TUploadContext) -> TUploadContext:
         """Toggle advanced mode using the real upload panel switch control."""
         self._context.toggle_advanced_mode()
         return self
 
-    def select_target_object_store(self, object_store_id: str) -> "BaseUploadContext":
+    def select_target_object_store(self: TUploadContext, object_store_id: str) -> TUploadContext:
         """Select a target object store for this upload.
 
         Note: Advanced mode must be activated first for this selector to be visible.
@@ -542,67 +543,11 @@ class LocalFileContext(BaseUploadContext):
     def stage_local_file(self, test_path: str, metadata: Optional["UploadMetadata"] = None) -> LocalUploadItem:
         return self._context.stage_local_file(test_path, metadata)
 
-    def select_target_history(self, history_id: str) -> "LocalFileContext":
-
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "LocalFileContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "LocalFileContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "LocalFileContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "LocalFileContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
-
 
 class PasteContentContext(BaseUploadContext):
 
     def stage_paste_content(self, content: str, metadata: Optional["UploadMetadata"] = None) -> PasteContentUploadItem:
         return self._context.stage_paste_content(content, metadata)
-
-    def select_target_history(self, history_id: str) -> "PasteContentContext":
-        """Change the upload target history using the TargetHistorySelector UI."""
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "PasteContentContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "PasteContentContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "PasteContentContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "PasteContentContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
 
 
 class PasteLinksContext(BaseUploadContext):
@@ -630,34 +575,6 @@ class PasteLinksContext(BaseUploadContext):
         self._context.stage_paste_links(url_metadata_pairs)
         return self
 
-    def select_target_history(self, history_id: str) -> "PasteLinksContext":
-        """Change the upload target history using the TargetHistorySelector UI."""
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "PasteLinksContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "PasteLinksContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "PasteLinksContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "PasteLinksContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
-
 
 class RemoteFilesContext(BaseUploadContext):
 
@@ -665,34 +582,6 @@ class RemoteFilesContext(BaseUploadContext):
         self, source_label: str, file_label: str, metadata: Optional["UploadMetadata"] = None
     ) -> RemoteFileUploadItem:
         return self._context.stage_remote_file(source_label, file_label, metadata)
-
-    def select_target_history(self, history_id: str) -> "RemoteFilesContext":
-        """Change the upload target history using the TargetHistorySelector UI."""
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "RemoteFilesContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "RemoteFilesContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "RemoteFilesContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "RemoteFilesContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
 
 
 class CompositeFileContext(BaseUploadContext):
@@ -717,67 +606,11 @@ class CompositeFileContext(BaseUploadContext):
         self._context.stage_composite_file_slot(slot, file_path)
         return self
 
-    def select_target_history(self, history_id: str) -> "CompositeFileContext":
-        """Change the upload target history using the TargetHistorySelector UI."""
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "CompositeFileContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "CompositeFileContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "CompositeFileContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "CompositeFileContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
-
 
 class DataLibraryContext(BaseUploadContext):
 
     def stage_data_library_dataset(self, library_label: str, dataset_label: str) -> DataLibraryUploadItem:
         return self._context.stage_data_library_dataset(library_label, dataset_label)
-
-    def select_target_history(self, history_id: str) -> "DataLibraryContext":
-        """Change the upload target history using the TargetHistorySelector UI."""
-        self._context.select_target_history(history_id)
-        return self
-
-    def activate_advanced_mode(self) -> "DataLibraryContext":
-        """Activate advanced mode for upload options (including target object store selector)."""
-        self._context.activate_advanced_mode()
-        return self
-
-    def set_advanced_mode(self, enabled: bool) -> "DataLibraryContext":
-        """Set advanced mode state using the real upload panel switch control."""
-        self._context.set_advanced_mode(enabled)
-        return self
-
-    def toggle_advanced_mode(self) -> "DataLibraryContext":
-        """Toggle advanced mode using the real upload panel switch control."""
-        self._context.toggle_advanced_mode()
-        return self
-
-    def select_target_object_store(self, object_store_id: str) -> "DataLibraryContext":
-        """Select a target object store for this upload.
-
-        Note: Advanced mode must be activated first for this selector to be visible.
-        """
-        self._context.select_target_object_store(object_store_id)
-        return self
 
 
 # Mapping of upload method IDs to their corresponding context classes
