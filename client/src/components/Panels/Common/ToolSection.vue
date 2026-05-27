@@ -306,10 +306,7 @@ async function onFavoriteSectionToggle() {
                 'favorite-edam-topic-section': isFavoriteEdamTopicSection,
             },
         ]">
-        <div
-            v-g-tooltip.topright.hover
-            class="toolSectionTitle"
-            :title="props.category.description || undefined">
+        <div v-g-tooltip.topright.hover class="toolSectionTitle" :title="props.category.description || undefined">
             <div v-if="props.showDragHandle" class="favorite-top-level-drag-target">
                 <FontAwesomeIcon :icon="faGripLines" />
             </div>
