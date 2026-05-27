@@ -147,12 +147,11 @@ function handleReadyStateChange(ready: boolean) {
                     </div>
                     <div v-if="shouldShowObjectStoreSelector" class="target-destination-item">
                         <TargetObjectStoreSelector
+                            class="ml-4"
                             :target-object-store-id="targetObjectStoreId"
                             :target-history-id="targetHistoryId"
                             store-caption="Target storage"
-                            change-link-text="Choose another"
                             change-link-tooltip="Change storage location for this upload"
-                            modal-title="Select storage location for upload"
                             @select-store="handleObjectStoreSelection" />
                     </div>
                 </div>
@@ -213,12 +212,19 @@ function handleReadyStateChange(ready: boolean) {
 .target-destination-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem 1rem;
+    align-items: center;
 }
 
 .target-destination-item {
-    flex: 1 1 20rem;
-    min-width: 16rem;
+    flex: 1 1 22rem;
+    min-width: min(100%, 18rem);
+}
+
+@media (max-width: 768px) {
+    .target-destination-item {
+        flex-basis: 100%;
+        min-width: 0;
+    }
 }
 
 .target-history-name {
