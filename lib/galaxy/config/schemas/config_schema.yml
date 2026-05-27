@@ -4260,6 +4260,21 @@ mapping:
           can still refresh on demand via
           ``python -m galaxy.agents.gtn --refresh``. Requires celery.
 
+      iwc_manifest_refresh_interval:
+        type: int
+        default: 3600
+        required: false
+        desc: |
+          Time (in seconds) between celery-beat triggered refreshes of the
+          in-process IWC workflow manifest cache used by the agent-ops layer.
+          Default matches the cache's in-process TTL so the cache stays
+          continuously warm rather than expiring between user-driven hits.
+          Failures are logged and the prior cached copy is retained. Only
+          registered when ``inference_services`` is configured (i.e. ChatGXY
+          is in use). Set to 0 to disable automatic refresh -- agent-ops
+          callers will then fall back to lazy on-demand fetching with the
+          same hour TTL. Requires celery.
+
       enable_tool_recommendations:
         type: bool
         default: false

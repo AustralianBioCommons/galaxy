@@ -5754,6 +5754,24 @@
 :Type: int
 
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``iwc_manifest_refresh_interval``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Time (in seconds) between celery-beat triggered refreshes of the
+    in-process IWC workflow manifest cache used by the agent-ops
+    layer. Default matches the cache's in-process TTL so the cache
+    stays continuously warm rather than expiring between user-driven
+    hits. Failures are logged and the prior cached copy is retained.
+    Only registered when ``inference_services`` is configured (i.e.
+    ChatGXY is in use). Set to 0 to disable automatic refresh --
+    agent-ops callers will then fall back to lazy on-demand fetching
+    with the same hour TTL. Requires celery.
+:Default: ``3600``
+:Type: int
+
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ``enable_tool_recommendations``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
