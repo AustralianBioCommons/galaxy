@@ -1,113 +1,148 @@
 <script setup lang="ts">
 import { faDatabase } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BModal } from "bootstrap-vue";
+import { BAlert } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed } from "vue";
+import Multiselect from "vue-multiselect";
 
 import { useTargetObjectStoreUploadState } from "@/composables/upload/useTargetObjectStoreUploadState";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 
-import SelectObjectStore from "@/components/ObjectStore/SelectObjectStore.vue";
+import ObjectStoreBadges from "@/components/ObjectStore/ObjectStoreBadges.vue";
 
 interface Props {
     targetObjectStoreId: string | null;
     targetHistoryId: string;
     storeCaption?: string;
-    changeLinkText?: string;
     changeLinkTooltip?: string;
-    modalTitle?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     storeCaption: "Target storage",
-    changeLinkText: "change",
     changeLinkTooltip: "Change target storage location",
-    modalTitle: "Select storage location",
 });
 
 const emit = defineEmits<{
     (e: "select-store", selection: { object_store_id: string | null; private: boolean }): void;
 }>();
 
-const showModal = ref(false);
-
 const objectStoreStore = useObjectStoreStore();
 const { selectableObjectStores } = storeToRefs(objectStoreStore);
 
-const canChangeStore = computed(() => (selectableObjectStores.value?.length ?? 0) > 1);
+type SelectorOption = {
+    id: string;
+    name: string;
+    description: string;
+    object_store_id: string | null;
+    private: boolean;
+    badges: unknown[];
+};
 
-const { storeName, storeDescription, warningMessage } = useTargetObjectStoreUploadState(
+const defaultStoreOption: SelectorOption = {
+    id: "__null__",
+    name: "Use history preference",
+    description: "Uploads will follow the selected history storage preference.",
+    object_store_id: null,
+    private: false,
+    badges: [],
+};
+
+const storeOptions = computed<SelectorOption[]>(() => {
+    const stores = selectableObjectStores.value ?? [];
+    const visibleStores = stores.filter(
+        (store) => ("hidden" in store ? !store.hidden : true) && !!store.object_store_id,
+    );
+    return [
+        defaultStoreOption,
+        ...visibleStores.map((store) => {
+            const objectStoreId = store.object_store_id as string;
+            return {
+                id: objectStoreId,
+                name: store.name ?? "Unknown storage location",
+                description: store.description ?? "",
+                object_store_id: objectStoreId,
+                private: store.private,
+                badges: store.badges ?? [],
+            };
+        }),
+    ];
+});
+
+const canChangeStore = computed(() => storeOptions.value.length > 1);
+
+const currentStoreOption = computed<SelectorOption>(() => {
+    return (
+        storeOptions.value.find((option) => option.object_store_id === props.targetObjectStoreId) ?? defaultStoreOption
+    );
+});
+
+const { warningMessage } = useTargetObjectStoreUploadState(
     computed(() => props.targetObjectStoreId),
     computed(() => props.targetHistoryId),
 );
 
-function openStoreSelector() {
-    showModal.value = true;
-}
-
-function handleStoreSelected(objectStoreId: string | null, isPrivate: boolean) {
-    showModal.value = false;
+function handleStoreSelected(selectedOption: SelectorOption | null) {
+    if (!selectedOption) {
+        return;
+    }
     emit("select-store", {
-        object_store_id: objectStoreId,
-        private: isPrivate,
+        object_store_id: selectedOption.object_store_id,
+        private: selectedOption.private,
     });
 }
 </script>
 
 <template>
     <div>
-        <div class="d-flex align-items-center">
-            <span class="d-flex flex-gapx-1 align-items-center">
+        <div class="d-flex align-items-center flex-nowrap w-100">
+            <span class="d-flex align-items-center text-nowrap flex-shrink-0">
                 <span v-g-tooltip.hover title="The storage location where these datasets will be uploaded.">
                     <FontAwesomeIcon class="mr-1" :icon="faDatabase" />{{ storeCaption }}:
                 </span>
-                <span v-g-tooltip.hover :title="storeDescription">
-                    <b>{{ storeName }}</b>
-                </span>
             </span>
-            <a
-                v-if="canChangeStore"
+            <div
                 v-g-tooltip.hover
-                href="#"
-                class="change-store-link ml-2"
-                :title="changeLinkTooltip"
-                @click.prevent="openStoreSelector">
-                {{ changeLinkText }}
-            </a>
+                class="flex-grow-1 ml-2"
+                data-test-id="upload-target-object-store-selector"
+                :title="changeLinkTooltip">
+                <Multiselect
+                    :value="currentStoreOption"
+                    :options="storeOptions"
+                    :allow-empty="false"
+                    :searchable="false"
+                    :show-labels="false"
+                    :disabled="!canChangeStore"
+                    class="w-100 target-object-store-multiselect multiselect--soft-option-highlight"
+                    label="name"
+                    track-by="id"
+                    @input="handleStoreSelected">
+                    <template v-slot:singleLabel="{ option }">
+                        <span class="d-flex align-items-center justify-content-between">
+                            <span class="text-truncate mr-2">{{ option.name ?? "Unknown storage location" }}</span>
+                            <ObjectStoreBadges :badges="option.badges" size="lg" class="flex-shrink-0" />
+                        </span>
+                    </template>
+                    <template v-slot:option="{ option }">
+                        <div
+                            data-test-id="target-object-store-option"
+                            :data-id="option.id"
+                            class="w-100 text-wrap py-1">
+                            <div class="d-flex align-items-start justify-content-between">
+                                <span class="font-weight-bold">{{ option.name ?? "Unknown storage location" }}</span>
+                                <ObjectStoreBadges :badges="option.badges" size="lg" class="ml-2 flex-shrink-0" />
+                            </div>
+                            <div v-if="option.description" class="small text-muted mt-1 text-break">
+                                {{ option.description }}
+                            </div>
+                        </div>
+                    </template>
+                </Multiselect>
+            </div>
         </div>
 
         <BAlert v-if="warningMessage" show variant="warning" class="mb-2 py-1">
             {{ warningMessage }}
         </BAlert>
-
-        <BModal
-            v-model="showModal"
-            centered
-            scrollable
-            size="lg"
-            :title="modalTitle"
-            title-class="h-sm"
-            title-tag="h3"
-            ok-only
-            ok-title="Close">
-            <SelectObjectStore
-                for-what="New datasets uploaded in this history"
-                :selected-object-store-id="targetObjectStoreId"
-                default-option-title="Use history preference"
-                default-option-description="Uploads will follow the selected history storage preference."
-                @onSubmit="handleStoreSelected" />
-        </BModal>
     </div>
 </template>
-
-<style scoped lang="scss">
-@import "@/style/scss/theme/blue.scss";
-
-.change-store-link {
-    &:hover {
-        text-decoration: underline;
-        color: $brand-primary;
-    }
-}
-</style>
