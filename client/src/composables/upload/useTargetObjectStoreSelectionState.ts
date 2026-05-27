@@ -2,7 +2,6 @@ import { storeToRefs } from "pinia";
 import { computed, type ComputedRef, type Ref, ref, watch } from "vue";
 
 import type { UserConcreteObjectStoreModel } from "@/api";
-import { useHistoryStore } from "@/stores/historyStore";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 
 interface TargetObjectStoreSelectionState {
@@ -16,7 +15,6 @@ export function useTargetObjectStoreSelectionState(
     targetHistoryId: Ref<string>,
     advancedMode: ComputedRef<boolean>,
 ): TargetObjectStoreSelectionState {
-    const historyStore = useHistoryStore();
     const objectStoreStore = useObjectStoreStore();
     const { selectableObjectStores } = storeToRefs(objectStoreStore);
 
@@ -39,20 +37,13 @@ export function useTargetObjectStoreSelectionState(
 
     watch(
         [targetHistoryId, selectableObjectStores],
-        ([newHistoryId, stores]) => {
+        ([newHistoryId]) => {
             if (!newHistoryId || userManuallySelectedStore.value) {
                 return;
             }
 
-            const history = historyStore.getHistoryById(newHistoryId);
-            const preferredObjectStoreId = history?.preferred_object_store_id ?? null;
-
-            if (preferredObjectStoreId && stores?.some((store) => store.object_store_id === preferredObjectStoreId)) {
-                targetObjectStoreId.value = preferredObjectStoreId;
-                return;
-            }
-
-            targetObjectStoreId.value = stores?.[0]?.object_store_id ?? preferredObjectStoreId;
+            // Keep null to represent "Use history preference" until the user picks a concrete store.
+            targetObjectStoreId.value = null;
         },
         { immediate: true },
     );
