@@ -308,19 +308,19 @@ async function onFavoriteSectionToggle() {
         ]">
         <div
             v-g-tooltip.topright.hover
-            class="toolSectionTitle unified-panel-divider"
+            class="toolSectionTitle"
             :title="props.category.description || undefined">
             <div v-if="props.showDragHandle" class="favorite-top-level-drag-target">
                 <FontAwesomeIcon :icon="faGripLines" />
             </div>
             <a
-                class="title-link unified-panel-divider-link"
+                class="title-link"
                 href="javascript:void(0)"
                 role="button"
                 :aria-expanded="opened"
                 :data-description="props.showDragHandle ? 'favorite-top-level-drag-target' : null"
                 @click="toggleMenu()">
-                <span class="unified-panel-divider-text">
+                <span>
                     <span class="name">
                         <FontAwesomeIcon
                             v-if="favoriteSectionIcon"
