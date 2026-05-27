@@ -832,21 +832,26 @@ def renew_vault_token(vault: Vault):
 
 @galaxy_task(action="refreshing GTN training database")
 def refresh_gtn_database(config: GalaxyAppConfiguration):
-    """Re-download the GTN search database from depot, replacing the local copy atomically.
+    """HEAD depot for the GTN search database and re-download only when newer.
 
     Handlers open the database read-only per query, so an atomic rename here
-    is picked up by the next ChatGXY request without a restart. Failures are
-    logged and swallowed so a depot outage doesn't kill the periodic queue.
+    is picked up by the next ChatGXY request without a restart. The HEAD-first
+    pattern keeps the steady-state cost to a few hundred bytes per tick --
+    only when depot has actually been updated do we pull the full ~17MB.
+    Failures are logged and swallowed so a depot outage doesn't kill the
+    periodic queue.
     """
-    db_path = getattr(config, "gtn_database_path", None)
+    db_path = config.gtn_database_path
     if not db_path:
         log.debug("refresh_gtn_database: gtn_database_path is unset, skipping")
         return
-    download_url = getattr(config, "gtn_database_url", None)
     try:
-        metadata = GTNSearchDB.refresh_database(db_path, download_url)
+        metadata = GTNSearchDB.refresh_database_if_stale(db_path, config.gtn_database_url)
     except FileNotFoundError as e:
         log.warning("refresh_gtn_database: download failed, keeping existing copy: %s", e)
+        return
+    if metadata is None:
+        log.debug("refresh_gtn_database: %s is current, no download needed", db_path)
         return
     log.info(
         "refresh_gtn_database: refreshed %s (version=%s, tutorials=%s, faqs=%s)",

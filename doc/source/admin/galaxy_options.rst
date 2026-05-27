@@ -5739,15 +5739,18 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Time (in seconds) between celery-beat triggered refreshes of the
-    GTN search database from ``gtn_database_url``. The task
-    re-downloads the file and atomically replaces
+    Time (in seconds) between celery-beat triggered freshness checks
+    of the GTN search database from ``gtn_database_url``. The task
+    HEADs depot and only re-downloads when its ``Last-Modified`` is
+    newer than the local file -- steady-state cost is a few hundred
+    bytes per tick. When a download does happen it atomically replaces
     ``gtn_database_path``; live handlers pick up the new copy on their
     next query since GTNSearchDB opens a read-only connection per
-    call. Set to 0 to disable automatic refresh (admins can still
-    refresh on demand via ``python -m galaxy.agents.gtn --refresh``).
-    Requires celery.
-:Default: ``3600``
+    call. Only registered when ``inference_services`` is configured
+    (i.e. ChatGXY is in use). Set to 0 to disable automatic refresh --
+    admins can still refresh on demand via ``python -m
+    galaxy.agents.gtn --refresh``. Requires celery.
+:Default: ``86400``
 :Type: int
 
 
