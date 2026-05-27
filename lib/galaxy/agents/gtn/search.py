@@ -5,6 +5,7 @@ Provides search over Galaxy Training Network tutorials and FAQs
 using SQLite FTS5 full-text search with BM25 ranking.
 """
 
+import http.client
 import logging
 import os
 import re
@@ -251,7 +252,11 @@ class GTNSearchDB:
             req = urllib.request.Request(url, method="HEAD")
             with urllib.request.urlopen(req, timeout=GTN_FRESHNESS_TIMEOUT_SECONDS) as resp:
                 header = resp.headers.get("Last-Modified")
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, http.client.HTTPException) as e:
+            # http.client.HTTPException covers malformed responses
+            # (RemoteDisconnected, BadStatusLine) that urllib doesn't wrap
+            # into URLError -- without it the periodic queue would record a
+            # failed run instead of falling through to a full download.
             log.debug(f"GTN freshness HEAD failed for {url}: {e}")
             return None
         return _parse_last_modified(header)
