@@ -132,8 +132,8 @@ const sections = computed(() => {
             <div class="toolMenuContainer">
                 <div class="toolSectionWrapper">
                     <div v-for="(section, sectionIndex) in sections" :key="sectionIndex" class="toolSectionTitle pt-2">
-                        <h2 class="tool-panel-divider m-0">
-                            <span class="tool-panel-divider-text">{{ section.title }}</span>
+                        <h2 class="unified-panel-divider m-0">
+                            <span class="unified-panel-divider-text">{{ section.title }}</span>
                         </h2>
                         <div class="toolSectionBody">
                             <div v-for="(item, itemIndex) in section.items" :key="itemIndex" class="toolTitle">
