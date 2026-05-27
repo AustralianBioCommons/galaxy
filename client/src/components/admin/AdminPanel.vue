@@ -132,11 +132,13 @@ const sections = computed(() => {
             <div class="toolMenuContainer">
                 <div class="toolSectionWrapper">
                     <div v-for="(section, sectionIndex) in sections" :key="sectionIndex" class="toolSectionTitle pt-2">
-                        <h2 class="font-weight-bold h-text mb-0">{{ section.title }}</h2>
+                        <h2 class="tool-panel-divider m-0">
+                            <span class="tool-panel-divider-text">{{ section.title }}</span>
+                        </h2>
                         <div class="toolSectionBody">
                             <div v-for="(item, itemIndex) in section.items" :key="itemIndex" class="toolTitle">
                                 <router-link v-if="!item.disabled" :id="item.id" class="title-link" :to="item.route">
-                                    <small class="name">{{ item.title }}</small>
+                                    <span class="name">{{ item.title }}</span>
                                 </router-link>
                             </div>
                         </div>
@@ -146,3 +148,8 @@ const sections = computed(() => {
         </div>
     </ActivityPanel>
 </template>
+
+<style scoped lang="scss">
+@import "@/style/scss/theme/blue.scss";
+@import "@/style/scss/tool-panel-divider.scss";
+</style>
