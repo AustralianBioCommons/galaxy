@@ -1566,6 +1566,11 @@ beta_upload:
     target_history_change_link: '.target-history-banner .change-history-link'
     history_selector_modal: '.g-dialog'
     history_selector_modal_item: '.g-dialog [data-pk="${history_id}"]'
+    # Upload panel advanced mode switch
+    advanced_mode_toggle_checkbox: '[data-test-id="upload-advanced-mode-toggle"]'
+    # Target-object-store selectors (TargetObjectStoreSelector inside UploadMethodView)
+    target_object_store_selector_dropdown: '.target-destination-item [data-test-id="upload-target-object-store-selector"] .target-object-store-multiselect .multiselect__select'
+    target_object_store_selector_option: '.target-destination-item [data-test-id="upload-target-object-store-selector"] .target-object-store-multiselect.multiselect--active [data-test-id="target-object-store-option"][data-id="${object_store_id}"]'
     # Composite-file selectors
     composite_slot_mode_dropdown: '.composite-file-upload .composite-slot-row:nth-of-type(${row}) [data-test-id="composite-slot-mode-dropdown"] .dropdown-toggle'
     composite_slot_enter_local_action: '.composite-file-upload .composite-slot-row:nth-of-type(${row}) [data-test-id="composite-slot-enter-local"]'
