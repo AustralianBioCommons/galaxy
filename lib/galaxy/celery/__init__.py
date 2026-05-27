@@ -294,6 +294,11 @@ def setup_periodic_tasks(config, celery_app):
     ):
         schedule_task("refresh_gtn_database", config.gtn_database_refresh_interval)
 
+    # IWC manifest pre-warm only matters when the agent-ops layer is exposed --
+    # same inference_services gate as the GTN refresh above.
+    if getattr(config, "inference_services", None) and config.iwc_manifest_refresh_interval:
+        schedule_task("refresh_iwc_manifest", config.iwc_manifest_refresh_interval)
+
     if config.celery_user_concurrency_limit:
         # Run cleanup every 5 minutes (300 seconds)
         schedule_task("cleanup_stale_concurrency_slots", 300)

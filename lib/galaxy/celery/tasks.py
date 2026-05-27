@@ -830,6 +830,29 @@ def renew_vault_token(vault: Vault):
     renew_vault_token_if_needed(vault)
 
 
+@galaxy_task(action="refreshing IWC workflow manifest cache")
+def refresh_iwc_manifest(config: GalaxyAppConfiguration):
+    """Pre-warm the in-process IWC manifest cache.
+
+    The agent-ops layer caches the manifest at module scope with an hour
+    TTL; without this task the first user-driven IWC call after a worker
+    restart pays the full network fetch. Failures are logged and swallowed
+    so an iwc.galaxyproject.org outage doesn't kill the periodic queue --
+    on-demand callers still get the prior cached copy until the TTL lapses.
+    """
+    # Local import keeps the iwc module (and its cachetools / requests
+    # imports) out of celery's startup graph -- they only load on the
+    # workers that actually run this task.
+    from galaxy.agents import iwc
+
+    try:
+        manifest = iwc.refresh_manifest()
+    except Exception as e:  # noqa: BLE001 -- best-effort warm; resilience over precision
+        log.warning("refresh_iwc_manifest: fetch failed, keeping existing cache: %s", e)
+        return
+    log.info("refresh_iwc_manifest: cached %s top-level manifest entries", len(manifest))
+
+
 @galaxy_task(action="refreshing GTN training database")
 def refresh_gtn_database(config: GalaxyAppConfiguration):
     """HEAD depot for the GTN search database and re-download only when newer.
