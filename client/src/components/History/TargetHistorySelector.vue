@@ -56,8 +56,11 @@ function handleHistorySelected(history: { id: string }) {
 
 <template>
     <div>
-        <div class="d-flex align-items-center">
-            <TargetHistoryLink :target-history-id="targetHistoryId" :target-history-caption="historyCaption" />
+        <div class="target-history-selector-row d-flex align-items-center">
+            <TargetHistoryLink
+                class="target-history-selector-link"
+                :target-history-id="targetHistoryId"
+                :target-history-caption="historyCaption" />
             <a
                 v-if="canChangeHistory"
                 v-g-tooltip.hover
@@ -90,5 +93,14 @@ function handleHistorySelected(history: { id: string }) {
         text-decoration: underline;
         color: $brand-primary;
     }
+}
+
+.target-history-selector-row {
+    min-width: 0;
+}
+
+.target-history-selector-link {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 </style>
