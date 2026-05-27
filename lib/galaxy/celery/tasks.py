@@ -26,6 +26,7 @@ from sqlalchemy import (
 )
 
 from galaxy import model
+from galaxy.agents.gtn import GTNSearchDB
 from galaxy.celery import (
     celery_app,
     galaxy_task,
@@ -827,6 +828,33 @@ def cleanup_jwds(sa_session: galaxy_scoped_session, object_store: BaseObjectStor
 def renew_vault_token(vault: Vault):
     """Renew the Hashicorp Vault token if configured and renewable."""
     renew_vault_token_if_needed(vault)
+
+
+@galaxy_task(action="refreshing GTN training database")
+def refresh_gtn_database(config: GalaxyAppConfiguration):
+    """Re-download the GTN search database from depot, replacing the local copy atomically.
+
+    Handlers open the database read-only per query, so an atomic rename here
+    is picked up by the next ChatGXY request without a restart. Failures are
+    logged and swallowed so a depot outage doesn't kill the periodic queue.
+    """
+    db_path = getattr(config, "gtn_database_path", None)
+    if not db_path:
+        log.debug("refresh_gtn_database: gtn_database_path is unset, skipping")
+        return
+    download_url = getattr(config, "gtn_database_url", None)
+    try:
+        metadata = GTNSearchDB.refresh_database(db_path, download_url)
+    except FileNotFoundError as e:
+        log.warning("refresh_gtn_database: download failed, keeping existing copy: %s", e)
+        return
+    log.info(
+        "refresh_gtn_database: refreshed %s (version=%s, tutorials=%s, faqs=%s)",
+        db_path,
+        metadata["version"],
+        metadata["tutorial_count"],
+        metadata["faq_count"],
+    )
 
 
 @galaxy_task(action="execute workflow completion hook")

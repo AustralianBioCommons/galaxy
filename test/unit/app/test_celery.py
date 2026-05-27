@@ -26,6 +26,10 @@ def test_default_configuration():
         "task": "galaxy.cleanup_short_term_storage",
         "schedule": galaxy_conf.short_term_storage_cleanup_interval,
     }
+    assert conf.beat_schedule["refresh-gtn-database"] == {
+        "task": "galaxy.refresh_gtn_database",
+        "schedule": galaxy_conf.gtn_database_refresh_interval,
+    }
 
 
 def test_galaxycelery_trim_module_name():

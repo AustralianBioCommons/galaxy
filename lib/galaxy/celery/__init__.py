@@ -283,6 +283,9 @@ def setup_periodic_tasks(config, celery_app):
     if config.vault_token_renewal_interval:
         schedule_task("renew_vault_token", config.vault_token_renewal_interval)
 
+    if getattr(config, "gtn_database_refresh_interval", 0) and getattr(config, "gtn_database_path", None):
+        schedule_task("refresh_gtn_database", config.gtn_database_refresh_interval)
+
     if config.celery_user_concurrency_limit:
         # Run cleanup every 5 minutes (300 seconds)
         schedule_task("cleanup_stale_concurrency_slots", 300)
