@@ -94,9 +94,6 @@ function onKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped lang="scss">
-@import "@/style/scss/theme/blue.scss";
-@import "@/style/scss/tool-panel-divider.scss";
-
 .tool-panel-label {
     &:deep(.tool-panel-links) {
         display: none;
