@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { faDatabase } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import Multiselect from "vue-multiselect";
@@ -9,6 +8,7 @@ import Multiselect from "vue-multiselect";
 import { useTargetObjectStoreUploadState } from "@/composables/upload/useTargetObjectStoreUploadState";
 import { useObjectStoreStore } from "@/stores/objectStoreStore";
 
+import GAlert from "@/components/BaseComponents/GAlert.vue";
 import ObjectStoreBadges from "@/components/ObjectStore/ObjectStoreBadges.vue";
 
 interface Props {
@@ -141,8 +141,8 @@ function handleStoreSelected(selectedOption: SelectorOption | null) {
             </div>
         </div>
 
-        <BAlert v-if="warningMessage" show variant="warning" class="mb-2 py-1">
+        <GAlert v-if="warningMessage" show variant="warning" class="mb-2 py-1">
             {{ warningMessage }}
-        </BAlert>
+        </GAlert>
     </div>
 </template>

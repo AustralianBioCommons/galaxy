@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { BAlert } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router/composables";
@@ -16,6 +15,7 @@ import type { UploadMethod, UploadMethodComponent } from "./types";
 import { getUploadRootBreadcrumb } from "./uploadBreadcrumb";
 import { getUploadMethod } from "./uploadMethodRegistry";
 
+import GAlert from "@/components/BaseComponents/GAlert.vue";
 import GButton from "@/components/BaseComponents/GButton.vue";
 import GTip from "@/components/BaseComponents/GTip.vue";
 import BreadcrumbHeading from "@/components/Common/BreadcrumbHeading.vue";
@@ -156,9 +156,9 @@ function handleReadyStateChange(ready: boolean) {
                     </div>
                 </div>
 
-                <BAlert v-if="objectStoreWarningMessage" show variant="warning" class="mb-0 mt-2 py-1">
+                <GAlert v-if="objectStoreWarningMessage" show variant="warning" class="mb-0 mt-2 py-1">
                     {{ objectStoreWarningMessage }}
-                </BAlert>
+                </GAlert>
             </div>
 
             <!-- Upload Method Content (scrollable) -->
