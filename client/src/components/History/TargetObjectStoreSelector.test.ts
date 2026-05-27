@@ -70,11 +70,6 @@ async function mountSelector(targetObjectStoreId = PRIVATE_STORE.object_store_id
         },
         localVue,
         pinia,
-        stubs: {
-            BModal: true,
-            SelectObjectStore: true,
-            FontAwesomeIcon: true,
-        },
     });
 
     await flushPromises();
