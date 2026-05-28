@@ -1,7 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
+import { GalaxyApi } from "@/api/client";
+import type { ChatHistoryItem } from "@/components/GalaxyAI/chatTypes";
 import { useUserLocalStorage } from "@/composables/userLocalStorage";
+import { rethrowSimple } from "@/utils/simple-error";
 
 export type ChatLocation = "center" | "right" | "bottom";
 
@@ -9,10 +12,33 @@ export const useChatStore = defineStore("chatStore", () => {
     const chatLocation = useUserLocalStorage<ChatLocation>("chat-location", "center");
     const chatVisible = useUserLocalStorage("chat-visible", false);
     const activeChatId = ref<string | null>(null);
+    const chatHistory = ref<ChatHistoryItem[]>([]);
+    const loading = ref(false);
 
     const isRightPanelOpen = computed(() => chatLocation.value === "right" && chatVisible.value);
     const isBottomPanelOpen = computed(() => chatLocation.value === "bottom" && chatVisible.value);
     const isCenterMode = computed(() => chatLocation.value === "center");
+
+    function deleteChats(ids: Set<string>) {
+        chatHistory.value = chatHistory.value.filter((item) => !ids.has(item.id));
+    }
+
+    async function deleteChatById(chatId: string) {
+        if (!chatId) {
+            return;
+        }
+        const { error } = await GalaxyApi().DELETE("/api/chat/exchange/{exchange_id}", {
+            params: { path: { exchange_id: chatId } },
+        });
+        if (error) {
+            rethrowSimple(error);
+        }
+
+        deleteChats(new Set([chatId]));
+        if (activeChatId.value === chatId) {
+            activeChatId.value = null;
+        }
+    }
 
     function showChat(chatId?: string | null) {
         if (chatId !== undefined) {
@@ -26,6 +52,21 @@ export const useChatStore = defineStore("chatStore", () => {
     function hideChat() {
         if (chatVisible.value) {
             chatVisible.value = false;
+        }
+    }
+
+    async function loadHistory() {
+        loading.value = true;
+        const { data, error } = await GalaxyApi().GET("/api/chat/history", {
+            params: { query: { limit: 50 } },
+        });
+
+        loading.value = false;
+
+        if (error) {
+            rethrowSimple(error);
+        } else if (data) {
+            chatHistory.value = data as unknown as ChatHistoryItem[];
         }
     }
 
@@ -46,14 +87,19 @@ export const useChatStore = defineStore("chatStore", () => {
     }
 
     return {
+        chatHistory,
         chatLocation,
         chatVisible,
         activeChatId,
         isRightPanelOpen,
         isBottomPanelOpen,
         isCenterMode,
+        deleteChatById,
+        deleteChats,
         showChat,
         hideChat,
+        loadHistory,
+        loading,
         toggleChat,
         setLocation,
         setActiveChatId,

@@ -21,6 +21,7 @@ import { GalaxyApi } from "@/api";
 import { getGalaxyInstance } from "@/app";
 import { type AgentResponse, useAgentActions } from "@/composables/agentActions";
 import { useMarkdown } from "@/composables/markdown";
+import { useToast } from "@/composables/toast";
 import { useActiveContext } from "@/composables/useActiveContext";
 import { buildEntityContext, parseMentions, resolveMentions } from "@/composables/useEntityMentions";
 import { useChatStore } from "@/stores/chatStore";
@@ -57,6 +58,7 @@ const emit = defineEmits<{
 const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
+const Toast = useToast();
 
 const { activeContext, contextLabel } = useActiveContext();
 const contextDismissed = ref(false);
@@ -99,7 +101,7 @@ const { processingAction, handleAction } = useAgentActions();
 
 onMounted(async () => {
     if (props.exchangeId) {
-        await loadChatById(props.exchangeId);
+        await fetchConversation(props.exchangeId);
     } else if (props.docked || props.panel) {
         startNewChat();
     } else {
@@ -118,7 +120,7 @@ watch(
             return;
         }
         if (newId) {
-            await loadChatById(newId);
+            await fetchConversation(newId);
         } else {
             startNewChat();
         }
@@ -256,36 +258,34 @@ async function sendFeedback(messageId: string, value: "up" | "down") {
         message.feedback = value;
 
         if (currentChatId.value) {
-            try {
-                const feedbackValue = value === "up" ? 1 : 0;
-                const { error } = await GalaxyApi().PUT("/api/chat/exchange/{exchange_id}/feedback", {
-                    params: {
-                        path: { exchange_id: currentChatId.value },
-                    },
-                    body: feedbackValue,
-                });
+            const feedbackValue = value === "up" ? 1 : 0;
+            const { error } = await GalaxyApi().PUT("/api/chat/exchange/{exchange_id}/feedback", {
+                params: {
+                    path: { exchange_id: currentChatId.value },
+                },
+                body: feedbackValue,
+            });
 
-                if (error) {
-                    console.error("Failed to save feedback:", error);
-                    message.feedback = null;
-                }
-            } catch (e) {
-                console.error("Failed to save feedback:", e);
+            if (error) {
+                Toast.error(errorMessageAsString(error), "Failed to save feedback");
                 message.feedback = null;
             }
         }
     }
 }
 
-async function fetchConversation(exchangeId: string): Promise<boolean> {
-    const { data: fullConversation } = await GalaxyApi().GET(`/api/chat/exchange/{exchange_id}/messages`, {
+async function fetchConversation(exchangeId: string) {
+    const { data: fullConversation, error } = await GalaxyApi().GET(`/api/chat/exchange/{exchange_id}/messages`, {
         params: {
             path: { exchange_id: exchangeId },
         },
     });
 
     if (!fullConversation || fullConversation.length === 0) {
-        return false;
+        return;
+    } else if (error) {
+        Toast.error(errorMessageAsString(error, "Failed to load conversation."), "Error loading conversation");
+        return;
     }
 
     messages.value = fullConversation.map((msg: any, index: number) => {
@@ -313,41 +313,22 @@ async function fetchConversation(exchangeId: string): Promise<boolean> {
 
     currentChatId.value = exchangeId;
     nextTick(() => scrollToBottom(chatContainer.value));
-    return true;
-}
 
-async function loadChatById(exchangeId: string) {
-    try {
-        const loaded = await fetchConversation(exchangeId);
-        if (loaded) {
-            hasLoadedInitialChat.value = true;
-        }
-    } catch (e) {
-        console.error("Failed to load chat by ID:", e);
-    }
+    hasLoadedInitialChat.value = true;
 }
 
 async function loadLatestChat() {
-    try {
-        const { data, error } = await GalaxyApi().GET("/api/chat/history", {
-            params: {
-                query: { limit: 1 },
-            },
-        });
+    const { data, error } = await GalaxyApi().GET("/api/chat/history", {
+        params: {
+            query: { limit: 1 },
+        },
+    });
 
-        if (data && !error && data.length > 0) {
-            const latestChat = data[0] as unknown as ChatHistoryItem;
-            try {
-                const loaded = await fetchConversation(latestChat.id);
-                if (loaded) {
-                    hasLoadedInitialChat.value = true;
-                }
-            } catch (e) {
-                console.error("Error loading latest conversation:", e);
-            }
-        }
-    } catch (e) {
-        console.error("Failed to load latest chat:", e);
+    if (error) {
+        Toast.error(errorMessageAsString(error), "Failed to load latest chat");
+    } else if (data && data.length > 0) {
+        const latestChat = data[0] as unknown as ChatHistoryItem;
+        await fetchConversation(latestChat.id);
     }
 }
 
@@ -377,14 +358,13 @@ async function deleteCurrentChat() {
         return;
     }
     try {
-        const { error } = await GalaxyApi().DELETE("/api/chat/exchange/{exchange_id}", {
-            params: { path: { exchange_id: currentChatId.value } },
-        });
-        if (!error) {
-            startNewChat();
-        }
+        await chatStore.deleteChatById(currentChatId.value);
+        startNewChat();
     } catch (e) {
-        console.error("Failed to delete chat:", e);
+        Toast.error(
+            errorMessageAsString(e, "Error occured while trying to delete the conversation"),
+            "Failed to delete conversation.",
+        );
     }
 }
 
@@ -404,9 +384,13 @@ function dockTo(location: "right" | "bottom") {
     }
 }
 
-watch(currentChatId, (newId) => {
+watch(currentChatId, async (newId) => {
     if (props.docked || props.panel) {
         chatStore.setActiveChatId(newId);
+    }
+
+    if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
+        await chatStore.loadHistory();
     }
 });
 </script>

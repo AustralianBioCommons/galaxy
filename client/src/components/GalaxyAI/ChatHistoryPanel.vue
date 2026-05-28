@@ -2,8 +2,9 @@
 import { faCheckSquare, faSquare } from "@fortawesome/free-regular-svg-icons";
 import { faClock, faColumns, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router/composables";
+import { storeToRefs } from "pinia";
+import { computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router/composables";
 
 import { GalaxyApi } from "@/api";
 import { useSidebarSelection } from "@/composables/useSidebarSelection";
@@ -16,11 +17,11 @@ import SidebarList from "@/components/Common/SidebarList.vue";
 import ActivityPanel from "@/components/Panels/ActivityPanel.vue";
 import UtcDate from "@/components/UtcDate.vue";
 
+const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
 
-const chatHistory = ref<ChatHistoryItem[]>([]);
-const loading = ref(false);
+const { chatHistory, loading } = storeToRefs(chatStore);
 
 const {
     selectionMode,
@@ -32,25 +33,17 @@ const {
     pruneAfterDelete,
 } = useSidebarSelection(chatHistory, (item) => item.id);
 
-onMounted(() => {
-    loadHistory();
+const currentExhangeId = computed(() => {
+    if (chatStore.isCenterMode) {
+        return route.params["exchangeId"] || null;
+    } else {
+        return chatStore.activeChatId;
+    }
 });
 
-async function loadHistory() {
-    loading.value = true;
-    try {
-        const { data, error } = await GalaxyApi().GET("/api/chat/history", {
-            params: { query: { limit: 50 } },
-        });
-        if (data && !error) {
-            chatHistory.value = data as unknown as ChatHistoryItem[];
-        }
-    } catch (e) {
-        console.error("Failed to load chat history:", e);
-    } finally {
-        loading.value = false;
-    }
-}
+onMounted(async () => {
+    await chatStore.loadHistory();
+});
 
 function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent) {
     if (handleSelectionClick(item, index, event)) {
@@ -91,7 +84,7 @@ async function deleteSelected() {
             body: { ids },
         });
         if (!error) {
-            chatHistory.value = chatHistory.value.filter((item) => !selectedIds.value.has(item.id));
+            chatStore.deleteChats(selectedIds.value);
             pruneAfterDelete();
         }
     } catch (e) {
@@ -133,7 +126,7 @@ async function deleteSelected() {
             :items="chatHistory"
             :is-loading="loading"
             :item-key="(item) => item.id"
-            :item-class="(item) => ({ selected: selectedIds.has(item.id) })"
+            :item-class="(item) => ({ selected: selectedIds.has(item.id), current: item.id === currentExhangeId })"
             loading-message="Loading history..."
             empty-message="No chat history yet"
             @select="handleItemClick">
@@ -183,10 +176,13 @@ async function deleteSelected() {
 }
 
 // SidebarList provides base item hover/cursor styles.
-// .selected is applied via itemClass prop on the sidebar-item element,
+// .selected and .current are applied via itemClass prop on the sidebar-item element,
 // which lives inside SidebarList's scoped styles, so we use :deep.
 :deep(.sidebar-item.selected) {
     background: rgba($brand-primary, 0.06);
+}
+:deep(.sidebar-item.current) {
+    background: rgba($brand-primary, 0.18);
 }
 
 .history-checkbox {
