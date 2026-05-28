@@ -1,16 +1,15 @@
 from typing import (
     Any,
+    TYPE_CHECKING,
 )
 
 from a2wsgi import WSGIMiddleware
-from fastapi import (
-    FastAPI,
-    Request,
-)
+from fastapi import FastAPI
 from fastapi.openapi.constants import REF_TEMPLATE
+from starlette.datastructures import MutableHeaders
 from starlette.middleware.cors import CORSMiddleware
 
-from galaxy.schema.generics import CustomJsonSchema
+from galaxy.schema.generics import ref_to_name
 from galaxy.version import VERSION
 from galaxy.webapps.base.api import (
     add_exception_handler,
@@ -20,7 +19,14 @@ from galaxy.webapps.base.api import (
     include_all_package_routers,
 )
 from galaxy.webapps.base.webapp import config_allows_origin
+from galaxy.webapps.openapi._compat.v2 import GenerateJsonSchema
 from galaxy.webapps.openapi.utils import get_openapi
+
+if TYPE_CHECKING:
+    from pydantic.json_schema import (
+        CoreModeRef,
+        DefsRef,
+    )
 
 # https://fastapi.tiangolo.com/tutorial/metadata/#metadata-for-tags
 api_tags_metadata = [
@@ -99,14 +105,28 @@ class GalaxyCORSMiddleware(CORSMiddleware):
         return config_allows_origin(origin, self.config)
 
 
+class XFrameOptionsMiddleware:
+    def __init__(self, app, x_frame_options: str):
+        self.app = app
+        self.x_frame_options = x_frame_options
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_header(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers.append("X-Frame-Options", self.x_frame_options)
+            await send(message)
+
+        await self.app(scope, receive, send_with_header)
+
+
 def add_galaxy_middleware(app: FastAPI, gx_app):
     if x_frame_options := gx_app.config.x_frame_options:
-
-        @app.middleware("http")
-        async def add_x_frame_options(request: Request, call_next):
-            response = await call_next(request)
-            response.headers["X-Frame-Options"] = x_frame_options
-            return response
+        app.add_middleware(XFrameOptionsMiddleware, x_frame_options=x_frame_options)
 
     GalaxyFileResponse.nginx_x_accel_redirect_base = gx_app.config.nginx_x_accel_redirect_base
     GalaxyFileResponse.apache_xsendfile = gx_app.config.apache_xsendfile
@@ -146,6 +166,17 @@ def get_fastapi_instance(root_path="") -> FastAPI:
         license_info={"name": "MIT", "url": "https://github.com/galaxyproject/galaxy/blob/dev/LICENSE.txt"},
         root_path=root_path,
     )
+
+
+class CustomJsonSchema(GenerateJsonSchema):
+    def get_defs_ref(self, core_mode_ref: "CoreModeRef") -> "DefsRef":
+        full_def = super().get_defs_ref(core_mode_ref)
+        choices = self._prioritized_defsref_choices[full_def]
+        ref, mode = core_mode_ref
+        if ref in ref_to_name:
+            for i, choice in enumerate(choices):
+                choices[i] = choice.replace(choices[0], ref_to_name[ref])  # type: ignore[call-overload]
+        return full_def
 
 
 def get_openapi_schema() -> dict[str, Any]:

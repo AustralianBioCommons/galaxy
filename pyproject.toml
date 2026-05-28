@@ -10,7 +10,7 @@ maintainers = [
 ]
 license = {file = "LICENSE.txt"}
 readme = "README.rst"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "a2wsgi",
     "aiofiles",
@@ -37,7 +37,7 @@ dependencies = [
     "docutils!=0.17,!=0.17.1",
     "dparse",
     "edam-ontology",
-    "fastapi>=0.111.0",
+    "fastapi>=0.133.0",  # First version compatible with starlette>=1.0.0
     "fissix",
     "fs",
     "future>=1.0.0",  # Python 3.12 support
@@ -98,7 +98,7 @@ dependencies = [
     "sortedcontainers",
     "SQLAlchemy>=2.0.37,<2.1,!=2.0.41",  # https://github.com/sqlalchemy/sqlalchemy/issues/12019 , https://github.com/sqlalchemy/sqlalchemy/issues/12600
     "sqlparse",
-    "starlette",
+    "starlette>=1.0.1",  # CVE-2026-48710 BadHost
     "starlette-context",
     "svgwrite",
     "tifffile",
@@ -187,7 +187,6 @@ typecheck = [
 
 [tool.black]
 line-length = 120
-target-version = ['py39']
 include = '\.pyi?$'
 extend-exclude = '''
 ^/(
@@ -200,7 +199,6 @@ extend-exclude = '''
 isort = true
 
 [tool.ruff]
-target-version = "py39"
 exclude = [
     "lib/tool_shed/test/test_data/repos"
 ]
@@ -217,7 +215,9 @@ select = ["E", "F", "B", "C4", "G", "ISC", "NPY", "UP"]
 # E501 is line length (delegated to black)
 # G* are TODOs
 # UP006 and UP035 are PEP 585 type annotations
-ignore = ["B008", "B9", "E402", "E501", "G001", "G002", "G004", "UP006", "UP035"]
+# UP006, UP007, UP035, UP036, UP041, UP045: Python >=3.10 improvements;
+# keep the code 3.9-syntax-compatible for now, to be revisited later.
+ignore = ["B008", "B9", "E402", "E501", "G001", "G002", "G004", "UP006", "UP007", "UP035", "UP036", "UP041", "UP045"]
 
 [tool.ruff.lint.flake8-comprehensions]
 allow-dict-calls-with-keyword-arguments = true
