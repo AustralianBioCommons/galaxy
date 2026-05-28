@@ -60,3 +60,30 @@ def test_dynamic_option_cache():
         },
     )
     assert from_url_option.get_options(trans, {}) == [ParameterOption("chr2L", "23513712", False)]
+
+
+def test_get_options_handles_missing_name_column():
+    """
+    tool_util/data/__init__.py:parse_column_spec no longer silently
+    fabricates a "name" entry in self.columns when none was declared.
+    get_options must defend against the missing key by falling back to
+    the value column for the display name, mirroring the existing
+    .get("name", value_col) pattern of dynamic_options.py.
+    """
+    tool_param = Bunch(tool=Bunch(app=Bunch()))
+
+    # Populate columns to simulate state arriving from the now-honest
+    # core API: "value" is present, "name" is not.
+    opts = DynamicOptions(XML("<options/>"), tool_param)
+    opts.columns = {"value": 0}
+
+    opts.file_fields = [["hg38"], ["mm10"]]
+
+    trans = WorkRequestContext(app=MockApp())
+    options = opts.get_options(trans, {})
+
+    # No KeyError, and name falls back to value when no name column exists.
+    assert options == [
+        ParameterOption("hg38", "hg38", False),
+        ParameterOption("mm10", "mm10", False),
+    ]
