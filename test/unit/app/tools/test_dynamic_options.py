@@ -63,17 +63,9 @@ def test_dynamic_option_cache():
 
 
 def test_get_options_handles_missing_name_column():
-    """
-    tool_util/data/__init__.py:parse_column_spec no longer silently
-    fabricates a "name" entry in self.columns when none was declared.
-    get_options must defend against the missing key by falling back to
-    the value column for the display name, mirroring the existing
-    .get("name", value_col) pattern of dynamic_options.py.
-    """
+    """Must fall back to value column if display name is missing."""
     tool_param = Bunch(tool=Bunch(app=Bunch()))
 
-    # Populate columns to simulate state arriving from the now-honest
-    # core API: "value" is present, "name" is not.
     opts = DynamicOptions(XML("<options/>"), tool_param)
     opts.columns = {"value": 0}
 
