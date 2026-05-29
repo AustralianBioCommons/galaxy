@@ -246,6 +246,11 @@ function onChatGxyClick() {
         }
     } else {
         chatStore.toggleChat();
+
+        // if we click the activity, in not center mode, and the sidebar is open, we close it as well
+        if (isActiveSideBar("galaxyai")) {
+            toggleSidebar("galaxyai");
+        }
     }
 }
 
