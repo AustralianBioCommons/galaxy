@@ -78,7 +78,10 @@ onUnmounted(() => {
     <div id="columns" class="d-flex">
         <ActivityBar v-if="showPanels" />
         <div id="center" class="d-flex flex-column w-100" style="min-width: 0">
-            <div class="flex-grow-1 overflow-auto p-3" style="min-height: 0">
+            <div
+                class="flex-grow-1 overflow-auto"
+                :class="{ 'p-3': !route.path.startsWith('/galaxyai') }"
+                style="min-height: 0">
                 <CenterFrame v-show="showCenter" id="galaxy_main" @load="onLoad" />
                 <div v-show="!showCenter" class="h-100">
                     <router-view :key="$route.fullPath" class="h-100" />
