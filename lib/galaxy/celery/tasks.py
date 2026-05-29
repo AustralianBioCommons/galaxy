@@ -858,7 +858,7 @@ def refresh_gtn_database(config: GalaxyAppConfiguration):
     """HEAD depot for the GTN search database and re-download only when newer.
 
     Handlers open the database read-only per query, so an atomic rename here
-    is picked up by the next ChatGXY request without a restart. The HEAD-first
+    is picked up by the next GalaxyAI request without a restart. The HEAD-first
     pattern keeps the steady-state cost to a few hundred bytes per tick --
     only when depot has actually been updated do we pull the full ~17MB.
     Failures are logged and swallowed so a depot outage doesn't kill the

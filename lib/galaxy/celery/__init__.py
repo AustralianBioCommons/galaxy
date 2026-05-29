@@ -283,7 +283,7 @@ def setup_periodic_tasks(config, celery_app):
     if config.vault_token_renewal_interval:
         schedule_task("renew_vault_token", config.vault_token_renewal_interval)
 
-    # Only schedule if ChatGXY infrastructure is configured -- the GTN database
+    # Only schedule if GalaxyAI infrastructure is configured -- the GTN database
     # serves the gtn_training agent, which only functions when inference_services
     # is set up. Without this gate every Galaxy install would pull from depot
     # on the default interval, even ones that don't use the agent.

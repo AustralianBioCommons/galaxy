@@ -5747,8 +5747,8 @@
     ``gtn_database_path``; live handlers pick up the new copy on their
     next query since GTNSearchDB opens a read-only connection per
     call. Only registered when ``inference_services`` is configured
-    (i.e. ChatGXY is in use). Set to 0 to disable automatic refresh --
-    admins can still refresh on demand via ``python -m
+    (i.e. GalaxyAI is in use). Set to 0 to disable automatic refresh
+    -- admins can still refresh on demand via ``python -m
     galaxy.agents.gtn --refresh``. Requires celery.
 :Default: ``86400``
 :Type: int
@@ -5765,7 +5765,7 @@
     stays continuously warm rather than expiring between user-driven
     hits. Failures are logged and the prior cached copy is retained.
     Only registered when ``inference_services`` is configured (i.e.
-    ChatGXY is in use). Set to 0 to disable automatic refresh --
+    GalaxyAI is in use). Set to 0 to disable automatic refresh --
     agent-ops callers will then fall back to lazy on-demand fetching
     with the same hour TTL. Requires celery.
 :Default: ``3600``
