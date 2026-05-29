@@ -56,22 +56,24 @@ def fetch_manifest(timeout: float = 30.0) -> list[dict[str, Any]]:
 def refresh_manifest(timeout: float = 30.0) -> list[dict[str, Any]]:
     """Force-fetch the manifest and replace the cached entry.
 
-    Used by the celery-beat pre-warm task. The lock is held across the
-    network fetch so a concurrent on-demand call from a request handler
-    sees either the previous value or the new one -- never an empty cache
-    mid-write. Kept as a separate function from ``fetch_manifest`` because
+    Used by the celery-beat pre-warm task. The network fetch runs outside
+    the cache lock so a slow or hanging iwc.galaxyproject.org doesn't block
+    on-demand ``fetch_manifest`` readers -- they keep getting the previous
+    cached copy. Only the single-assignment cache write is locked, so a
+    concurrent reader sees either the previous value or the new one, never
+    an empty cache mid-write. Kept separate from ``fetch_manifest`` because
     the error contracts differ: lazy fetch propagates (caller can't
     continue without the data); this one is called from a periodic task
     that has to tolerate transient failure.
     """
+    response = requests.get(IWC_MANIFEST_URL, timeout=timeout)
+    response.raise_for_status()
+    manifest = response.json()
+    if not isinstance(manifest, list):
+        raise ValueError(f"IWC manifest at {IWC_MANIFEST_URL} did not return a JSON array")
     with _manifest_cache_lock:
-        response = requests.get(IWC_MANIFEST_URL, timeout=timeout)
-        response.raise_for_status()
-        manifest = response.json()
-        if not isinstance(manifest, list):
-            raise ValueError(f"IWC manifest at {IWC_MANIFEST_URL} did not return a JSON array")
         _manifest_cache[_CACHE_KEY] = manifest
-        return manifest
+    return manifest
 
 
 def all_workflows(manifest: list[dict[str, Any]]) -> list[dict[str, Any]]:
