@@ -1,10 +1,9 @@
 /**
-* Styles for tool panel dividers used in tool panel labels.
-* These styles are used for dividers in the new "My Tools" panel, but they
-* can also be used in the "Full Tools" panel for consistency once the new panel is stable.
+* Shared divider styling for panel section headings (tool panel, admin panel,
+* anywhere a `unified-panel-*` surface needs section separators).
 */
 
-.tool-panel-divider {
+.unified-panel-divider {
     align-items: center;
     background: transparent;
     border-left: 0;
@@ -24,26 +23,26 @@
     }
 }
 
-.tool-panel-divider-text {
+.unified-panel-divider-text {
     align-items: center;
     display: inline-flex;
     gap: 0.5rem;
     white-space: nowrap;
 }
 
-.tool-panel-divider-toggle {
+.unified-panel-divider-toggle {
     opacity: 0.8;
 }
 
-.tool-panel-divider-icon {
+.unified-panel-divider-icon {
     opacity: 0.8;
 }
 
-.tool-panel-divider-action {
+.unified-panel-divider-action {
     margin-left: 0;
 }
 
-.tool-panel-divider-link {
+.unified-panel-divider-link {
     align-items: center;
     display: inline-flex;
     flex: 0 0 auto;
@@ -53,9 +52,9 @@
     text-decoration: none;
 }
 
-.tool-panel-divider .title-link,
-.tool-panel-divider .title-link:hover,
-.tool-panel-divider .title-link:focus,
-.tool-panel-divider .title-link:focus-visible {
+.unified-panel-divider .title-link,
+.unified-panel-divider .title-link:hover,
+.unified-panel-divider .title-link:focus,
+.unified-panel-divider .title-link:focus-visible {
     background: transparent;
 }
