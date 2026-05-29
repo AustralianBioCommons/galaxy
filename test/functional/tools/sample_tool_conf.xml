@@ -143,6 +143,7 @@
   <tool file="select_optional_legacy.xml" />
   <tool file="select_optional.xml" />
   <tool file="select_dynamic.xml" />
+  <tool file="select_from_data_table_no_name.xml" />
   <tool file="hidden_param.xml" />
   <tool file="special_params.xml" />
   <tool file="section.xml" />
