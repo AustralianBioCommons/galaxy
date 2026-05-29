@@ -1,17 +1,5 @@
 <script setup lang="ts">
-import {
-    faAngleDoubleDown,
-    faColumns,
-    faExpand,
-    faExternalLinkAlt,
-    faFile,
-    faMagic,
-    faPlus,
-    faSitemap,
-    faTimes,
-    faTrash,
-    faWrench,
-} from "@fortawesome/free-solid-svg-icons";
+import { faFile, faMagic, faSitemap, faTimes, faWrench } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -31,6 +19,7 @@ import { getAgentIcon } from "./GalaxyAI/agentTypes";
 import type { ChatHistoryItem, ChatMessage } from "./GalaxyAI/chatTypes";
 import { generateId, scrollToBottom } from "./GalaxyAI/chatUtils";
 
+import ChatActions from "./GalaxyAI/ChatActions.vue";
 import ChatInput from "./GalaxyAI/ChatInput.vue";
 import ChatMessageCell from "./GalaxyAI/ChatMessageCell.vue";
 import Heading from "@/components/Common/Heading.vue";
@@ -405,48 +394,27 @@ watch(currentChatId, async (newId) => {
                 <FontAwesomeIcon :icon="faMagic" fixed-width />
                 GalaxyAI
             </span>
-            <div class="header-actions">
-                <button class="btn btn-sm btn-outline-primary" title="Start New Chat" @click="startNewChat">
-                    <FontAwesomeIcon :icon="faPlus" fixed-width />
-                </button>
-                <button class="btn btn-sm btn-outline-primary" title="Open in center view" @click="emit('undock')">
-                    <FontAwesomeIcon :icon="faExpand" fixed-width />
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" title="Close panel" @click="emit('close')">
-                    <FontAwesomeIcon :icon="faTimes" fixed-width />
-                </button>
-            </div>
+            <ChatActions
+                source="docked"
+                :show-delete="Boolean(currentChatId)"
+                @delete="deleteCurrentChat"
+                @maximize="emit('undock')"
+                @pop-out="popOutToWindowManager"
+                @close="emit('close')"
+                @start-new="startNewChat" />
         </div>
         <!-- Center view header -->
         <div v-else-if="!compact && !panel" class="galaxyai-header">
             <Heading h2 :icon="faMagic" size="lg">
                 <span>GalaxyAI</span>
             </Heading>
-            <div class="header-actions">
-                <button class="btn btn-sm btn-outline-primary" title="Start New Chat" @click="startNewChat">
-                    <FontAwesomeIcon :icon="faPlus" fixed-width />
-                    New
-                </button>
-                <button
-                    v-if="currentChatId"
-                    class="btn btn-sm btn-outline-danger"
-                    title="Delete this conversation"
-                    @click="deleteCurrentChat">
-                    <FontAwesomeIcon :icon="faTrash" fixed-width />
-                </button>
-                <button class="btn btn-sm btn-outline-primary" title="Dock to side panel" @click="dockTo('right')">
-                    <FontAwesomeIcon :icon="faColumns" fixed-width />
-                </button>
-                <button class="btn btn-sm btn-outline-primary" title="Dock to bottom panel" @click="dockTo('bottom')">
-                    <FontAwesomeIcon :icon="faAngleDoubleDown" fixed-width />
-                </button>
-                <button
-                    class="btn btn-sm btn-outline-primary"
-                    title="Open in floating window"
-                    @click="popOutToWindowManager">
-                    <FontAwesomeIcon :icon="faExternalLinkAlt" fixed-width />
-                </button>
-            </div>
+            <ChatActions
+                source="center"
+                :show-delete="Boolean(currentChatId)"
+                @delete="deleteCurrentChat"
+                @dock-to="dockTo"
+                @pop-out="popOutToWindowManager"
+                @start-new="startNewChat" />
         </div>
 
         <div v-if="(docked || panel) && effectiveContext" class="context-indicator">
@@ -567,13 +535,12 @@ watch(currentChatId, async (newId) => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
     background: $panel-bg-color;
     border-bottom: $border-default;
 
-    .header-actions {
-        display: flex;
-        gap: 0.5rem;
+    :deep(.heading) {
+        margin-bottom: 0;
     }
 }
 

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { faChevronDown, faChevronUp, faExpand, faExternalLinkAlt, faTimes } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
 import { ref } from "vue";
 import { useRouter } from "vue-router/composables";
@@ -8,6 +6,7 @@ import { useRouter } from "vue-router/composables";
 import { getGalaxyInstance } from "@/app";
 import { useChatStore } from "@/stores/chatStore";
 
+import ChatActions from "./ChatActions.vue";
 import GalaxyAI from "@/components/GalaxyAI.vue";
 
 const router = useRouter();
@@ -34,26 +33,24 @@ function popOut() {
 function close() {
     chatStore.hideChat();
 }
+
+function startNewChat() {
+    chatStore.setActiveChatId(null);
+    chatStore.showChat();
+}
 </script>
 
 <template>
     <div class="chat-panel" :class="collapsed ? 'collapsed' : 'expanded'">
         <div class="chat-panel-header">
             <span class="chat-panel-title">GalaxyAI</span>
-            <div class="chat-panel-actions">
-                <button class="chat-panel-btn" title="Open full view" @click="maximize">
-                    <FontAwesomeIcon :icon="faExpand" fixed-width />
-                </button>
-                <button class="chat-panel-btn" title="Open in floating window" @click="popOut">
-                    <FontAwesomeIcon :icon="faExternalLinkAlt" fixed-width />
-                </button>
-                <button class="chat-panel-btn" title="Toggle panel" @click="collapsed = !collapsed">
-                    <FontAwesomeIcon :icon="collapsed ? faChevronUp : faChevronDown" fixed-width />
-                </button>
-                <button class="chat-panel-btn" title="Close panel" @click="close">
-                    <FontAwesomeIcon :icon="faTimes" fixed-width />
-                </button>
-            </div>
+            <ChatActions
+                source="panel"
+                :collapsed.sync="collapsed"
+                @maximize="maximize"
+                @pop-out="popOut"
+                @close="close"
+                @start-new="startNewChat" />
         </div>
         <div v-show="!collapsed" class="chat-panel-body">
             <GalaxyAI :exchange-id="activeChatId || undefined" panel />
@@ -87,25 +84,6 @@ function close() {
 .chat-panel-title {
     font-weight: 600;
     font-size: 0.85rem;
-}
-
-.chat-panel-actions {
-    display: flex;
-    gap: 0.25rem;
-}
-
-.chat-panel-btn {
-    background: none;
-    border: none;
-    padding: 0.25rem 0.4rem;
-    cursor: pointer;
-    color: $text-muted;
-    border-radius: 0.25rem;
-
-    &:hover {
-        color: $text-color;
-        background: rgba(0, 0, 0, 0.06);
-    }
 }
 
 .chat-panel-body {
