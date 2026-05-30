@@ -74,6 +74,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
         next_step_handoff = self._create_next_step_advisor_handoff()
         orchestrator_handoff = self._create_orchestrator_handoff()
         gtn_handoff = self._create_gtn_training_handoff()
+        clarification_output = self._create_clarification_output()
 
         agent: Agent[GalaxyAgentDependencies, str] = Agent(
             self._get_model(),
@@ -86,6 +87,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 next_step_handoff,
                 orchestrator_handoff,
                 gtn_handoff,
+                clarification_output,
                 str,  # Default: answer directly
             ],
             system_prompt=self.get_system_prompt(),
@@ -447,6 +449,31 @@ class QueryRouterAgent(BaseGalaxyAgent):
 
         return hand_off_to_gtn_training
 
+    def _create_clarification_output(self):
+        async def ask_for_clarification(
+            ctx: RunContext[GalaxyAgentDependencies],
+            question: str,
+        ) -> str:
+            """Ask the user ONE concise clarifying question when the request is too ambiguous
+            or underspecified to route or answer confidently.
+
+            Use this ONLY when you are genuinely uncertain, e.g.:
+            - The message names no analysis, tool, dataset, or goal ("Can you help with my data?")
+            - A failure is reported with no error text, exit code, or tool name ("It keeps failing")
+            - The intent could plausibly mean several different things -- a tool, a tutorial,
+              usage help, or debugging ("I need help with variant calling")
+            - A follow-up's referent cannot be determined from the message itself
+
+            Do NOT use this when the current message is clear enough to route or answer on its
+            own -- a confident route or answer is always better than an unnecessary question.
+
+            Args:
+                question: the single concise clarifying question to ask the user
+            """
+            return json.dumps({"__clarification__": True, "question": question})
+
+        return ask_for_clarification
+
     def _routing_history(self, full_history: Optional[list]) -> Optional[list]:
         """The history the router uses for its routing decision.
 
@@ -491,20 +518,27 @@ class QueryRouterAgent(BaseGalaxyAgent):
             content = extract_result_content(result)
 
             try:
-                handoff_data = json.loads(content)
-                if handoff_data.get("__handoff__"):
-                    metadata = handoff_data.get("metadata", {})
-                    if handoff_data.get("handoff_info"):
-                        metadata["handoff_info"] = handoff_data["handoff_info"]
+                parsed = json.loads(content)
+                if parsed.get("__clarification__"):
                     return AgentResponse(
-                        content=handoff_data["content"],
-                        confidence=ConfidenceLevel(handoff_data.get("confidence", "medium")),
-                        agent_type=handoff_data.get("agent_type", self.agent_type),
-                        suggestions=handoff_data.get("suggestions", []),
+                        content=parsed.get("question", content),
+                        confidence=ConfidenceLevel.MEDIUM,
+                        agent_type="clarification",
+                        metadata={"method": "clarification"},
+                    )
+                if parsed.get("__handoff__"):
+                    metadata = parsed.get("metadata", {})
+                    if parsed.get("handoff_info"):
+                        metadata["handoff_info"] = parsed["handoff_info"]
+                    return AgentResponse(
+                        content=parsed["content"],
+                        confidence=ConfidenceLevel(parsed.get("confidence", "medium")),
+                        agent_type=parsed.get("agent_type", self.agent_type),
+                        suggestions=parsed.get("suggestions", []),
                         metadata=metadata,
                     )
             except (json.JSONDecodeError, TypeError, KeyError, ValidationError) as e:
-                log.debug(f"Router: Response not a handoff (parse failed: {e}), treating as direct response")
+                log.debug(f"Router: Response not a handoff/clarification (parse failed: {e}), treating as direct")
 
             return self._build_response(
                 content=content,

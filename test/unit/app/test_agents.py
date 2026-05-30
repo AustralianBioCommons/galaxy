@@ -507,6 +507,22 @@ class TestAgentUnitMocked:
             assert args[0] == "Tell me more about the second one"
 
     @pytest.mark.asyncio
+    async def test_router_asks_for_clarification(self):
+        """When the model calls ask_for_clarification, the router surfaces it as a
+        clarification turn (agent_type="clarification") rather than guessing a route."""
+        router = QueryRouterAgent(self.deps)
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = '{"__clarification__": true, "question": "Do you want a tool or a tutorial?"}'
+            mock_run.return_value = mock_result
+
+            response = await router.process("I need help with variant calling")
+
+            assert response.agent_type == "clarification"
+            assert response.content == "Do you want a tool or a tutorial?"
+
+    @pytest.mark.asyncio
     async def test_router_runs_without_history_for_fresh_conversation(self):
         router = QueryRouterAgent(self.deps)
 
