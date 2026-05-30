@@ -49,6 +49,14 @@ class QueryRouterAgent(BaseGalaxyAgent):
     agent_type = AgentType.ROUTER
     _handoff_context: Optional[dict[str, Any]] = None
 
+    # How many recent conversation turns the router sees when making its routing
+    # decision. Evals show routing accuracy degrades monotonically as more history is
+    # fed to the router -- a tool/workflow question that routes correctly on turn 1 gets
+    # answered directly deep in a conversation. Routing on the current message alone
+    # (0 turns) recovers it; specialists still receive the full conversation_history via
+    # the handoff context, so nothing downstream loses information.
+    ROUTING_HISTORY_TURNS = 0
+
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, str]:
         model_name = self._get_agent_config("model", "")
 
@@ -439,15 +447,38 @@ class QueryRouterAgent(BaseGalaxyAgent):
 
         return hand_off_to_gtn_training
 
+    def _routing_history(self, full_history: Optional[list]) -> Optional[list]:
+        """The history the router uses for its routing decision.
+
+        Capped at ``ROUTING_HISTORY_TURNS`` recent turns (0 -> none). Conversation history
+        dilutes the routing signal and biases the model toward answering directly, so the
+        router routes on the current message while specialists still get the full history.
+        """
+        if not full_history or self.ROUTING_HISTORY_TURNS <= 0:
+            return None
+
+        def _is_turn_start(message: Any) -> bool:
+            return any(getattr(part, "part_kind", "") == "user-prompt" for part in getattr(message, "parts", ()))
+
+        turn_starts = [i for i, message in enumerate(full_history) if _is_turn_start(message)]
+        if len(turn_starts) <= self.ROUTING_HISTORY_TURNS:
+            return full_history
+        return full_history[turn_starts[-self.ROUTING_HISTORY_TURNS] :]
+
     async def process(self, query: str, context: Optional[dict[str, Any]] = None) -> AgentResponse:
         validation_error = self._validate_query(query)
         if validation_error:
             return self._validation_error_response(validation_error)
 
         try:
-            message_history = self._extract_message_history(context)
-            if message_history:
-                log.info(f"Router: passing {len(message_history)} prior messages as message_history")
+            full_history = self._extract_message_history(context)
+            # Route on the current message; deep history degrades the routing decision.
+            # Specialists still receive the full conversation_history via _handoff_context.
+            message_history = self._routing_history(full_history)
+            if full_history and not message_history:
+                log.info(f"Router: routing on current message, withholding {len(full_history)} history messages")
+            elif message_history:
+                log.info(f"Router: routing on {len(message_history)} recent messages")
             else:
                 log.info("Router: processing query with no conversation history")
 

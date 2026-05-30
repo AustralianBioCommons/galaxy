@@ -479,8 +479,11 @@ class TestAgentUnitMocked:
         )
 
     @pytest.mark.asyncio
-    async def test_router_passes_message_history_to_run(self):
-        """Router should hand the structured history to ``agent.run`` via ``message_history``."""
+    async def test_router_withholds_history_for_routing(self):
+        """Router routes on the current message, withholding conversation history from the
+        model. Feeding history dilutes the routing signal (evals show it degrades routing
+        monotonically), so ``message_history`` is not forwarded; specialists still get the
+        full history via the handoff context."""
         router = QueryRouterAgent(self.deps)
         history: list[ModelMessage] = [
             ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
@@ -499,8 +502,8 @@ class TestAgentUnitMocked:
 
             mock_run.assert_called_once()
             args, kwargs = mock_run.call_args
-            assert kwargs["message_history"] == history
-            # The query itself should not have history pre-pended as a text blob
+            # Routing decision is made on the current message, not the accumulated history.
+            assert kwargs["message_history"] is None
             assert args[0] == "Tell me more about the second one"
 
     @pytest.mark.asyncio
