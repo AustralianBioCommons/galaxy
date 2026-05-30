@@ -232,6 +232,11 @@ class ChatAPI:
                         full_context["conversation_history"] = db_history
                     else:
                         full_context["conversation_history"] = []
+                    # If the previous turn asked a clarifying question, the router includes
+                    # that turn so it can route this answer (otherwise history is withheld).
+                    full_context["responding_to_clarification"] = await anyio.to_thread.run_sync(
+                        partial(self.chat_manager.was_last_message_clarification, trans, exchange_id)
+                    )
                 else:
                     full_context["conversation_history"] = []
 
