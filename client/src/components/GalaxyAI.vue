@@ -77,6 +77,10 @@ const contextIcon = computed(() => {
     }
 });
 
+/** The chat is in "route mode": It's being viewed in the center and the route starts with `/galaxyai`
+ * _(and we are not in the window manager)_. */
+const isRouteMode = computed(() => chatStore.isCenterMode && !props.compact && route.path.startsWith("/galaxyai"));
+
 const query = ref("");
 const messages = ref<ChatMessage[]>([]);
 const busy = ref(false);
@@ -89,9 +93,9 @@ const { renderMarkdown } = useMarkdown({ openLinksInNewPage: true, removeNewline
 const { processingAction, handleAction } = useAgentActions();
 
 onMounted(async () => {
-    if (props.exchangeId) {
+    if (props.exchangeId && props.exchangeId !== "new") {
         await fetchConversation(props.exchangeId);
-    } else if (props.docked || props.panel) {
+    } else if (props.docked || props.panel || props.exchangeId === "new") {
         startNewChat();
     } else {
         await loadLatestChat();
@@ -108,7 +112,7 @@ watch(
         if (newId === oldId) {
             return;
         }
-        if (newId) {
+        if (newId && newId !== "new") {
             await fetchConversation(newId);
         } else {
             startNewChat();
@@ -264,6 +268,11 @@ async function sendFeedback(messageId: string, value: "up" | "down") {
 }
 
 async function fetchConversation(exchangeId: string) {
+    if (exchangeId === "new") {
+        startNewChat();
+        return;
+    }
+
     const { data: fullConversation, error } = await GalaxyApi().GET(`/api/chat/exchange/{exchange_id}/messages`, {
         params: {
             path: { exchange_id: exchangeId },
@@ -358,8 +367,18 @@ async function deleteCurrentChat() {
 }
 
 function popOutToWindowManager() {
+    // If opening window manager chat from center or docked mode, we want to set the center/dock
+    // to a new chat and then open the current chat in the window manager, so we don't have the
+    // same chat open in two places
+    if (isRouteMode.value) {
+        router.push("/galaxyai/new");
+    } else if (props.docked) {
+        chatStore.setActiveChatId(null);
+        emit("close");
+    }
+
     const Galaxy = getGalaxyInstance();
-    const path = currentChatId.value ? `/galaxyai/${currentChatId.value}` : "/galaxyai";
+    const path = currentChatId.value ? `/galaxyai/${currentChatId.value}` : "/galaxyai/new";
     const url = `${path}?compact=true`;
     Galaxy.frame.add({ title: "GalaxyAI", url });
 }
@@ -380,6 +399,14 @@ watch(currentChatId, async (newId) => {
 
     if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
         await chatStore.loadHistory();
+    }
+
+    // Ensure the route is updated to reflect the current chat in center (non-window manager) mode
+    if (isRouteMode.value) {
+        const targetPath = newId ? `/galaxyai/${newId}` : "/galaxyai/new";
+        if (route.path !== targetPath) {
+            router.replace(targetPath);
+        }
     }
 });
 </script>

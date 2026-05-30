@@ -25,7 +25,7 @@ function maximize() {
 function popOut() {
     const Galaxy = getGalaxyInstance();
     const id = activeChatId.value;
-    const path = id ? `/galaxyai/${id}` : "/galaxyai";
+    const path = id ? `/galaxyai/${id}` : "/galaxyai/new";
     Galaxy.frame.add({ title: "GalaxyAI", url: `${path}?compact=true` });
     chatStore.hideChat();
 }
