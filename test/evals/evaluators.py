@@ -17,10 +17,13 @@ def _output_text(output: Any) -> str:
 
 
 @dataclass
-class HandoffMatch(Evaluator[str, str, dict]):
-    """Score 1.0 if router's chosen agent_type matches expected, 0.0 otherwise."""
+class HandoffMatch(Evaluator[Any, str, dict]):
+    """Score 1.0 if router's chosen agent_type matches expected, 0.0 otherwise.
 
-    def evaluate(self, ctx: EvaluatorContext[str, str, dict]) -> float:
+    Input type is ``Any`` so this works with both string-query datasets (routing) and
+    dict-input multi-turn datasets (routing_depth, routing_clarification_followup)."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, str, dict]) -> float:
         return 1.0 if ctx.output == ctx.expected_output else 0.0
 
 

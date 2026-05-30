@@ -50,10 +50,14 @@ from .tasks import (
 
 @dataclass
 class BuiltDataset:
-    """A dataset configured with evaluators and a task ready to evaluate."""
+    """A dataset configured with evaluators and a task ready to evaluate.
 
-    dataset: Dataset[str, Any, dict[str, Any]]
-    task: Callable[[str], Awaitable[Any]]
+    Input type is ``Any``: most datasets take a string query, but the multi-turn ones
+    (routing_depth, routing_clarification_followup) take a dict case input.
+    """
+
+    dataset: Dataset[Any, Any, dict[str, Any]]
+    task: Callable[..., Awaitable[Any]]
     primary_score: str  # name of the headline scorer for the summary table
 
 

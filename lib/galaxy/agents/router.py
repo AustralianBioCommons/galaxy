@@ -501,7 +501,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
             return full_history
         return full_history[turn_starts[-self.ROUTING_HISTORY_TURNS] :]
 
-    def _clarification_routing_history(self, full_history: Optional[list]) -> Optional[list]:
+    def _clarification_routing_history(self, full_history: Optional[list]) -> list:
         """The last conversation turn (original request + the clarifying question we asked).
 
         A narrow exception to history-withholding: when the user is answering a clarification,
@@ -509,7 +509,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
         its own it has no referent. Specialists still receive the full history via the handoff.
         """
         if not full_history:
-            return None
+            return []
         turn_starts = self._turn_start_indices(full_history)
         if not turn_starts:
             return full_history
@@ -524,6 +524,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
             full_history = self._extract_message_history(context)
             # Route on the current message; deep history degrades the routing decision.
             # Specialists still receive the full conversation_history via _handoff_context.
+            message_history: Optional[list]
             if context and context.get("responding_to_clarification") and full_history:
                 # The previous turn asked a clarifying question -- route the answer using
                 # that one turn so an elliptical reply ("the second one") has a referent.
