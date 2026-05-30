@@ -147,3 +147,71 @@ class TestGetUserChatHistoryExcludesPage:
         mgr.get_user_chat_history(trans, include_page_chats=True)
 
         trans.sa_session.execute.assert_called_once()
+
+
+class TestWasLastMessageClarification:
+    """The router emits agent_type='clarification' when it asks the user a question.
+    The next turn's answer needs that one turn of routing context, so the API surfaces
+    'was the last turn a clarification?' as a flag -- this is the detection helper."""
+
+    @staticmethod
+    def _exchange_with(*messages):
+        exchange = _FakeChatExchange()
+        for message in messages:
+            exchange.add_message(message if isinstance(message, str) else json.dumps(message))
+        return exchange
+
+    def test_true_when_last_response_is_clarification(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        exchange = self._exchange_with(
+            {"query": "help me", "agent_type": "auto", "agent_response": {"agent_type": "clarification"}},
+        )
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=exchange):
+            assert mgr.was_last_message_clarification(trans, 1) is True
+
+    def test_false_for_normal_last_message(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        exchange = self._exchange_with(
+            {"query": "align reads", "agent_response": {"agent_type": "tool_recommendation"}},
+        )
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=exchange):
+            assert mgr.was_last_message_clarification(trans, 1) is False
+
+    def test_only_the_last_message_counts(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        # Earlier clarification, last is normal -> False
+        stale = self._exchange_with(
+            {"agent_response": {"agent_type": "clarification"}},
+            {"agent_response": {"agent_type": "router"}},
+        )
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=stale):
+            assert mgr.was_last_message_clarification(trans, 1) is False
+        # Earlier normal, last is clarification -> True
+        fresh = self._exchange_with(
+            {"agent_response": {"agent_type": "router"}},
+            {"agent_response": {"agent_type": "clarification"}},
+        )
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=fresh):
+            assert mgr.was_last_message_clarification(trans, 1) is True
+
+    def test_false_when_no_exchange(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=None):
+            assert mgr.was_last_message_clarification(trans, 999) is False
+
+    def test_false_for_empty_messages(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=_FakeChatExchange()):
+            assert mgr.was_last_message_clarification(trans, 1) is False
+
+    def test_false_for_malformed_json(self):
+        mgr = ChatManager()
+        trans = _make_trans()
+        exchange = self._exchange_with("not valid json{{{")
+        with mock.patch.object(mgr, "get_exchange_by_id", return_value=exchange):
+            assert mgr.was_last_message_clarification(trans, 1) is False

@@ -1,3 +1,4 @@
+import json
 from typing import (
     Any,
     Optional,
@@ -246,6 +247,23 @@ class ChatManager:
             raise InternalServerError(f"Error loading from the database: {unicodify(e)}")
         return chat_exchange
 
+    def was_last_message_clarification(self, trans: ProvidesUserContext, exchange_id: int) -> bool:
+        """Whether the most recent stored turn in this exchange asked the user a clarifying question.
+
+        The router emits ``agent_type="clarification"`` when it needs more info; the next user
+        message is the answer. The router withholds history when routing, so routing that answer
+        ("the second one") needs this one turn of context -- the API surfaces it as a flag.
+        """
+        exchange = self.get_exchange_by_id(trans, exchange_id)
+        if not exchange or not exchange.messages:
+            return False
+        try:
+            data = json.loads(exchange.messages[-1].message)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        agent_response = data.get("agent_response") or {}
+        return agent_response.get("agent_type") == "clarification"
+
     def set_feedback_for_exchange(self, trans: ProvidesUserContext, exchange_id: int, feedback: int) -> ChatExchange:
         """
         Set the feedback for a chat exchange by exchange ID.
@@ -317,8 +335,6 @@ class ChatManager:
 
         if not chat_exchange:
             return []
-
-        import json
 
         if not format_for_pydantic_ai:
             # Format as simple role/content dictionaries
