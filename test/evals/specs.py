@@ -22,7 +22,9 @@ from .datasets import (
     error_analysis_dataset,
     orchestrator_planning_dataset,
     router_tool_use_dataset,
+    routing_ambiguous_dataset,
     routing_dataset,
+    routing_depth_dataset,
     staining_quantification_dataset,
     tool_recommendation_dataset,
 )
@@ -38,6 +40,7 @@ from .tasks import (
     make_orchestrator_plan_task,
     make_router_content_task,
     make_router_inspect_task,
+    make_router_multiturn_task,
     make_router_task,
     make_tool_recommendation_task,
 )
@@ -60,6 +63,61 @@ def build_routing(
     usage_buffer: Optional[list[dict[str, int]]] = None,
 ) -> BuiltDataset:
     dataset = routing_dataset(include_galaxy_required=include_galaxy_required, only=only)
+    dataset.add_evaluator(HandoffMatch())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_task(deps, usage_buffer=usage_buffer),
+        primary_score="HandoffMatch",
+    )
+
+
+def _build_routing_depth(
+    deps: GalaxyAgentDependencies,
+    representation: str,
+    only: Optional[list[str]],
+    usage_buffer: Optional[list[dict[str, int]]],
+) -> BuiltDataset:
+    dataset = routing_depth_dataset(only=only)
+    dataset.add_evaluator(HandoffMatch())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_multiturn_task(deps, representation=representation, usage_buffer=usage_buffer),
+        primary_score="HandoffMatch",
+    )
+
+
+def build_routing_depth_turn1(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """Turn-1 baseline: the final query with no conversation history."""
+    return _build_routing_depth(deps, "none", only, usage_buffer)
+
+
+def build_routing_depth_prose(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """Deep conversation as flattened prose. The router routes on the current message, so
+    this should recover to ~the turn-1 baseline rather than degrading."""
+    return _build_routing_depth(deps, "prose", only, usage_buffer)
+
+
+def build_routing_ambiguous(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """Genuinely-ambiguous queries; expected route is "clarification" (ask, don't guess)."""
+    dataset = routing_ambiguous_dataset(only=only)
     dataset.add_evaluator(HandoffMatch())
     return BuiltDataset(
         dataset=dataset,
@@ -168,6 +226,9 @@ def build_orchestrator_planning(
 
 SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing": build_routing,
+    "routing_depth_turn1": build_routing_depth_turn1,
+    "routing_depth_prose": build_routing_depth_prose,
+    "routing_ambiguous": build_routing_ambiguous,
     "error_analysis": build_error_analysis,
     "tool_recommendation": build_tool_recommendation,
     "router_tool_use": build_router_tool_use,

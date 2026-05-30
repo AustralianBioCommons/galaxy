@@ -195,6 +195,31 @@ def make_router_task(
     return router_task
 
 
+def make_router_multiturn_task(
+    deps: GalaxyAgentDependencies,
+    representation: str,
+    usage_buffer: UsageBuffer = None,
+) -> Callable[[dict], Awaitable[str]]:
+    """Build an async callable for the routing-depth dataset.
+
+    The case input is ``{"history_turns": [...], "query": str}``. Prior turns are rendered
+    into a conversation_history in the given ``representation`` ("none" or "prose") and
+    threaded into the router; returns the router's chosen agent_type. The shipped router
+    routes on the current message, so both representations should score near the turn-1
+    baseline -- which is the point the routing-depth eval demonstrates.
+    """
+    from .datasets import build_history
+
+    async def router_multiturn_task(case_input: dict) -> str:
+        history = build_history(case_input["history_turns"], representation)
+        router = QueryRouterAgent(deps)
+        response = await router.process(case_input["query"], context={"conversation_history": history})
+        _record_response_usage(usage_buffer, response)
+        return response.agent_type
+
+    return router_multiturn_task
+
+
 def make_router_content_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,
