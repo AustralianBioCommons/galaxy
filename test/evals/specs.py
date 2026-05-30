@@ -10,7 +10,9 @@ from collections.abc import (
 from dataclasses import dataclass
 from typing import (
     Any,
+    Generic,
     Optional,
+    TypeVar,
 )
 
 from pydantic_ai.models import Model
@@ -47,17 +49,18 @@ from .tasks import (
     make_tool_recommendation_task,
 )
 
+# A case input is either a plain query string or, for the multi-turn datasets
+# (routing_depth, routing_clarification_followup), a dict. Parameterizing BuiltDataset on it
+# keeps the dataset and its task linked: a dict-input dataset must pair with a dict-input task.
+CaseInputsT = TypeVar("CaseInputsT")
+
 
 @dataclass
-class BuiltDataset:
-    """A dataset configured with evaluators and a task ready to evaluate.
+class BuiltDataset(Generic[CaseInputsT]):
+    """A dataset configured with evaluators and a task ready to evaluate."""
 
-    Input type is ``Any``: most datasets take a string query, but the multi-turn ones
-    (routing_depth, routing_clarification_followup) take a dict case input.
-    """
-
-    dataset: Dataset[Any, Any, dict[str, Any]]
-    task: Callable[..., Awaitable[Any]]
+    dataset: Dataset[CaseInputsT, Any, dict[str, Any]]
+    task: Callable[[CaseInputsT], Awaitable[Any]]
     primary_score: str  # name of the headline scorer for the summary table
 
 
