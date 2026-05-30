@@ -247,23 +247,6 @@ class ChatManager:
             raise InternalServerError(f"Error loading from the database: {unicodify(e)}")
         return chat_exchange
 
-    def was_last_message_clarification(self, trans: ProvidesUserContext, exchange_id: int) -> bool:
-        """Whether the most recent stored turn in this exchange asked the user a clarifying question.
-
-        The router emits ``agent_type="clarification"`` when it needs more info; the next user
-        message is the answer. The router withholds history when routing, so routing that answer
-        ("the second one") needs this one turn of context -- the API surfaces it as a flag.
-        """
-        exchange = self.get_exchange_by_id(trans, exchange_id)
-        if not exchange or not exchange.messages:
-            return False
-        try:
-            data = json.loads(exchange.messages[-1].message)
-        except (json.JSONDecodeError, TypeError):
-            return False
-        agent_response = data.get("agent_response") or {}
-        return agent_response.get("agent_type") == "clarification"
-
     def set_feedback_for_exchange(self, trans: ProvidesUserContext, exchange_id: int, feedback: int) -> ChatExchange:
         """
         Set the feedback for a chat exchange by exchange ID.
@@ -354,18 +337,49 @@ class ChatManager:
                     messages.append({"role": "assistant", "content": msg.message})
             return messages
         else:
-            # Format for pydantic-ai
-            pydantic_messages: list[ModelMessage] = []
-            for msg in chat_exchange.messages:
-                try:
-                    data = json.loads(msg.message)
-                    if "query" in data:
-                        pydantic_messages.append(ModelRequest(parts=[UserPromptPart(content=data["query"])]))
-                    if "response" in data:
-                        pydantic_messages.append(ModelResponse(parts=[TextPart(content=data["response"])]))
-                except (json.JSONDecodeError, KeyError):
-                    pydantic_messages.append(ModelResponse(parts=[TextPart(content=msg.message)]))
-            return pydantic_messages
+            return self._messages_to_pydantic_ai(chat_exchange.messages)
+
+    @staticmethod
+    def _messages_to_pydantic_ai(messages: list) -> list[ModelMessage]:
+        """Reconstruct stored exchange messages as pydantic-ai history.
+
+        Only the query/response text survives -- the stored ``agent_response`` (including
+        ``agent_type``) is intentionally dropped here. Where the router needs that signal (to
+        tell it is answering a clarification) ``get_routing_history`` reads it from storage.
+        """
+        pydantic_messages: list[ModelMessage] = []
+        for msg in messages:
+            try:
+                data = json.loads(msg.message)
+                if "query" in data:
+                    pydantic_messages.append(ModelRequest(parts=[UserPromptPart(content=data["query"])]))
+                if "response" in data:
+                    pydantic_messages.append(ModelResponse(parts=[TextPart(content=data["response"])]))
+            except (json.JSONDecodeError, KeyError):
+                pydantic_messages.append(ModelResponse(parts=[TextPart(content=msg.message)]))
+        return pydantic_messages
+
+    @staticmethod
+    def _message_is_clarification(message) -> bool:
+        """Whether a stored message's response was a clarifying question (by ``agent_type``)."""
+        try:
+            data = json.loads(message.message)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        return (data.get("agent_response") or {}).get("agent_type") == "clarification"
+
+    def get_routing_history(self, trans: ProvidesUserContext, exchange_id: int) -> tuple[list[ModelMessage], bool]:
+        """The pydantic-ai conversation history plus whether the last turn was a clarification.
+
+        Both are derived from a single exchange fetch. The router emits
+        ``agent_type="clarification"`` when it needs more info; the next user message answers it.
+        Routing withholds history, so routing that elliptical answer ("the second one") needs the
+        flag to re-include the clarification turn.
+        """
+        exchange = self.get_exchange_by_id(trans, exchange_id)
+        if not exchange or not exchange.messages:
+            return [], False
+        return self._messages_to_pydantic_ai(exchange.messages), self._message_is_clarification(exchange.messages[-1])
 
     def delete_exchange(self, trans: ProvidesUserContext, exchange_id: int) -> None:
         """Delete a single chat exchange and its messages."""
