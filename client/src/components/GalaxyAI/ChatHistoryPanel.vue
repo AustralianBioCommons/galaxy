@@ -13,8 +13,8 @@ import { useChatStore } from "@/stores/chatStore";
 import { getAgentIcon } from "./agentTypes";
 import type { ChatHistoryItem } from "./chatTypes";
 
-import SidebarList from "@/components/Common/SidebarList.vue";
 import ActivityPanel from "@/components/Panels/ActivityPanel.vue";
+import ScrollList from "@/components/ScrollList/ScrollList.vue";
 import UtcDate from "@/components/UtcDate.vue";
 
 const route = useRoute();
@@ -122,15 +122,23 @@ async function deleteSelected() {
             </button>
         </div>
 
-        <SidebarList
-            :items="chatHistory"
-            :is-loading="loading"
+        <ScrollList
+            :prop-items="chatHistory"
+            :prop-busy="loading"
+            :prop-total-count="chatHistory.length"
             :item-key="(item) => item.id"
-            :item-class="(item) => ({ selected: selectedIds.has(item.id), current: item.id === currentExhangeId })"
-            loading-message="Loading history..."
-            empty-message="No chat history yet"
-            @select="handleItemClick">
-            <template v-slot:item="{ item }">
+            load-disabled
+            in-panel
+            name="chat"
+            name-plural="chats">
+            <template v-slot:item="{ item, index }">
+                <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events vuejs-accessibility/no-static-element-interactions -->
+                <div
+                    class="chat-history-item d-flex align-items-start p-2 border-bottom unselectable"
+                    :class="{ selected: selectedIds.has(item.id), current: item.id === currentExhangeId }"
+                    role="button"
+                    tabindex="0"
+                    @click="(event) => handleItemClick(item, index, event)">
                 <span v-if="selectionMode" class="history-checkbox">
                     <FontAwesomeIcon :icon="selectedIds.has(item.id) ? faCheckSquare : faSquare" fixed-width />
                 </span>
@@ -144,10 +152,11 @@ async function deleteSelected() {
                             <FontAwesomeIcon :icon="faClock" class="mr-1" />
                             <UtcDate :date="item.timestamp" mode="elapsed" />
                         </span>
+                        </div>
                     </div>
                 </div>
             </template>
-        </SidebarList>
+        </ScrollList>
     </ActivityPanel>
 </template>
 
@@ -175,14 +184,17 @@ async function deleteSelected() {
     }
 }
 
-// SidebarList provides base item hover/cursor styles.
-// .selected and .current are applied via itemClass prop on the sidebar-item element,
-// which lives inside SidebarList's scoped styles, so we use :deep.
-:deep(.sidebar-item.selected) {
-    background: rgba($brand-primary, 0.06);
+:deep(.chat-history-item) {
+    cursor: pointer;
+    &:hover {
+        background: var(--color-grey-200) !important;
+    }
 }
-:deep(.sidebar-item.current) {
-    background: rgba($brand-primary, 0.18);
+:deep(.chat-history-item.selected) {
+    background: var(--color-blue-200);
+}
+:deep(.chat-history-item.current) {
+    border-left: 0.25rem solid $brand-primary;
 }
 
 .history-checkbox {
