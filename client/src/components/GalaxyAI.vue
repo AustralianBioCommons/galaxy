@@ -423,7 +423,7 @@ watch(currentChatId, async (newId) => {
             </span>
             <ChatActions
                 source="docked"
-                :show-delete="Boolean(currentChatId)"
+                :enable-delete="Boolean(currentChatId)"
                 @delete="deleteCurrentChat"
                 @maximize="emit('undock')"
                 @pop-out="popOutToWindowManager"
@@ -437,7 +437,7 @@ watch(currentChatId, async (newId) => {
             </Heading>
             <ChatActions
                 source="center"
-                :show-delete="Boolean(currentChatId)"
+                :enable-delete="Boolean(currentChatId)"
                 @delete="deleteCurrentChat"
                 @dock-to="dockTo"
                 @pop-out="popOutToWindowManager"

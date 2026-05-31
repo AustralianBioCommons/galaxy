@@ -21,7 +21,7 @@ import GButton from "../BaseComponents/GButton.vue";
 const props = defineProps<{
     source: "docked" | "panel" | "center";
     collapsed?: boolean;
-    showDelete?: boolean;
+    enableDelete?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -63,9 +63,10 @@ const showingActivityPanel = computed(() => activityStore.toggledSideBar === "ga
             New
         </GButton>
         <GButton
-            v-if="props.showDelete"
+            v-if="props.source === 'center' || props.source === 'docked'"
             color="red"
             data-description="delete chat button"
+            :disabled="!props.enableDelete"
             size="small"
             transparent
             title="Delete this conversation"
