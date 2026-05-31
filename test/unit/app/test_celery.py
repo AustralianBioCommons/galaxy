@@ -35,7 +35,7 @@ def test_default_configuration():
 
 def test_gtn_refresh_schedules_when_inference_configured():
     config = GalaxyAppConfiguration(override_tempdir=False)
-    config.inference_services = {"default": {"model": "test"}}
+    config.inference_services = {"default": {"model": "test"}}  # type: ignore[attr-defined]
     app = GalaxyCelery("test-gtn-schedule")
     setup_periodic_tasks(config, app)
     assert app.conf.beat_schedule["refresh-gtn-database"] == {
@@ -46,7 +46,7 @@ def test_gtn_refresh_schedules_when_inference_configured():
 
 def test_iwc_refresh_schedules_when_inference_configured():
     config = GalaxyAppConfiguration(override_tempdir=False)
-    config.inference_services = {"default": {"model": "test"}}
+    config.inference_services = {"default": {"model": "test"}}  # type: ignore[attr-defined]
     app = GalaxyCelery("test-iwc-schedule")
     setup_periodic_tasks(config, app)
     assert app.conf.beat_schedule["refresh-iwc-manifest"] == {
