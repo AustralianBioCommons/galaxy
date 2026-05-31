@@ -301,44 +301,6 @@ class ChatManager:
 
         return chat_exchange
 
-    def get_chat_history(
-        self, trans: ProvidesUserContext, exchange_id: int, format_for_pydantic_ai: bool = False
-    ) -> Union[list[dict[str, Any]], list[ModelMessage]]:
-        """
-        Get the chat history for a specific exchange, optionally formatted for pydantic-ai.
-
-        :param  exchange_id: id of the chat exchange
-        :type   exchange_id: int
-        :param  format_for_pydantic_ai: whether to format the history for pydantic-ai
-        :type   format_for_pydantic_ai: bool
-        :returns: list of chat messages
-        :rtype: Union[List[Dict[str, Any]], List[ModelMessage]]
-        """
-        chat_exchange = self.get_exchange_by_id(trans, exchange_id)
-
-        if not chat_exchange:
-            return []
-
-        if not format_for_pydantic_ai:
-            # Format as simple role/content dictionaries
-            messages: list[dict[str, Any]] = []
-            for msg in chat_exchange.messages:
-                try:
-                    # Parse the JSON to get query and response
-                    data = json.loads(msg.message)
-                    # Add user message
-                    if "query" in data:
-                        messages.append({"role": "user", "content": data["query"]})
-                    # Add assistant message
-                    if "response" in data:
-                        messages.append({"role": "assistant", "content": data["response"]})
-                except (json.JSONDecodeError, KeyError):
-                    # Fallback for non-JSON messages
-                    messages.append({"role": "assistant", "content": msg.message})
-            return messages
-        else:
-            return self._messages_to_pydantic_ai(chat_exchange.messages)
-
     @staticmethod
     def _messages_to_pydantic_ai(messages: list) -> list[ModelMessage]:
         """Reconstruct stored exchange messages as pydantic-ai history.
