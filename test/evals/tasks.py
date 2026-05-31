@@ -30,6 +30,7 @@ from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
 from galaxy.agents.tools import ToolRecommendationAgent
+from .datasets import build_history
 
 UsageBuffer = Optional[list[dict[str, int]]]
 
@@ -208,7 +209,6 @@ def make_router_multiturn_task(
     routes on the current message, so both representations should score near the turn-1
     baseline -- which is the point the routing-depth eval demonstrates.
     """
-    from .datasets import build_history
 
     async def router_multiturn_task(case_input: dict) -> str:
         history = build_history(case_input["history_turns"], representation)
