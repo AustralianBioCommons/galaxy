@@ -26,6 +26,7 @@ from sqlalchemy import (
 )
 
 from galaxy import model
+from galaxy.agents import iwc
 from galaxy.agents.gtn import GTNSearchDB
 from galaxy.celery import (
     celery_app,
@@ -840,11 +841,6 @@ def refresh_iwc_manifest(config: GalaxyAppConfiguration):
     so an iwc.galaxyproject.org outage doesn't kill the periodic queue --
     on-demand callers still get the prior cached copy until the TTL lapses.
     """
-    # Local import keeps the iwc module (and its cachetools / requests
-    # imports) out of celery's startup graph -- they only load on the
-    # workers that actually run this task.
-    from galaxy.agents import iwc
-
     try:
         manifest = iwc.refresh_manifest()
     except Exception as e:  # noqa: BLE001 -- best-effort warm; resilience over precision
