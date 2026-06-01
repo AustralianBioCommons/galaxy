@@ -197,6 +197,26 @@ class ChatAPI:
             # being masked as 500.
             page_obj = self.chat_manager.get_accessible_page(trans, page_id)
 
+        # New unified format: notebook context via interface_context JSON.
+        # Accepts {"contextType": "notebook", "pageId": "<encoded-id>", "historyId": "<encoded-id>"}
+        # sent by GalaxyAI when the user is on the page editor route.  We decode the
+        # ID here so the rest of the handler can reuse the existing page_id path unchanged.
+        # Backward-compatible: legacy payload.page_id still works.
+        if page_id is None:
+            interface_context = query_context.get("interface_context") if isinstance(query_context, dict) else None
+            if (
+                isinstance(interface_context, dict)
+                and interface_context.get("contextType") == "notebook"
+                and interface_context.get("pageId")
+            ):
+                try:
+                    page_id = trans.security.decode_id(interface_context["pageId"])
+                    page_obj = self.chat_manager.get_accessible_page(trans, page_id)
+                except Exception:
+                    log.warning(
+                        "Ignoring invalid notebook pageId in interface_context: %s", interface_context.get("pageId")
+                    )
+
         try:
             if HAS_AGENTS:
                 full_context: dict[str, Any] = query_context.copy() if query_context else {}
