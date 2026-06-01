@@ -17,6 +17,7 @@ import type { CardBadge, TitleIcon } from "@/components/Common/GCard.types";
 import { type ExtractionOutput, type ExtractionRow, isInputStep, isMappedTool } from "./types";
 
 import DisplayedItem from "../Content/DisplayedItem.vue";
+import GButton from "@/components/BaseComponents/GButton.vue";
 import GCard from "@/components/Common/GCard.vue";
 import GenericHistoryItem from "@/components/History/Content/GenericItem.vue";
 
@@ -165,17 +166,21 @@ function displayLabel(output: ExtractionOutput): string {
                     v-for="(output, outputIndex) in props.job.outputs"
                     :key="outputIndex"
                     class="workflow-extraction-output">
-                    <button
+                    <GButton
                         v-if="props.job.step_type === 'tool' && output.output_name"
-                        type="button"
                         class="output-star"
                         data-output-star
                         :class="{ active: output.exposed }"
+                        :color="output.exposed ? 'orange' : 'grey'"
                         :disabled="Boolean(props.job.invalid) || output.deleted || !props.job.checked"
                         :title="output.exposed ? 'Do not expose this output' : 'Expose this output'"
+                        size="large"
+                        transparent
+                        icon-only
+                        tooltip
                         @click.stop="emit('toggle-output', outputIndex)">
                         <FontAwesomeIcon :icon="output.exposed ? faStarSolid : faStarRegular" fixed-width />
-                    </button>
+                    </GButton>
                     <DisplayedItem
                         v-if="props.job.invalid === 'custom_tool_inaccessible'"
                         :item-id="output.id"
@@ -189,16 +194,16 @@ function displayLabel(output: ExtractionOutput): string {
                         class="workflow-output-item"
                         :item-id="output.id"
                         :item-src="output.history_content_type === 'dataset' ? 'hda' : 'hdca'" />
-                    <button
+                    <GButton
                         v-if="props.job.step_type === 'tool' && output.output_name && output.exposed"
-                        type="button"
-                        class="output-label"
+                        class="output-label-button"
                         data-output-label
                         :title="`Rename workflow output ${displayLabel(output)}`"
+                        transparent
                         @click.stop="emit('rename-output', outputIndex)">
                         <FontAwesomeIcon :icon="faPencilAlt" fixed-width />
-                        <span>{{ displayLabel(output) }}</span>
-                    </button>
+                        <span class="output-label-button-text">{{ displayLabel(output) }}</span>
+                    </GButton>
                 </div>
             </template>
         </template>
@@ -230,32 +235,15 @@ function displayLabel(output: ExtractionOutput): string {
         flex: 1 1 auto;
     }
 
-    .output-star,
-    .output-label {
-        border: 0;
-        background: transparent;
-        color: $brand-secondary;
-        min-width: 2rem;
-        min-height: 2rem;
-    }
-
-    .output-star.active {
-        color: $brand-warning;
-    }
-
-    .output-star:disabled {
-        color: $gray-300;
-        cursor: not-allowed;
-    }
-
-    .output-label {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
+    .output-label-button {
         max-width: 16rem;
+        min-width: 0;
+
+        .output-label-button-text {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        }
     }
 }
 </style>
