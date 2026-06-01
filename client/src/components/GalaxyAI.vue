@@ -281,10 +281,11 @@ async function fetchConversation(exchangeId: string) {
         },
     });
 
-    if (!fullConversation || fullConversation.length === 0) {
-        return;
-    } else if (error) {
+    if (error) {
         Toast.error(errorMessageAsString(error, "Failed to load conversation."), "Error loading conversation");
+        return;
+    }
+    if (!fullConversation || fullConversation.length === 0) {
         return;
     }
 
