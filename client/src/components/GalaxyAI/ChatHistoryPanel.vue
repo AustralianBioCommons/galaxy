@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { faCheckSquare, faSquare } from "@fortawesome/free-regular-svg-icons";
-import { faClock, faColumns, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faClock, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
 import { computed, onMounted } from "vue";
@@ -13,6 +13,8 @@ import { useChatStore } from "@/stores/chatStore";
 import { getAgentIcon } from "./agentTypes";
 import type { ChatHistoryItem } from "./chatTypes";
 
+import GButton from "../BaseComponents/GButton.vue";
+import ChatModeSelector from "./ChatModeSelector.vue";
 import ActivityPanel from "@/components/Panels/ActivityPanel.vue";
 import ScrollList from "@/components/ScrollList/ScrollList.vue";
 import UtcDate from "@/components/UtcDate.vue";
@@ -66,14 +68,6 @@ function startNewChat() {
     }
 }
 
-function openDockedChat() {
-    if (chatStore.isCenterMode) {
-        chatStore.setLocation("right");
-    }
-    const latestId = chatHistory.value.length > 0 ? chatHistory.value[0]!.id : null;
-    chatStore.showChat(latestId);
-}
-
 async function deleteSelected() {
     if (selectedIds.value.size === 0) {
         return;
@@ -94,21 +88,22 @@ async function deleteSelected() {
 </script>
 
 <template>
-    <ActivityPanel title="GalaxyAI" go-to-all-title="Open GalaxyAI" href="/galaxyai">
+    <ActivityPanel title="GalaxyAI">
         <template v-slot:header-buttons>
-            <button class="btn btn-sm btn-outline-primary" title="New Chat" @click="startNewChat">
+            <GButton color="blue" outline title="New Chat" @click="startNewChat">
                 <FontAwesomeIcon :icon="faPlus" fixed-width />
-            </button>
-            <button class="btn btn-sm btn-outline-primary" title="Open docked chat panel" @click="openDockedChat">
-                <FontAwesomeIcon :icon="faColumns" fixed-width />
-            </button>
-            <button
-                class="btn btn-sm"
-                :class="selectionMode ? 'btn-outline-secondary' : 'btn-outline-danger'"
+            </GButton>
+            <GButton
+                :color="selectionMode ? 'grey' : 'red'"
+                outline
                 :title="selectionMode ? 'Cancel selection' : 'Select chats to delete'"
                 @click="toggleSelectionMode">
                 <FontAwesomeIcon :icon="selectionMode ? faTimes : faTrash" fixed-width />
-            </button>
+            </GButton>
+        </template>
+
+        <template v-slot:header>
+            <ChatModeSelector class="pt-1" />
         </template>
 
         <div v-if="selectionMode && chatHistory.length > 0" class="selection-toolbar">
@@ -139,19 +134,19 @@ async function deleteSelected() {
                     role="button"
                     tabindex="0"
                     @click="(event) => handleItemClick(item, index, event)">
-                <span v-if="selectionMode" class="history-checkbox">
-                    <FontAwesomeIcon :icon="selectedIds.has(item.id) ? faCheckSquare : faSquare" fixed-width />
-                </span>
-                <div class="history-content">
-                    <div class="history-query">{{ item.query }}</div>
-                    <div class="history-meta">
-                        <span class="history-agent">
-                            <FontAwesomeIcon :icon="getAgentIcon(item.agent_type)" fixed-width />
-                        </span>
-                        <span class="history-time">
-                            <FontAwesomeIcon :icon="faClock" class="mr-1" />
-                            <UtcDate :date="item.timestamp" mode="elapsed" />
-                        </span>
+                    <span v-if="selectionMode" class="history-checkbox">
+                        <FontAwesomeIcon :icon="selectedIds.has(item.id) ? faCheckSquare : faSquare" fixed-width />
+                    </span>
+                    <div class="history-content">
+                        <div class="history-query">{{ item.query }}</div>
+                        <div class="history-meta">
+                            <span class="history-agent">
+                                <FontAwesomeIcon :icon="getAgentIcon(item.agent_type)" fixed-width />
+                            </span>
+                            <span class="history-time">
+                                <FontAwesomeIcon :icon="faClock" class="mr-1" />
+                                <UtcDate :date="item.timestamp" mode="elapsed" />
+                            </span>
                         </div>
                     </div>
                 </div>
