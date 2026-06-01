@@ -1,4 +1,4 @@
-<tool id="invalid_citation" name="invalid_citation" version="1.0.0" profile="24.2">
+<tool id="invalid_citation" name="invalid_citation" version="1.0.0" profile="26.1">
     <command>
         cat $input1 > $out_file1
     </command>
