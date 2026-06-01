@@ -118,6 +118,24 @@ describe("useActiveContext", () => {
                 jobId: "job-7",
             });
         });
+
+        it("detects notebook context from page editor route", () => {
+            const { activeContext } = withRoute(
+                "/histories/test-history-id/pages/test-page-id",
+                {},
+                { historyId: "test-history-id", pageId: "test-page-id" },
+            );
+            expect(activeContext.value).toEqual({
+                contextType: "notebook",
+                pageId: "test-page-id",
+                historyId: "test-history-id",
+            });
+        });
+
+        it("returns null for page editor route without id", () => {
+            const { activeContext } = withRoute("/pages/editor");
+            expect(activeContext.value).toBeNull();
+        });
     });
 
     describe("contextLabel", () => {
@@ -159,6 +177,15 @@ describe("useActiveContext", () => {
         it("labels job context", () => {
             const { contextLabel } = withRoute("/jobs/j-5", {}, { jobId: "j-5" });
             expect(contextLabel.value).toBe("Job: j-5");
+        });
+
+        it("labels notebook context", () => {
+            const { contextLabel } = withRoute(
+                "/histories/test-history-id/pages/test-page-id",
+                {},
+                { historyId: "test-history-id", pageId: "test-page-id" },
+            );
+            expect(contextLabel.value).toBe("History Notebook: test-page-id");
         });
     });
 });

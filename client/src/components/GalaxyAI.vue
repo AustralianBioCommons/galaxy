@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faFile, faMagic, faSitemap, faTimes, faTrash, faWrench } from "@fortawesome/free-solid-svg-icons";
+import { faBook, faFile, faMagic, faSitemap, faTimes, faTrash, faWrench } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -68,6 +68,8 @@ const contextIcon = computed(() => {
         case "workflow_editor":
         case "workflow_run":
             return faSitemap;
+        case "notebook":
+            return faBook;
         default:
             return faMagic;
     }
