@@ -4912,18 +4912,17 @@ class SpatialData(CompressedZarrZipArchive):
 
         try:
             with zipfile.ZipFile(filename) as zf:
-                # Find root zarr directory and detect version
+                # Find root zarr directory and detect version (at any nesting level)
                 root_zarr = is_v3 = None
                 for file in zf.namelist():
-                    # Look for zarr.json or .zattrs at depth 1 or 2 (root directory + metadata file)
-                    parts = file.split("/")
-                    if len(parts) == 2 and parts[1] == "zarr.json":
-                        # Format: <root>/zarr.json (v3)
-                        root_zarr, is_v3 = parts[0], True
+                    # Look for zarr.json or .zattrs in any directory
+                    if file.endswith("/zarr.json"):
+                        # Format: <path>/zarr.json (v3)
+                        root_zarr, is_v3 = file.rsplit("/", 1)[0], True
                         break
-                    elif len(parts) == 2 and parts[1] == ".zattrs":
-                        # Format: <root>/.zattrs (v2)
-                        root_zarr, is_v3 = parts[0], False
+                    elif file.endswith("/.zattrs"):
+                        # Format: <path>/.zattrs (v2)
+                        root_zarr, is_v3 = file.rsplit("/", 1)[0], False
                         break
                 if not root_zarr:
                     return info
@@ -5020,6 +5019,9 @@ class SpatialData(CompressedZarrZipArchive):
         >>> fname = get_test_fname('subsampled_visium_v3_no_extension.spatialdata.zip')
         >>> SpatialData().sniff(fname)
         True
+        >>> fname = get_test_fname('subsampled_visium_v3_no_extension_3lvl_nested.spatialdata.zip')
+        >>> SpatialData().sniff(fname)
+        True
         """
         try:
             with zipfile.ZipFile(filename) as zf:
@@ -5028,7 +5030,7 @@ class SpatialData(CompressedZarrZipArchive):
 
                 # Check root metadata files (.zattrs or zarr.json) for spatialdata_attrs
                 for file in zf.namelist():
-                    if len(file.split("/")) <= 2 and file.endswith((".zattrs", "zarr.json")):
+                    if file.endswith(("/.zattrs", "/zarr.json")):
                         try:
                             with zf.open(file) as f:
                                 meta = json.load(f)
