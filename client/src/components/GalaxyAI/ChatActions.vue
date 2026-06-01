@@ -37,6 +37,17 @@ const emit = defineEmits<{
 const activityStore = useActivityStore("default");
 
 const showingActivityPanel = computed(() => activityStore.toggledSideBar === "galaxyai");
+
+function onOperation(operation: "start-new" | "dock-right" | "dock-bottom") {
+    if (operation === "start-new") {
+        emit("start-new");
+    } else if (operation === "dock-right") {
+        emit("dock-to", "right");
+    } else if (operation === "dock-bottom") {
+        emit("dock-to", "bottom");
+    }
+    emit("update:collapsed", false);
+}
 </script>
 
 <template>
@@ -58,12 +69,12 @@ const showingActivityPanel = computed(() => activityStore.toggledSideBar === "ga
             size="small"
             transparent
             title="Start New Chat"
-            @click="emit('start-new')">
+            @click="onOperation('start-new')">
             <FontAwesomeIcon :icon="faPlus" fixed-width />
             New
         </GButton>
         <GButton
-            v-if="props.source === 'center' || props.source === 'docked'"
+            v-if="(props.source === 'center' || props.source === 'docked') && !props.collapsed"
             color="red"
             data-description="delete chat button"
             :disabled="!props.enableDelete"
@@ -82,10 +93,10 @@ const showingActivityPanel = computed(() => activityStore.toggledSideBar === "ga
             <FontAwesomeIcon :icon="faExpand" fixed-width />
         </GButton>
         <template v-if="props.source === 'center'">
-            <GButton size="small" transparent title="Dock to side panel" @click="emit('dock-to', 'right')">
+            <GButton size="small" transparent title="Dock to side panel" @click="onOperation('dock-right')">
                 <FontAwesomeIcon :icon="faColumns" fixed-width />
             </GButton>
-            <GButton size="small" transparent title="Dock to bottom panel" @click="emit('dock-to', 'bottom')">
+            <GButton size="small" transparent title="Dock to bottom panel" @click="onOperation('dock-bottom')">
                 <FontAwesomeIcon :icon="faAngleDoubleDown" fixed-width />
             </GButton>
         </template>
