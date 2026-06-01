@@ -302,7 +302,10 @@ async function onCancel() {
 </script>
 
 <template>
-    <div v-if="invocation" class="d-flex flex-column w-100" data-description="workflow invocation state">
+    <div
+        v-if="invocation"
+        class="d-flex flex-column w-100 overflow-x-hidden"
+        data-description="workflow invocation state">
         <WorkflowNavigationTitle
             v-if="props.isFullPage"
             :invocation="invocation"
@@ -452,7 +455,7 @@ async function onCancel() {
             </div>
         </BNav>
 
-        <div class="mt-1 d-flex flex-column overflow-auto tab-content-container">
+        <div class="mt-1 d-flex flex-column tab-content-container">
             <div v-if="onOverviewTab">
                 <WorkflowInvocationOverview
                     class="invocation-overview"

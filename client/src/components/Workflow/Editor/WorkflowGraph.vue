@@ -307,7 +307,7 @@ defineExpose({
     </div>
 </template>
 
-<style scoped land="scss">
+<style scoped lang="scss">
 .workflow-canvas {
     position: relative;
 
