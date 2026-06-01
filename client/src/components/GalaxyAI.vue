@@ -415,31 +415,20 @@ watch(currentChatId, async (newId) => {
     <div
         class="galaxyai-container"
         :class="{ 'galaxyai-compact': compact, 'galaxyai-docked': docked, 'galaxyai-panel': panel }">
-        <!-- Docked side panel header -->
-        <div v-if="docked" class="galaxyai-header galaxyai-header-docked">
-            <span class="docked-title">
-                <FontAwesomeIcon :icon="faMagic" fixed-width />
-                GalaxyAI
-            </span>
-            <ChatActions
-                source="docked"
-                :enable-delete="Boolean(currentChatId)"
-                @delete="deleteCurrentChat"
-                @maximize="emit('undock')"
-                @pop-out="popOutToWindowManager"
-                @close="emit('close')"
-                @start-new="startNewChat" />
-        </div>
-        <!-- Center view header -->
-        <div v-else-if="!compact && !panel" class="galaxyai-header">
-            <Heading h2 :icon="faMagic" size="lg">
-                <span>GalaxyAI</span>
+        <div
+            v-if="docked || (!compact && !panel)"
+            class="galaxyai-header"
+            :class="{ 'galaxyai-header-docked': docked }">
+            <Heading :icon="faMagic" :size="docked ? 'sm' : 'lg'">
+                <span class="heading-label">GalaxyAI</span>
             </Heading>
             <ChatActions
-                source="center"
+                :source="docked ? 'docked' : 'center'"
                 :enable-delete="Boolean(currentChatId)"
+                @close="emit('close')"
                 @delete="deleteCurrentChat"
                 @dock-to="dockTo"
+                @maximize="emit('undock')"
                 @pop-out="popOutToWindowManager"
                 @start-new="startNewChat" />
         </div>
@@ -517,14 +506,6 @@ watch(currentChatId, async (newId) => {
 
 .galaxyai-header-docked {
     padding: 0.5rem 0.75rem;
-
-    .docked-title {
-        font-weight: 600;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-    }
 }
 
 .context-indicator {
@@ -559,15 +540,29 @@ watch(currentChatId, async (newId) => {
 }
 
 .galaxyai-header {
+    container-type: inline-size;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    row-gap: 0.375rem;
     padding: 1rem 1.25rem;
     background: $panel-bg-color;
     border-bottom: $border-default;
 
     :deep(.heading) {
         margin-bottom: 0;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    :deep(.chat-panel-actions) {
+        margin-left: auto;
+    }
+}
+
+@container (max-width: 360px) {
+    :deep(.heading-label) {
+        display: none;
     }
 }
 

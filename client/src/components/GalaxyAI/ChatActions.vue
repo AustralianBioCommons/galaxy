@@ -60,9 +60,11 @@ function onOperation(operation: "start-new" | "dock-right" | "dock-bottom") {
             :title="showingActivityPanel ? 'Hide Chats Panel' : 'Show Chats Panel'"
             @click="activityStore.toggleSideBar('galaxyai')">
             <FontAwesomeIcon :icon="faList" fixed-width />
-            <span v-if="showingActivityPanel">Hide</span>
-            <span v-else>Show</span>
-            Chats
+            <span class="btn-label">
+                <span v-if="showingActivityPanel">Hide</span>
+                <span v-else>Show</span>
+                Chats
+            </span>
         </GButton>
         <GButton
             data-description="new chat button"
@@ -71,7 +73,7 @@ function onOperation(operation: "start-new" | "dock-right" | "dock-bottom") {
             title="Start New Chat"
             @click="onOperation('start-new')">
             <FontAwesomeIcon :icon="faPlus" fixed-width />
-            New
+            <span class="btn-label">New</span>
         </GButton>
         <GButton
             v-if="(props.source === 'center' || props.source === 'docked') && !props.collapsed"
@@ -120,6 +122,14 @@ function onOperation(operation: "start-new" | "dock-right" | "dock-bottom") {
 <style scoped>
 .chat-panel-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 0.25rem;
+}
+
+@container (max-width: 440px) {
+    .btn-label {
+        display: none;
+    }
 }
 </style>
