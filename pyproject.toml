@@ -275,3 +275,16 @@ default-groups = []
 extra-index-url = ["https://wheels.galaxyproject.org/simple"]
 index-strategy = "unsafe-best-match"
 package = false
+
+[tool.ty.environment]
+# Galaxy's sources live in lib/ (not the conventional ./ or ./src/) and the
+# project is not installed into the venv (uv `package = false`), so tools
+# need to be told where first-party modules are.
+root = ["lib"]
+
+[tool.ty.src]
+include = ["lib", "test"]
+exclude = [
+    "lib/tool_shed/test/test_data/repos",
+    "test/functional/tools/cwl_tools",
+]
