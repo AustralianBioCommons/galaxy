@@ -15,7 +15,7 @@ const router = useRouter();
 
 const chatStore = useChatStore();
 
-const { activeChatId, chatHistory, isBottomPanelOpen, isCenterMode, isRightPanelOpen } = storeToRefs(chatStore);
+const { activeChatId, isBottomPanelOpen, isCenterMode, isRightPanelOpen } = storeToRefs(chatStore);
 
 const isOnGalaxyAIRoute = computed(() => route.path.startsWith("/galaxyai"));
 
@@ -31,22 +31,15 @@ function openCenterChat() {
 function openDockedChat(location: "right" | "bottom") {
     /** Stores an id if there is a `/galaxyai/:exchangeId` route param */
     const routedChatId = route.path.includes("galaxyai") ? route.params["exchangeId"] || null : null;
-    // TODO: What if we just looked at a chat, maybe add a chatId to localStorage for last opened chat?
-    const activeOrLatestId = chatStore.activeChatId || (chatHistory.value.length > 0 ? chatHistory.value[0]!.id : null);
     const wasCenterMode = chatStore.isCenterMode;
 
     if (isOnGalaxyAIRoute.value) {
         router.push("/");
     }
 
-    chatStore.setLocation(location);
-    if (wasCenterMode && routedChatId) {
-        chatStore.setActiveChatId(routedChatId);
-        chatStore.showChat(routedChatId);
-    } else {
-        chatStore.setActiveChatId(activeOrLatestId);
-        chatStore.showChat(activeOrLatestId);
-    }
+    // TODO: What if we just looked at a chat, maybe add a chatId to localStorage for last opened chat?
+    const chatId = wasCenterMode && routedChatId ? routedChatId : chatStore.resolveDockChatId();
+    chatStore.dockChat(location, chatId);
 }
 </script>
 

@@ -157,38 +157,36 @@ describe("ChatModeSelector", () => {
 
     // ── openDockedChat – location ──────────────────────────────────────────────
 
-    describe("openDockedChat — location", () => {
-        it("calls setLocation('right') for side panel button", async () => {
+    describe("openDockedChat — dockChat call", () => {
+        it("calls dockChat with 'right' for side panel button", async () => {
             const { wrapper, store } = mountComponent();
+            store.activeChatId = "active-chat";
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.setLocation).toHaveBeenCalledWith("right");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "active-chat");
         });
 
-        it("calls setLocation('bottom') for bottom panel button", async () => {
+        it("calls dockChat with 'bottom' for bottom panel button", async () => {
             const { wrapper, store } = mountComponent();
+            store.activeChatId = "active-chat";
             await getButtons(wrapper).at(2).trigger("click");
-            expect(store.setLocation).toHaveBeenCalledWith("bottom");
+            expect(store.dockChat).toHaveBeenCalledWith("bottom", "active-chat");
         });
-    });
 
-    // ── openDockedChat – chat ID resolution ───────────────────────────────────
-
-    describe("openDockedChat — chat ID resolution", () => {
         it("uses routedChatId when coming from center mode with exchangeId in route", async () => {
             mockRoute = { path: "/galaxyai/routed-chat", params: { exchangeId: "routed-chat" } };
             const { wrapper, store } = mountComponent();
             store.chatLocation = "center";
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("routed-chat");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "routed-chat");
         });
 
-        it("uses activeOrLatestId when in center mode but no exchangeId in route", async () => {
+        it("uses activeChatId fallback when in center mode but no exchangeId in route", async () => {
             mockRoute = { path: "/galaxyai", params: {} };
             const { wrapper, store } = mountComponent();
             store.chatLocation = "center";
             store.activeChatId = "active-chat";
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("active-chat");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "active-chat");
         });
 
         it("uses activeChatId when not in center mode", async () => {
@@ -196,7 +194,7 @@ describe("ChatModeSelector", () => {
             store.chatLocation = "right";
             store.activeChatId = "active-chat";
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("active-chat");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "active-chat");
         });
 
         it("uses first history item when activeChatId is null but history exists", async () => {
@@ -204,7 +202,7 @@ describe("ChatModeSelector", () => {
             store.activeChatId = null;
             store.chatHistory = [{ id: "hist-1" } as ChatHistoryItem, { id: "hist-2" } as ChatHistoryItem];
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("hist-1");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "hist-1");
         });
 
         it("uses null when no activeChatId and empty history", async () => {
@@ -212,7 +210,7 @@ describe("ChatModeSelector", () => {
             store.activeChatId = null;
             store.chatHistory = [];
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith(null);
+            expect(store.dockChat).toHaveBeenCalledWith("right", null);
         });
 
         it("prefers activeChatId over first history item when both present", async () => {
@@ -220,7 +218,7 @@ describe("ChatModeSelector", () => {
             store.activeChatId = "active-chat";
             store.chatHistory = [{ id: "hist-1" } as ChatHistoryItem];
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("active-chat");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "active-chat");
         });
 
         it("does NOT use routedChatId when not in center mode even with exchangeId in route", async () => {
@@ -229,8 +227,8 @@ describe("ChatModeSelector", () => {
             store.chatLocation = "right";
             store.activeChatId = "active-chat";
             await getButtons(wrapper).at(1).trigger("click");
-            expect(store.showChat).toHaveBeenCalledWith("active-chat");
-            expect(store.showChat).not.toHaveBeenCalledWith("some-chat");
+            expect(store.dockChat).toHaveBeenCalledWith("right", "active-chat");
+            expect(store.dockChat).not.toHaveBeenCalledWith("right", "some-chat");
         });
     });
 });

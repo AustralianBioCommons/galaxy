@@ -86,6 +86,17 @@ export const useChatStore = defineStore("chatStore", () => {
         }
     }
 
+    /** Returns the active chat id, falling back to the most recent history item, or null. */
+    function resolveDockChatId(): string | null {
+        return activeChatId.value ?? chatHistory.value[0]?.id ?? null;
+    }
+
+    /** Sets the chat location and shows the chat with the given id in one step. */
+    function dockChat(location: ChatLocation, chatId?: string | null) {
+        setLocation(location);
+        showChat(chatId);
+    }
+
     return {
         chatHistory,
         chatLocation,
@@ -103,5 +114,7 @@ export const useChatStore = defineStore("chatStore", () => {
         toggleChat,
         setLocation,
         setActiveChatId,
+        resolveDockChatId,
+        dockChat,
     };
 });

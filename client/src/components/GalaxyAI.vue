@@ -396,9 +396,7 @@ function popOutToWindowManager() {
 }
 
 function dockTo(location: "right" | "bottom") {
-    chatStore.setActiveChatId(currentChatId.value);
-    chatStore.setLocation(location);
-    chatStore.showChat();
+    chatStore.dockChat(location, currentChatId.value);
     if (route.path.startsWith("/galaxyai")) {
         router.push("/");
     }

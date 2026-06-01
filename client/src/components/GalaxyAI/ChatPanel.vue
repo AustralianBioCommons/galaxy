@@ -35,8 +35,7 @@ function close() {
 }
 
 function startNewChat() {
-    chatStore.setActiveChatId(null);
-    chatStore.showChat();
+    chatStore.showChat(null);
 }
 </script>
 

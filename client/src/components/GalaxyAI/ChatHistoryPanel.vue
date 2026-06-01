@@ -56,8 +56,7 @@ function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent
     if (chatStore.isCenterMode) {
         router.push(`/galaxyai/${item.id}`);
     } else {
-        chatStore.setActiveChatId(item.id);
-        chatStore.showChat();
+        chatStore.showChat(item.id);
     }
 }
 
@@ -65,8 +64,7 @@ function startNewChat() {
     if (chatStore.isCenterMode) {
         router.push("/galaxyai/new");
     } else {
-        chatStore.setActiveChatId(null);
-        chatStore.showChat();
+        chatStore.showChat(null);
     }
 }
 
