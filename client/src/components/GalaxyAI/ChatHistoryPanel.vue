@@ -7,6 +7,7 @@ import { computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
 import { GalaxyApi } from "@/api";
+import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useSidebarSelection } from "@/composables/useSidebarSelection";
 import { useChatStore } from "@/stores/chatStore";
 
@@ -19,6 +20,7 @@ import ActivityPanel from "@/components/Panels/ActivityPanel.vue";
 import ScrollList from "@/components/ScrollList/ScrollList.vue";
 import UtcDate from "@/components/UtcDate.vue";
 
+const { confirm } = useConfirmDialog();
 const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
@@ -72,17 +74,29 @@ async function deleteSelected() {
     if (selectedIds.value.size === 0) {
         return;
     }
-    const ids = Array.from(selectedIds.value);
-    try {
-        const { error } = await GalaxyApi().PUT("/api/chat/exchanges/batch/delete", {
-            body: { ids },
-        });
-        if (!error) {
-            chatStore.deleteChats(selectedIds.value);
-            pruneAfterDelete();
+
+    const confirmed = await confirm(
+        `Are you sure you want to delete the ${selectedIds.value.size} selected conversation(s)?`,
+        {
+            title: "Delete Conversations",
+            okText: "Delete",
+            okIcon: faTrash,
+            okColor: "red",
+        },
+    );
+    if (confirmed) {
+        const ids = Array.from(selectedIds.value);
+        try {
+            const { error } = await GalaxyApi().PUT("/api/chat/exchanges/batch/delete", {
+                body: { ids },
+            });
+            if (!error) {
+                chatStore.deleteChats(selectedIds.value);
+                pruneAfterDelete();
+            }
+        } catch (e) {
+            console.error("Failed to delete exchanges:", e);
         }
-    } catch (e) {
-        console.error("Failed to delete exchanges:", e);
     }
 }
 </script>

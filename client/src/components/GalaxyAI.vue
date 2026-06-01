@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faFile, faMagic, faSitemap, faTimes, faWrench } from "@fortawesome/free-solid-svg-icons";
+import { faFile, faMagic, faSitemap, faTimes, faTrash, faWrench } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -8,6 +8,7 @@ import { useRoute, useRouter } from "vue-router/composables";
 import { GalaxyApi } from "@/api";
 import { getGalaxyInstance } from "@/app";
 import { type AgentResponse, useAgentActions } from "@/composables/agentActions";
+import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useMarkdown } from "@/composables/markdown";
 import { useToast } from "@/composables/toast";
 import { useActiveContext } from "@/composables/useActiveContext";
@@ -44,6 +45,7 @@ const emit = defineEmits<{
     (e: "undock"): void;
 }>();
 
+const { confirm } = useConfirmDialog();
 const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
@@ -355,14 +357,23 @@ async function deleteCurrentChat() {
     if (!currentChatId.value) {
         return;
     }
-    try {
-        await chatStore.deleteChatById(currentChatId.value);
-        startNewChat();
-    } catch (e) {
-        Toast.error(
-            errorMessageAsString(e, "Error occured while trying to delete the conversation"),
-            "Failed to delete conversation.",
-        );
+
+    const confirmed = await confirm("Are you sure you want to delete this conversation?", {
+        title: "Delete Conversation",
+        okText: "Delete",
+        okIcon: faTrash,
+        okColor: "red",
+    });
+    if (confirmed) {
+        try {
+            await chatStore.deleteChatById(currentChatId.value);
+            startNewChat();
+        } catch (e) {
+            Toast.error(
+                errorMessageAsString(e, "Error occured while trying to delete the conversation"),
+                "Failed to delete conversation.",
+            );
+        }
     }
 }
 
