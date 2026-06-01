@@ -941,7 +941,11 @@ class DefaultToolAction(ToolAction):
 
         for input_name in inp_data:
             data = inp_data[input_name]
+            # Skip collection inputs and any suffixed dataset names derived from them (e.g., "datasets1", "datasets2")
             if input_name in inp_dataset_collections:
+                continue
+            # Also skip if the name starts with a collection input key and the remainder is a numeric suffix
+            if any(input_name.startswith(key) and input_name[len(key) :].isdigit() for key in inp_dataset_collections):
                 continue
             if getattr(data, "hid", None):
                 input_hids.append(data.hid)
