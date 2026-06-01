@@ -4915,11 +4915,15 @@ class SpatialData(CompressedZarrZipArchive):
                 # Find root zarr directory and detect version
                 root_zarr = is_v3 = None
                 for file in zf.namelist():
-                    if file.endswith(".zarr/zarr.json"):
-                        root_zarr, is_v3 = file.rsplit("/", 1)[0], True
+                    # Look for zarr.json or .zattrs at depth 1 or 2 (root directory + metadata file)
+                    parts = file.split("/")
+                    if len(parts) == 2 and parts[1] == "zarr.json":
+                        # Format: <root>/zarr.json (v3)
+                        root_zarr, is_v3 = parts[0], True
                         break
-                    elif file.endswith(".zarr/.zattrs"):
-                        root_zarr, is_v3 = file.rsplit("/", 1)[0], False
+                    elif len(parts) == 2 and parts[1] == ".zattrs":
+                        # Format: <root>/.zattrs (v2)
+                        root_zarr, is_v3 = parts[0], False
                         break
                 if not root_zarr:
                     return info
@@ -5010,6 +5014,12 @@ class SpatialData(CompressedZarrZipArchive):
         >>> fname = get_test_fname('Images.zarr.zip')
         >>> SpatialData().sniff(fname)
         False
+        >>> fname = get_test_fname('subsampled_visium_no_extension.spatialdata.zip')
+        >>> SpatialData().sniff(fname)
+        True
+        >>> fname = get_test_fname('subsampled_visium_v3_no_extension.spatialdata.zip')
+        >>> SpatialData().sniff(fname)
+        True
         """
         try:
             with zipfile.ZipFile(filename) as zf:
