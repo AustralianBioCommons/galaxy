@@ -259,6 +259,11 @@ class ChatAPI:
                 if payload and payload.entity_context:
                     full_context["entities"] = payload.entity_context.model_dump(exclude_none=True)
 
+                # When we already know this is a notebook chat, bypass the router
+                # and go straight to page_assistant — no need for an LLM to decide.
+                if page_id and agent_type == "auto":
+                    agent_type = "page_assistant"
+
                 agent_response = await self._get_agent_response_full(
                     query_text, agent_type, trans, user, job, full_context
                 )
