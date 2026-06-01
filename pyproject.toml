@@ -279,8 +279,9 @@ package = false
 [tool.ty.environment]
 # Galaxy's sources live in lib/ (not the conventional ./ or ./src/) and the
 # project is not installed into the venv (uv `package = false`), so tools
-# need to be told where first-party modules are.
-root = ["lib"]
+# need to be told where first-party modules are. `test` is also a root so
+# relative imports in the test suite (e.g. `from ..util import ...`) resolve.
+root = ["lib", "test"]
 
 [tool.ty.src]
 include = ["lib", "test"]
