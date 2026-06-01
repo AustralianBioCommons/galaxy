@@ -55,13 +55,6 @@ function onLoad() {
     showCenter.value = true;
 }
 
-function handleUndock() {
-    const chatId = activeChatId.value;
-    chatStore.setLocation("center");
-    chatStore.hideChat();
-    router.push(chatId ? `/galaxyai/${chatId}` : "/galaxyai");
-}
-
 // life cycle
 onMounted(() => {
     // Using a custom event here which, in contrast to watching $route,
@@ -106,11 +99,7 @@ onUnmounted(() => {
             side="right"
             :reactive-width.sync="chatPanelWidth"
             @close="chatStore.hideChat()">
-            <GalaxyAI
-                :exchange-id="activeChatId || undefined"
-                docked
-                @close="chatStore.hideChat()"
-                @undock="handleUndock" />
+            <GalaxyAI :exchange-id="activeChatId || undefined" docked />
         </FlexPanel>
         <DragAndDropModal />
     </div>

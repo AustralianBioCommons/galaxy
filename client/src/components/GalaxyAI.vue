@@ -6,7 +6,6 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
 import { GalaxyApi } from "@/api";
-import { getGalaxyInstance } from "@/app";
 import { type AgentResponse, useAgentActions } from "@/composables/agentActions";
 import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useMarkdown } from "@/composables/markdown";
@@ -39,11 +38,6 @@ const props = withDefaults(
         panel: false,
     },
 );
-
-const emit = defineEmits<{
-    (e: "close"): void;
-    (e: "undock"): void;
-}>();
 
 const { confirm } = useConfirmDialog();
 const route = useRoute();
@@ -378,23 +372,6 @@ async function deleteCurrentChat() {
     }
 }
 
-function popOutToWindowManager() {
-    // If opening window manager chat from center or docked mode, we want to set the center/dock
-    // to a new chat and then open the current chat in the window manager, so we don't have the
-    // same chat open in two places
-    if (isRouteMode.value) {
-        router.push("/galaxyai/new");
-    } else if (props.docked) {
-        chatStore.setActiveChatId(null);
-        emit("close");
-    }
-
-    const Galaxy = getGalaxyInstance();
-    const path = currentChatId.value ? `/galaxyai/${currentChatId.value}` : "/galaxyai/new";
-    const url = `${path}?compact=true`;
-    Galaxy.frame.add({ title: "GalaxyAI", url });
-}
-
 function dockTo(location: "right" | "bottom") {
     chatStore.dockChat(location, currentChatId.value);
     if (route.path.startsWith("/galaxyai")) {
@@ -435,12 +412,8 @@ watch(currentChatId, async (newId) => {
             <ChatActions
                 :source="docked ? 'docked' : 'center'"
                 :enable-delete="Boolean(currentChatId)"
-                @close="emit('close')"
                 @delete="deleteCurrentChat"
-                @dock-to="dockTo"
-                @maximize="emit('undock')"
-                @pop-out="popOutToWindowManager"
-                @start-new="startNewChat" />
+                @dock-to="dockTo" />
         </div>
 
         <div v-if="(docked || panel) && effectiveContext" class="context-indicator">
