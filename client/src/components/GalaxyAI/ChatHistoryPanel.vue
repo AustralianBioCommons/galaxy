@@ -37,7 +37,7 @@ const {
     pruneAfterDelete,
 } = useSidebarSelection(chatHistory, (item) => item.id);
 
-const currentExhangeId = computed(() => {
+const currentExchangeId = computed(() => {
     if (chatStore.isCenterMode) {
         return route.params["exchangeId"] || null;
     } else {
@@ -144,7 +144,7 @@ async function deleteSelected() {
                 <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events vuejs-accessibility/no-static-element-interactions -->
                 <div
                     class="chat-history-item d-flex align-items-start p-2 border-bottom unselectable"
-                    :class="{ selected: selectedIds.has(item.id), current: item.id === currentExhangeId }"
+                    :class="{ selected: selectedIds.has(item.id), current: item.id === currentExchangeId }"
                     role="button"
                     tabindex="0"
                     @click="(event) => handleItemClick(item, index, event)">
