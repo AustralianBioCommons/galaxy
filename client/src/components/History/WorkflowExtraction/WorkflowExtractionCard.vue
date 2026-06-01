@@ -24,9 +24,18 @@ import GenericHistoryItem from "@/components/History/Content/GenericItem.vue";
 /** Badge for renamable workflow inputs. Only applied to workflow inputs, never tool steps. */
 const INPUT_IS_RENAMABLE_BADGE: CardBadge = {
     id: "is-renamable-input",
-    label: "Renamable",
+    label: "Renamable Input",
     icon: faPencilAlt,
     title: "Click the pencil icon next to the step title to rename this workflow input",
+    class: "unselectable",
+};
+
+/** Badge for renamable workflow outputs. Only applied to tool steps with at least one exposed output. */
+const OUTPUT_IS_RENAMABLE_BADGE: CardBadge = {
+    id: "is-renamable-output",
+    label: "Renamable Output",
+    icon: faPencilAlt,
+    title: "Click the pencil icon next to an exposed output to rename it",
     class: "unselectable",
 };
 
@@ -51,7 +60,6 @@ function mappedBadge(size: number | null | undefined): CardBadge {
         icon: faLayerGroup,
         title: "This row represents a mapped tool step backed by an implicit collection job.",
         class: "unselectable",
-        variant: "info",
     };
 }
 
@@ -116,6 +124,9 @@ const badges = computed<CardBadge[]>(() => {
         }
         if (isMappedTool(props.job)) {
             badges.push(mappedBadge(props.job.implicit_collection_jobs_size));
+        }
+        if (props.job.outputs.some((o) => o.output_name && o.exposed)) {
+            badges.push(OUTPUT_IS_RENAMABLE_BADGE);
         }
     } else {
         badges.push(INPUT_IS_RENAMABLE_BADGE);
@@ -240,9 +251,9 @@ function displayLabel(output: ExtractionOutput): string {
         min-width: 0;
 
         .output-label-button-text {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     }
 }
