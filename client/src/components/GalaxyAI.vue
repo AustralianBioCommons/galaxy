@@ -385,7 +385,11 @@ watch(currentChatId, async (newId) => {
     }
 
     if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
-        await chatStore.loadHistory();
+        try {
+            await chatStore.loadHistory();
+        } catch (e) {
+            Toast.error(errorMessageAsString(e), "Failed to load chat history");
+        }
     }
 
     // Ensure the route is updated to reflect the current chat in center (non-window manager) mode

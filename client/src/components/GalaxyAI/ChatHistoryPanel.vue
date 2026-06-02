@@ -48,7 +48,11 @@ const currentExchangeId = computed(() => {
 });
 
 onMounted(async () => {
-    await chatStore.loadHistory();
+    try {
+        await chatStore.loadHistory();
+    } catch (e) {
+        Toast.error(errorMessageAsString(e), "Failed to load chat history");
+    }
 });
 
 function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent) {
