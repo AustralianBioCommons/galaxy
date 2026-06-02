@@ -2439,7 +2439,7 @@ def _capture_workflow_tool_request_state(
     # workflow scheduling. Savepoint scopes the flush so a failure rolls back
     # to clean transaction state instead of poisoning the outer session.
     try:
-        with trans.sa_session.begin_nested():
+        with trans.sa_session.no_autoflush, trans.sa_session.begin_nested():
             tool_source = get_or_create_tool_source(trans.sa_session, tool)
             tool_request = ToolRequest()
             tool_request.request = request_internal.input_state
