@@ -117,14 +117,22 @@ function onDockTo(location: "right" | "bottom") {
             @click="maximize">
             <FontAwesomeIcon :icon="faExpand" fixed-width />
         </GButton>
-        <template v-if="props.source === 'center'">
-            <GButton size="small" transparent title="Dock to side panel" @click="onDockTo('right')">
-                <FontAwesomeIcon :icon="faColumns" fixed-width />
-            </GButton>
-            <GButton size="small" transparent title="Dock to bottom panel" @click="onDockTo('bottom')">
-                <FontAwesomeIcon :icon="faAngleDoubleDown" fixed-width />
-            </GButton>
-        </template>
+        <GButton
+            v-if="props.source !== 'docked'"
+            size="small"
+            transparent
+            title="Dock to side panel"
+            @click="onDockTo('right')">
+            <FontAwesomeIcon :icon="faColumns" fixed-width />
+        </GButton>
+        <GButton
+            v-if="props.source !== 'panel'"
+            size="small"
+            transparent
+            title="Dock to bottom panel"
+            @click="onDockTo('bottom')">
+            <FontAwesomeIcon :icon="faAngleDoubleDown" fixed-width />
+        </GButton>
         <GButton size="small" transparent title="Open in floating window" @click="popOut">
             <FontAwesomeIcon :icon="faExternalLinkAlt" fixed-width />
         </GButton>

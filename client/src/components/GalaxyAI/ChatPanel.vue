@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { ref } from "vue";
+import { useRoute, useRouter } from "vue-router/composables";
 
 import { useChatStore } from "@/stores/chatStore";
 
@@ -10,14 +11,24 @@ import GalaxyAI from "@/components/GalaxyAI.vue";
 const chatStore = useChatStore();
 const { activeChatId } = storeToRefs(chatStore);
 
+const route = useRoute();
+const router = useRouter();
+
 const collapsed = ref(false);
+
+function dockTo(location: "right" | "bottom") {
+    chatStore.dockChat(location, activeChatId.value);
+    if (route.path.startsWith("/galaxyai")) {
+        router.push("/");
+    }
+}
 </script>
 
 <template>
     <div class="chat-panel" :class="collapsed ? 'collapsed' : 'expanded'">
         <div class="chat-panel-header">
             <span class="chat-panel-title">GalaxyAI</span>
-            <ChatActions source="panel" :collapsed.sync="collapsed" />
+            <ChatActions source="panel" :collapsed.sync="collapsed" @dock-to="dockTo" />
         </div>
         <div v-show="!collapsed" class="chat-panel-body">
             <GalaxyAI :exchange-id="activeChatId || undefined" panel />
