@@ -89,9 +89,16 @@ async function deleteSelected() {
         },
     );
     if (confirmed) {
+        const deletedIds = new Set(selectedIds.value);
+        const routedChatId = currentExchangeId.value;
         try {
-            await chatStore.deleteChatsByIds(selectedIds.value);
+            await chatStore.deleteChatsByIds(deletedIds);
             pruneAfterDelete();
+            // In center mode the visible chat is driven by the route, not activeChatId, so if we
+            // just deleted the one on screen, move to a fresh chat rather than a dead route.
+            if (chatStore.isCenterMode && routedChatId && deletedIds.has(routedChatId)) {
+                router.push("/galaxyai/new");
+            }
         } catch (e) {
             Toast.error(errorMessageAsString(e, "Failed to delete conversations."), "Error deleting conversations");
         }
