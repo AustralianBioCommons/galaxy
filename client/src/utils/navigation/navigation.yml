@@ -1662,11 +1662,11 @@ galaxyai:
       _: '.activity-panel[data-description="GalaxyAI"]'
       toggle_selection_mode: 'button[title="Select chats to delete"]'
       cancel_selection: 'button[title="Cancel selection"]'
-      history_item: '[data-description="sidebar item"]'
-      history_checkbox: '[data-description="sidebar item"] .history-checkbox'
-      delete_selected_button: '.selection-toolbar .btn-danger'
+      history_item: '.chat-history-item'
+      history_checkbox: '.chat-history-item .history-checkbox'
+      delete_selected_button: '.selection-toolbar [data-description="delete selected chats"]'
       select_all_toggle: '.select-all-toggle'
-      empty_message: '[data-description="sidebar list empty"]'
+      empty_message: '[data-description="no items found footer"]'
 
 galaxy_wizard:
   selectors:

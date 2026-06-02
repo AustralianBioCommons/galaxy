@@ -107,6 +107,7 @@ async function deleteSelected() {
             </GButton>
             <GButton
                 :color="selectionMode ? 'grey' : 'red'"
+                :disabled="chatHistory.length === 0"
                 outline
                 :title="selectionMode ? 'Cancel selection' : 'Select chats to delete'"
                 @click="toggleSelectionMode">
@@ -124,9 +125,14 @@ async function deleteSelected() {
                 <FontAwesomeIcon :icon="allSelected ? faCheckSquare : faSquare" fixed-width />
                 {{ allSelected ? "Deselect all" : "Select all" }}
             </span>
-            <button class="btn btn-sm btn-danger" :disabled="selectedIds.size === 0" @click="deleteSelected">
+            <GButton
+                color="red"
+                data-description="delete selected chats"
+                :disabled="selectedIds.size === 0"
+                size="small"
+                @click="deleteSelected">
                 Delete {{ selectedIds.size > 0 ? selectedIds.size : "" }}
-            </button>
+            </GButton>
         </div>
 
         <ScrollList
