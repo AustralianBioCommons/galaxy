@@ -8,6 +8,7 @@ import { useRoute, useRouter } from "vue-router/composables";
 import draggable from "vuedraggable";
 
 import { useConfig } from "@/composables/config";
+import { useActiveContext } from "@/composables/useActiveContext";
 import { convertDropData } from "@/stores/activitySetup";
 import { useActivityStore } from "@/stores/activityStore";
 import type { Activity } from "@/stores/activityStoreTypes";
@@ -82,6 +83,7 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const chatStore = useChatStore();
+const { activeContext } = useActiveContext();
 
 const eventStore = useEventStore();
 const activityStore = useActivityStore(props.activityBarId);
@@ -239,6 +241,18 @@ function toggleSidebar(toggle: string = "", to: string | null = null) {
 }
 
 function onChatGxyClick() {
+    // On notebook routes, always use the right panel — never navigate to center.
+    if (activeContext.value?.contextType === "notebook") {
+        if (chatStore.isCenterMode) {
+            chatStore.setLocation("right");
+        }
+        chatStore.toggleChat();
+        if (isActiveSideBar("galaxyai")) {
+            toggleSidebar("galaxyai");
+        }
+        return;
+    }
+
     if (chatStore.isCenterMode) {
         toggleSidebar("galaxyai");
         if (!route.path.startsWith("/galaxyai")) {
