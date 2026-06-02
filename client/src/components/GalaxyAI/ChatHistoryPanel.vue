@@ -3,11 +3,12 @@ import { faCheckSquare, faSquare } from "@fortawesome/free-regular-svg-icons";
 import { faClock, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
 import { useConfirmDialog } from "@/composables/confirmDialog";
 import { useToast } from "@/composables/toast";
+import { useActiveContext } from "@/composables/useActiveContext";
 import { useSidebarSelection } from "@/composables/useSidebarSelection";
 import { useChatStore } from "@/stores/chatStore";
 import { errorMessageAsString } from "@/utils/simple-error";
@@ -26,6 +27,12 @@ const Toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
+const { activeContext } = useActiveContext();
+
+const notebookPageId = computed(() => {
+    const ctx = activeContext.value;
+    return ctx?.contextType === "notebook" ? ctx.pageId : undefined;
+});
 
 const { chatHistory, loading } = storeToRefs(chatStore);
 
@@ -49,7 +56,15 @@ const currentExchangeId = computed(() => {
 
 onMounted(async () => {
     try {
-        await chatStore.loadHistory();
+        await chatStore.loadHistory(notebookPageId.value);
+    } catch (e) {
+        Toast.error(errorMessageAsString(e), "Failed to load chat history");
+    }
+});
+
+watch(notebookPageId, async (pageId) => {
+    try {
+        await chatStore.loadHistory(pageId);
     } catch (e) {
         Toast.error(errorMessageAsString(e), "Failed to load chat history");
     }

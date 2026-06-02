@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
 )
 from sqlalchemy import (
     and_,
+    or_,
     select,
 )
 from sqlalchemy.exc import (
@@ -372,6 +373,7 @@ class ChatManager:
         limit: int = 50,
         include_job_chats: bool = False,
         include_page_chats: bool = False,
+        page_id: Optional[int] = None,
     ) -> list[ChatExchange]:
         """
         Get all chat exchanges for a user.
@@ -379,6 +381,7 @@ class ChatManager:
         :param limit: Maximum number of exchanges to return
         :param include_job_chats: Whether to include job-related chats
         :param include_page_chats: Whether to include page-scoped chats
+        :param page_id: When given, include chats for this specific page alongside general chats
         :returns: List of ChatExchange objects
         """
         try:
@@ -387,7 +390,10 @@ class ChatManager:
             if not include_job_chats:
                 stmt = stmt.where(ChatExchange.job_id.is_(None))
 
-            if not include_page_chats:
+            if page_id is not None:
+                # General chats (no page) plus chats for this specific page
+                stmt = stmt.where(or_(ChatExchange.page_id.is_(None), ChatExchange.page_id == page_id))
+            elif not include_page_chats:
                 stmt = stmt.where(ChatExchange.page_id.is_(None))
 
             stmt = stmt.order_by(ChatExchange.id.desc()).limit(limit)

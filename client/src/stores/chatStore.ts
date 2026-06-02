@@ -71,10 +71,10 @@ export const useChatStore = defineStore("chatStore", () => {
         }
     }
 
-    async function loadHistory() {
+    async function loadHistory(pageId?: string) {
         loading.value = true;
         const { data, error } = await GalaxyApi().GET("/api/chat/history", {
-            params: { query: { limit: 50 } },
+            params: { query: { limit: 50, ...(pageId ? { page_id: pageId } : {}) } },
         });
 
         loading.value = false;
