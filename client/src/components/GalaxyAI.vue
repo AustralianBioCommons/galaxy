@@ -50,8 +50,18 @@ const { activeContext, contextLabel } = useActiveContext();
 const pageEditorStore = usePageEditorStore();
 const contextDismissed = ref(false);
 
-watch(activeContext, () => {
+watch(activeContext, (newCtx, oldCtx) => {
     contextDismissed.value = false;
+
+    // When navigating away from a notebook, clear activeChatId if it belongs to that
+    // page (i.e. was loaded from the page-scoped history) so the panel doesn't keep
+    // showing a notebook-specific conversation in a non-notebook context.
+    if (oldCtx?.contextType === "notebook" && newCtx?.contextType !== "notebook") {
+        const currentId = chatStore.activeChatId;
+        if (currentId && chatStore.chatHistory.some((item) => item.id === currentId)) {
+            chatStore.setActiveChatId(null);
+        }
+    }
 });
 
 const effectiveContext = computed(() => {
