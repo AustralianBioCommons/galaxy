@@ -101,7 +101,6 @@ function onDockTo(location: "right" | "bottom") {
         </GButton>
         <GButton
             v-if="(props.source === 'center' || props.source === 'docked') && !props.collapsed"
-            color="red"
             data-description="delete chat button"
             :disabled="!props.enableDelete"
             size="small"

@@ -109,13 +109,14 @@ async function deleteSelected() {
 <template>
     <ActivityPanel title="GalaxyAI">
         <template v-slot:header-buttons>
-            <GButton color="blue" outline title="New Chat" @click="startNewChat">
+            <GButton color="blue" transparent size="small" title="New Chat" @click="startNewChat">
                 <FontAwesomeIcon :icon="faPlus" fixed-width />
             </GButton>
             <GButton
-                :color="selectionMode ? 'grey' : 'red'"
                 :disabled="chatHistory.length === 0"
-                outline
+                transparent
+                size="small"
+                :pressed="selectionMode"
                 :title="selectionMode ? 'Cancel selection' : 'Select chats to delete'"
                 @click="toggleSelectionMode">
                 <FontAwesomeIcon :icon="selectionMode ? faTimes : faTrash" fixed-width />
@@ -133,11 +134,11 @@ async function deleteSelected() {
                 {{ allSelected ? "Deselect all" : "Select all" }}
             </span>
             <GButton
-                color="red"
                 data-description="delete selected chats"
                 :disabled="selectedIds.size === 0"
                 size="small"
                 @click="deleteSelected">
+                <FontAwesomeIcon :icon="faTrash" fixed-width />
                 Delete {{ selectedIds.size > 0 ? selectedIds.size : "" }}
             </GButton>
         </div>

@@ -45,11 +45,12 @@ function openDockedChat(location: "right" | "bottom") {
 
 <template>
     <GButtonGroup class="chat-mode-selector" size="small">
-        <GButton :outline="isOnCenter" :pressed="isOnCenter" title="Enable Full View" tooltip @click="openCenterChat">
+        <GButton color="blue" outline :pressed="isOnCenter" title="Enable Full View" tooltip @click="openCenterChat">
             <FontAwesomeIcon :icon="faExpand" />
         </GButton>
         <GButton
-            :outline="isRightPanelOpen"
+            color="blue"
+            outline
             :pressed="isRightPanelOpen"
             title="Dock To Side Panel"
             tooltip
@@ -57,7 +58,8 @@ function openDockedChat(location: "right" | "bottom") {
             <FontAwesomeIcon :icon="faColumns" />
         </GButton>
         <GButton
-            :outline="isBottomPanelOpen"
+            color="blue"
+            outline
             :pressed="isBottomPanelOpen"
             title="Dock To Bottom Panel"
             tooltip
