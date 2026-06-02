@@ -13,6 +13,7 @@ import { useToast } from "@/composables/toast";
 import { useActiveContext } from "@/composables/useActiveContext";
 import { buildEntityContext, parseMentions, resolveMentions } from "@/composables/useEntityMentions";
 import { useChatStore } from "@/stores/chatStore";
+import { usePageEditorStore } from "@/stores/pageEditorStore";
 import { errorMessageAsString } from "@/utils/simple-error";
 
 import { getAgentIcon } from "./GalaxyAI/agentTypes";
@@ -46,6 +47,7 @@ const chatStore = useChatStore();
 const Toast = useToast();
 
 const { activeContext, contextLabel } = useActiveContext();
+const pageEditorStore = usePageEditorStore();
 const contextDismissed = ref(false);
 
 watch(activeContext, () => {
@@ -94,7 +96,19 @@ onMounted(async () => {
     if (props.exchangeId && props.exchangeId !== "new") {
         await fetchConversation(props.exchangeId);
     } else if (props.docked || props.panel || props.exchangeId === "new") {
-        startNewChat();
+        // In panel/docked mode with notebook context: restore the cached exchange
+        // for this page if one exists and no chat is already active.
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook" && !chatStore.activeChatId) {
+            const cachedId = pageEditorStore.getCurrentChatExchangeId(ctx.pageId);
+            if (cachedId) {
+                await fetchConversation(cachedId);
+            } else {
+                startNewChat();
+            }
+        } else {
+            startNewChat();
+        }
     } else {
         await loadLatestChat();
     }
@@ -391,6 +405,12 @@ function dockTo(location: "right" | "bottom") {
 watch(currentChatId, async (newId) => {
     if (props.docked || props.panel) {
         chatStore.setActiveChatId(newId);
+
+        // Keep the per-page cache in sync so reopening the panel restores this exchange.
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook") {
+            pageEditorStore.setCurrentChatExchangeId(ctx.pageId, newId);
+        }
     }
 
     if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
