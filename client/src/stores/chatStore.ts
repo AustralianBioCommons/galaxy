@@ -21,6 +21,11 @@ export const useChatStore = defineStore("chatStore", () => {
 
     function deleteChats(ids: Set<string>) {
         chatHistory.value = chatHistory.value.filter((item) => !ids.has(item.id));
+        // If the chat currently in view was deleted, drop the reference so we don't
+        // leave the UI pointing at a conversation that no longer exists.
+        if (activeChatId.value && ids.has(activeChatId.value)) {
+            activeChatId.value = null;
+        }
     }
 
     async function deleteChatById(chatId: string) {
@@ -35,9 +40,20 @@ export const useChatStore = defineStore("chatStore", () => {
         }
 
         deleteChats(new Set([chatId]));
-        if (activeChatId.value === chatId) {
-            activeChatId.value = null;
+    }
+
+    async function deleteChatsByIds(ids: Set<string>) {
+        if (ids.size === 0) {
+            return;
         }
+        const { error } = await GalaxyApi().PUT("/api/chat/exchanges/batch/delete", {
+            body: { ids: Array.from(ids) },
+        });
+        if (error) {
+            rethrowSimple(error);
+        }
+
+        deleteChats(ids);
     }
 
     function showChat(chatId?: string | null) {
@@ -107,6 +123,7 @@ export const useChatStore = defineStore("chatStore", () => {
         isCenterMode,
         deleteChatById,
         deleteChats,
+        deleteChatsByIds,
         showChat,
         hideChat,
         loadHistory,

@@ -6,10 +6,11 @@ import { storeToRefs } from "pinia";
 import { computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
-import { GalaxyApi } from "@/api";
 import { useConfirmDialog } from "@/composables/confirmDialog";
+import { useToast } from "@/composables/toast";
 import { useSidebarSelection } from "@/composables/useSidebarSelection";
 import { useChatStore } from "@/stores/chatStore";
+import { errorMessageAsString } from "@/utils/simple-error";
 
 import { getAgentIcon } from "./agentTypes";
 import type { ChatHistoryItem } from "./chatTypes";
@@ -21,6 +22,7 @@ import ScrollList from "@/components/ScrollList/ScrollList.vue";
 import UtcDate from "@/components/UtcDate.vue";
 
 const { confirm } = useConfirmDialog();
+const Toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
@@ -83,17 +85,11 @@ async function deleteSelected() {
         },
     );
     if (confirmed) {
-        const ids = Array.from(selectedIds.value);
         try {
-            const { error } = await GalaxyApi().PUT("/api/chat/exchanges/batch/delete", {
-                body: { ids },
-            });
-            if (!error) {
-                chatStore.deleteChats(selectedIds.value);
-                pruneAfterDelete();
-            }
+            await chatStore.deleteChatsByIds(selectedIds.value);
+            pruneAfterDelete();
         } catch (e) {
-            console.error("Failed to delete exchanges:", e);
+            Toast.error(errorMessageAsString(e, "Failed to delete conversations."), "Error deleting conversations");
         }
     }
 }
