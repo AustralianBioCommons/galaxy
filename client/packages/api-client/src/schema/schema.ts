@@ -8562,6 +8562,11 @@ export interface components {
              */
             message_count: number;
             /**
+             * Page ID
+             * @description Encoded page ID if this exchange is scoped to a page.
+             */
+            page_id?: string | null;
+            /**
              * Query
              * @description The user's query that started or continued this exchange.
              */

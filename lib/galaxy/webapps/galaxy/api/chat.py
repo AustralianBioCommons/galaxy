@@ -556,6 +556,7 @@ class ChatAPI:
                         timestamp=message.create_time.isoformat() if message.create_time else None,
                         feedback=message.feedback,
                         message_count=len(exchange.messages),
+                        page_id=exchange.page_id,
                     )
                 )
             except (json.JSONDecodeError, AttributeError):

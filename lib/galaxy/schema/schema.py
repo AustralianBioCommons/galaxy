@@ -4095,6 +4095,11 @@ class ChatHistoryItemResponse(BaseModel):
         title="Message Count",
         description="Total number of messages in this exchange.",
     )
+    page_id: Optional[EncodedDatabaseIdField] = Field(
+        default=None,
+        title="Page ID",
+        description="Encoded page ID if this exchange is scoped to a page.",
+    )
 
 
 class ChatExchangeBatchDeletePayload(Model):
