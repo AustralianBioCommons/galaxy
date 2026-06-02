@@ -24,4 +24,3 @@ export function historyNodeColor(node: HistoryGraphNode): string | null {
     const state = node.data?.state;
     return (state && stateColor(state)) || null;
 }
-
