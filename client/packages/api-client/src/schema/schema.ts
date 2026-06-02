@@ -8562,11 +8562,6 @@ export interface components {
              */
             message_count: number;
             /**
-             * Page ID
-             * @description Encoded page ID if this exchange is scoped to a page.
-             */
-            page_id?: string | null;
-            /**
              * Query
              * @description The user's query that started or continued this exchange.
              */
@@ -31490,8 +31485,6 @@ export interface operations {
             query?: {
                 /** @description Maximum number of chats to return */
                 limit?: number;
-                /** @description When provided, include chats for this page alongside general chats. */
-                page_id?: string | null;
             };
             header?: {
                 /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */

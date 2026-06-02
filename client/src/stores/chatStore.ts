@@ -73,9 +73,14 @@ export const useChatStore = defineStore("chatStore", () => {
 
     async function loadHistory(pageId?: string) {
         loading.value = true;
-        const { data, error } = await GalaxyApi().GET("/api/chat/history", {
-            params: { query: { limit: 50, ...(pageId ? { page_id: pageId } : {}) } },
-        });
+
+        const { data, error } = pageId
+            ? await GalaxyApi().GET("/api/chat/page/{page_id}/history", {
+                  params: { path: { page_id: pageId }, query: { limit: 50 } },
+              })
+            : await GalaxyApi().GET("/api/chat/history", {
+                  params: { query: { limit: 50 } },
+              });
 
         loading.value = false;
 

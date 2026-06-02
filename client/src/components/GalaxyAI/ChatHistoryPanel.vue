@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { faCheckSquare, faSquare } from "@fortawesome/free-regular-svg-icons";
-import { faBook, faClock, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faClock, faPlus, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
 import { useConfirmDialog } from "@/composables/confirmDialog";
@@ -54,21 +54,17 @@ const currentExchangeId = computed(() => {
     }
 });
 
-onMounted(async () => {
-    try {
-        await chatStore.loadHistory(notebookPageId.value);
-    } catch (e) {
-        Toast.error(errorMessageAsString(e), "Failed to load chat history");
-    }
-});
-
-watch(notebookPageId, async (pageId) => {
-    try {
-        await chatStore.loadHistory(pageId);
-    } catch (e) {
-        Toast.error(errorMessageAsString(e), "Failed to load chat history");
-    }
-});
+watch(
+    notebookPageId,
+    async (pageId) => {
+        try {
+            await chatStore.loadHistory(pageId);
+        } catch (e) {
+            Toast.error(errorMessageAsString(e), "Failed to load chat history");
+        }
+    },
+    { immediate: true },
+);
 
 function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent) {
     if (handleSelectionClick(item, index, event)) {
@@ -184,12 +180,6 @@ async function deleteSelected() {
                             <span class="history-agent">
                                 <FontAwesomeIcon :icon="getAgentIcon(item.agent_type)" fixed-width />
                             </span>
-                            <span
-                                v-if="notebookPageId && item.page_id === notebookPageId"
-                                class="history-notebook-badge"
-                                title="This chat is linked to the current notebook">
-                                <FontAwesomeIcon :icon="faBook" fixed-width />
-                            </span>
                             <span class="history-time">
                                 <FontAwesomeIcon :icon="faClock" class="mr-1" />
                                 <UtcDate :date="item.timestamp" mode="elapsed" />
@@ -268,11 +258,6 @@ async function deleteSelected() {
 
     .history-agent {
         color: $brand-primary;
-    }
-
-    .history-notebook-badge {
-        color: $brand-primary;
-        opacity: 0.7;
     }
 
     .history-time {

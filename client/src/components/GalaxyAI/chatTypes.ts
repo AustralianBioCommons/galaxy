@@ -22,5 +22,4 @@ export interface ChatHistoryItem {
     timestamp: string;
     feedback?: number | null;
     message_count?: number;
-    page_id?: string | null;
 }

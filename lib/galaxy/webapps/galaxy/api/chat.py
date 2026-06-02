@@ -331,17 +331,11 @@ class ChatAPI:
     def get_chat_history(
         self,
         limit: int = Query(default=50, description="Maximum number of chats to return"),
-        page_id: Optional[DecodedDatabaseIdField] = Query(
-            default=None,
-            description="When provided, include chats for this page alongside general chats.",
-        ),
         trans: ProvidesUserContext = DependsOnTrans,
         user: User = DependsOnUser,
     ) -> list[ChatHistoryItemResponse]:
-        """Get user's chat history, optionally including chats for a specific page."""
-        exchanges = self.chat_manager.get_user_chat_history(
-            trans, limit=limit, include_job_chats=False, page_id=page_id
-        )
+        """Get user's chat history."""
+        exchanges = self.chat_manager.get_user_chat_history(trans, limit=limit, include_job_chats=False)
         return self._format_exchange_history(exchanges)
 
     @router.get("/api/chat/page/{page_id}/history", unstable=True)
@@ -556,7 +550,6 @@ class ChatAPI:
                         timestamp=message.create_time.isoformat() if message.create_time else None,
                         feedback=message.feedback,
                         message_count=len(exchange.messages),
-                        page_id=exchange.page_id,
                     )
                 )
             except (json.JSONDecodeError, AttributeError):

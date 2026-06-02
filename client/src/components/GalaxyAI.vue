@@ -414,8 +414,9 @@ watch(currentChatId, async (newId) => {
     }
 
     if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
+        const pageId = activeContext.value?.contextType === "notebook" ? activeContext.value.pageId : undefined;
         try {
-            await chatStore.loadHistory();
+            await chatStore.loadHistory(pageId);
         } catch (e) {
             Toast.error(errorMessageAsString(e), "Failed to load chat history");
         }
