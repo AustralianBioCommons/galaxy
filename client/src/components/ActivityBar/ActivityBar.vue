@@ -3,7 +3,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { faBell, faEllipsisH, faUserCog } from "@fortawesome/free-solid-svg-icons";
 import { watchImmediate } from "@vueuse/core";
 import { storeToRefs } from "pinia";
-import { computed, type Ref, ref } from "vue";
+import { computed, type Ref, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 import draggable from "vuedraggable";
 
@@ -84,6 +84,14 @@ const router = useRouter();
 const userStore = useUserStore();
 const chatStore = useChatStore();
 const { activeContext } = useActiveContext();
+
+// Notebook context must never use center mode — the chat panel floats alongside
+// the page editor, so force right-panel whenever we enter a notebook context.
+watch(activeContext, (ctx) => {
+    if (ctx?.contextType === "notebook" && chatStore.isCenterMode) {
+        chatStore.setLocation("right");
+    }
+});
 
 const eventStore = useEventStore();
 const activityStore = useActivityStore(props.activityBarId);
