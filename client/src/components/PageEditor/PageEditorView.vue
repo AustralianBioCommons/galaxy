@@ -293,6 +293,7 @@ function handleRevisionRestore(revisionId: string) {
             <div class="page-body d-flex flex-grow-1 overflow-hidden">
                 <div class="page-content flex-grow-1 overflow-auto">
                     <MarkdownEditor
+                        class="h-100"
                         :markdown-text="store.currentContent"
                         :mode="markdownEditorMode"
                         :title="editorTitle"
@@ -318,9 +319,6 @@ function handleRevisionRestore(revisionId: string) {
 .page-toolbar,
 .page-display-toolbar {
     background: var(--panel-header-bg);
-}
-.page-content {
-    padding: 1rem;
 }
 .page-revision-panel {
     width: 300px;

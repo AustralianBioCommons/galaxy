@@ -125,7 +125,7 @@ function stsUrl(config: any) {
                     {{ page.title || page.name }}
                 </Heading>
 
-                <div class="page-content">
+                <div class="page-content h-100">
                     <Markdown
                         v-if="page.content_format === 'markdown'"
                         :markdown-config="page"
