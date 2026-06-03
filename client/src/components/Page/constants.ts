@@ -24,8 +24,6 @@ export const PAGE_LABELS: Record<
         viewButton: string;
         createButton: string;
         historyCounterTooltip: string;
-        assistantName: string;
-        assistantWelcome: string;
         chatPlaceholder: string;
         newConversation: string;
     }
@@ -42,10 +40,6 @@ export const PAGE_LABELS: Record<
         viewButton: "View notebook",
         createButton: "Create Notebook",
         historyCounterTooltip: "Galaxy Notebooks",
-        assistantName: "Markdown Assistant",
-        assistantWelcome:
-            "I'm the Markdown Assistant. I can help you edit this notebook — " +
-            "ask me to rewrite sections, add content, fix formatting, or analyze your history datasets.",
         chatPlaceholder: "Ask about your history or request notebook edits...",
         newConversation: "Starting a new conversation. How can I help with this notebook?",
     },
@@ -60,11 +54,6 @@ export const PAGE_LABELS: Record<
         viewButton: "View report",
         createButton: "Create Report",
         historyCounterTooltip: "",
-        assistantName: "Markdown Assistant",
-        assistantWelcome:
-            "I'm the Markdown Assistant. I can help you edit this report — " +
-            "ask me to rewrite sections, add content, fix formatting, " +
-            "or browse your current history's datasets.",
         chatPlaceholder: "Ask about your history or request report edits...",
         newConversation: "Starting a new conversation. How can I help with this report?",
     },
