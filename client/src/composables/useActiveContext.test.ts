@@ -119,7 +119,7 @@ describe("useActiveContext", () => {
             });
         });
 
-        it("detects notebook context from page editor route", () => {
+        it("detects notebook context from notebook editor route", () => {
             const { activeContext } = withRoute(
                 "/histories/test-history-id/pages/test-page-id",
                 {},
@@ -129,6 +129,14 @@ describe("useActiveContext", () => {
                 contextType: "notebook",
                 pageId: "test-page-id",
                 historyId: "test-history-id",
+            });
+        });
+
+        it("detects notebook context from page editor route", () => {
+            const { activeContext } = withRoute("/pages/editor", { id: "test-page-id" }, {});
+            expect(activeContext.value).toEqual({
+                contextType: "notebook",
+                pageId: "test-page-id",
             });
         });
 

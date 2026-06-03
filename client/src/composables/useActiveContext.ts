@@ -9,7 +9,7 @@ export type ActiveContext =
     | { contextType: "workflow_editor"; workflowId: string }
     | { contextType: "workflow_run"; workflowId: string }
     | { contextType: "job"; jobId: string; toolId?: string }
-    | { contextType: "notebook"; pageId: string; historyId: string };
+    | { contextType: "notebook"; pageId: string; historyId?: string };
 
 export function useActiveContext() {
     const route = useRoute();
@@ -76,6 +76,13 @@ export function useActiveContext() {
             };
         }
 
+        if (path === "/pages/editor" && query.id) {
+            return {
+                contextType: "notebook",
+                pageId: String(query.id),
+            };
+        }
+
         return null;
     });
 
@@ -96,7 +103,7 @@ export function useActiveContext() {
             case "job":
                 return `Job: ${ctx.jobId}`;
             case "notebook":
-                return `History Notebook: ${ctx.pageId}`;
+                return ctx.historyId ? `History Notebook: ${ctx.pageId}` : `Page: ${ctx.pageId}`;
             default:
                 return null;
         }
