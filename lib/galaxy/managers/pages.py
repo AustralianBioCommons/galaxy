@@ -272,6 +272,11 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
         user = trans.get_user()
         history_id = getattr(payload, "history_id", None)
 
+        # When creating from an invocation, automatically attach to its history
+        if payload.invocation_id and not history_id:
+            invocation = self.workflow_manager.get_invocation(trans, payload.invocation_id)
+            history_id = invocation.history_id
+
         # Slug validation: required for non-history pages
         if history_id:
             # Verify user owns the history

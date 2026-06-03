@@ -114,6 +114,8 @@ async function onSubmit() {
         });
         if (error) {
             errorMessage.value = error.err_msg;
+        } else if (data.history_id) {
+            router.push(`/histories/${data.history_id}/pages/${data.id}`);
         } else {
             router.push(`/pages/editor?id=${data.id}`);
         }
