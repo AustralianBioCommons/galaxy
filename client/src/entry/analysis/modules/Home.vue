@@ -32,19 +32,6 @@ export default {
             required: true,
         },
     },
-    mounted() {
-        // Data source tools redirect back to the SPA after a server-side
-        // import; surface a toast and strip the param so a reload doesn't
-        // re-fire it.
-        if (this.query.notification === "tool-submitted") {
-            this.$nextTick(() => {
-                Toast.info("Check your history panel for progress.", "Data import queued");
-            });
-            const newQuery = { ...this.$route.query };
-            delete newQuery.notification;
-            this.$router.replace({ query: newQuery });
-        }
-    },
     computed: {
         isController() {
             return this.query.m_c && this.query.m_a;
@@ -92,6 +79,19 @@ export default {
                 simpleFormUseJobCache,
             };
         },
+    },
+    mounted() {
+        // Data source tools redirect back to the SPA after a server-side
+        // import; surface a toast and strip the param so a reload doesn't
+        // re-fire it.
+        if (this.query.notification === "tool-submitted") {
+            this.$nextTick(() => {
+                Toast.info("Check your history panel for progress.", "Data import queued");
+            });
+            const newQuery = { ...this.$route.query };
+            delete newQuery.notification;
+            this.$router.replace({ query: newQuery });
+        }
     },
 };
 </script>
