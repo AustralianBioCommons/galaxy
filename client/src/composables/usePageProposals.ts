@@ -1,7 +1,7 @@
 import { computed, type Ref, ref } from "vue";
 
 import type { ChatMessage } from "@/components/GalaxyAI/chatTypes";
-import { applySectionEdit } from "@/components/PageEditor/sectionDiffUtils";
+import { applySectionEdit, djb2Hash } from "@/components/PageEditor/sectionDiffUtils";
 import type { EditProposal } from "@/composables/agentActions";
 import type { ActiveContext } from "@/composables/useActiveContext";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
@@ -32,14 +32,6 @@ export function usePageProposals(activeContext: Readonly<Ref<ActiveContext | nul
     /** Clear the dismissed set (new chat or leaving notebook context). */
     function clear() {
         dismissedProposals.value = new Set();
-    }
-
-    function djb2Hash(s: string): string {
-        let h = 5381;
-        for (let i = 0; i < s.length; i++) {
-            h = (h * 33 + s.charCodeAt(i)) >>> 0;
-        }
-        return h.toString(16).padStart(8, "0");
     }
 
     function getEditProposal(msg: ChatMessage): EditProposal | null {
