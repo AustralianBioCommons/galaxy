@@ -10,12 +10,10 @@ import { ref } from "vue";
 import type { HistoryPageDetails, PageRevisionDetails, PageRevisionSummary } from "@/api/pages";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
-import PageChatPanel from "./PageChatPanel.vue";
 import PageEditorView from "./PageEditorView.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
 import ClickToEdit from "@/components/ClickToEdit.vue";
-import SplitView from "@/components/Common/SplitView.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
@@ -67,7 +65,6 @@ const SELECTORS = {
     UNSAVED_INDICATOR: "[data-description='page unsaved indicator']",
     REVISIONS_BUTTON: "[data-description='page revisions button']",
     REVISION_PANEL: ".page-revision-panel",
-    CHAT_BUTTON: "[data-description='page chat button']",
     PREVIEW_BUTTON: "[data-description='page preview button']",
     PERMISSIONS_BUTTON: "[data-description='page permissions button']",
     SAVE_VIEW_BUTTON: "[data-description='page save-view button']",
@@ -528,110 +525,6 @@ describe("PageEditorView", () => {
             await wrapper.vm.$nextTick();
 
             expect(store.restoreRevision).toHaveBeenCalledWith("rev-1");
-        });
-    });
-
-    describe("Chat Panel", () => {
-        it("shows Chat button in toolbar", async () => {
-            setupLoadedPage(HISTORY_ID);
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            const chatBtn = wrapper.find(SELECTORS.CHAT_BUTTON);
-            expect(chatBtn.exists()).toBe(true);
-            expect(chatBtn.text()).toContain("Chat");
-        });
-
-        it("clicking Chat button calls store.toggleChatPanel", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            const chatBtn = wrapper.find(SELECTORS.CHAT_BUTTON);
-            await chatBtn.trigger("click");
-            await flushPromises();
-
-            expect(store.toggleChatPanel).toHaveBeenCalled();
-        });
-
-        it("renders split view when store.showChatPanel is true", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            store.showChatPanel = true;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            expect(wrapper.findComponent(SplitView).exists()).toBe(true);
-            expect(wrapper.findComponent(PageChatPanel).exists()).toBe(true);
-        });
-
-        it("hides split view when store.showChatPanel is false", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            store.showChatPanel = false;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            expect(wrapper.findComponent(SplitView).exists()).toBe(false);
-        });
-
-        it("hides Chat button when llm_api_configured is false", async () => {
-            setupLoadedPage(HISTORY_ID);
-            mockConfig.value = { llm_api_configured: false };
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            expect(wrapper.find(SELECTORS.CHAT_BUTTON).exists()).toBe(false);
-        });
-
-        it("shows Chat button when llm_api_configured is true", async () => {
-            setupLoadedPage(HISTORY_ID);
-            mockConfig.value = { llm_api_configured: true };
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            expect(wrapper.find(SELECTORS.CHAT_BUTTON).exists()).toBe(true);
-        });
-
-        it("hides Chat button when config is null (not yet loaded)", async () => {
-            setupLoadedPage(HISTORY_ID);
-            mockConfig.value = null;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            expect(wrapper.find(SELECTORS.CHAT_BUTTON).exists()).toBe(false);
-        });
-
-        it("passes hideToolbox=true to MarkdownEditor when chat is open", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            store.showChatPanel = true;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            const editor = wrapper.findComponent(MarkdownEditor);
-            expect(editor.exists()).toBe(true);
-            expect(editor.props("hideToolbox")).toBe(true);
-        });
-
-        it("does not set hideToolbox when chat is closed", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            store.showChatPanel = false;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            const editor = wrapper.findComponent(MarkdownEditor);
-            expect(editor.exists()).toBe(true);
-            expect(editor.props("hideToolbox")).toBeFalsy();
-        });
-
-        it("passes props to PageChatPanel", async () => {
-            const store = setupLoadedPage(HISTORY_ID);
-            store.showChatPanel = true;
-            const wrapper = mountComponent({ pageId: PAGE_ID, historyId: HISTORY_ID });
-            await flushPromises();
-
-            const panel = wrapper.findComponent(PageChatPanel);
-            expect(panel.props("historyId")).toBe(HISTORY_ID);
-            expect(panel.props("pageId")).toBe(PAGE_ID);
-            expect(panel.props("pageContent")).toBe("# Hello");
         });
     });
 

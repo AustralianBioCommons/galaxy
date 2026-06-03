@@ -4,6 +4,7 @@ import type { ChatMessage } from "@/components/GalaxyAI/chatTypes";
 import { applySectionEdit, djb2Hash } from "@/components/PageEditor/sectionDiffUtils";
 import type { EditProposal } from "@/composables/agentActions";
 import type { ActiveContext } from "@/composables/useActiveContext";
+import { useUserLocalStorage } from "@/composables/userLocalStorage";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 /**
@@ -12,26 +13,39 @@ import { usePageEditorStore } from "@/stores/pageEditorStore";
  *
  * Owns the `dismissedProposals` set and all helpers needed to render
  * ProposalDiffView / SectionPatchView inside ChatMessageCell.
+ *
+ * Dismissed proposal IDs are persisted in localStorage keyed by pageId so they
+ * survive page reloads for the same conversation.
  */
 export function usePageProposals(activeContext: Readonly<Ref<ActiveContext | null>>) {
     const pageEditorStore = usePageEditorStore();
+
+    /** Persisted map of pageId → dismissed message ID list. */
+    const persistedDismissed = useUserLocalStorage<Record<string, string[]>>("page-chat-dismissed-proposals", {});
 
     /** Live page content — empty when not in notebook context. */
     const pageContent = computed(() =>
         activeContext.value?.contextType === "notebook" ? pageEditorStore.currentContent : "",
     );
 
-    /** Message IDs whose proposals have been dismissed or already applied. */
+    /** In-memory working set for the current conversation. */
     const dismissedProposals = ref(new Set<string>());
 
     /** Load the persisted dismissed set for a page after fetching a conversation. */
     function loadForPage(pageId: string) {
-        dismissedProposals.value = new Set(pageEditorStore.getDismissedProposals(pageId));
+        dismissedProposals.value = new Set(persistedDismissed.value[pageId] ?? []);
     }
 
-    /** Clear the dismissed set (new chat or leaving notebook context). */
+    /** Clear the in-memory set (new chat or leaving notebook context). */
     function clear() {
         dismissedProposals.value = new Set();
+    }
+
+    function persistDismiss(pageId: string, messageId: string) {
+        const current = persistedDismissed.value[pageId] ?? [];
+        if (!current.includes(messageId)) {
+            persistedDismissed.value = { ...persistedDismissed.value, [pageId]: [...current, messageId] };
+        }
     }
 
     function getEditProposal(msg: ChatMessage): EditProposal | null {
@@ -93,8 +107,9 @@ export function usePageProposals(activeContext: Readonly<Ref<ActiveContext | nul
         pageEditorStore.updateContent(proposal.content);
         await pageEditorStore.savePage("agent");
         dismissedProposals.value.add(msg.id);
-        if (activeContext.value?.contextType === "notebook") {
-            pageEditorStore.addDismissedProposal(activeContext.value.pageId, msg.id);
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook") {
+            persistDismiss(ctx.pageId, msg.id);
         }
     }
 
@@ -102,15 +117,17 @@ export function usePageProposals(activeContext: Readonly<Ref<ActiveContext | nul
         pageEditorStore.updateContent(patchedContent);
         await pageEditorStore.savePage("agent");
         dismissedProposals.value.add(msg.id);
-        if (activeContext.value?.contextType === "notebook") {
-            pageEditorStore.addDismissedProposal(activeContext.value.pageId, msg.id);
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook") {
+            persistDismiss(ctx.pageId, msg.id);
         }
     }
 
     function dismissProposal(msg: ChatMessage) {
         dismissedProposals.value.add(msg.id);
-        if (activeContext.value?.contextType === "notebook") {
-            pageEditorStore.addDismissedProposal(activeContext.value.pageId, msg.id);
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook") {
+            persistDismiss(ctx.pageId, msg.id);
         }
     }
 

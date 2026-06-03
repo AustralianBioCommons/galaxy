@@ -10,6 +10,12 @@ import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 import { usePageProposals } from "./usePageProposals";
 
+// Mock useUserLocalStorage so localStorage isn't touched in tests.
+const mockPersistedDismissed = ref<Record<string, string[]>>({});
+vi.mock("@/composables/userLocalStorage", () => ({
+    useUserLocalStorage: () => mockPersistedDismissed,
+}));
+
 const PAGE_ID = "page-abc";
 const PAGE_CONTENT = "# Intro\nSome intro text\n# Methods\nSome methods text";
 
@@ -53,6 +59,7 @@ function makeProposalMsg(
 describe("usePageProposals", () => {
     beforeEach(() => {
         setActivePinia(createTestingPinia({ createSpy: vi.fn }));
+        mockPersistedDismissed.value = {};
     });
 
     afterEach(() => {
@@ -86,20 +93,19 @@ describe("usePageProposals", () => {
     });
 
     describe("loadForPage / clear", () => {
-        it("loads dismissed proposals from store for a page", () => {
-            const { store, loadForPage, dismissedProposals } = setup();
-            vi.mocked(store.getDismissedProposals).mockReturnValue(["msg-1", "msg-2"]);
+        it("loads dismissed proposals from localStorage for a page", () => {
+            mockPersistedDismissed.value[PAGE_ID] = ["msg-1", "msg-2"];
+            const { loadForPage, dismissedProposals } = setup();
 
             loadForPage(PAGE_ID);
 
-            expect(store.getDismissedProposals).toHaveBeenCalledWith(PAGE_ID);
             expect(dismissedProposals.value.has("msg-1")).toBe(true);
             expect(dismissedProposals.value.has("msg-2")).toBe(true);
         });
 
-        it("clear resets the dismissed set", () => {
-            const { store, loadForPage, clear, dismissedProposals } = setup();
-            vi.mocked(store.getDismissedProposals).mockReturnValue(["msg-1"]);
+        it("clear resets the in-memory set", () => {
+            mockPersistedDismissed.value[PAGE_ID] = ["msg-1"];
+            const { loadForPage, clear, dismissedProposals } = setup();
             loadForPage(PAGE_ID);
             expect(dismissedProposals.value.size).toBe(1);
 
@@ -236,18 +242,18 @@ describe("usePageProposals", () => {
             expect(dismissedProposals.value.has(msg.id)).toBe(true);
         });
 
-        it("persists dismissed ID to the store", () => {
-            const { store, dismissProposal } = setup();
+        it("persists dismissed ID to localStorage", () => {
+            const { dismissProposal } = setup();
             const msg = makeProposalMsg("full_replacement", "x");
             dismissProposal(msg);
-            expect(store.addDismissedProposal).toHaveBeenCalledWith(PAGE_ID, msg.id);
+            expect(mockPersistedDismissed.value[PAGE_ID]).toContain(msg.id);
         });
 
-        it("does not call store when not in notebook context", () => {
-            const { activeContext, store, dismissProposal } = setup();
+        it("does not persist to localStorage when not in notebook context", () => {
+            const { activeContext, dismissProposal } = setup();
             activeContext.value = null;
             dismissProposal(makeProposalMsg("full_replacement", "x"));
-            expect(store.addDismissedProposal).not.toHaveBeenCalled();
+            expect(mockPersistedDismissed.value[PAGE_ID]).toBeUndefined();
         });
     });
 

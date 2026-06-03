@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
-import { type components, GalaxyApi } from "@/api";
 import {
     createHistoryPage,
     type CreateHistoryPagePayload,
@@ -21,8 +20,6 @@ import {
 import { ERROR_MESSAGES } from "@/components/Page/constants";
 import { useUserLocalStorage } from "@/composables/userLocalStorage";
 import { errorMessageAsString } from "@/utils/simple-error";
-
-type ChatHistoryItem = components["schemas"]["ChatHistoryItemResponse"];
 
 export type PageEditorMode = "history" | "standalone";
 
@@ -47,12 +44,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     // Per-page chat exchange ID persisted across panel close/reopen
     const currentChatExchangeIds = useUserLocalStorage<Record<string, string | null>>("history-page-chat-exchange", {});
 
-    // Per-page dismissed proposal message IDs
-    const dismissedChatProposals = useUserLocalStorage<Record<string, string[]>>(
-        "history-page-dismissed-proposals",
-        {},
-    );
-
     // Revision state
     const revisions = ref<PageRevisionSummary[]>([]);
     const selectedRevision = ref<PageRevisionDetails | null>(null);
@@ -62,13 +53,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     const previousRevisionContent = ref<string | null>(null);
     const revisionViewMode = ref<"preview" | "changes_current" | "changes_previous">("preview");
     const showRevisions = ref(false);
-    const showChatPanel = ref(false);
-
-    // Chat history sidebar state
-    const pageChatHistory = ref<ChatHistoryItem[]>([]);
-    const isLoadingChatHistory = ref(false);
-    const showChatHistory = ref(false);
-    const chatHistoryError = ref<string | null>(null);
 
     const hasPages = computed(() => pages.value.length > 0);
     const hasCurrentPage = computed(() => currentPage.value !== null);
@@ -208,7 +192,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
             await deleteHistoryPage(deletedId);
             clearCurrentPageId(historyId.value);
             clearCurrentChatExchangeId(deletedId);
-            clearDismissedProposals(deletedId);
             currentPage.value = null;
             originalContent.value = "";
             currentContent.value = "";
@@ -240,11 +223,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         currentContent.value = "";
         originalTitle.value = "";
         currentTitle.value = "";
-        showChatPanel.value = false;
         chatError.value = null;
-        pageChatHistory.value = [];
-        showChatHistory.value = false;
-        chatHistoryError.value = null;
         clearRevisionState();
     }
 
@@ -276,66 +255,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     function clearCurrentChatExchangeId(pageId: string) {
         const { [pageId]: _removed, ...rest } = currentChatExchangeIds.value;
         currentChatExchangeIds.value = rest;
-    }
-
-    // --- Dismissed proposals persistence ---
-
-    function getDismissedProposals(pageId: string): string[] {
-        return dismissedChatProposals.value[pageId] ?? [];
-    }
-
-    function addDismissedProposal(pageId: string, messageId: string) {
-        const current = dismissedChatProposals.value[pageId] ?? [];
-        if (!current.includes(messageId)) {
-            dismissedChatProposals.value = {
-                ...dismissedChatProposals.value,
-                [pageId]: [...current, messageId],
-            };
-        }
-    }
-
-    function clearDismissedProposals(pageId: string) {
-        const { [pageId]: _removed, ...rest } = dismissedChatProposals.value;
-        dismissedChatProposals.value = rest;
-    }
-
-    // --- Chat history actions ---
-
-    async function loadPageChatHistory(pageId: string) {
-        isLoadingChatHistory.value = true;
-        chatHistoryError.value = null;
-        try {
-            const { data, error } = await GalaxyApi().GET("/api/chat/page/{page_id}/history", {
-                params: { path: { page_id: pageId }, query: { limit: 50 } },
-            });
-            if (error) {
-                chatHistoryError.value = errorMessageAsString(error);
-            } else {
-                pageChatHistory.value = data ?? [];
-            }
-        } catch (e) {
-            chatHistoryError.value = errorMessageAsString(e);
-        } finally {
-            isLoadingChatHistory.value = false;
-        }
-    }
-
-    async function deletePageChatExchanges(pageId: string, ids: string[]) {
-        const { error } = await GalaxyApi().PUT("/api/chat/exchanges/batch/delete", {
-            body: { ids },
-        });
-        if (error) {
-            throw Error(errorMessageAsString(error));
-        }
-        pageChatHistory.value = pageChatHistory.value.filter((item) => !ids.includes(item.id));
-        const activeId = currentChatExchangeIds.value[pageId];
-        if (activeId && ids.includes(activeId)) {
-            setCurrentChatExchangeId(pageId, null);
-        }
-    }
-
-    function toggleChatHistory() {
-        showChatHistory.value = !showChatHistory.value;
     }
 
     async function resolveCurrentPage(forHistoryId: string): Promise<string> {
@@ -433,17 +352,8 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     function toggleRevisions() {
         showRevisions.value = !showRevisions.value;
         if (showRevisions.value) {
-            showChatPanel.value = false;
             loadRevisions();
         } else {
-            selectedRevision.value = null;
-        }
-    }
-
-    function toggleChatPanel() {
-        showChatPanel.value = !showChatPanel.value;
-        if (showChatPanel.value && showRevisions.value) {
-            showRevisions.value = false;
             selectedRevision.value = null;
         }
     }
@@ -480,11 +390,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         error.value = null;
         chatError.value = null;
         historyId.value = null;
-        showChatPanel.value = false;
-        pageChatHistory.value = [];
-        isLoadingChatHistory.value = false;
-        showChatHistory.value = false;
-        chatHistoryError.value = null;
         clearRevisionState();
     }
 
@@ -525,18 +430,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         getCurrentChatExchangeId,
         setCurrentChatExchangeId,
         clearCurrentChatExchangeId,
-        // Dismissed proposals persistence
-        getDismissedProposals,
-        addDismissedProposal,
-        clearDismissedProposals,
-        // Chat history state
-        pageChatHistory,
-        isLoadingChatHistory,
-        showChatHistory,
-        chatHistoryError,
-        loadPageChatHistory,
-        deletePageChatExchanges,
-        toggleChatHistory,
         // Revision state
         revisionViewMode,
         revisions,
@@ -548,7 +441,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         isLoadingRevision,
         isReverting,
         showRevisions,
-        showChatPanel,
         revisionCount,
         hasRevisions,
         // Revision actions
@@ -556,7 +448,6 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         loadRevision,
         restoreRevision,
         toggleRevisions,
-        toggleChatPanel,
         clearSelectedRevision,
         $reset,
     };
