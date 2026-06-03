@@ -45,11 +45,16 @@ const targetHistoryId = ref<string>(currentHistoryId.value || "");
 const objectStoreStore = useObjectStoreStore();
 const { selectableObjectStores } = storeToRefs(objectStoreStore);
 
-const { targetObjectStoreId, shouldShowObjectStoreSelector, objectStoreUploadBlockReason, handleObjectStoreSelected } =
-    useTargetObjectStoreSelectionState(
-        targetHistoryId,
-        computed(() => advancedMode.value),
-    );
+const {
+    targetObjectStoreId,
+    shouldShowObjectStoreSelector,
+    objectStoreUploadBlockReason,
+    objectStoreDisabledReason,
+    handleObjectStoreSelected,
+} = useTargetObjectStoreSelectionState(
+    targetHistoryId,
+    computed(() => advancedMode.value),
+);
 
 const { warningMessage: objectStoreWarningMessage, handlePrivateStoreSelection } = usePrivateObjectStoreConfirmation();
 
@@ -163,6 +168,8 @@ function handleReadyStateChange(ready: boolean) {
                             :target-history-id="targetHistoryId"
                             store-caption="Target storage"
                             change-link-tooltip="Change storage location for this upload"
+                            :disabled="!!objectStoreDisabledReason"
+                            :disabled-message="objectStoreDisabledReason"
                             @select-store="handleObjectStoreSelection" />
                     </div>
                 </div>

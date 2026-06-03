@@ -16,11 +16,15 @@ interface Props {
     targetHistoryId: string;
     storeCaption?: string;
     changeLinkTooltip?: string;
+    disabled?: boolean;
+    disabledMessage?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     storeCaption: "Target storage",
     changeLinkTooltip: "Change target storage location",
+    disabled: false,
+    disabledMessage: null,
 });
 
 const emit = defineEmits<{
@@ -69,7 +73,7 @@ const storeOptions = computed<SelectorOption[]>(() => {
     ];
 });
 
-const canChangeStore = computed(() => storeOptions.value.length > 1);
+const canChangeStore = computed(() => storeOptions.value.length > 1 && !props.disabled);
 
 const currentStoreOption = computed<SelectorOption>(() => {
     return (
@@ -105,7 +109,7 @@ function handleStoreSelected(selectedOption: SelectorOption | null) {
                 v-g-tooltip.hover
                 class="flex-grow-1 ml-2"
                 data-test-id="upload-target-object-store-selector"
-                :title="changeLinkTooltip">
+                :title="disabledMessage ?? changeLinkTooltip">
                 <Multiselect
                     :value="currentStoreOption"
                     :options="storeOptions"
