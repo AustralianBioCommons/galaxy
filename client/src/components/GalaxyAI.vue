@@ -131,6 +131,12 @@ onMounted(async () => {
             const cachedId = pageEditorStore.getCurrentChatExchangeId(ctx.pageId);
             if (cachedId) {
                 await fetchConversation(cachedId);
+                // If the cached exchange was deleted or returned no messages, drop the stale ID
+                // so the next open doesn't try it again.
+                if (messages.value.length === 0) {
+                    pageEditorStore.clearCurrentChatExchangeId(ctx.pageId);
+                    startNewChat();
+                }
             } else {
                 startNewChat();
             }
