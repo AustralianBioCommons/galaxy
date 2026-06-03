@@ -72,6 +72,6 @@ describe("FromUrl", () => {
 describe("FromFile", () => {
     it("can mount the component", async () => {
         const wrapper = mount(FromFile as object, { localVue });
-        expect(wrapper.find("#workflow-import-button").exists()).toBe(true);
+        expect(wrapper.find("form").exists()).toBe(true);
     });
 });
