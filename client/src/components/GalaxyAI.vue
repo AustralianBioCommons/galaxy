@@ -12,6 +12,7 @@ import { useMarkdown } from "@/composables/markdown";
 import { useToast } from "@/composables/toast";
 import { useActiveContext } from "@/composables/useActiveContext";
 import { buildEntityContext, parseMentions, resolveMentions } from "@/composables/useEntityMentions";
+import { usePageProposals } from "@/composables/usePageProposals";
 import { useChatStore } from "@/stores/chatStore";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 import { errorMessageAsString } from "@/utils/simple-error";
@@ -23,6 +24,8 @@ import { generateId, scrollToBottom } from "./GalaxyAI/chatUtils";
 import ChatActions from "./GalaxyAI/ChatActions.vue";
 import ChatInput from "./GalaxyAI/ChatInput.vue";
 import ChatMessageCell from "./GalaxyAI/ChatMessageCell.vue";
+import ProposalDiffView from "./PageEditor/ProposalDiffView.vue";
+import SectionPatchView from "./PageEditor/SectionPatchView.vue";
 import Heading from "@/components/Common/Heading.vue";
 
 const props = withDefaults(
@@ -61,6 +64,7 @@ watch(activeContext, (newCtx, oldCtx) => {
         if (currentId && chatStore.chatHistory.some((item) => item.id === currentId)) {
             chatStore.setActiveChatId(null);
         }
+        clearProposals();
     }
 });
 
@@ -101,6 +105,20 @@ const hasLoadedInitialChat = ref(false);
 
 const { renderMarkdown } = useMarkdown({ openLinksInNewPage: true, removeNewlinesAfterList: true });
 const { processingAction, handleAction } = useAgentActions();
+
+// Proposal rendering (notebook / page_assistant context)
+const {
+    pageContent,
+    loadForPage: loadProposalsForPage,
+    clear: clearProposals,
+    getEditProposal,
+    isProposalStale,
+    isProposalVisible,
+    buildProposedContent,
+    applyFullReplacement,
+    applySectionPatched,
+    dismissProposal,
+} = usePageProposals(activeContext);
 
 onMounted(async () => {
     if (props.exchangeId && props.exchangeId !== "new") {
@@ -342,6 +360,11 @@ async function fetchConversation(exchangeId: string) {
     currentChatId.value = exchangeId;
     nextTick(() => scrollToBottom(chatContainer.value));
 
+    const ctx = activeContext.value;
+    if (ctx?.contextType === "notebook") {
+        loadProposalsForPage(ctx.pageId);
+    }
+
     hasLoadedInitialChat.value = true;
 }
 
@@ -376,6 +399,7 @@ function startNewChat() {
     ];
     currentChatId.value = null;
     query.value = "";
+    clearProposals();
     if (props.docked || props.panel) {
         chatStore.setActiveChatId(null);
     }
@@ -479,7 +503,24 @@ watch(currentChatId, async (newId) => {
                 :processing-action="processingAction"
                 @feedback="sendFeedback"
                 @handle-action="handleAction"
-                @select-clarification-option="selectClarificationOption" />
+                @select-clarification-option="selectClarificationOption">
+                <template v-if="isProposalVisible(message)" v-slot:after-content>
+                    <ProposalDiffView
+                        v-if="getEditProposal(message)?.mode === 'full_replacement'"
+                        :original="pageContent"
+                        :proposed="buildProposedContent(message)"
+                        :stale="isProposalStale(message)"
+                        @accept="applyFullReplacement(message)"
+                        @reject="dismissProposal(message)" />
+                    <SectionPatchView
+                        v-else-if="getEditProposal(message)?.mode === 'section_patch'"
+                        :original="pageContent"
+                        :proposed="buildProposedContent(message)"
+                        :stale="isProposalStale(message)"
+                        @accept="applySectionPatched($event, message)"
+                        @reject="dismissProposal(message)" />
+                </template>
+            </ChatMessageCell>
 
             <!-- Loading state -->
             <div v-if="busy" class="loading-entry">
