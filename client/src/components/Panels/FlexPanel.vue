@@ -100,7 +100,8 @@ defineExpose({
             :min="props.minWidth"
             :max="props.maxWidth"
             @positionChanged="(v) => (panelWidth = v)"
-            @visibilityChanged="(v) => (isHoveringDragHandle = v)"></DraggableSeparator>
+            @visibilityChanged="(v) => (isHoveringDragHandle = v)"
+            @dragging="(v) => (isDragging = v)" />
 
         <button
             v-if="props.collapsible"
