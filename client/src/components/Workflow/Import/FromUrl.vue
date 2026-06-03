@@ -2,6 +2,7 @@
 import axios from "axios";
 import { BAlert, BForm, BFormGroup, BFormInput } from "bootstrap-vue";
 import { computed, type Ref, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
 import { useRouter } from "vue-router/composables";
 
 import { getRedirectOnImportPath } from "@/components/Workflow/redirectPath";
@@ -89,7 +90,7 @@ defineExpose({ attemptImport });
                 aria-label="Workflow Import URL"
                 type="url" />
             If your URL is from a workflow repository and doesn't end in <code>.ga</code>, you might need to use the
-            <a href="/workflows/import?trs_url=Enter%20a%20TRS%20URL">TRS import method</a>
+            <RouterLink to="/workflows/import?trs_url=Enter%20a%20TRS%20URL">TRS import method</RouterLink>
             instead.
         </BFormGroup>
 
