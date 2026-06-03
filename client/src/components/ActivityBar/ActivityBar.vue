@@ -242,13 +242,16 @@ function toggleSidebar(toggle: string = "", to: string | null = null) {
 function onChatGxyClick() {
     if (chatStore.isCenterMode) {
         toggleSidebar("galaxyai");
-        if (route.path.startsWith("/galaxyai")) {
-            router.push("/");
-        } else {
+        if (!route.path.startsWith("/galaxyai")) {
             router.push("/galaxyai");
         }
     } else {
         chatStore.toggleChat();
+
+        // if we click the activity, in not center mode, and the sidebar is open, we close it as well
+        if (isActiveSideBar("galaxyai")) {
+            toggleSidebar("galaxyai");
+        }
     }
 }
 
