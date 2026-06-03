@@ -2339,32 +2339,6 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         self.send_enter(title_input)
         self.sleep_for(self.wait_types.UX_RENDER)
 
-    def history_page_open_chat(self):
-        """Click chat button in page toolbar, wait for chat panel visible."""
-        self.components.pages.history.chat_button.wait_for_and_click()
-        self.components.pages.history.chat_panel.wait_for_visible()
-
-    def history_page_chat_send_message(self, text):
-        """Type into chat input, click send, wait for response."""
-        chat = self.components.pages.history
-        chat.chat_input.wait_for_and_send_keys(text)
-        chat.chat_send_button.wait_for_and_click()
-        chat.chat_loading.wait_for_absent_or_hidden()
-        chat.chat_response_content.wait_for_visible()
-
-    def history_page_chat_ensure_new(self):
-        """Click new conversation button if messages exist."""
-        chat = self.components.pages.history
-        if len(chat.chat_query_cell.all()) > 0 or len(chat.chat_response_content.all()) > 0:
-            chat.chat_new_conversation.wait_for_and_click()
-        self._history_page_chat_assert_empty()
-
-    @retry_during_transitions
-    def _history_page_chat_assert_empty(self):
-        chat = self.components.pages.history
-        assert len(chat.chat_query_cell.all()) == 0
-        assert len(chat.chat_response_content.all()) == 0
-
     @retry_during_transitions
     def click_history_options(self):
         component = self.components.history_panel.options_button_icon
