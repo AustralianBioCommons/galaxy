@@ -3,7 +3,8 @@ import { faBolt, faFile, faLayerGroup } from "@fortawesome/free-solid-svg-icons"
 import type { components } from "@/api/schema";
 import type { ConnectorVariant, GraphEdge, GraphNode } from "@/components/Graph/types";
 import {
-    HIERARCHICAL_COLLECTION_JOB_STATES,
+    stateFromJobSummary,
+    stateFromPopulatedState,
     type StateRepresentation,
     STATES,
 } from "@/components/History/Content/model/states";
@@ -124,17 +125,19 @@ function mergedConnectorVariant(variants: ConnectorVariant[]): ConnectorVariant 
     return variants.some((variant) => variant === "multiple") ? "multiple" : "single";
 }
 
-/** Highest-priority non-zero state from a job_state_summary, or null. */
-function displayStateFromSummary(summary: Record<string, number> | null | undefined): string | null {
-    if (!summary) {
-        return null;
+/** Display state for a node, per src type. */
+function resolveDisplayState(node: ApiGraphNode): string | null {
+    switch (node.src) {
+        case "hda":
+            return node.state ?? null;
+        case "hdca":
+            // node.state carries populated_state for collections.
+            return (
+                stateFromPopulatedState(node.state) ?? stateFromJobSummary(node.job_state_summary) ?? node.state ?? null
+            );
+        case "tool_request":
+            return stateFromJobSummary(node.job_state_summary) ?? null;
     }
-    for (const state of HIERARCHICAL_COLLECTION_JOB_STATES) {
-        if ((summary[state] ?? 0) > 0) {
-            return state;
-        }
-    }
-    return null;
 }
 
 /** Connection summary shown in a tool node's body, e.g. "3 inputs, 2 outputs". */
@@ -196,8 +199,7 @@ export function mapNodes(apiNodes: ApiGraphNode[], apiEdges: ApiGraphEdge[]): Hi
         const inputs = inputVariants.get(key) ?? [];
         const outputs = outputVariants.get(key) ?? [];
 
-        // Fall back to job_state_summary when the row has no state of its own.
-        const rawState = node.state ?? displayStateFromSummary(node.job_state_summary);
+        const rawState = resolveDisplayState(node);
         const displayState = rawState === "failed" ? "error" : rawState;
         const stateKey = displayState as keyof typeof STATES | undefined;
         const stateRep: StateRepresentation | null = stateKey && stateKey in STATES ? STATES[stateKey] : null;
