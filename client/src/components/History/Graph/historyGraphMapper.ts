@@ -200,8 +200,7 @@ export function mapNodes(apiNodes: ApiGraphNode[], apiEdges: ApiGraphEdge[]): Hi
         const rawState = node.state ?? displayStateFromSummary(node.job_state_summary);
         const displayState = rawState === "failed" ? "error" : rawState;
         const stateKey = displayState as keyof typeof STATES | undefined;
-        const stateRep: StateRepresentation | null =
-            stateKey && stateKey in STATES ? STATES[stateKey] : null;
+        const stateRep: StateRepresentation | null = stateKey && stateKey in STATES ? STATES[stateKey] : null;
 
         // Tool nodes summarise their connections; data nodes show their state text.
         const bodyText = isToolRequest

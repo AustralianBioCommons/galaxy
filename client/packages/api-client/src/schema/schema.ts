@@ -13567,6 +13567,10 @@ export interface components {
             hid?: number | null;
             /** Id */
             id: string;
+            /** Job State Summary */
+            job_state_summary?: {
+                [key: string]: number;
+            } | null;
             /** Name */
             name?: string | null;
             /**
