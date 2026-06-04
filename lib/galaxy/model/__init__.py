@@ -13451,3 +13451,37 @@ def batch_fetch_job_state_summaries(session, hdca_ids: list[int]) -> dict[int, "
             result[hdca_id] = _ZERO_JOB_STATE_SUMMARY
 
     return result
+
+
+def batch_fetch_tool_request_job_state_summaries(
+    session, tool_request_ids: list[int]
+) -> dict[int, "JobStateSummary"]:
+    """Batch-fetch job state summaries for multiple ToolRequests in a single query.
+
+    Returns a dict mapping tool_request_id to JobStateSummary for every
+    requested ID. ToolRequests with no associated jobs get a zero-filled
+    summary. Bounded payload (one row per tool_request, ~12 ints each),
+    single aggregating SQL — never linear in job count.
+    """
+    if not tool_request_ids:
+        return {}
+
+    state_label = "state"
+
+    # Job has a direct ``tool_request_id`` FK, so no union needed; aggregate
+    # by tool_request_id in one pass.
+    stm: Select = (
+        select(Job.tool_request_id).where(Job.tool_request_id.in_(tool_request_ids)).group_by(Job.tool_request_id)
+    )
+    for state in enum_values(Job.states):
+        stm = stm.add_columns(func.sum(case((Job.state == state, 1), else_=0)).label(state))
+    stm = stm.add_columns(func.count().label("all_jobs"))
+
+    result = {int(row[0]): JobStateSummary._make(row[1:]) for row in session.execute(stm)}
+
+    # Fill in zero summaries for ToolRequests with no jobs.
+    for tr_id in tool_request_ids:
+        if tr_id not in result:
+            result[tr_id] = _ZERO_JOB_STATE_SUMMARY
+
+    return result
