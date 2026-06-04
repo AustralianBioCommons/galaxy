@@ -27,7 +27,6 @@ from galaxy.exceptions import (
 )
 from galaxy.model import (
     batch_fetch_job_state_summaries,
-    batch_fetch_tool_request_job_state_summaries,
     Dataset,
     DatasetCollection,
     DatasetCollectionElement,
@@ -604,14 +603,8 @@ class HistoryGraphBuilder:
     def _tr_nodes(self, tr_map: dict[int, Optional[str]]) -> list[GraphNode]:
         if not tr_map:
             return []
-        summaries = batch_fetch_tool_request_job_state_summaries(self.sa_session, list(tr_map))
         return [
-            self._node(
-                "tool_request",
-                tr_id,
-                tool_id=tool_id,
-                job_state_summary=_summary_dict(summaries.get(tr_id)),
-            )
+            self._node("tool_request", tr_id, tool_id=tool_id)
             for tr_id, tool_id in tr_map.items()
         ]
 

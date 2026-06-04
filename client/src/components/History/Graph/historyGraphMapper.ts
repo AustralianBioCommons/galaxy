@@ -136,7 +136,7 @@ function resolveDisplayState(node: ApiGraphNode): string | null {
                 stateFromPopulatedState(node.state) ?? stateFromJobSummary(node.job_state_summary) ?? node.state ?? null
             );
         case "tool_request":
-            return stateFromJobSummary(node.job_state_summary) ?? null;
+            return null;
     }
 }
 

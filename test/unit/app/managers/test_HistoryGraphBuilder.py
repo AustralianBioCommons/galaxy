@@ -340,27 +340,6 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         assert hdca_node.job_state_summary["paused"] == 1
         assert hdca_node.job_state_summary["all_jobs"] == 3
 
-    def test_tool_request_job_state_summary_aggregates_linked_jobs(self):
-        """ToolRequest node carries a summary of every job that points at it."""
-        history, _ = self._create_history()
-        input_hda = self._create_hda(history, name="in")
-        output_hda = self._create_hda(history, name="out")
-        tr = self._create_tool_request(history)
-        for state in ["ok", "error", "paused"]:
-            job = self._create_job(tool_request=tr, tool_id="tool")
-            self._link_job_input_hda(job, input_hda)
-            self._link_job_output_hda(job, output_hda)
-            job.state = state
-        self.trans.sa_session.flush()
-
-        graph = self._build_graph(history)
-        tr_node = next(n for n in graph.nodes if n.src == "tool_request" and n.id == self._encode("r", tr.id).id)
-        assert tr_node.job_state_summary is not None
-        assert tr_node.job_state_summary["ok"] == 1
-        assert tr_node.job_state_summary["error"] == 1
-        assert tr_node.job_state_summary["paused"] == 1
-        assert tr_node.job_state_summary["all_jobs"] == 3
-
     def test_element_input_resolves_to_top_level_item(self):
         """When a tool consumes an element HDA that is also a top-level history
         item, the input edge points to the dataset (not the collection)."""

@@ -13451,24 +13451,3 @@ def batch_fetch_job_state_summaries(session, hdca_ids: list[int]) -> dict[int, "
             result[hdca_id] = _ZERO_JOB_STATE_SUMMARY
 
     return result
-
-
-def batch_fetch_tool_request_job_state_summaries(
-    session, tool_request_ids: list[int]
-) -> dict[int, "JobStateSummary"]:
-    """Batch-fetch job state summaries for multiple ToolRequests in a single query."""
-    if not tool_request_ids:
-        return {}
-
-    stm: Select = (
-        select(Job.tool_request_id).where(Job.tool_request_id.in_(tool_request_ids)).group_by(Job.tool_request_id)
-    )
-    for state in enum_values(Job.states):
-        stm = stm.add_columns(func.sum(case((Job.state == state, 1), else_=0)).label(state))
-    stm = stm.add_columns(func.count().label("all_jobs"))
-
-    result = {int(row[0]): JobStateSummary._make(row[1:]) for row in session.execute(stm)}
-    for tr_id in tool_request_ids:
-        if tr_id not in result:
-            result[tr_id] = _ZERO_JOB_STATE_SUMMARY
-    return result
