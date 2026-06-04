@@ -603,10 +603,7 @@ class HistoryGraphBuilder:
     def _tr_nodes(self, tr_map: dict[int, Optional[str]]) -> list[GraphNode]:
         if not tr_map:
             return []
-        return [
-            self._node("tool_request", tr_id, tool_id=tool_id)
-            for tr_id, tool_id in tr_map.items()
-        ]
+        return [self._node("tool_request", tr_id, tool_id=tool_id) for tr_id, tool_id in tr_map.items()]
 
     def _resolve_tool_names(self, nodes: list[GraphNode]) -> None:
         toolbox = self.toolbox
