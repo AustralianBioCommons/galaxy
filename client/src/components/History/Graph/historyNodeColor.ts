@@ -13,14 +13,8 @@ function stateColor(state: string): string {
     return stateColors[state]!;
 }
 
-/**
- * Minimap fill color for a history graph node. Dataset/collection nodes use
- * their state color; tool nodes return null so the minimap applies its default.
- */
+/** Minimap fill color for a history graph node, keyed off its display state. */
 export function historyNodeColor(node: HistoryGraphNode): string | null {
-    if (node.data?.src === "tool_request") {
-        return null;
-    }
     const state = node.data?.state;
     return (state && stateColor(state)) || null;
 }

@@ -73,9 +73,7 @@ SYNTHETIC_TOOL_IDS: tuple[str, ...] = ("__DATA_FETCH__",)
 
 
 def _summary_dict(summary) -> Optional[dict[str, int]]:
-    """Lift ``JobStateSummary`` (a NamedTuple) to the wire-shaped dict, or
-    None. Matches the shape ``HDCA.job_state_summary_dict`` already emits, so
-    the client treats both node types uniformly."""
+    """Lift JobStateSummary (a NamedTuple) to a dict, or None."""
     return None if summary is None else summary._asdict()
 
 

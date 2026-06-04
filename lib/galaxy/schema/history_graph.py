@@ -37,11 +37,6 @@ class GraphNode(BaseModel):
     visible: Optional[bool] = None
     tool_id: Optional[str] = None
     tool_name: Optional[str] = None
-    # Counts by Job state for nodes whose displayed status derives from job
-    # outcomes (HDCAs from implicit collections, tool_request nodes from
-    # workflow execution). Same shape as ``HDCA.job_state_summary_dict``;
-    # client picks the display state with the same precedence the history
-    # list view uses. ``None`` when no producing jobs are linked.
     job_state_summary: Optional[dict[str, int]] = None
 
     @property
