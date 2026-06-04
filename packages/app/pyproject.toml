@@ -14,3 +14,7 @@ dynamic = [
     "version",
 ]
 name = "galaxy-app"
+
+[project.scripts]
+galaxy-main = "galaxy.main:main"
+galaxy-dependencies = "galaxy.dependencies.script:main"
