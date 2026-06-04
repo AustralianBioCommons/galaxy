@@ -24,6 +24,7 @@ on:
         required: true
         description: 'Run deployment tests with debug mode on'
         type: boolean
+permissions: {}
 jobs:
   testdeployment:
     runs-on: ubuntu-latest
