@@ -14,3 +14,6 @@ dynamic = [
     "version",
 ]
 name = "galaxy-config"
+
+[project.scripts]
+galaxy-config = "galaxy.config.script:main"
