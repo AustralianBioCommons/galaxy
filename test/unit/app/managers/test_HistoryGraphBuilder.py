@@ -280,6 +280,87 @@ class TestHistoryGraphBuilder(BaseTestCase, CreatesCollectionsMixin):
         assert len(collection_nodes) == 1
         assert collection_nodes[0].collection_type == "list"
 
+    def test_hdca_job_state_summary_direct_job(self):
+        """HDCA produced by a single job carries that job's state in job_state_summary."""
+        history, _ = self._create_history()
+        input_hda = self._create_hda(history, name="in")
+        element_hda = self._create_hda(history, name="el")
+        element_identifiers = self.build_element_identifiers([element_hda])
+        hdca = self.collection_manager.create(
+            self.trans, history, "direct out", "list", element_identifiers=element_identifiers
+        )
+        tr = self._create_tool_request(history)
+        job = self._create_job(tool_request=tr, tool_id="tool")
+        self._link_job_input_hda(job, input_hda)
+        self._link_job_output_hdca(job, hdca)
+        job.state = "error"
+        hdca.job_id = job.id
+        self.trans.sa_session.flush()
+
+        graph = self._build_graph(history)
+        hdca_node = next(n for n in graph.nodes if n.src == "hdca" and n.id == self._encode("c", hdca.id).id)
+        assert hdca_node.job_state_summary is not None
+        assert hdca_node.job_state_summary["error"] == 1
+        assert hdca_node.job_state_summary["all_jobs"] == 1
+        assert hdca_node.job_state_summary["ok"] == 0
+
+    def test_hdca_job_state_summary_implicit_jobs_mixed_states(self):
+        """HDCA produced by an ImplicitCollectionJobs aggregates each member job's state."""
+        history, _ = self._create_history()
+        input_hda = self._create_hda(history, name="in")
+        element_hda = self._create_hda(history, name="el")
+        element_identifiers = self.build_element_identifiers([element_hda])
+        hdca = self.collection_manager.create(
+            self.trans, history, "implicit out", "list", element_identifiers=element_identifiers
+        )
+
+        tr = self._create_tool_request(history)
+        icj = model.ImplicitCollectionJobs(populated_state="ok")
+        self.trans.sa_session.add(icj)
+        self.trans.sa_session.flush()
+
+        for idx, state in enumerate(["ok", "error", "paused"]):
+            job = self._create_job(tool_request=tr, tool_id=f"tool_{idx}")
+            self._link_job_input_hda(job, input_hda)
+            self._link_job_output_hdca(job, hdca)
+            job.state = state
+            icja = model.ImplicitCollectionJobsJobAssociation()
+            icja.implicit_collection_jobs_id = icj.id
+            icja.job_id = job.id
+            icja.order_index = idx
+            self.trans.sa_session.add(icja)
+        hdca.implicit_collection_jobs_id = icj.id
+        self.trans.sa_session.flush()
+
+        graph = self._build_graph(history)
+        hdca_node = next(n for n in graph.nodes if n.src == "hdca" and n.id == self._encode("c", hdca.id).id)
+        assert hdca_node.job_state_summary is not None
+        assert hdca_node.job_state_summary["ok"] == 1
+        assert hdca_node.job_state_summary["error"] == 1
+        assert hdca_node.job_state_summary["paused"] == 1
+        assert hdca_node.job_state_summary["all_jobs"] == 3
+
+    def test_tool_request_job_state_summary_aggregates_linked_jobs(self):
+        """ToolRequest node carries a summary of every job that points at it."""
+        history, _ = self._create_history()
+        input_hda = self._create_hda(history, name="in")
+        output_hda = self._create_hda(history, name="out")
+        tr = self._create_tool_request(history)
+        for state in ["ok", "error", "paused"]:
+            job = self._create_job(tool_request=tr, tool_id="tool")
+            self._link_job_input_hda(job, input_hda)
+            self._link_job_output_hda(job, output_hda)
+            job.state = state
+        self.trans.sa_session.flush()
+
+        graph = self._build_graph(history)
+        tr_node = next(n for n in graph.nodes if n.src == "tool_request" and n.id == self._encode("r", tr.id).id)
+        assert tr_node.job_state_summary is not None
+        assert tr_node.job_state_summary["ok"] == 1
+        assert tr_node.job_state_summary["error"] == 1
+        assert tr_node.job_state_summary["paused"] == 1
+        assert tr_node.job_state_summary["all_jobs"] == 3
+
     def test_element_input_resolves_to_top_level_item(self):
         """When a tool consumes an element HDA that is also a top-level history
         item, the input edge points to the dataset (not the collection)."""
