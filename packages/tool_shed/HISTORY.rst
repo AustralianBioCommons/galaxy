@@ -3,11 +3,16 @@ History
 
 .. to_doc
 
------------
-26.0.1.dev1
------------
+-------------------
+26.0.1 (2026-06-04)
+-------------------
 
 
+=========
+Bug fixes
+=========
+
+* Fix repository sort order to fix incremental tool shed search updates work by `@mvdbeek <https://github.com/mvdbeek>`_ in `#22663 <https://github.com/galaxyproject/galaxy/pull/22663>`_
 
 -------------------
 26.0.0 (2026-04-08)

@@ -3,11 +3,16 @@ History
 
 .. to_doc
 
------------
-26.0.1.dev1
------------
+-------------------
+26.0.1 (2026-06-04)
+-------------------
 
 
+============
+Enhancements
+============
+
+* add TEI XML datatype by `@bgruening <https://github.com/bgruening>`_ in `#22718 <https://github.com/galaxyproject/galaxy/pull/22718>`_
 
 -------------------
 26.0.0 (2026-04-08)
