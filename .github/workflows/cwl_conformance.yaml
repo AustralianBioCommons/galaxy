@@ -17,10 +17,11 @@ env:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+permissions: {}
 jobs:
   test:
     name: Test
-    if: ${{ false }}
+    if: false
     runs-on: ubuntu-latest
     continue-on-error: ${{ startsWith(matrix.marker, 'red') }}
     strategy:
