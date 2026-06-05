@@ -20,10 +20,7 @@ See recent changes that would be built with:
 import os
 import subprocess
 import time
-from typing import (
-    Any,
-    Protocol,
-)
+from typing import Protocol
 
 from galaxy.util import requests
 from ._cli import arg_parser
@@ -52,6 +49,11 @@ class _ChannelPackagesArgs(Protocol):
     diff_hours: str
 
 
+class _RunChannelArgs(_FetchRepoDataArgs, _ChannelPackagesArgs, Protocol):
+    force_rebuild: bool
+    namespace: str
+
+
 def _fetch_repo_data(args: _FetchRepoDataArgs) -> str:
     repo_data = args.repo_data
     channel = args.channel
@@ -77,7 +79,7 @@ def _new_versions(quay: list[str], conda: list[str]) -> set[str]:
     return sconda - squay  # sconda.symmetric_difference(squay)
 
 
-def run_channel(args: Any, build_last_n_versions: int = 1) -> None:
+def run_channel(args: _RunChannelArgs, build_last_n_versions: int = 1) -> None:
     """Build list of involucro commands (as shell snippet) to run."""
     session = requests.Session()
     for pkg_name, pkg_tests in get_affected_packages(args):
