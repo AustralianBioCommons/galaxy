@@ -13,7 +13,6 @@ dynamic = [
     "optional-dependencies",
     "readme",
     "requires-python",
-    "scripts",
     "version",
 ]
 name = "galaxy-web-apps"

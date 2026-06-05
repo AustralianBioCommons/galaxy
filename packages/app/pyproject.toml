@@ -13,7 +13,6 @@ dynamic = [
     "optional-dependencies",
     "readme",
     "requires-python",
-    "scripts",
     "version",
 ]
 name = "galaxy-app"
@@ -21,3 +20,4 @@ name = "galaxy-app"
 [project.scripts]
 galaxy-main = "galaxy.main:main"
 galaxy-dependencies = "galaxy.dependencies.script:main"
+galaxy-sse-monitor = "galaxy.sse_monitor.__main__:main"
