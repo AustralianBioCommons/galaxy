@@ -29,7 +29,7 @@ jobs:
         run: echo "TARGET_BRANCH=$GITHUB_BASE_REF" >> $GITHUB_ENV
       - name: Show target branch name
         run: echo $TARGET_BRANCH
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
