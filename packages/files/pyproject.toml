@@ -17,3 +17,6 @@ dynamic = [
     "version",
 ]
 name = "galaxy-files"
+
+[project.scripts]
+galaxy-file-sources-conf-validation = "galaxy.files.validate.script:main"

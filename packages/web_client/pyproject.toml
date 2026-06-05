@@ -17,3 +17,6 @@ dynamic = [
     "version",
 ]
 name = "galaxy-web-client"
+
+[project.scripts]
+galaxy-web-client-install = "galaxy.web_client.install:main"
