@@ -49,6 +49,7 @@ FileSourceTemplateType = Literal[
     "zenodo",
     "rspace",
     "dataverse",
+    "cbioportal",
     "huggingface",
     "iiif",
     "omero",
@@ -414,6 +415,22 @@ class DataverseFileSourceConfiguration(StrictModel):
     writable: bool = True
 
 
+class CBioPortalFileSourceTemplateConfiguration(StrictModel):
+    type: Literal["cbioportal"]
+    api_url: Union[str, TemplateExpansion]
+    datahub_url: Union[str, TemplateExpansion]
+    writable: Union[bool, TemplateExpansion] = False
+    template_start: Optional[str] = None
+    template_end: Optional[str] = None
+
+
+class CBioPortalFileSourceConfiguration(StrictModel):
+    type: Literal["cbioportal"]
+    api_url: str
+    datahub_url: str
+    writable: bool = False
+
+
 class HuggingFaceFileSourceTemplateConfiguration(StrictModel):
     type: Literal["huggingface"]
     token: Union[str, TemplateExpansion, None] = None
@@ -478,6 +495,7 @@ FileSourceTemplateConfiguration = Annotated[
         ZenodoFileSourceTemplateConfiguration,
         RSpaceFileSourceTemplateConfiguration,
         DataverseFileSourceTemplateConfiguration,
+        CBioPortalFileSourceTemplateConfiguration,
         HuggingFaceFileSourceTemplateConfiguration,
         IIIFFileSourceTemplateConfiguration,
         OmeroFileSourceTemplateConfiguration,
@@ -504,6 +522,7 @@ FileSourceConfiguration = Annotated[
         ZenodoFileSourceConfiguration,
         RSpaceFileSourceConfiguration,
         DataverseFileSourceConfiguration,
+        CBioPortalFileSourceConfiguration,
         HuggingFaceFileSourceConfiguration,
         IIIFFileSourceConfiguration,
         OmeroFileSourceConfiguration,
@@ -588,6 +607,7 @@ TypesToConfigurationClasses: dict[FileSourceTemplateType, type[FileSourceConfigu
     "zenodo": ZenodoFileSourceConfiguration,
     "rspace": RSpaceFileSourceConfiguration,
     "dataverse": DataverseFileSourceConfiguration,
+    "cbioportal": CBioPortalFileSourceConfiguration,
     "huggingface": HuggingFaceFileSourceConfiguration,
     "iiif": IIIFFileSourceConfiguration,
     "omero": OmeroFileSourceConfiguration,
