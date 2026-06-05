@@ -72,11 +72,10 @@ def _fetch_repo_data(args: _FetchRepoDataArgs) -> str:
     return repo_data
 
 
-def _new_versions(quay: list[str], conda: list[str]) -> set[str]:
+def _new_versions(quay: list[str], conda: list[str]) -> list[str]:
     """Calculate the versions that are in conda but not on quay.io."""
-    sconda = set(conda)
     squay = set(quay) if quay else set()
-    return sconda - squay  # sconda.symmetric_difference(squay)
+    return [v for v in conda if v not in squay]
 
 
 def run_channel(args: _RunChannelArgs, build_last_n_versions: int = 1) -> None:
@@ -93,7 +92,7 @@ def run_channel(args: _RunChannelArgs, build_last_n_versions: int = 1) -> None:
             q = quay_versions(args.namespace, pkg_name, session)
             versions = _new_versions(q, c)
         else:
-            versions = set(c)
+            versions = c
 
         for tag in versions:
             target = build_target(pkg_name, tag=tag)
