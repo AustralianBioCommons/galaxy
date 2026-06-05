@@ -17,3 +17,6 @@ dynamic = [
     "version",
 ]
 name = "galaxy-web-apps"
+
+[project.scripts]
+galaxy-web = "galaxy.webapps.galaxy.script:main"

@@ -17,3 +17,7 @@ dynamic = [
     "version",
 ]
 name = "galaxy-job-execution"
+
+[project.scripts]
+galaxy-set-metadata = "galaxy.metadata.set_metadata:set_metadata"
+galaxy-container-monitor = "galaxy.job_execution.container_monitor:main"
