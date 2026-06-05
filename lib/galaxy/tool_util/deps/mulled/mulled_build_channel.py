@@ -93,10 +93,16 @@ def get_pkg_names(args):
 def add_channel_arguments(parser):
     """Add arguments only used if running mulled over a whole conda channel."""
     parser.add_argument(
+        "--channel",
+        dest="channel",
+        default="bioconda",
+        help="Conda channel to fetch repodata from. Default: bioconda",
+    )
+    parser.add_argument(
         "--repo-data",
         dest="repo_data",
         required=True,
-        help='Published repository data. If you want to build all containers for bioconda, this parameter needs to be set to "bioconda"',
+        help='Published repository data. Will be auto-downloaded from --channel if file does not exist.',
     )
     parser.add_argument(
         "--diff-hours",
