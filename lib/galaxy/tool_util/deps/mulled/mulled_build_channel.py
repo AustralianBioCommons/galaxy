@@ -20,6 +20,10 @@ See recent changes that would be built with:
 import os
 import subprocess
 import time
+from typing import (
+    Any,
+    Protocol,
+)
 
 from galaxy.util import requests
 from ._cli import arg_parser
@@ -38,7 +42,17 @@ from .util import (
 )
 
 
-def _fetch_repo_data(args):
+class _FetchRepoDataArgs(Protocol):
+    channel: str
+    repo_data: str
+
+
+class _ChannelPackagesArgs(Protocol):
+    recipes_dir: str
+    diff_hours: str
+
+
+def _fetch_repo_data(args: _FetchRepoDataArgs) -> str:
     repo_data = args.repo_data
     channel = args.channel
     if not os.path.exists(repo_data):
@@ -56,14 +70,14 @@ def _fetch_repo_data(args):
     return repo_data
 
 
-def _new_versions(quay, conda):
+def _new_versions(quay: list[str], conda: list[str]) -> set[str]:
     """Calculate the versions that are in conda but not on quay.io."""
     sconda = set(conda)
     squay = set(quay) if quay else set()
     return sconda - squay  # sconda.symmetric_difference(squay)
 
 
-def run_channel(args, build_last_n_versions: int = 1) -> None:
+def run_channel(args: Any, build_last_n_versions: int = 1) -> None:
     """Build list of involucro commands (as shell snippet) to run."""
     session = requests.Session()
     for pkg_name, pkg_tests in get_affected_packages(args):
@@ -77,7 +91,7 @@ def run_channel(args, build_last_n_versions: int = 1) -> None:
             q = quay_versions(args.namespace, pkg_name, session)
             versions = _new_versions(q, c)
         else:
-            versions = c
+            versions = set(c)
 
         for tag in versions:
             target = build_target(pkg_name, tag=tag)
@@ -85,7 +99,7 @@ def run_channel(args, build_last_n_versions: int = 1) -> None:
             mull_targets(targets, test=pkg_tests, **args_to_mull_targets_kwds(args))
 
 
-def get_pkg_names(args):
+def get_pkg_names(args: _ChannelPackagesArgs) -> None:
     """Print package names that would be affected."""
     print("\n".join(pkg_name for pkg_name, pkg_tests in get_affected_packages(args)))
 
