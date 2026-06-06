@@ -287,16 +287,12 @@ def setup_periodic_tasks(config, celery_app):
     # serves the gtn_training agent, which only functions when inference_services
     # is set up. Without this gate every Galaxy install would pull from depot
     # on the default interval, even ones that don't use the agent.
-    if (
-        getattr(config, "inference_services", None)
-        and config.gtn_database_refresh_interval
-        and config.gtn_database_path
-    ):
+    if config.inference_services and config.gtn_database_refresh_interval and config.gtn_database_path:
         schedule_task("refresh_gtn_database", config.gtn_database_refresh_interval)
 
     # IWC manifest pre-warm only matters when the agent-ops layer is exposed --
     # same inference_services gate as the GTN refresh above.
-    if getattr(config, "inference_services", None) and config.iwc_manifest_refresh_interval:
+    if config.inference_services and config.iwc_manifest_refresh_interval:
         schedule_task("refresh_iwc_manifest", config.iwc_manifest_refresh_interval)
 
     if config.celery_user_concurrency_limit:
