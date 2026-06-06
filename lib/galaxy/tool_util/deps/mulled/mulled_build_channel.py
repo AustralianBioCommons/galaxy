@@ -117,7 +117,7 @@ def add_channel_arguments(parser):
         "--repo-data",
         dest="repo_data",
         required=True,
-        help='Published repository data. Will be auto-downloaded from --channel if file does not exist.',
+        help="Published repository data. Will be auto-downloaded from --channel if file does not exist.",
     )
     parser.add_argument(
         "--diff-hours",
