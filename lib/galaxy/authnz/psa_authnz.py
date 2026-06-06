@@ -174,7 +174,7 @@ class PSAAuthnz(IdentityProvider):
         auth_pipeline = app_config.oidc_auth_pipeline or AUTH_PIPELINE
         # Add extra steps to the auth pipeline if configured.
         if app_config.oidc_auth_pipeline_extra:
-            auth_pipeline = auth_pipeline + tuple(app_config.oidc_auth_pipeline_extra)
+            auth_pipeline = tuple(auth_pipeline) + tuple(app_config.oidc_auth_pipeline_extra)
         self.config["SOCIAL_AUTH_PIPELINE"] = auth_pipeline
         self.config["DISCONNECT_PIPELINE"] = DISCONNECT_PIPELINE
         self.config[setting_name("AUTHENTICATION_BACKENDS")] = (BACKENDS[provider],)
