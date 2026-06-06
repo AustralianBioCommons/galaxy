@@ -118,6 +118,7 @@ class Action:
             self._object_store_id_sql = ""
         self._epoch_time = str(int(time.time()))
         self._days = app.args.days
+        self._batch_size = app.args.batch_size
         self._config = app.config
         self._update = app._update
         self.__log = None
@@ -213,6 +214,7 @@ class Action:
         args = self._action_sql_args.copy()
         if "days" not in args:
             args["days"] = self._days
+        args["batch_size"] = self._batch_size
         return args
 
     def _collect_row_results(self, row, results):
@@ -286,6 +288,7 @@ class RemovesObjects:
     def remove_objects(self):
         for object_to_remove in sorted(self.objects_to_remove):
             self.remove_object(object_to_remove)
+        self.objects_to_remove.clear()
         self.objects_to_remove.clear()
 
     def remove_from_object_store(self, object_to_remove, object_store_kwargs, entire_dir=False, check_exists=False):
@@ -412,6 +415,7 @@ class RequiresDiskUsageRecalculation:
                 self._update(sql, args, add_event=False)
 
             self.log.info("recalculate_disk_usage user_id %i", user_id)
+        self.__recalculate_disk_usage_user_ids.clear()
 
 
 class RemovesMetadataFiles(RemovesObjects):
@@ -471,13 +475,19 @@ class UpdateHDAPurgedFlag(Action):
 
     # update_time is intentionally left unmodified.
     _action_sql = """
-        WITH purged_hda_ids
+        WITH batch_ids
+          AS (SELECT history_dataset_association.id
+                FROM history_dataset_association
+                JOIN dataset ON history_dataset_association.dataset_id = dataset.id
+               WHERE dataset.purged
+                     AND NOT history_dataset_association.purged
+               ORDER BY history_dataset_association.id
+               LIMIT :batch_size),
+              purged_hda_ids
           AS (     UPDATE history_dataset_association
                       SET purged = true, deleted = true
-                     FROM dataset
-                        WHERE history_dataset_association.dataset_id = dataset.id
-                          AND dataset.purged
-                          AND NOT history_dataset_association.purged
+                    FROM batch_ids
+                   WHERE history_dataset_association.id = batch_ids.id
                 RETURNING history_dataset_association.id),
              hda_events
           AS (INSERT INTO cleanup_event_hda_association
@@ -486,7 +496,6 @@ class UpdateHDAPurgedFlag(Action):
                      FROM purged_hda_ids)
       SELECT id AS purged_hda_id
         FROM purged_hda_ids
-    ORDER BY id;
     """
 
 
@@ -1263,6 +1272,14 @@ class Cleanup:
         )
         parser.add_argument(
             "-w", "--work-mem", dest="work_mem", default=None, help="Set PostgreSQL work_mem for this connection"
+        )
+        parser.add_argument(
+            "-b",
+            "--batch-size",
+            dest="batch_size",
+            type=int,
+            default=5000,
+            help="Process rows in batches of the given size (default: 5000)",
         )
         parser.add_argument("-l", "--log-dir", default=DEFAULT_LOG_DIR, help="Log file directory")
         parser.add_argument("-g", "--log-file", default=None, help="Log file name")
