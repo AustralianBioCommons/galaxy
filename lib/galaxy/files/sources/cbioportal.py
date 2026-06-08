@@ -161,9 +161,7 @@ class CBioPortalFilesSource(
         entries.sort(key=lambda entry: entry.name.lower())
         return entries
 
-    def _list_study_files(
-        self, study_id: str, config: CBioPortalFileSourceConfiguration
-    ) -> list[AnyRemoteEntry]:
+    def _list_study_files(self, study_id: str, config: CBioPortalFileSourceConfiguration) -> list[AnyRemoteEntry]:
         filenames = [STUDY_METADATA_NAME, *config.study_files, self._archive_name(study_id)]
         return [
             RemoteFile(
