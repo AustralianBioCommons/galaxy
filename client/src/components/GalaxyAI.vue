@@ -62,18 +62,44 @@ const { activeContext, contextLabel } = useActiveContext();
 const pageEditorStore = usePageEditorStore();
 const contextDismissed = ref(false);
 
-watch(activeContext, (newCtx, oldCtx) => {
+watch(activeContext, async (newCtx, oldCtx) => {
     contextDismissed.value = false;
 
-    // When navigating away from a notebook, clear activeChatId if it belongs to that
-    // page (i.e. was loaded from the page-scoped history) so the panel doesn't keep
-    // showing a notebook-specific conversation in a non-notebook context.
-    if (oldCtx?.contextType === "notebook" && newCtx?.contextType !== "notebook") {
-        const currentId = chatStore.activeChatId;
-        if (currentId && chatStore.chatHistory.some((item) => item.id === currentId)) {
-            chatStore.setActiveChatId(null);
+    if (!props.docked && !props.panel) {
+        return;
+    }
+
+    const switchingToNotebook =
+        newCtx?.contextType === "notebook" && (oldCtx?.contextType !== "notebook" || oldCtx.pageId !== newCtx.pageId);
+
+    if (switchingToNotebook) {
+        // Switched to a notebook page (or to a different notebook page): restore this page's
+        // cached exchange, or fall back to the most recent chat in this page's history.
+        const pageId = newCtx.pageId;
+        const cachedId = pageEditorStore.getCurrentChatExchangeId(pageId);
+        if (cachedId) {
+            await fetchConversation(cachedId);
+            if (messages.value.length === 0) {
+                pageEditorStore.clearCurrentChatExchangeId(pageId);
+                startNewChat();
+            }
+        } else {
+            try {
+                await chatStore.loadHistory(pageId);
+            } catch (e) {
+                Toast.error(errorMessageAsString(e), "Failed to load chat history");
+            }
+            const latestChat = chatStore.chatHistory[0];
+            if (latestChat) {
+                await fetchConversation(latestChat.id);
+            } else {
+                startNewChat();
+            }
         }
+    } else if (oldCtx?.contextType === "notebook" && newCtx?.contextType !== "notebook") {
+        // Switched away from notebook: drop notebook-specific state and start fresh.
         clearProposals();
+        startNewChat();
     }
 });
 
@@ -136,22 +162,40 @@ onMounted(async () => {
         startNewChat();
     } else if (props.docked || props.panel) {
         const ctx = activeContext.value;
-        // For notebook pages, prefer the per-page cached exchange over the global activeChatId.
+        // For notebook pages, always prefer the per-page cached exchange over the global
+        // activeChatId — the global one may belong to a completely unrelated normal chat.
         const notebookPageId = ctx?.contextType === "notebook" ? ctx.pageId : null;
-        const cachedId = notebookPageId && !chatStore.activeChatId
-            ? pageEditorStore.getCurrentChatExchangeId(notebookPageId)
-            : null;
-        const chatId = cachedId || chatStore.activeChatId || null;
 
-        if (chatId) {
-            await fetchConversation(chatId);
-            // If the cached notebook exchange was deleted/empty, drop the stale ID.
-            if (cachedId && messages.value.length === 0) {
-                pageEditorStore.clearCurrentChatExchangeId(notebookPageId!);
-                startNewChat();
+        if (notebookPageId) {
+            // Notebook context: prefer per-page cached exchange, fall back to page history.
+            const cachedId = pageEditorStore.getCurrentChatExchangeId(notebookPageId);
+            if (cachedId) {
+                await fetchConversation(cachedId);
+                if (messages.value.length === 0) {
+                    pageEditorStore.clearCurrentChatExchangeId(notebookPageId);
+                    startNewChat();
+                }
+            } else {
+                try {
+                    await chatStore.loadHistory(notebookPageId);
+                } catch (e) {
+                    Toast.error(errorMessageAsString(e), "Failed to load chat history");
+                }
+                const latestChat = chatStore.chatHistory[0];
+                if (latestChat) {
+                    await fetchConversation(latestChat.id);
+                } else {
+                    startNewChat();
+                }
             }
         } else {
-            startNewChat();
+            // Non-notebook context: use global activeChatId if available.
+            const chatId = chatStore.activeChatId;
+            if (chatId) {
+                await fetchConversation(chatId);
+            } else {
+                startNewChat();
+            }
         }
     } else {
         await loadLatestChat();
