@@ -2,7 +2,12 @@ import { faBolt, faFile, faLayerGroup } from "@fortawesome/free-solid-svg-icons"
 
 import type { components } from "@/api/schema";
 import type { ConnectorVariant, GraphEdge, GraphNode } from "@/components/Graph/types";
-import { type StateRepresentation, STATES } from "@/components/History/Content/model/states";
+import {
+    stateFromJobSummary,
+    stateFromPopulatedState,
+    type StateRepresentation,
+    STATES,
+} from "@/components/History/Content/model/states";
 
 type ApiGraphNode = components["schemas"]["GraphNode"];
 type ApiGraphEdge = components["schemas"]["GraphEdge"];
@@ -120,6 +125,21 @@ function mergedConnectorVariant(variants: ConnectorVariant[]): ConnectorVariant 
     return variants.some((variant) => variant === "multiple") ? "multiple" : "single";
 }
 
+/** Display state for a node, per src type. */
+function resolveDisplayState(node: ApiGraphNode): string | null {
+    switch (node.src) {
+        case "hda":
+            return node.state ?? null;
+        case "hdca":
+            // node.state carries populated_state for collections.
+            return (
+                stateFromPopulatedState(node.state) ?? stateFromJobSummary(node.job_state_summary) ?? node.state ?? null
+            );
+        case "tool_request":
+            return null;
+    }
+}
+
 /** Connection summary shown in a tool node's body, e.g. "3 inputs, 2 outputs". */
 function toolConnectionSummary(inputCount: number, outputCount: number): string {
     const parts: string[] = [];
@@ -179,12 +199,10 @@ export function mapNodes(apiNodes: ApiGraphNode[], apiEdges: ApiGraphEdge[]): Hi
         const inputs = inputVariants.get(key) ?? [];
         const outputs = outputVariants.get(key) ?? [];
 
-        // Dataset/collection nodes carry a state (drives header colour + state text);
-        // map "failed" → "error" to match the dataset state vocabulary.
-        const displayState = node.state === "failed" ? "error" : node.state;
+        const rawState = resolveDisplayState(node);
+        const displayState = rawState === "failed" ? "error" : rawState;
         const stateKey = displayState as keyof typeof STATES | undefined;
-        const stateRep: StateRepresentation | null =
-            !isToolRequest && stateKey && stateKey in STATES ? STATES[stateKey] : null;
+        const stateRep: StateRepresentation | null = stateKey && stateKey in STATES ? STATES[stateKey] : null;
 
         // Tool nodes summarise their connections; data nodes show their state text.
         const bodyText = isToolRequest

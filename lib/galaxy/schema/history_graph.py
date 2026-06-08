@@ -37,6 +37,7 @@ class GraphNode(BaseModel):
     visible: Optional[bool] = None
     tool_id: Optional[str] = None
     tool_name: Optional[str] = None
+    job_state_summary: Optional[dict[str, int]] = None
 
     @property
     def ref(self) -> NodeRef:
