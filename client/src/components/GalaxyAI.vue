@@ -132,21 +132,22 @@ const {
 onMounted(async () => {
     if (props.exchangeId && props.exchangeId !== "new") {
         await fetchConversation(props.exchangeId);
-    } else if (props.docked || props.panel || props.exchangeId === "new") {
-        // In panel/docked mode with notebook context: restore the cached exchange
-        // for this page if one exists and no chat is already active.
+    } else if (props.exchangeId === "new") {
+        startNewChat();
+    } else if (props.docked || props.panel) {
         const ctx = activeContext.value;
-        if (ctx?.contextType === "notebook" && !chatStore.activeChatId) {
-            const cachedId = pageEditorStore.getCurrentChatExchangeId(ctx.pageId);
-            if (cachedId) {
-                await fetchConversation(cachedId);
-                // If the cached exchange was deleted or returned no messages, drop the stale ID
-                // so the next open doesn't try it again.
-                if (messages.value.length === 0) {
-                    pageEditorStore.clearCurrentChatExchangeId(ctx.pageId);
-                    startNewChat();
-                }
-            } else {
+        // For notebook pages, prefer the per-page cached exchange over the global activeChatId.
+        const notebookPageId = ctx?.contextType === "notebook" ? ctx.pageId : null;
+        const cachedId = notebookPageId && !chatStore.activeChatId
+            ? pageEditorStore.getCurrentChatExchangeId(notebookPageId)
+            : null;
+        const chatId = cachedId || chatStore.activeChatId || null;
+
+        if (chatId) {
+            await fetchConversation(chatId);
+            // If the cached notebook exchange was deleted/empty, drop the stale ID.
+            if (cachedId && messages.value.length === 0) {
+                pageEditorStore.clearCurrentChatExchangeId(notebookPageId!);
                 startNewChat();
             }
         } else {
@@ -164,7 +165,7 @@ onMounted(async () => {
 watch(
     () => props.exchangeId,
     async (newId, oldId) => {
-        if (newId === oldId) {
+        if (newId === oldId || newId === currentChatId.value) {
             return;
         }
         if (newId && newId !== "new") {
