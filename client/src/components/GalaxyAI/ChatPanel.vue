@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router/composables";
 
 import { useChatStore } from "@/stores/chatStore";
@@ -22,6 +22,17 @@ function dockTo(location: "right" | "bottom") {
         router.push("/");
     }
 }
+
+// Expand collapsed panel if a chat is selected from the sidebar
+watch(
+    activeChatId,
+    (chatId) => {
+        if (chatId && collapsed.value) {
+            collapsed.value = false;
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
