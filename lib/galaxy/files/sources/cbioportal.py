@@ -226,7 +226,7 @@ class CBioPortalFilesSource(
                     if source is None:
                         break
                     with open(native_path, "wb") as out:
-                        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        while chunk := source.read(1024 * 1024):
                             out.write(chunk)
                     return
         raise ObjectNotFound(f"File [{filename}] was not found in cBioPortal study archive [{study_id}].")
