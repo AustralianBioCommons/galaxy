@@ -17,6 +17,8 @@ See recent changes that would be built with:
 
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import time
