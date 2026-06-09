@@ -385,26 +385,23 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         self.navigate_to(self.build_url("workflows/trs_import"))
         self.components.masthead._.wait_for_visible()
         # The wizard auto-navigates to TRS method selection on mount
-        # Click the "Search workflow registries" card then advance the wizard
+        # Clicking the "Search workflow registries" card auto-navigates to the search form
         self.components.workflows.import_trs_search_link.wait_for_and_click()
-        self.components.workflows.import_next_button.wait_for_and_click()
 
     def go_to_trs_by_id(self) -> None:
         self.navigate_to(self.build_url("workflows/trs_import"))
         self.components.masthead._.wait_for_visible()
         # The wizard auto-navigates to TRS method selection on mount
-        # Click the TRS ID sub-card then advance the wizard
+        # Clicking the TRS ID card auto-navigates to the TRS ID form
         self.components.workflows.import_trs_id_link.wait_for_and_click()
-        self.components.workflows.import_next_button.wait_for_and_click()
 
     def go_to_trs_by_url(self) -> None:
         self.navigate_to(self.build_url("workflows/trs_import"))
         self.components.masthead._.wait_for_visible()
         # The wizard auto-navigates to TRS method selection on mount
-        # Click the TRS URL sub-card then advance the wizard
+        # Clicking the TRS URL card auto-navigates to the TRS URL form
         self.components.workflows.import_trs_url_link.wait_for_and_click()
-        self.components.workflows.import_next_button.wait_for_and_click()
-        # Wait for the URL input to be visible after wizard navigates to the form
+        # Wait for the URL input to be visible after wizard auto-navigates to the form
         self.components.trs_import.url_input.wait_for_visible()
 
     def go_to_workflow_sharing(self, workflow_id: str) -> None:
@@ -2037,9 +2034,8 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
 
     def workflow_import_submit_url(self, url):
         # Click the "Fetch URL" card to select that import method
+        # (auto-navigates to the URL input step)
         self.components.workflows.import_url_link.wait_for_and_click()
-        # Click the wizard's Next button to proceed to the URL input step
-        self.wait_for_and_click_selector(".wizard-actions .go-next-btn")
         # Enter the URL
         url_element = self.wait_for_selector_visible("#workflow-import-url-input")
         url_element.send_keys(url)
