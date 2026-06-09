@@ -274,17 +274,19 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
 
         # When creating from an invocation, automatically attach to its history
         if payload.invocation_id and not history_id:
-            invocation = self.workflow_manager.get_invocation(trans, payload.invocation_id)
+            invocation = self.workflow_manager.get_invocation(
+                trans, payload.invocation_id, check_ownership=False, check_accessible=True
+            )
             history_id = invocation.history_id
 
         # Slug validation: required for non-history pages
         if history_id:
-            # Verify user owns the history
+            # Get the accessible history
             history = trans.sa_session.get(model.History, history_id)
             if not history:
                 raise exceptions.ObjectNotFound("History not found")
-            if history.user != user:
-                raise exceptions.ItemOwnershipException("Cannot create page on history you do not own")
+            base.security_check(trans, history, check_ownership=False, check_accessible=True)
+
             # History-attached pages don't need a slug
             content_format = payload.content_format or "markdown"
             content = payload.content or ""
