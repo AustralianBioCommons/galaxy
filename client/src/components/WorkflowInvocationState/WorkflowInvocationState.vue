@@ -522,12 +522,19 @@ async function onCancel() {
     <BAlert v-else-if="!invocationLoaded" variant="info" show>
         <LoadingSpan message="Loading invocation" />
     </BAlert>
+    <BAlert v-else-if="invocationStore.getInvocationLoadError(props.invocationId)" variant="danger" show>
+        {{ invocationStore.getInvocationLoadError(props.invocationId) }}
+    </BAlert>
     <BAlert v-else variant="info" show>
         <span v-localize>Invocation not found.</span>
     </BAlert>
 </template>
 
 <style lang="scss">
+.alert {
+    height: unset !important;
+}
+
 // To show the tooltip on the disabled report tab badge
 .invocation-report-tab,
 .invocation-export-tab {
