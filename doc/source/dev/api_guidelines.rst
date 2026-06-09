@@ -131,7 +131,7 @@ in :mod:`galaxy.webapps.galaxy.api` receive or produce Pydantic_
 models and pass them to manager components defined in
 :mod:`galaxy.managers`. The manager is then responsible for
 interacting with the whole backend or specific components to
-fullfil the desired request.
+fulfill the desired request.
 
 Galaxy work contexts provide a way for API requests (and other
 components) to describe what they require from the framework
