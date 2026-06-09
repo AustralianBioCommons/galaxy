@@ -77,7 +77,7 @@ While the structure is similar, several key differences exist:
 To enable this feature:
 
 1. Set `enable_beta_tool_formats: true` in your Galaxy configuration.
-2. Create a role of type `Custom Tool Execution` in the admin user interdace.
+2. Create a role of type `Custom Tool Execution` in the admin user interface.
 3. Assign users or groups to this role.
 
 ## Sharing User-Defined Tools
