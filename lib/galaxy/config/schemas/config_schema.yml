@@ -4243,6 +4243,38 @@ mapping:
           URL used to download the GTN search database when the local file at
           ``gtn_database_path`` is missing.
 
+      gtn_database_refresh_interval:
+        type: int
+        default: 86400
+        required: false
+        desc: |
+          Time (in seconds) between celery-beat triggered freshness checks of
+          the GTN search database from ``gtn_database_url``. The task HEADs
+          depot and only re-downloads when its ``Last-Modified`` is newer than
+          the local file -- steady-state cost is a few hundred bytes per tick.
+          When a download does happen it atomically replaces
+          ``gtn_database_path``; live handlers pick up the new copy on their
+          next query since GTNSearchDB opens a read-only connection per call.
+          Only registered when ``inference_services`` is configured (i.e.
+          GalaxyAI is in use). Set to 0 to disable automatic refresh -- admins
+          can still refresh on demand via
+          ``python -m galaxy.agents.gtn --refresh``. Requires celery.
+
+      iwc_manifest_refresh_interval:
+        type: int
+        default: 3600
+        required: false
+        desc: |
+          Time (in seconds) between celery-beat triggered refreshes of the
+          in-process IWC workflow manifest cache used by the agent-ops layer.
+          Default matches the cache's in-process TTL so the cache stays
+          continuously warm rather than expiring between user-driven hits.
+          Failures are logged and the prior cached copy is retained. Only
+          registered when ``inference_services`` is configured (i.e. GalaxyAI
+          is in use). Set to 0 to disable automatic refresh -- agent-ops
+          callers will then fall back to lazy on-demand fetching with the
+          same hour TTL. Requires celery.
+
       enable_tool_recommendations:
         type: bool
         default: false

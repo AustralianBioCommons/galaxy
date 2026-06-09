@@ -283,6 +283,18 @@ def setup_periodic_tasks(config, celery_app):
     if config.vault_token_renewal_interval:
         schedule_task("renew_vault_token", config.vault_token_renewal_interval)
 
+    # Only schedule if GalaxyAI infrastructure is configured -- the GTN database
+    # serves the gtn_training agent, which only functions when inference_services
+    # is set up. Without this gate every Galaxy install would pull from depot
+    # on the default interval, even ones that don't use the agent.
+    if config.inference_services and config.gtn_database_refresh_interval and config.gtn_database_path:
+        schedule_task("refresh_gtn_database", config.gtn_database_refresh_interval)
+
+    # IWC manifest pre-warm only matters when the agent-ops layer is exposed --
+    # same inference_services gate as the GTN refresh above.
+    if config.inference_services and config.iwc_manifest_refresh_interval:
+        schedule_task("refresh_iwc_manifest", config.iwc_manifest_refresh_interval)
+
     if config.celery_user_concurrency_limit:
         # Run cleanup every 5 minutes (300 seconds)
         schedule_task("cleanup_stale_concurrency_slots", 300)

@@ -1305,6 +1305,24 @@
 :Type: str
 
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+``tool_tag_mappings_file``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Optional YAML file mapping tool ids to curated tag names. Tags
+    drive the `tag:` autocompletion, the favorite-tags grouping in the
+    My Tools panel, and the `tool_tags` Whoosh search field. If unset,
+    Galaxy ships a small example covering the tools used by its own
+    integration tests; admins who want production-grade tag coverage
+    can generate a snapshot for their instance with
+    `scripts/extract_tool_sections_from_api.py`. The file must be a
+    YAML document with a top-level `tool_tags:` mapping from tool id
+    to a list of tag names.
+:Default: ``None``
+:Type: str
+
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ``biotools_content_directory``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -5663,9 +5681,95 @@
     false }, jupyterlite: { model: gpt-4o } } Set static_responses to
     a YAML file path to replace all LLM calls with deterministic
     responses for testing: inference_services: { static_responses:
-    test/integration/static_agents.yml }
+    test/integration/static_agents.yml } Per-agent or default-block
+    ``structured_output_override: true|false`` beats the model
+    capability table -- see ``agent_model_capabilities_file`` for the
+    table's location and contents.
 :Default: ``None``
 :Type: any
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``agent_model_capabilities_file``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    YAML file with capability hints for agent inference models. Maps
+    fnmatch-style globs against model names to features such as
+    structured-output (tool-calling / JSON-mode) support. Galaxy ships
+    a sample populated with common model families; admins can drop a
+    file named ``agent_model_capabilities.yml`` in ``config_dir`` to
+    override the shipped table for private models.
+    ``inference_services`` ``structured_output_override`` overrides
+    this table for a specific agent or default block.
+    The value of this option will be resolved with respect to
+    <config_dir>.
+:Default: ``agent_model_capabilities.yml``
+:Type: str
+
+
+~~~~~~~~~~~~~~~~~~~~~
+``gtn_database_path``
+~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Path to the SQLite FTS5 database used by the GTN training agent.
+    Resolves against ``data_dir`` so admins can place it in a
+    mutable-data directory. The file is downloaded automatically on
+    first use from ``gtn_database_url`` if it does not exist.
+    The value of this option will be resolved with respect to
+    <data_dir>.
+:Default: ``gtn/gtn_search.db``
+:Type: str
+
+
+~~~~~~~~~~~~~~~~~~~~
+``gtn_database_url``
+~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    URL used to download the GTN search database when the local file
+    at ``gtn_database_path`` is missing.
+:Default: ``https://depot.galaxyproject.org/chatgxy/gtn_search.db``
+:Type: str
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``gtn_database_refresh_interval``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Time (in seconds) between celery-beat triggered freshness checks
+    of the GTN search database from ``gtn_database_url``. The task
+    HEADs depot and only re-downloads when its ``Last-Modified`` is
+    newer than the local file -- steady-state cost is a few hundred
+    bytes per tick. When a download does happen it atomically replaces
+    ``gtn_database_path``; live handlers pick up the new copy on their
+    next query since GTNSearchDB opens a read-only connection per
+    call. Only registered when ``inference_services`` is configured
+    (i.e. GalaxyAI is in use). Set to 0 to disable automatic refresh
+    -- admins can still refresh on demand via ``python -m
+    galaxy.agents.gtn --refresh``. Requires celery.
+:Default: ``86400``
+:Type: int
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``iwc_manifest_refresh_interval``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Time (in seconds) between celery-beat triggered refreshes of the
+    in-process IWC workflow manifest cache used by the agent-ops
+    layer. Default matches the cache's in-process TTL so the cache
+    stays continuously warm rather than expiring between user-driven
+    hits. Failures are logged and the prior cached copy is retained.
+    Only registered when ``inference_services`` is configured (i.e.
+    GalaxyAI is in use). Set to 0 to disable automatic refresh --
+    agent-ops callers will then fall back to lazy on-demand fetching
+    with the same hour TTL. Requires celery.
+:Default: ``3600``
+:Type: int
 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -6163,6 +6267,3 @@
     for user defined tools.
 :Default: ``false``
 :Type: bool
-
-
-
