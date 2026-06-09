@@ -139,6 +139,7 @@ $galaxy-state-border: (
     "hidden": $state-default-border,
     "setting_metadata": $state-warning-border,
     "inaccessible": darken($state-default-border, 10%),
+    "paused": $state-info-border,
 );
 
 $galaxy-state-bg: (

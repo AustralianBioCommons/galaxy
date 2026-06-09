@@ -26,6 +26,7 @@ from galaxy.exceptions import (
     RequestParameterInvalidException,
 )
 from galaxy.model import (
+    batch_fetch_job_state_summaries,
     Dataset,
     DatasetCollection,
     DatasetCollectionElement,
@@ -68,6 +69,11 @@ MAX_LIMIT = 1000
 # etc.) rather than user-level lineage steps. Jobs with these tool_ids are
 # excluded from producer lookups so they do not appear as nodes or edges.
 SYNTHETIC_TOOL_IDS: tuple[str, ...] = ("__DATA_FETCH__",)
+
+
+def _summary_dict(summary) -> Optional[dict[str, int]]:
+    """Lift JobStateSummary (a NamedTuple) to a dict, or None."""
+    return None if summary is None else summary._asdict()
 
 
 class HistoryGraphManager:
@@ -578,6 +584,7 @@ class HistoryGraphBuilder:
             .join(DatasetCollection, HistoryDatasetCollectionAssociation.collection_id == DatasetCollection.id)
             .where(HistoryDatasetCollectionAssociation.id.in_(db_ids))
         )
+        summaries = batch_fetch_job_state_summaries(self.sa_session, list(db_ids))
         return [
             self._node(
                 "collection",
@@ -585,6 +592,7 @@ class HistoryGraphBuilder:
                 name=row.name,
                 hid=row.hid,
                 state=row.populated_state,
+                job_state_summary=_summary_dict(summaries.get(row.id)),
                 collection_type=row.collection_type,
                 deleted=row.deleted,
                 visible=row.visible,
@@ -593,6 +601,8 @@ class HistoryGraphBuilder:
         ]
 
     def _tr_nodes(self, tr_map: dict[int, Optional[str]]) -> list[GraphNode]:
+        if not tr_map:
+            return []
         return [self._node("tool_request", tr_id, tool_id=tool_id) for tr_id, tool_id in tr_map.items()]
 
     def _resolve_tool_names(self, nodes: list[GraphNode]) -> None:

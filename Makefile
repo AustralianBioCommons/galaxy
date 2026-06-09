@@ -116,12 +116,15 @@ config-convert-dry-run: ## convert old style galaxy ini to yaml (dry run)
 config-convert: ## convert old style galaxy ini to yaml
 	$(CONFIG_MANAGE) convert galaxy
 
-config-rebuild: ## Rebuild all sample YAML and RST files from config schema
+config-rebuild: ## Rebuild all sample YAML, RST files, and type stubs from config schema
 	$(CONFIG_MANAGE) build_sample_yaml galaxy --add-comments
 	$(CONFIG_MANAGE) build_rst galaxy > doc/source/admin/galaxy_options.rst
+	$(CONFIG_MANAGE) build_config_types galaxy
 	$(CONFIG_MANAGE) build_sample_yaml reports --add-comments
 	$(CONFIG_MANAGE) build_rst reports > doc/source/admin/reports_options.rst
+	$(CONFIG_MANAGE) build_config_types reports
 	$(CONFIG_MANAGE) build_sample_yaml tool_shed --add-comments
+	$(CONFIG_MANAGE) build_config_types tool_shed
 
 config-lint: ## lint galaxy YAML configuration file
 	$(CONFIG_MANAGE) lint galaxy
