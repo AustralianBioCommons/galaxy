@@ -179,6 +179,9 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
         if payload.user_id:
             stmt = stmt.where(self.model_class.user_id == payload.user_id)
 
+        if payload.invocation_id:
+            stmt = stmt.where(self.model_class.source_invocation_id == payload.invocation_id)
+
         if payload.history_id:
             stmt = stmt.where(self.model_class.history_id == payload.history_id)
 
