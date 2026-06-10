@@ -23,9 +23,7 @@ export const PAGE_LABELS: Record<
         emptyStateDescription: string;
         viewButton: string;
         createButton: string;
-        historyCounterTooltip: string;
-        chatPlaceholder: string;
-        newConversation: string;
+        historyCounterTooltip?: string;
     }
 > = {
     history: {
@@ -40,8 +38,6 @@ export const PAGE_LABELS: Record<
         viewButton: "View notebook",
         createButton: "Create Notebook",
         historyCounterTooltip: "Galaxy Notebooks",
-        chatPlaceholder: "Ask about your history or request notebook edits...",
-        newConversation: "Starting a new conversation. How can I help with this notebook?",
     },
     standalone: {
         entityName: "Report",
@@ -53,9 +49,18 @@ export const PAGE_LABELS: Record<
         emptyStateDescription: "Create a report to publish your analysis.",
         viewButton: "View report",
         createButton: "Create Report",
-        historyCounterTooltip: "",
-        chatPlaceholder: "Ask about your history or request report edits...",
-        newConversation: "Starting a new conversation. How can I help with this report?",
+    },
+    invocation: {
+        entityName: "Invocation Report",
+        entityNamePlural: "Invocation Reports",
+        defaultTitle: "Untitled Invocation Report",
+        editorBackLabel: "This Invocation's Report",
+        newButton: "New Invocation Report",
+        emptyStateTitle: "No invocation reports yet",
+        emptyStateDescription:
+            "Create a report to document this workflow invocation with rich markdown, embedded datasets, and visualizations.",
+        viewButton: "View invocation report",
+        createButton: "Create Invocation Report",
     },
 } as const;
 

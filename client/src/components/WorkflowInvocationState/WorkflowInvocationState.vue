@@ -28,7 +28,6 @@ import {
 import GButton from "../BaseComponents/GButton.vue";
 import ProgressBar from "../ProgressBar.vue";
 import WorkflowInvocationSteps from "../Workflow/Invocation/Graph/WorkflowInvocationSteps.vue";
-import InvocationReport from "../Workflow/InvocationReport.vue";
 import WorkflowAnnotation from "../Workflow/WorkflowAnnotation.vue";
 import WorkflowNavigationTitle from "../Workflow/WorkflowNavigationTitle.vue";
 import TabsDisabledAlert from "./TabsDisabledAlert.vue";
@@ -37,6 +36,7 @@ import WorkflowInvocationFeedback from "./WorkflowInvocationFeedback.vue";
 import WorkflowInvocationInputOutputTabs from "./WorkflowInvocationInputOutputTabs.vue";
 import WorkflowInvocationMetrics from "./WorkflowInvocationMetrics.vue";
 import WorkflowInvocationOverview from "./WorkflowInvocationOverview.vue";
+import WorkflowInvocationReports from "./WorkflowInvocationReports.vue";
 import WorkflowInvocationSearch from "./WorkflowInvocationSearch.vue";
 import WorkflowInvocationShare from "./WorkflowInvocationShare.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
@@ -455,7 +455,7 @@ async function onCancel() {
             </div>
         </BNav>
 
-        <div class="mt-1 d-flex flex-column tab-content-container">
+        <div class="mt-1 d-flex flex-column overflow-auto tab-content-container">
             <div v-if="onOverviewTab">
                 <WorkflowInvocationOverview
                     class="invocation-overview"
@@ -489,7 +489,7 @@ async function onCancel() {
                     v-else-if="tabsDisabled"
                     :invocation-id="props.invocationId"
                     :tooltip="disabledTabTooltip" />
-                <InvocationReport v-else :invocation-id="invocation.id" />
+                <WorkflowInvocationReports v-else :invocation-id="invocation.id" :history-id="invocation.history_id" />
             </div>
             <div v-if="props.tab === 'export'">
                 <TabsDisabledAlert

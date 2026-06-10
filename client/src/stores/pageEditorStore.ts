@@ -21,7 +21,7 @@ import { ERROR_MESSAGES } from "@/components/Page/constants";
 import { useUserLocalStorage } from "@/composables/userLocalStorage";
 import { errorMessageAsString } from "@/utils/simple-error";
 
-export type PageEditorMode = "history" | "standalone";
+export type PageEditorMode = "history" | "standalone" | "invocation";
 
 export const usePageEditorStore = defineStore("pageEditor", () => {
     const mode = ref<PageEditorMode>("history");
@@ -36,7 +36,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     const isSaving = ref(false);
     const error = ref<string | null>(null);
     const chatError = ref<string | null>(null);
-    const historyId = ref<string | null>(null);
+    const currentContext = ref<{ historyId: string | null; invocationId?: string }>({ historyId: null });
 
     // Per-history "current page" ID persisted across sessions
     const currentPageIds = useUserLocalStorage<Record<string, string>>("history-page-current", {});
@@ -56,6 +56,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
 
     const hasPages = computed(() => pages.value.length > 0);
     const hasCurrentPage = computed(() => currentPage.value !== null);
+    const historyId = computed(() => currentContext.value.historyId);
     const isDirty = computed(
         () => currentContent.value !== originalContent.value || currentTitle.value !== originalTitle.value,
     );
@@ -71,12 +72,12 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
             selectedRevision.value.id === revisions.value[revisions.value.length - 1]?.id,
     );
 
-    async function loadPages(newHistoryId: string) {
-        historyId.value = newHistoryId;
+    async function loadPages(newHistoryId: string, invocationId?: string) {
+        currentContext.value = { historyId: newHistoryId, invocationId };
         isLoadingList.value = true;
         error.value = null;
         try {
-            pages.value = await fetchHistoryPages(newHistoryId);
+            pages.value = await fetchHistoryPages(newHistoryId, invocationId);
         } catch (e: unknown) {
             error.value = errorMessageAsString(e) || ERROR_MESSAGES.loadList;
         } finally {
@@ -85,7 +86,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
     }
 
     async function loadPageById(pageId: string) {
-        if (mode.value === "history" && !historyId.value) {
+        if (["history", "invocation"].includes(mode.value) && !historyId.value) {
             return;
         }
         isLoadingPage.value = true;
@@ -389,7 +390,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         isSaving.value = false;
         error.value = null;
         chatError.value = null;
-        historyId.value = null;
+        currentContext.value = { historyId: null };
         clearRevisionState();
     }
 

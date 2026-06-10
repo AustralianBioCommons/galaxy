@@ -15,6 +15,7 @@ import Markdown from "@/components/Markdown/Markdown.vue";
 
 const props = defineProps<{
     historyId: string;
+    invocationId?: string;
     pageId?: string;
     displayOnly?: boolean;
 }>();
@@ -39,7 +40,7 @@ const markdownConfig = computed(() => {
 });
 
 onMounted(async () => {
-    await store.loadPages(props.historyId);
+    await store.loadPages(props.historyId, props.invocationId);
     if (props.pageId && props.displayOnly) {
         await store.loadPageById(props.pageId);
     }
@@ -54,7 +55,7 @@ onUnmounted(() => {
 watch(
     () => props.historyId,
     async (newId) => {
-        await store.loadPages(newId);
+        await store.loadPages(newId, props.invocationId);
         if (props.pageId && props.displayOnly) {
             await store.loadPageById(props.pageId);
         }
@@ -153,7 +154,8 @@ function handleBack() {
                     v-if="markdownConfig"
                     :markdown-config="markdownConfig"
                     :read-only="true"
-                    download-endpoint="" />
+                    download-endpoint=""
+                    hide-heading />
             </div>
         </template>
 

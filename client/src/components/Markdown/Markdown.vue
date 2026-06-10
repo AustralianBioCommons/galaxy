@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { faDownload, faEdit } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BButton } from "bootstrap-vue";
 import { computed, onMounted, ref, watch } from "vue";
 
 import { parseMarkdown } from "./parse";
@@ -95,10 +94,14 @@ onMounted(() => {
         <div v-else class="d-flex flex-column">
             <div class="d-flex flex-column sticky-top bg-white">
                 <div class="d-flex">
-                    <Heading v-localize h1 separator inline size="md" class="flex-grow-1">
-                        {{ pageTitle }}
+                    <Heading h1 separator inline size="md" class="flex-grow-1">
+                        <slot name="heading">
+                            {{ pageTitle }}
+                        </slot>
                     </Heading>
                     <div>
+                        <slot name="extra-actions" />
+
                         <template v-if="effectiveExportLink">
                             <GButton
                                 v-if="directDownloadLink"
@@ -123,18 +126,18 @@ onMounted(() => {
                                 outline />
                         </template>
 
-                        <BButton
+                        <GButton
                             v-if="!readOnly"
-                            v-g-tooltip.hover
+                            tooltip
                             class="markdown-edit"
-                            role="button"
-                            size="sm"
+                            size="small"
                             title="Edit Markdown"
-                            variant="outline-primary"
+                            outline
+                            color="blue"
                             @click="$emit('onEdit')">
                             Edit
                             <FontAwesomeIcon :icon="faEdit" />
-                        </BButton>
+                        </GButton>
                     </div>
                 </div>
             </div>

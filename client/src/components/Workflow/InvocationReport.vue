@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { faFileContract } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { computed, provide, ref } from "vue";
 import { useRouter } from "vue-router/composables";
 
@@ -6,10 +8,18 @@ import { fetchInvocationReport } from "@/api/invocations";
 import { useConfig } from "@/composables/config";
 import { useToast } from "@/composables/toast";
 
+import GButton from "../BaseComponents/GButton.vue";
+import HelpText from "../Help/HelpText.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 
 const props = defineProps<{
     invocationId: string;
+    /** Whether to enforce displaying a "Runtime Report" heading with help text */
+    fromRuntimeReport?: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: "view-existing-reports"): void;
 }>();
 
 const { config, isConfigLoaded } = useConfig(true);
@@ -49,5 +59,22 @@ provide("invocationId", props.invocationId);
         :export-link="exportUrl"
         :download-endpoint="exportUrl"
         direct-download-link
-        @onEdit="onEdit" />
+        @onEdit="onEdit">
+        <template v-if="props.fromRuntimeReport" v-slot:heading>
+            Runtime Report
+            <HelpText uri="galaxy.invocations.reports.runtimeReport" info-icon />
+        </template>
+
+        <template v-if="props.fromRuntimeReport" v-slot:extra-actions>
+            <GButton
+                tooltip
+                title="Click to view existing/edited report for this workflow invocation"
+                outline
+                color="blue"
+                @click="emit('view-existing-reports')">
+                View Existing Reports
+                <FontAwesomeIcon :icon="faFileContract" />
+            </GButton>
+        </template>
+    </Markdown>
 </template>

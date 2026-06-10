@@ -64,7 +64,7 @@ const showPermissions = ref(false);
 onMounted(async () => {
     store.mode = editorMode.value;
     if (props.historyId) {
-        store.historyId = props.historyId;
+        store.setCurrentContext(props.historyId);
     }
     await store.loadPage(props.pageId);
 });
