@@ -81,6 +81,19 @@ class TestConvertMemoryToMib:
             ("1.5Gi", 1536),  # decimal GiB
             ("256Mi", 256),  # small MiB value
             ("4Gi", 4096),  # larger GiB value
+            # Decimal units (KB/MB/GB use powers of 1000, converted to MiB)
+            ("1gb", 953),  # 1 GB -> MiB (10^9 / 1024^2)
+            ("4gb", 3814),  # larger GB value
+            ("2g", 1907),  # GB short form
+            ("1000mb", 953),  # 1000 MB == 1 GB == 953 MiB (consistency check)
+            ("1024mb", 976),  # MB -> MiB
+            ("1000m", 953),  # MB short form
+            ("1048576kb", 1000),  # KB -> MiB
+            # Binary KiB
+            ("1024kib", 1),  # KiB -> MiB (value / 1024)
+            ("2048ki", 2),  # KiB short form
+            # Unknown unit falls back to treating the value as MiB
+            ("5xyz", 5),
         ],
     )
     def test_convert_memory_to_mib(self, input_value, expected):
