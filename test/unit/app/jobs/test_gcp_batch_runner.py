@@ -1,7 +1,15 @@
 """Unit tests for Google Cloud Batch job runner utility methods."""
 
+from types import SimpleNamespace
+from typing import (
+    Any,
+    cast,
+)
+
 import pytest
 
+from galaxy.jobs.runners import RunnerParams
+from galaxy.jobs.runners.gcp_batch import GoogleCloudBatchJobRunner
 from galaxy.jobs.runners.util.gcp_batch import (
     convert_cpu_to_milli,
     convert_duration_to_seconds,
@@ -320,3 +328,32 @@ class TestResolveMaxRunDuration:
             resource_params={"walltime": ""},
         )
         assert result == "7200s"
+
+
+def _sleep_runner(runner_params, job_runner_monitor_sleep=1.0):
+    """A runner instance with __init__ skipped, for exercising monitor_sleep_time."""
+    runner = object.__new__(GoogleCloudBatchJobRunner)
+    runner.runner_params = runner_params
+    config = SimpleNamespace(job_runner_monitor_sleep=job_runner_monitor_sleep)
+    runner.app = cast(Any, SimpleNamespace(config=config))
+    return runner
+
+
+class TestMonitorSleepTime:
+    """The runner throttles its monitor loop to the configured polling_interval so
+    the base loop does not poll the GCP Batch API more often than necessary."""
+
+    def test_uses_polling_interval_over_default_monitor_sleep(self):
+        runner = _sleep_runner({"polling_interval": 30}, job_runner_monitor_sleep=1.0)
+        assert runner.monitor_sleep_time == 30
+
+    def test_respects_larger_monitor_sleep(self):
+        # max(global, polling_interval): a larger global sleep wins.
+        runner = _sleep_runner({"polling_interval": 30}, job_runner_monitor_sleep=60)
+        assert runner.monitor_sleep_time == 60
+
+    def test_interval_default_resolves_via_spec(self):
+        # polling_interval unset -> must fall back to the spec default (30) through
+        # ParamsWithSpecs.__missing__; .get() would yield None and raise in max().
+        runner = _sleep_runner(RunnerParams(specs={"polling_interval": dict(map=int, default=30)}, params={}))
+        assert runner.monitor_sleep_time == 30
