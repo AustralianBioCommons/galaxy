@@ -14,6 +14,7 @@ export const useChatStore = defineStore("chatStore", () => {
     const cachedActiveChatId = useUserLocalStorage<string>("active-chat-id", "");
     const chatHistory = ref<ChatHistoryItem[]>([]);
     const loading = ref(false);
+    const newChatRequestCount = ref(0);
 
     const isRightPanelOpen = computed(() => chatLocation.value === "right" && chatVisible.value);
     const isBottomPanelOpen = computed(() => chatLocation.value === "bottom" && chatVisible.value);
@@ -118,6 +119,14 @@ export const useChatStore = defineStore("chatStore", () => {
         }
     }
 
+    /** Ask chat surfaces to reset to a fresh conversation. A counter bump rather than
+     * an id change, so the reset also fires for an unsaved conversation whose identity
+     * (activeChatId / route param) wouldn't change. */
+    function requestNewChat() {
+        setActiveChatId(null);
+        newChatRequestCount.value++;
+    }
+
     /** Returns the active chat id, falling back to the most recent history item, or null. */
     function resolveDockChatId(): string | null {
         return activeChatId.value ?? chatHistory.value[0]?.id ?? null;
@@ -144,6 +153,8 @@ export const useChatStore = defineStore("chatStore", () => {
         hideChat,
         loadHistory,
         loading,
+        newChatRequestCount,
+        requestNewChat,
         toggleChat,
         setLocation,
         setActiveChatId,

@@ -138,6 +138,10 @@ const selectedAgentType = ref("auto");
 const currentChatId = ref<string | null>(null);
 const hasLoadedInitialChat = ref(false);
 
+// Bumped whenever the displayed conversation changes so that responses still in
+// flight for a previous conversation can be recognized as stale and dropped.
+let conversationGeneration = 0;
+
 const { renderMarkdown } = useMarkdown({ openLinksInNewPage: true, removeNewlinesAfterList: true });
 const { processingAction, handleAction } = useAgentActions();
 
@@ -220,6 +224,14 @@ watch(
     },
 );
 
+// A "new chat" request must work even when the conversation identity wouldn't
+// change (an unsaved conversation has no exchange id), so it arrives as a counter
+// bump rather than through the exchangeId prop.
+watch(
+    () => chatStore.newChatRequestCount,
+    () => startNewChat(),
+);
+
 function showWelcome() {
     messages.value.push({
         id: generateId(),
@@ -256,6 +268,10 @@ async function submitQuery() {
     scrollToBottom(chatContainer.value);
 
     busy.value = true;
+    const generation = conversationGeneration;
+    // False once the conversation changes while we're waiting (e.g. the user
+    // started a new chat) — stale responses must not touch the current one.
+    const stillCurrent = () => generation === conversationGeneration;
 
     try {
         const parsed = parseMentions(currentQuery);
@@ -275,6 +291,10 @@ async function submitQuery() {
                 entity_context: entityContext,
             },
         });
+
+        if (!stillCurrent()) {
+            return;
+        }
 
         if (error) {
             const errorText = errorMessageAsString(error, "Failed to get response from GalaxyAI.");
@@ -319,23 +339,29 @@ async function submitQuery() {
         }
     } catch (e) {
         console.error("Unexpected chat error:", e);
-        const errorMsg: ChatMessage = {
-            id: generateId(),
-            role: "assistant",
-            content: "Unexpected error occurred. Please try again.",
-            timestamp: new Date(),
-            agentType: selectedAgentType.value,
-            confidence: "low",
-            feedback: null,
-        };
-        messages.value.push(errorMsg);
+        if (stillCurrent()) {
+            const errorMsg: ChatMessage = {
+                id: generateId(),
+                role: "assistant",
+                content: "Unexpected error occurred. Please try again.",
+                timestamp: new Date(),
+                agentType: selectedAgentType.value,
+                confidence: "low",
+                feedback: null,
+            };
+            messages.value.push(errorMsg);
 
-        await nextTick();
-        scrollToBottom(chatContainer.value);
+            await nextTick();
+            scrollToBottom(chatContainer.value);
+        }
     } finally {
-        busy.value = false;
-        await nextTick();
-        scrollToBottom(chatContainer.value);
+        // Only clear the busy indicator if it still belongs to this request — the
+        // current conversation may have its own request in flight by now.
+        if (stillCurrent()) {
+            busy.value = false;
+            await nextTick();
+            scrollToBottom(chatContainer.value);
+        }
     }
 }
 
@@ -380,11 +406,19 @@ async function fetchConversation(exchangeId: string) {
         return;
     }
 
+    const generation = ++conversationGeneration;
+
     const { data: fullConversation, error } = await GalaxyApi().GET(`/api/chat/exchange/{exchange_id}/messages`, {
         params: {
             path: { exchange_id: exchangeId },
         },
     });
+
+    if (generation !== conversationGeneration) {
+        // A newer conversation was loaded (or a new chat started) while this one
+        // was being fetched — don't overwrite it.
+        return;
+    }
 
     if (error) {
         Toast.error(errorMessageAsString(error, "Failed to load conversation."), "Error loading conversation");
@@ -444,7 +478,9 @@ async function loadLatestChat() {
 }
 
 function startNewChat() {
+    conversationGeneration++;
     hasLoadedInitialChat.value = true;
+    busy.value = false;
     messages.value = [
         {
             id: generateId(),
