@@ -269,7 +269,10 @@ class GoogleCloudBatchJobRunner(AsynchronousJobRunner):
             "service_account_email",
             "job_id_prefix",
         ]:
-            params[key] = job_destination.params.get(key, self.runner_params.get(key))
+            # Subscript access on runner_params (a defaultdict) so unset keys fall
+            # back to the spec defaults defined in runner_param_specs; .get() would
+            # bypass __missing__ and yield None instead of the configured default.
+            params[key] = job_destination.params.get(key, self.runner_params[key])
 
         log.debug("Finished _get_job_params")
         return params
