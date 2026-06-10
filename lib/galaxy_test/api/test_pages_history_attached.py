@@ -313,6 +313,7 @@ steps:
             )
             invocation_id = summary.invocation_id
             self._put(f"histories/{history_id}/publish", json=True)
+            self._put(f"workflows/{summary.workflow_id}/publish", json=True)
             with self._different_user():
                 payload = {"invocation_id": invocation_id, "title": "Shared Invocation Page"}
                 create_response = self._post("pages", payload, json=True)
