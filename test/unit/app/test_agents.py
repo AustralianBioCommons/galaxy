@@ -46,6 +46,7 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
 )
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from galaxy.agents import (
@@ -157,6 +158,57 @@ class TestAgentUnitMocked:
         # Test custom default value
         assert router_agent._get_agent_config("temperature", 0.5) == 0.5
         assert router_agent._get_agent_config("max_tokens", 1500) == 1500
+
+    def test_get_retries_resolution(self):
+        # Unset -> builtin default (bumped above pydantic-ai's default of 1).
+        self.mock_config.inference_services = None
+        router = QueryRouterAgent(self.deps)
+        assert router._get_retries() == agents_base.BaseGalaxyAgent.DEFAULT_AGENT_RETRIES == 3
+        # A caller-supplied default wins over the builtin when the key is unset
+        # (custom_tool's producer relies on this to keep its reflection-loop 0).
+        assert router._get_retries(default=0) == 0
+
+        # default entry applies to every agent; a per-agent entry overrides it.
+        # String values from YAML are coerced to int.
+        self.mock_config.inference_services = {
+            "default": {"retries": "4"},
+            "router": {"retries": 2},
+        }
+        assert QueryRouterAgent(self.deps)._get_retries() == 2
+        error_retries = ErrorAnalysisAgent(self.deps)._get_retries()
+        assert error_retries == 4 and isinstance(error_retries, int)
+
+    def test_configured_retries_wired_into_agent(self):
+        # The configured budget reaches the constructed pydantic-ai Agent
+        # (both tool and output budgets, via Agent(retries=N)).
+        self.mock_config.inference_services = {"default": {"retries": 4}}
+        router = QueryRouterAgent(self.deps)
+        assert router.agent._max_output_retries == 4
+        assert router.agent._max_tool_retries == 4
+
+        # custom_tool's producer keeps its reflection-loop default of 0 when unconfigured.
+        self.mock_config.inference_services = None
+        producer = CustomToolAgent(self.deps)
+        assert producer.agent._max_output_retries == 0
+
+    @pytest.mark.asyncio
+    async def test_router_falls_back_on_output_retry_exhaustion(self):
+        # When the model never produces a valid structured output, pydantic-ai
+        # raises UnexpectedModelBehavior after exhausting the output-retry budget.
+        # The router must degrade to its graceful fallback rather than propagate.
+        self.mock_config.inference_services = None
+        router = QueryRouterAgent(self.deps)
+
+        # Empty response (not text): str is in the router's output_type union, so
+        # any text would succeed via the str branch and never trigger a retry.
+        def empty_response(messages, info):
+            return ModelResponse(parts=[])
+
+        with router.agent.override(model=FunctionModel(empty_response)):
+            response = await router.process("Summarize my history")
+
+        assert isinstance(response, AgentResponse)
+        assert "unavailable" in response.content.lower()
 
     @pytest.mark.asyncio
     async def test_custom_tool_agent_structured_output(self):

@@ -27,6 +27,7 @@ from pydantic import ValidationError
 from pydantic_ai import (
     Agent,
     RunContext,
+    UnexpectedModelBehavior,
 )
 
 from galaxy.agents.operations import AgentOperationsManager
@@ -65,6 +66,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         error_handoff = self._create_error_analysis_handoff()
@@ -91,6 +93,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 str,  # Default: answer directly
             ],
             system_prompt=self.get_system_prompt(),
+            retries=self._get_retries(),
         )
 
         self._register_fast_path_tools(agent)
@@ -578,7 +581,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 query=query,
             )
 
-        except (OSError, ValueError) as e:
+        except (UnexpectedModelBehavior, OSError, ValueError) as e:
             log.warning(f"Router agent error, using fallback: {e}")
             return self._handle_fallback(query, context, str(e))
 

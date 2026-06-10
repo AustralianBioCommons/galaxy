@@ -1,21 +1,21 @@
 # Galaxy is configured by default to be usable in a single-user development
 # environment.  To tune the application for a multi-user production
 # environment, see the documentation at:
-#
+# 
 #  https://docs.galaxyproject.org/en/master/admin/production.html
-#
+# 
 # Throughout this sample configuration file, except where stated otherwise,
 # uncommented values override the default if left unset, whereas commented
 # values are set to the default value.  Relative paths are relative to the root
 # Galaxy directory.
-#
+# 
 # Examples of many of these options are explained in more detail in the Galaxy
 # Community Hub.
-#
+# 
 #   https://galaxyproject.org/admin/config
-#
+# 
 # Config hackers are encouraged to check there before asking for help.
-#
+# 
 # Configuration for Gravity process manager.
 # ``uwsgi:`` section will be ignored if Galaxy is started via Gravity commands (e.g ``./run.sh``, ``galaxy`` or ``galaxyctl``).
 gravity:
@@ -3067,7 +3067,7 @@ galaxy:
 
   # Configuration for AI inference services used by agents and
   # visualization plugins. Supports per-agent or per-plugin model,
-  # temperature, max_tokens, api_key, api_base_url, and enabled
+  # temperature, max_tokens, retries, api_key, api_base_url, and enabled
   # settings. Valid keys include agent types (e.g. router,
   # error_analysis) and plugin names (e.g. jupyterlite). Agents and
   # plugins inherit from 'default' configuration, which itself falls
@@ -3080,7 +3080,12 @@ galaxy:
   # test/integration/static_agents.yml } Per-agent or default-block
   # ``structured_output_override: true|false`` beats the model
   # capability table -- see ``agent_model_capabilities_file`` for the
-  # table's location and contents.
+  # table's location and contents. Per-agent or default-block
+  # ``retries`` sets the pydantic-ai retry budget (tool calls and output
+  # validation); it defaults to 3. Raise it if a model intermittently
+  # fails to produce conforming output ("Exceeded maximum output
+  # retries"); custom_tool's producer defaults to 0 since it runs its
+  # own reflection loop.
   #inference_services: null
 
   # YAML file with capability hints for agent inference models. Maps
@@ -3365,3 +3370,4 @@ galaxy:
   # Enable beta tool formats (yaml, cwl, ...) which is a prerequisite
   # for user defined tools.
   #enable_beta_tool_formats: false
+

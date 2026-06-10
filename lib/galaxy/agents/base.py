@@ -377,6 +377,11 @@ class BaseGalaxyAgent(ABC):
     # backend we currently support (smallest is Qwen3-32B at 32k context).
     DEFAULT_MAX_TOKENS = 8192
 
+    # Retry budget passed to Agent(retries=...) (tool calls and output validation).
+    # pydantic-ai defaults to 1; 3 gives a flaky model a couple more chances to
+    # produce conforming output before the run fails.
+    DEFAULT_AGENT_RETRIES = 3
+
     def __init__(self, deps: GalaxyAgentDependencies):
         self.deps = deps
 
@@ -856,6 +861,14 @@ class BaseGalaxyAgent(ABC):
     def _get_max_tokens(self) -> int:
         return self._get_agent_config("max_tokens", self.DEFAULT_MAX_TOKENS)
 
+    def _get_retries(self, default: Optional[int] = None) -> int:
+        """Retry budget for the agent's pydantic-ai ``Agent(retries=...)``.
+
+        ``default`` lets a caller override the builtin (e.g. custom_tool's producer
+        keeps 0 so its own reflection loop owns the retry).
+        """
+        return int(self._get_agent_config("retries", self.DEFAULT_AGENT_RETRIES if default is None else default))
+
     async def _call_agent_from_tool(
         self,
         agent_type: str,
@@ -906,6 +919,7 @@ class SimpleGalaxyAgent(BaseGalaxyAgent):
             self._get_model(),
             deps_type=GalaxyAgentDependencies,
             system_prompt=self.get_system_prompt(),
+            retries=self._get_retries(),
         )
 
     def _format_response(self, result: Any, query: str, context: dict[str, Any]) -> AgentResponse:

@@ -78,12 +78,14 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
                 deps_type=GalaxyAgentDependencies,
                 output_type=SimplifiedToolRecommendationResult,
                 system_prompt=self.get_system_prompt(),
+                retries=self._get_retries(),
             )
         else:
             agent = Agent(
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         @agent.tool
