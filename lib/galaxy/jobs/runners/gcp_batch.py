@@ -43,6 +43,56 @@ log = logging.getLogger(__name__)
 __all__ = ("GoogleCloudBatchJobRunner",)
 
 
+# Runner parameter specifications. The defaults defined here are served lazily by
+# the ParamsWithSpecs defaultdict via __missing__, which is only triggered by
+# subscript access (runner_params[key]) -- not by .get(). See _get_job_params.
+RUNNER_PARAM_SPECS: dict[str, dict[str, Any]] = {
+    "project_id": dict(map=str, default=None),
+    "region": dict(map=str, default="us-central1"),
+    "zone": dict(map=str, default=None),
+    "service_account_file": dict(map=str, default=None),
+    "service_account_email": dict(map=str, default=None),
+    "machine_type": dict(map=str, default="n2-standard-4"),
+    "boot_disk_size_gb": dict(map=int, default=100),
+    "boot_disk_type": dict(map=str, default="pd-standard"),
+    "max_retry_count": dict(map=int, default=3),
+    "max_run_duration": dict(map=str, default=DEFAULT_MAX_RUN_DURATION),
+    "polling_interval": dict(map=int, default=30),
+    # Volume configuration (generic format: "server:/remote_path:/mount_path[:ro],...")
+    "gcp_batch_volumes": dict(map=str, default=None),
+    # Extra docker volume mounts (format: "/host/path:/container/path[:ro],...")
+    "docker_extra_volumes": dict(map=str, default=None),
+    # Network configuration for NFS access
+    "network": dict(map=str, default="default"),
+    "subnet": dict(map=str, default="default"),
+    # Compute resource configuration (defaults - will be overridden by job requirements)
+    "vcpu": dict(map=float, default=1.0),
+    "memory_mib": dict(map=int, default=DEFAULT_MEMORY_MIB),
+    # Job-specific resource requests (same as Kubernetes runner)
+    "requests_cpu": dict(map=str, default=None),
+    "requests_memory": dict(map=str, default=None),
+    "limits_cpu": dict(map=str, default=None),
+    "limits_memory": dict(map=str, default=None),
+    # Container execution settings
+    "use_container": dict(map=bool, default=True),
+    "galaxy_user_id": dict(
+        map=str, valid=lambda s: s == "$uid" or isinstance(s, int) or not s or str(s).isdigit(), default=None
+    ),
+    "galaxy_group_id": dict(
+        map=str, valid=lambda s: s == "$gid" or isinstance(s, int) or not s or str(s).isdigit(), default=None
+    ),
+    # Custom VM image (optional)
+    "custom_vm_image": dict(map=str, default=None),
+    # Job cleanup: if true, delete GCP Batch jobs after Galaxy marks them complete
+    "delete_completed_jobs": dict(map=bool, default=True),
+    # Prefix for GCP Batch job IDs (helps identify which Galaxy server submitted a job)
+    "job_id_prefix": dict(map=str, default="galaxy-job"),
+    # Object store fallback (for future use)
+    "use_object_store": dict(map=bool, default=False),
+    "object_store_path": dict(map=str, default=None),
+}
+
+
 class GoogleCloudBatchJobRunner(AsynchronousJobRunner):
     """
     Job runner that submits jobs to Google Cloud Batch.
@@ -54,54 +104,7 @@ class GoogleCloudBatchJobRunner(AsynchronousJobRunner):
         """Initialize the Google Cloud Batch job runner."""
         log.debug("Starting GoogleCloudBatchJobRunner.__init__")
 
-        # Define runner parameter specifications
-        runner_param_specs = {
-            "project_id": dict(map=str, default=None),
-            "region": dict(map=str, default="us-central1"),
-            "zone": dict(map=str, default=None),
-            "service_account_file": dict(map=str, default=None),
-            "service_account_email": dict(map=str, default=None),
-            "machine_type": dict(map=str, default="n2-standard-4"),
-            "boot_disk_size_gb": dict(map=int, default=100),
-            "boot_disk_type": dict(map=str, default="pd-standard"),
-            "max_retry_count": dict(map=int, default=3),
-            "max_run_duration": dict(map=str, default=DEFAULT_MAX_RUN_DURATION),
-            "polling_interval": dict(map=int, default=30),
-            # Volume configuration (generic format: "server:/remote_path:/mount_path[:ro],...")
-            "gcp_batch_volumes": dict(map=str, default=None),
-            # Extra docker volume mounts (format: "/host/path:/container/path[:ro],...")
-            "docker_extra_volumes": dict(map=str, default=None),
-            # Network configuration for NFS access
-            "network": dict(map=str, default="default"),
-            "subnet": dict(map=str, default="default"),
-            # Compute resource configuration (defaults - will be overridden by job requirements)
-            "vcpu": dict(map=float, default=1.0),
-            "memory_mib": dict(map=int, default=DEFAULT_MEMORY_MIB),
-            # Job-specific resource requests (same as Kubernetes runner)
-            "requests_cpu": dict(map=str, default=None),
-            "requests_memory": dict(map=str, default=None),
-            "limits_cpu": dict(map=str, default=None),
-            "limits_memory": dict(map=str, default=None),
-            # Container execution settings
-            "use_container": dict(map=bool, default=True),
-            "galaxy_user_id": dict(
-                map=str, valid=lambda s: s == "$uid" or isinstance(s, int) or not s or str(s).isdigit(), default=None
-            ),
-            "galaxy_group_id": dict(
-                map=str, valid=lambda s: s == "$gid" or isinstance(s, int) or not s or str(s).isdigit(), default=None
-            ),
-            # Custom VM image (optional)
-            "custom_vm_image": dict(map=str, default=None),
-            # Job cleanup: if true, delete GCP Batch jobs after Galaxy marks them complete
-            "delete_completed_jobs": dict(map=bool, default=True),
-            # Prefix for GCP Batch job IDs (helps identify which Galaxy server submitted a job)
-            "job_id_prefix": dict(map=str, default="galaxy-job"),
-            # Object store fallback (for future use)
-            "use_object_store": dict(map=bool, default=False),
-            "object_store_path": dict(map=str, default=None),
-        }
-
-        kwargs.update({"runner_param_specs": runner_param_specs})
+        kwargs.update({"runner_param_specs": RUNNER_PARAM_SPECS})
         super().__init__(app, nworkers, **kwargs)
 
         # Initialize Google Cloud Batch client
