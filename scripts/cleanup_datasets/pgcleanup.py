@@ -289,7 +289,6 @@ class RemovesObjects:
         for object_to_remove in sorted(self.objects_to_remove):
             self.remove_object(object_to_remove)
         self.objects_to_remove.clear()
-        self.objects_to_remove.clear()
 
     def remove_from_object_store(self, object_to_remove, object_store_kwargs, entire_dir=False, check_exists=False):
         # only remove the "object store path" - if it's at an external_filename, that file will be untouched anyway
