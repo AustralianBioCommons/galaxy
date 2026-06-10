@@ -18,12 +18,19 @@ const props = defineProps<{
     invocationId?: string;
     pageId?: string;
     displayOnly?: boolean;
+    emitsActions?: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: "edit-page", pageId: string): void;
+    (e: "go-back"): void;
+    (e: "view-page", pageId: string): void;
 }>();
 
 const router = useRouter();
 const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
-const labels = PAGE_LABELS.history;
+const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
 
 const markdownConfig = computed(() => {
     if (!store.currentPage) {
@@ -32,7 +39,7 @@ const markdownConfig = computed(() => {
     const content = props.displayOnly ? (store.currentPage.content ?? store.currentContent) : store.currentContent;
     return {
         id: store.currentPage.id,
-        title: store.currentTitle || labels.defaultTitle,
+        title: store.currentTitle || labels.value.defaultTitle,
         content,
         model_class: "Page",
         update_time: store.currentPage.update_time,
@@ -75,34 +82,54 @@ watch(
 
 function handleSelect(pageId: string) {
     const page = store.pages.find((n) => n.id === pageId);
-    const pageTitle = page?.title || labels.entityName;
+    const pageTitle = page?.title || labels.value.entityName;
+    if (props.emitsActions) {
+        emit("edit-page", pageId);
+        return;
+    }
     const inlineUrl = `/histories/${props.historyId}/pages/${pageId}`;
     pushToFrameOrPage({
         framedUrl: `${inlineUrl}?displayOnly=true`,
         inlineUrl,
-        title: `${labels.entityName}: ${pageTitle}`,
+        title: `${labels.value.entityName}: ${pageTitle}`,
     });
 }
 
 async function handleCreate() {
-    const page = await store.createPage({ title: labels.defaultTitle });
+    const page = await store.createPage({ title: labels.value.defaultTitle });
     if (page) {
+        if (props.emitsActions) {
+            emit("edit-page", page.id);
+            return;
+        }
         router.push(`/histories/${props.historyId}/pages/${page.id}`);
     }
 }
 
 function handleView(pageId: string) {
+    if (props.emitsActions) {
+        emit("view-page", pageId);
+        return;
+    }
     router.push(`/histories/${props.historyId}/pages/${pageId}?displayOnly=true`);
 }
 
 function handleEdit() {
     if (props.pageId) {
+        if (props.emitsActions) {
+            emit("edit-page", props.pageId);
+            return;
+        }
         router.push(`/histories/${props.historyId}/pages/${props.pageId}`);
     }
 }
 
 function handleBack() {
     store.clearCurrentPage();
+    if (props.emitsActions) {
+        emit("go-back");
+        return;
+    }
     router.push(`/histories/${props.historyId}/pages`);
 }
 </script>
@@ -129,7 +156,12 @@ function handleBack() {
         </BAlert>
 
         <template v-else-if="!pageId">
-            <HistoryPageList :pages="store.pages" @select="handleSelect" @view="handleView" @create="handleCreate" />
+            <HistoryPageList
+                :invocation-id="props.invocationId"
+                :pages="store.pages"
+                @select="handleSelect"
+                @view="handleView"
+                @create="handleCreate" />
         </template>
 
         <!-- Display-only mode: rendered view -->
@@ -161,7 +193,14 @@ function handleBack() {
 
         <!-- Edit mode: delegate to unified PageEditorView -->
         <template v-else-if="pageId && !displayOnly">
-            <PageEditorView :page-id="pageId" :history-id="historyId" />
+            <PageEditorView
+                :emits-actions="props.emitsActions"
+                :page-id="pageId"
+                :history-id="historyId"
+                :invocation-id="invocationId"
+                @edit-page="handleEdit"
+                @go-back="handleBack"
+                @view-page="handleView" />
         </template>
 
         <BAlert v-else-if="store.isLoadingPage" variant="info" show>

@@ -2,12 +2,14 @@
 import { faChevronRight, faEye, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BButton } from "bootstrap-vue";
+import { computed } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
 import { PAGE_LABELS } from "@/components/Page/constants";
 
-defineProps<{
+const props = defineProps<{
     pages: HistoryPageSummary[];
+    invocationId?: string;
 }>();
 
 defineEmits<{
@@ -16,10 +18,10 @@ defineEmits<{
     (e: "create"): void;
 }>();
 
-const labels = PAGE_LABELS.history;
+const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
 
 function getPageTitle(page: HistoryPageSummary): string {
-    return page.title || labels.defaultTitle;
+    return page.title || labels.value.defaultTitle;
 }
 
 function formatDate(dateStr: string): string {

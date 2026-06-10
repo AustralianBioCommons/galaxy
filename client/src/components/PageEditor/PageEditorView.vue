@@ -22,7 +22,15 @@ import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 const props = defineProps<{
     pageId: string;
     historyId?: string;
+    invocationId?: string;
     displayOnly?: boolean;
+    emitsActions?: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: "edit-page"): void;
+    (e: "go-back"): void;
+    (e: "view-page", id: string): void;
 }>();
 
 const router = useRouter();
@@ -30,7 +38,9 @@ const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
 const historyStore = useHistoryStore();
 
-const editorMode = computed<PageEditorMode>(() => (props.historyId ? "history" : "standalone"));
+const editorMode = computed<PageEditorMode>(() =>
+    props.invocationId ? "invocation" : props.historyId ? "history" : "standalone",
+);
 const isStandalone = computed(() => editorMode.value === "standalone");
 
 const labels = computed(() => PAGE_LABELS[editorMode.value]);
@@ -89,6 +99,10 @@ watch(
 
 function handleBack() {
     store.clearCurrentPage();
+    if (props.emitsActions) {
+        emit("go-back");
+        return;
+    }
     if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages`);
     } else {
@@ -97,6 +111,10 @@ function handleBack() {
 }
 
 function handlePreview() {
+    if (props.emitsActions) {
+        emit("view-page", props.pageId);
+        return;
+    }
     if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages/${props.pageId}?displayOnly=true`);
     } else {
@@ -111,6 +129,10 @@ function handlePreview() {
 }
 
 function handleEdit() {
+    if (props.emitsActions) {
+        emit("edit-page");
+        return;
+    }
     if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages/${props.pageId}`);
     } else {
@@ -124,6 +146,10 @@ async function handleSave() {
 
 async function handleSaveAndView() {
     await store.savePage();
+    if (props.emitsActions) {
+        emit("view-page", props.pageId);
+        return;
+    }
     if (store.currentPage) {
         const Galaxy = getGalaxyInstance();
         const isWmActive = Galaxy?.frame?.active;

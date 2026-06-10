@@ -54,7 +54,7 @@ export const PAGE_LABELS: Record<
         entityName: "Invocation Report",
         entityNamePlural: "Invocation Reports",
         defaultTitle: "Untitled Invocation Report",
-        editorBackLabel: "This Invocation's Report",
+        editorBackLabel: "This Invocation's Reports",
         newButton: "New Invocation Report",
         emptyStateTitle: "No invocation reports yet",
         emptyStateDescription:

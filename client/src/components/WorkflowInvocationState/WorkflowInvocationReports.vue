@@ -15,6 +15,21 @@ const props = defineProps<{
  * - `editedReport` shows a specific edited report when selected from the list
  */
 const currentView = ref<"fromTemplate" | "editedReports" | "editedReport">("fromTemplate");
+
+const currentEditedReportId = ref<string | null>(null);
+const displayOnly = ref(false);
+
+function editOrViewPage(pageId: string, displayOnlyValue: boolean) {
+    currentView.value = "editedReport";
+    currentEditedReportId.value = pageId;
+    displayOnly.value = displayOnlyValue;
+}
+
+function goBackFromEditedReport() {
+    currentView.value = "editedReports";
+    currentEditedReportId.value = null;
+    displayOnly.value = false;
+}
 </script>
 
 <template>
@@ -24,11 +39,23 @@ const currentView = ref<"fromTemplate" | "editedReports" | "editedReport">("from
         from-runtime-report
         @view-existing-reports="currentView = 'editedReports'" />
     <div v-else-if="currentView === 'editedReports'">
-        <!-- TODO: For now, no way to route back -->
-        <HistoryPageView :history-id="props.historyId" :invocation-id="props.invocationId" />
+        <HistoryPageView
+            :history-id="props.historyId"
+            :invocation-id="props.invocationId"
+            emits-actions
+            @edit-page="(pageId) => editOrViewPage(pageId, false)"
+            @go-back="currentView = 'fromTemplate'"
+            @view-page="(pageId) => editOrViewPage(pageId, true)" />
     </div>
     <div v-else-if="currentView === 'editedReport'">
-        <!-- TODO: Placeholder for a specific edited report -->
-        <p>Specific edited report goes here.</p>
+        <HistoryPageView
+            :history-id="props.historyId"
+            :invocation-id="props.invocationId"
+            :page-id="currentEditedReportId || undefined"
+            :display-only="displayOnly"
+            emits-actions
+            @edit-page="(pageId) => editOrViewPage(pageId, false)"
+            @go-back="goBackFromEditedReport"
+            @view-page="(pageId) => editOrViewPage(pageId, true)" />
     </div>
 </template>

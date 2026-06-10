@@ -148,7 +148,7 @@ onMounted(() => {
                         {{ obj.line }}
                     </div>
                 </b-alert>
-                <div v-for="(obj, index) in markdownObjects" :key="index" class="markdown-component py-2">
+                <div v-for="(obj, index) in markdownObjects" :key="index" class="markdown-component">
                     <SectionWrapper :name="obj.name" :content="obj.content" />
                 </div>
                 <div class="markdown-scroll-overlay" />
