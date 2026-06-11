@@ -62,6 +62,7 @@ from galaxy.agents.base import truncate_message_history
 from galaxy.agents.custom_tool import CritiqueReport
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.tools import SimplifiedToolRecommendationResult
+from galaxy.managers.agents import AgentService
 
 agent_registry = build_default_registry()
 from galaxy.agents import base as agents_base
@@ -90,6 +91,7 @@ from galaxy.util.unittest_utils import pytestmark_live_llm
 class TestAgentUnitMocked:
     def setup_method(self):
         self.mock_config = mock.Mock()
+        self.mock_job_manager = mock.Mock()
         self.mock_config.ai_api_key = "test-key"
         self.mock_config.ai_model = "llama-4-scout"
         self.mock_config.ai_api_base_url = "http://localhost:4000/v1/"
@@ -1262,6 +1264,58 @@ class TestAgentUnitMocked:
         assert "#workflow/github.com/iwc-workflows/atac/main" in rendered
         assert "Steps: 12" in rendered
         assert "bowtie2" in rendered
+
+    @pytest.mark.asyncio
+    async def test_route_and_execute_uses_page_assistant_when_page_id_in_context(self):
+        """AgentService.route_and_execute bypasses the router and calls page_assistant
+        directly when 'page_id' is present in the context dict."""
+        service = AgentService(
+            config=self.mock_config,
+            job_manager=self.mock_job_manager,
+            registry=build_default_registry(),
+        )
+
+        sentinel = object()
+        with mock.patch.object(service, "execute_agent", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = sentinel
+            result = await service.route_and_execute(
+                "help me edit this page",
+                trans=self.mock_trans,
+                user=self.mock_user,
+                context={"page_id": 42, "page_content": "# My Page"},
+                agent_type="auto",
+            )
+
+        mock_exec.assert_awaited_once_with(
+            "page_assistant",
+            "help me edit this page",
+            self.mock_trans,
+            self.mock_user,
+            {"page_id": 42, "page_content": "# My Page"},
+        )
+        assert result is sentinel
+
+    @pytest.mark.asyncio
+    async def test_route_and_execute_falls_through_to_router_without_page_id(self):
+        """Without page_id in context, auto-routing goes to the router, not page_assistant."""
+        service = AgentService(
+            config=self.mock_config,
+            job_manager=self.mock_job_manager,
+            registry=build_default_registry(),
+        )
+
+        with mock.patch.object(service, "execute_agent", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = mock.Mock()
+            await service.route_and_execute(
+                "how do I run BWA?",
+                trans=self.mock_trans,
+                user=self.mock_user,
+                context={"interface_context": {"contextType": "notebook", "someId": "abc"}},
+                agent_type="auto",
+            )
+
+        mock_exec.assert_awaited_once()
+        assert mock_exec.call_args[0][0] == "router"
 
     @pytest.mark.asyncio
     async def test_tool_rec_search_iwc_workflows_uses_module_helper(self):
