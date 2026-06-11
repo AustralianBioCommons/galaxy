@@ -1066,4 +1066,62 @@ describe("usePageEditorStore", () => {
             expect(store.showRevisions).toBe(false);
         });
     });
+
+    describe("chatError", () => {
+        it("is null by default", () => {
+            const store = usePageEditorStore();
+            expect(store.chatError).toBeNull();
+        });
+
+        it("is reset to null on clearCurrentPage", () => {
+            const store = usePageEditorStore();
+            store.chatError = "some error";
+            store.clearCurrentPage();
+            expect(store.chatError).toBeNull();
+        });
+
+        it("is reset to null on $reset", () => {
+            const store = usePageEditorStore();
+            store.chatError = "some error";
+            store.$reset();
+            expect(store.chatError).toBeNull();
+        });
+    });
+
+    describe("chat exchange IDs", () => {
+        it("returns null for an unknown page", () => {
+            const store = usePageEditorStore();
+            expect(store.getCurrentChatExchangeId("page-1")).toBeNull();
+        });
+
+        it("stores and retrieves an exchange ID per page", () => {
+            const store = usePageEditorStore();
+            store.setCurrentChatExchangeId("page-1", "exchange-abc");
+            expect(store.getCurrentChatExchangeId("page-1")).toBe("exchange-abc");
+        });
+
+        it("isolates IDs across different pages", () => {
+            const store = usePageEditorStore();
+            store.setCurrentChatExchangeId("page-1", "ex-1");
+            store.setCurrentChatExchangeId("page-2", "ex-2");
+            expect(store.getCurrentChatExchangeId("page-1")).toBe("ex-1");
+            expect(store.getCurrentChatExchangeId("page-2")).toBe("ex-2");
+        });
+
+        it("clears a specific page ID without affecting others", () => {
+            const store = usePageEditorStore();
+            store.setCurrentChatExchangeId("page-1", "ex-1");
+            store.setCurrentChatExchangeId("page-2", "ex-2");
+            store.clearCurrentChatExchangeId("page-1");
+            expect(store.getCurrentChatExchangeId("page-1")).toBeNull();
+            expect(store.getCurrentChatExchangeId("page-2")).toBe("ex-2");
+        });
+
+        it("overrides an existing entry when set again", () => {
+            const store = usePageEditorStore();
+            store.setCurrentChatExchangeId("page-1", "ex-1");
+            store.setCurrentChatExchangeId("page-1", "ex-2");
+            expect(store.getCurrentChatExchangeId("page-1")).toBe("ex-2");
+        });
+    });
 });

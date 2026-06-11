@@ -195,5 +195,10 @@ describe("useActiveContext", () => {
             );
             expect(contextLabel.value).toBe("History Notebook: test-page-id");
         });
+
+        it("labels standalone page editor context without historyId", () => {
+            const { contextLabel } = withRoute("/pages/editor", { id: "test-page-id" }, {});
+            expect(contextLabel.value).toBe("Page: test-page-id");
+        });
     });
 });

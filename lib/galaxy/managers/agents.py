@@ -107,7 +107,10 @@ class AgentService:
         When agent_type is 'auto', the router agent handles the query directly,
         either answering it or using output functions to hand off to specialists.
         """
-        if agent_type == "auto":
+        if agent_type == "auto" and isinstance(context, dict) and context.get("page_id"):
+            log.info("Routing to page_assistant for notebook context")
+            return await self.execute_agent("page_assistant", query, trans, user, context)
+        elif agent_type == "auto":
             # Router handles everything via output functions:
             # - Answers general questions directly
             # - Hands off to error_analysis for debugging
