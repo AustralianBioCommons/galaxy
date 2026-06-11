@@ -717,6 +717,30 @@ steps:
             assert os.path.exists(output_dataset_paths[1])
             assert not os.path.exists(output_dataset_paths[0])
 
+    @skip_without_tool("conditional_name_digit_suffix")
+    def test_create_job_with_conditional_name_digit_suffix(self):
+        # Regression: expand_meta_parameters_async used to mangle conditional names ending
+        # in _N (e.g. "inner_options_1") by misidentifying them as repeat indices, causing
+        # Pydantic job-internal validation to fail with extra_forbidden / list_type errors.
+        with self.dataset_populator.test_history() as history_id:
+            response = self.dataset_populator.tool_request_raw(
+                tool_id="conditional_name_digit_suffix",
+                inputs={
+                    "outer": {
+                        "select": "a",
+                        "inner_options_1": {"mode": "by_index", "col": 1},
+                        "inner_options_2": {"mode": "by_name", "label": "foo"},
+                    }
+                },
+                history_id=history_id,
+            )
+            response.raise_for_status()
+            tool_request_id = response.json()["tool_request_id"]
+            submitted = self.dataset_populator.wait_on_tool_request(tool_request_id)
+            assert submitted, self.dataset_populator.get_tool_request(tool_request_id)
+            jobs = self.galaxy_interactor.jobs_for_tool_request(tool_request_id)
+            self.dataset_populator.wait_for_jobs(jobs, assert_ok=True)
+
     def _hack_to_skip_test_if_state_ok(self, job_state):
         if job_state().json()["state"] == "ok":
             message = "Job state switch from running to ok too quickly - the rest of the test requires the job to be in a running state. Skipping test."
