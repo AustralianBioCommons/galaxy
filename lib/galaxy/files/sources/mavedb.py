@@ -3,8 +3,6 @@ from typing import (
     Union,
 )
 
-from fsspec import AbstractFileSystem
-
 from galaxy.exceptions import (
     AuthenticationRequired,
     MessageException,
@@ -54,7 +52,7 @@ class MaveDBFilesSource(FsspecFilesSource[MaveDBFileSourceTemplateConfiguration,
         self,
         context: FilesSourceRuntimeContext[MaveDBFileSourceConfiguration],
         cache_options: CacheOptionsDictType,
-    ) -> AbstractFileSystem:
+    ) -> "MaveDBFileSystem":
         if MaveDBFileSystem is None:
             raise self.required_package_exception
 
@@ -86,6 +84,7 @@ class MaveDBFilesSource(FsspecFilesSource[MaveDBFileSourceTemplateConfiguration,
             cache_options = self._get_cache_options(context.config)
             fs = self._open_fs(context, cache_options)
             try:
+                # Use the MaveDB-specific API for server-side pagination and the total result count.
                 entries, total_count = fs.list_score_sets(
                     collection=collection,
                     limit=limit,
