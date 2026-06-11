@@ -84,6 +84,7 @@ from galaxy.agents.page_assistant import (
     FullReplacementEdit,
     SectionPatchEdit,
 )
+from galaxy.exceptions import ConfigurationError
 from galaxy.schema.agents import ConfidenceLevel
 from galaxy.tool_util_models import UserToolSource
 from galaxy.util.unittest_utils import pytestmark_live_llm
@@ -190,6 +191,37 @@ class TestAgentUnitMocked:
         self.mock_config.inference_services = None
         producer = CustomToolAgent(self.deps)
         assert producer.agent._max_output_retries == 0
+
+    def test_producer_retries_default_ignores_default_block(self):
+        # custom_tool's producer pins retries=0 so its own reflection loop owns
+        # the retry. A shared `default` block must NOT silently re-enable
+        # pydantic-ai retries there -- only an explicit per-agent entry may.
+        producer = CustomToolAgent(self.deps)
+
+        self.mock_config.inference_services = {"default": {"retries": 5}}
+        assert producer._get_retries(default=0) == 0
+        # The normal (critic) lookup still honors the default block.
+        assert producer._get_retries() == 5
+
+        # An explicit custom_tool entry still overrides the pinned builtin.
+        self.mock_config.inference_services = {"custom_tool": {"retries": 7}}
+        assert producer._get_retries(default=0) == 7
+
+    def test_invalid_retries_config_raises_configuration_error(self):
+        # Non-numeric, blank, or negative `retries` is operator misconfiguration;
+        # it must surface as a clear ConfigurationError rather than a bare
+        # TypeError/ValueError (which the manager mistakes for an unknown-agent
+        # fallback) or a silently-broken negative budget that fails every request.
+        router = QueryRouterAgent(self.deps)
+
+        for bad in ("three", None, -1):
+            self.mock_config.inference_services = {"default": {"retries": bad}}
+            with pytest.raises(ConfigurationError, match="retries"):
+                router._get_retries()
+
+        # 0 is valid (custom_tool's producer relies on it) and must not raise.
+        self.mock_config.inference_services = {"default": {"retries": 0}}
+        assert router._get_retries() == 0
 
     @pytest.mark.asyncio
     async def test_router_falls_back_on_output_retry_exhaustion(self):

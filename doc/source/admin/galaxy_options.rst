@@ -5688,8 +5688,10 @@
     ``retries`` sets the pydantic-ai retry budget (tool calls and
     output validation); it defaults to 3. Raise it if a model
     intermittently fails to produce conforming output ("Exceeded
-    maximum output retries"); custom_tool's producer defaults to 0
-    since it runs its own reflection loop.
+    maximum output retries"). custom_tool's producer keeps a budget of
+    0 because it runs its own reflection loop; a shared ``default``
+    block does not change that -- set ``custom_tool.retries``
+    explicitly to override it.
 :Default: ``None``
 :Type: any
 
