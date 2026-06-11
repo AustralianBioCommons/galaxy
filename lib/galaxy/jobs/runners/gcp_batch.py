@@ -136,6 +136,18 @@ class GoogleCloudBatchJobRunner(AsynchronousJobRunner):
 
         log.info("Google Cloud Batch client initialized successfully")
 
+    @property
+    def monitor_sleep_time(self):
+        """Throttle the monitor loop so it polls the GCP Batch API no more often
+        than the configured ``polling_interval``.
+
+        The base ``AsynchronousJobRunner.monitor()`` loop sleeps this long between
+        sweeps; each runner has its own monitor thread, so this only affects the
+        GCP Batch runner. Item access (not ``.get()``) is used so the spec default
+        of 30 resolves through ``ParamsWithSpecs.__missing__``.
+        """
+        return max(self.app.config.job_runner_monitor_sleep, int(self.runner_params["polling_interval"]))
+
     def queue_job(self, job_wrapper):
         """Queue a job for execution on Google Cloud Batch."""
         log.debug("Starting queue_job for Galaxy job %s", job_wrapper.get_id_tag())
