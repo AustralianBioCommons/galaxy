@@ -1,14 +1,5 @@
 <script setup lang="ts">
-import {
-    faArrowLeft,
-    faComments,
-    faEdit,
-    faEye,
-    faHistory,
-    faSave,
-    faSpinner,
-    faUsers,
-} from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faEdit, faEye, faHistory, faSave, faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert, BBadge, BButton } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -16,18 +7,15 @@ import { useRouter } from "vue-router/composables";
 
 import { getGalaxyInstance } from "@/app";
 import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
-import { PAGE_LABELS, PERMISSIONS_LABELS } from "@/components/Page/constants";
-import { useConfig } from "@/composables/config";
+import { PAGE_LABELS } from "@/components/Page/constants";
 import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
 
 import ObjectPermissionsModal from "./ObjectPermissionsModal.vue";
-import PageChatPanel from "./PageChatPanel.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
 import ClickToEdit from "@/components/ClickToEdit.vue";
-import SplitView from "@/components/Common/SplitView.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
@@ -41,9 +29,6 @@ const router = useRouter();
 const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
 const historyStore = useHistoryStore();
-const { config } = useConfig();
-
-const agentsAvailable = computed(() => !!config.value?.llm_api_configured);
 
 const editorMode = computed<PageEditorMode>(() => (props.historyId ? "history" : "standalone"));
 const isStandalone = computed(() => editorMode.value === "standalone");
@@ -265,16 +250,6 @@ function handleRevisionRestore(revisionId: string) {
                     <FontAwesomeIcon :icon="faEye" />
                     Preview
                 </BButton>
-                <BButton
-                    v-if="agentsAvailable"
-                    :variant="store.showChatPanel ? 'primary' : 'outline-primary'"
-                    size="sm"
-                    class="mr-2"
-                    data-description="page chat button"
-                    @click="store.toggleChatPanel">
-                    <FontAwesomeIcon :icon="faComments" />
-                    Chat
-                </BButton>
                 <template v-if="isStandalone">
                     <ObjectPermissionsModal
                         id="object-permissions-modal"
@@ -316,38 +291,22 @@ function handleRevisionRestore(revisionId: string) {
             </div>
 
             <div class="page-body d-flex flex-grow-1 overflow-hidden">
-                <SplitView v-if="store.showChatPanel">
-                    <template v-slot:left>
-                        <div class="page-editor-pane">
-                            <MarkdownEditor
-                                :markdown-text="store.currentContent"
-                                :mode="markdownEditorMode"
-                                :title="editorTitle"
-                                :hide-toolbox="true"
-                                @update="handleContentUpdate" />
-                        </div>
-                    </template>
-                    <template v-slot:right>
-                        <PageChatPanel :history-id="historyId" :page-id="pageId" :page-content="store.currentContent" />
-                    </template>
-                </SplitView>
-                <template v-else>
-                    <div class="page-content flex-grow-1 overflow-auto">
-                        <MarkdownEditor
-                            :markdown-text="store.currentContent"
-                            :mode="markdownEditorMode"
-                            :title="editorTitle"
-                            @update="handleContentUpdate" />
-                    </div>
-                    <div v-if="store.showRevisions" class="page-revision-panel border-left">
-                        <PageRevisionList
-                            :revisions="store.revisions"
-                            :is-loading="store.isLoadingRevisions"
-                            :is-reverting="store.isReverting"
-                            @select="handleRevisionSelect"
-                            @restore="handleRevisionRestore" />
-                    </div>
-                </template>
+                <div class="page-content flex-grow-1 overflow-auto">
+                    <MarkdownEditor
+                        class="h-100"
+                        :markdown-text="store.currentContent"
+                        :mode="markdownEditorMode"
+                        :title="editorTitle"
+                        @update="handleContentUpdate" />
+                </div>
+                <div v-if="store.showRevisions" class="page-revision-panel border-left">
+                    <PageRevisionList
+                        :revisions="store.revisions"
+                        :is-loading="store.isLoadingRevisions"
+                        :is-reverting="store.isReverting"
+                        @select="handleRevisionSelect"
+                        @restore="handleRevisionRestore" />
+                </div>
             </div>
         </template>
     </div>
@@ -360,9 +319,6 @@ function handleRevisionRestore(revisionId: string) {
 .page-toolbar,
 .page-display-toolbar {
     background: var(--panel-header-bg);
-}
-.page-content {
-    padding: 1rem;
 }
 .page-revision-panel {
     width: 300px;

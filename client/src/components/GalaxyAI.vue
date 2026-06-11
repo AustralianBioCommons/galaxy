@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { faFile, faMagic, faSitemap, faTimes, faTrash, faWrench } from "@fortawesome/free-solid-svg-icons";
+import {
+    faBook,
+    faFile,
+    faFileContract,
+    faMagic,
+    faSitemap,
+    faTimes,
+    faTrash,
+    faWrench,
+} from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -12,7 +21,9 @@ import { useMarkdown } from "@/composables/markdown";
 import { useToast } from "@/composables/toast";
 import { useActiveContext } from "@/composables/useActiveContext";
 import { buildEntityContext, parseMentions, resolveMentions } from "@/composables/useEntityMentions";
+import { usePageProposals } from "@/composables/usePageProposals";
 import { useChatStore } from "@/stores/chatStore";
+import { usePageEditorStore } from "@/stores/pageEditorStore";
 import { errorMessageAsString } from "@/utils/simple-error";
 
 import { getAgentIcon } from "./GalaxyAI/agentTypes";
@@ -22,6 +33,8 @@ import { generateId, scrollToBottom } from "./GalaxyAI/chatUtils";
 import ChatActions from "./GalaxyAI/ChatActions.vue";
 import ChatInput from "./GalaxyAI/ChatInput.vue";
 import ChatMessageCell from "./GalaxyAI/ChatMessageCell.vue";
+import ProposalDiffView from "./PageEditor/ProposalDiffView.vue";
+import SectionPatchView from "./PageEditor/SectionPatchView.vue";
 import Heading from "@/components/Common/Heading.vue";
 
 const props = withDefaults(
@@ -46,10 +59,48 @@ const chatStore = useChatStore();
 const Toast = useToast();
 
 const { activeContext, contextLabel } = useActiveContext();
+const pageEditorStore = usePageEditorStore();
 const contextDismissed = ref(false);
 
-watch(activeContext, () => {
+watch(activeContext, async (newCtx, oldCtx) => {
     contextDismissed.value = false;
+
+    if (!props.docked && !props.panel) {
+        return;
+    }
+
+    const switchingToNotebook =
+        newCtx?.contextType === "notebook" && (oldCtx?.contextType !== "notebook" || oldCtx.pageId !== newCtx.pageId);
+
+    if (switchingToNotebook) {
+        // Switched to a notebook page (or to a different notebook page): restore this page's
+        // cached exchange, or fall back to the most recent chat in this page's history.
+        const pageId = newCtx.pageId;
+        const cachedId = pageEditorStore.getCurrentChatExchangeId(pageId);
+        if (cachedId) {
+            await fetchConversation(cachedId);
+            if (messages.value.length === 0) {
+                pageEditorStore.clearCurrentChatExchangeId(pageId);
+                startNewChat();
+            }
+        } else {
+            try {
+                await chatStore.loadHistory(pageId);
+            } catch (e) {
+                Toast.error(errorMessageAsString(e), "Failed to load chat history");
+            }
+            const latestChat = chatStore.chatHistory[0];
+            if (latestChat) {
+                await fetchConversation(latestChat.id);
+            } else {
+                startNewChat();
+            }
+        }
+    } else if (oldCtx?.contextType === "notebook" && newCtx?.contextType !== "notebook") {
+        // Switched away from notebook: drop notebook-specific state and start fresh.
+        clearProposals();
+        startNewChat();
+    }
 });
 
 const effectiveContext = computed(() => {
@@ -68,6 +119,8 @@ const contextIcon = computed(() => {
         case "workflow_editor":
         case "workflow_run":
             return faSitemap;
+        case "notebook":
+            return effectiveContext.value?.historyId ? faBook : faFileContract;
         default:
             return faMagic;
     }
@@ -88,11 +141,62 @@ const hasLoadedInitialChat = ref(false);
 const { renderMarkdown } = useMarkdown({ openLinksInNewPage: true, removeNewlinesAfterList: true });
 const { processingAction, handleAction } = useAgentActions();
 
+// Proposal rendering (notebook / page_assistant context)
+const {
+    pageContent,
+    loadForPage: loadProposalsForPage,
+    clear: clearProposals,
+    getEditProposal,
+    isProposalStale,
+    isProposalVisible,
+    buildProposedContent,
+    applyFullReplacement,
+    applySectionPatched,
+    dismissProposal,
+} = usePageProposals(activeContext);
+
 onMounted(async () => {
     if (props.exchangeId && props.exchangeId !== "new") {
         await fetchConversation(props.exchangeId);
-    } else if (props.docked || props.panel || props.exchangeId === "new") {
+    } else if (props.exchangeId === "new") {
         startNewChat();
+    } else if (props.docked || props.panel) {
+        const ctx = activeContext.value;
+        // For notebook pages, always prefer the per-page cached exchange over the global
+        // activeChatId — the global one may belong to a completely unrelated normal chat.
+        const notebookPageId = ctx?.contextType === "notebook" ? ctx.pageId : null;
+
+        if (notebookPageId) {
+            // Notebook context: prefer per-page cached exchange, fall back to page history.
+            const cachedId = pageEditorStore.getCurrentChatExchangeId(notebookPageId);
+            if (cachedId) {
+                await fetchConversation(cachedId);
+                if (messages.value.length === 0) {
+                    pageEditorStore.clearCurrentChatExchangeId(notebookPageId);
+                    startNewChat();
+                }
+            } else {
+                try {
+                    await chatStore.loadHistory(notebookPageId);
+                } catch (e) {
+                    Toast.error(errorMessageAsString(e), "Failed to load chat history");
+                }
+                const latestChat = chatStore.chatHistory[0];
+                if (latestChat) {
+                    await fetchConversation(latestChat.id);
+                } else {
+                    startNewChat();
+                }
+            }
+        } else {
+            // Non-notebook context: use global activeChatId if available.
+            const chatId = chatStore.activeChatId;
+            if (chatId) {
+                await fetchConversation(chatId);
+            } else {
+                startNewChat();
+            }
+        }
     } else {
         await loadLatestChat();
     }
@@ -105,7 +209,7 @@ onMounted(async () => {
 watch(
     () => props.exchangeId,
     async (newId, oldId) => {
-        if (newId === oldId) {
+        if (newId === oldId || newId === currentChatId.value) {
             return;
         }
         if (newId && newId !== "new") {
@@ -316,6 +420,11 @@ async function fetchConversation(exchangeId: string) {
     currentChatId.value = exchangeId;
     nextTick(() => scrollToBottom(chatContainer.value));
 
+    const ctx = activeContext.value;
+    if (ctx?.contextType === "notebook") {
+        loadProposalsForPage(ctx.pageId);
+    }
+
     hasLoadedInitialChat.value = true;
 }
 
@@ -350,6 +459,7 @@ function startNewChat() {
     ];
     currentChatId.value = null;
     query.value = "";
+    clearProposals();
     if (props.docked || props.panel) {
         chatStore.setActiveChatId(null);
     }
@@ -389,11 +499,18 @@ function dockTo(location: "right" | "bottom") {
 watch(currentChatId, async (newId) => {
     if (props.docked || props.panel) {
         chatStore.setActiveChatId(newId);
+
+        // Keep the per-page cache in sync so reopening the panel restores this exchange.
+        const ctx = activeContext.value;
+        if (ctx?.contextType === "notebook") {
+            pageEditorStore.setCurrentChatExchangeId(ctx.pageId, newId);
+        }
     }
 
     if (newId && !chatStore.chatHistory.some((item) => item.id === newId)) {
+        const pageId = activeContext.value?.contextType === "notebook" ? activeContext.value.pageId : undefined;
         try {
-            await chatStore.loadHistory();
+            await chatStore.loadHistory(pageId);
         } catch (e) {
             Toast.error(errorMessageAsString(e), "Failed to load chat history");
         }
@@ -446,7 +563,24 @@ watch(currentChatId, async (newId) => {
                 :processing-action="processingAction"
                 @feedback="sendFeedback"
                 @handle-action="handleAction"
-                @select-clarification-option="selectClarificationOption" />
+                @select-clarification-option="selectClarificationOption">
+                <template v-if="isProposalVisible(message)" v-slot:after-content>
+                    <ProposalDiffView
+                        v-if="getEditProposal(message)?.mode === 'full_replacement'"
+                        :original="pageContent"
+                        :proposed="buildProposedContent(message)"
+                        :stale="isProposalStale(message)"
+                        @accept="applyFullReplacement(message)"
+                        @reject="dismissProposal(message)" />
+                    <SectionPatchView
+                        v-else-if="getEditProposal(message)?.mode === 'section_patch'"
+                        :original="pageContent"
+                        :proposed="buildProposedContent(message)"
+                        :stale="isProposalStale(message)"
+                        @accept="applySectionPatched($event, message)"
+                        @reject="dismissProposal(message)" />
+                </template>
+            </ChatMessageCell>
 
             <!-- Loading state -->
             <div v-if="busy" class="loading-entry">
