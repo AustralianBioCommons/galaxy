@@ -50,7 +50,7 @@ importers:
         version: link:packages/api-client
       '@guolao/vue-monaco-editor':
         specifier: ^1.5.4
-        version: 1.5.4(monaco-editor@0.52.2)(vue@2.7.16)
+        version: 1.6.0(monaco-editor@0.52.2)(vue@2.7.16)
       '@handsontable/vue':
         specifier: ^2.0.0
         version: 2.0.0(handsontable@4.0.0)
@@ -62,7 +62,7 @@ importers:
         version: 2.1.0(vue@2.7.16)
       '@monaco-editor/loader':
         specifier: ^1.5.0
-        version: 1.5.0
+        version: 1.7.0
       '@popperjs/core':
         specifier: ^2.11.8
         version: 2.11.8
@@ -80,7 +80,7 @@ importers:
         version: 10.5.0(vue@2.7.16)
       ace-builds:
         specifier: ^1.39.0
-        version: 1.41.0
+        version: 1.44.0
       ag-grid-community:
         specifier: ^30
         version: 30.2.1
@@ -212,7 +212,7 @@ importers:
         version: 2.0.1(monaco-editor@0.52.2)
       monaco-yaml:
         specifier: ^5.4.0
-        version: 5.4.0(monaco-editor@0.52.2)
+        version: 5.5.1(monaco-editor@0.52.2)
       object-hash:
         specifier: ^3.0.0
         version: 3.0.0
@@ -916,10 +916,10 @@ packages:
       '@fortawesome/fontawesome-svg-core': ~1 || ~6
       vue: 2.7.16
 
-  '@guolao/vue-monaco-editor@1.5.4':
-    resolution: {integrity: sha512-eyBAqxJeDpV4mZYZSpNvh3xUgKCld5eEe0dBtjJhsy2+L0MB6PYFZ/FbPHNwskgp2RoIpfn1DLrIhXXE3lVbwQ==}
+  '@guolao/vue-monaco-editor@1.6.0':
+    resolution: {integrity: sha512-w2IiJ6eJGGeuIgCK6EKZOAfhHTTUB5aZwslzwGbZ5e89Hb4avx6++GkLTW8p84Sng/arFMjLPPxSBI56cFudyQ==}
     peerDependencies:
-      '@vue/composition-api': ^1.7.1
+      '@vue/composition-api': ^1.7.2
       monaco-editor: '>=0.43.0'
       vue: 2.7.16
     peerDependenciesMeta:
@@ -1027,8 +1027,8 @@ packages:
     peerDependencies:
       vite: '>=3.2.7'
 
-  '@monaco-editor/loader@1.5.0':
-    resolution: {integrity: sha512-hKoGSM+7aAc7eRTRjpqAZucPmoNOC4UUbknb/VNoTkEIkCPhqV8LfbsgM1webRM7S/z21eHEx9Fkwx8Z/C/+Xw==}
+  '@monaco-editor/loader@1.7.0':
+    resolution: {integrity: sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==}
 
   '@mswjs/interceptors@0.41.9':
     resolution: {integrity: sha512-VVPPgHyQ6ShqnrmDWuxjmUIsO9gWyOZFmuOfLd9LfBGQJwZfy0gvv9pbHSJuoFNIYC7ZDX9aoFwowjcdSC4E8w==}
@@ -1773,6 +1773,9 @@ packages:
   '@volar/typescript@2.4.15':
     resolution: {integrity: sha512-2aZ8i0cqPGjXb4BhkMsPYDkkuc2ZQ6yOpqwAuNwUoncELqoy5fRgOQtLR9gB0g902iS0NAkvpIzs27geVyVdPg==}
 
+  '@vscode/l10n@0.0.18':
+    resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
+
   '@vue/compiler-core@3.5.22':
     resolution: {integrity: sha512-jQ0pFPmZwTEiRNSb+i9Ow/I/cHv2tXYqsnHKKyCQ08irI2kdF5qmYedmF8si8mA7zepUFmJ2hqzS8CQmNOWOkQ==}
 
@@ -1830,8 +1833,8 @@ packages:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
     engines: {node: '>= 0.6'}
 
-  ace-builds@1.41.0:
-    resolution: {integrity: sha512-tiEUfw7V/FpHuI4tG7KS+muOTMIuPh6zReBAD2Uqhe9t00tLeyVGxjXu0tSqz5OIPWy7/wvuJBVXAsNWx0rYvQ==}
+  ace-builds@1.44.0:
+    resolution: {integrity: sha512-PFNMSYqFdEUkul2Ntud0HvA09AgY+F1ag0UYdpMH60wNI/qOA8cB8tlTgoALMEwIdUPJK2CjrIQ7OnbiSS/ugQ==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -3678,8 +3681,8 @@ packages:
     peerDependencies:
       monaco-editor: '>=0.30.0'
 
-  monaco-yaml@5.4.0:
-    resolution: {integrity: sha512-tuBVDy1KAPrgO905GHTItu8AaA5bIzF5S4X0JVRAE/D66FpRhkDUk7tKi5bwKMVTTugtpMLsXN4ewh4CgE/FtQ==}
+  monaco-yaml@5.5.1:
+    resolution: {integrity: sha512-vLR1EoV7Au0tkuA9T6ZJr2q7CooRP69AvlqzWh9Gui6amuijdTsfCAQHtCFobRMwkhbuly6J1Q16NziTTiWtWQ==}
     peerDependencies:
       monaco-editor: '>=0.36'
 
@@ -4064,6 +4067,9 @@ packages:
 
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
+
+  proxy-disposable@1.0.0:
+    resolution: {integrity: sha512-Y673BKpFqk8XkYuoK9DGZ1RIzldz5SkzxTKc/+DkpaMdrDEbEalWlO/uMRMdJsXvdbTybJI26XDwN0KJpZDN4w==}
 
   proxy-from-env@2.1.0:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
@@ -5562,9 +5568,9 @@ snapshots:
       '@fortawesome/fontawesome-svg-core': 6.2.1
       vue: 2.7.16
 
-  '@guolao/vue-monaco-editor@1.5.4(monaco-editor@0.52.2)(vue@2.7.16)':
+  '@guolao/vue-monaco-editor@1.6.0(monaco-editor@0.52.2)(vue@2.7.16)':
     dependencies:
-      '@monaco-editor/loader': 1.5.0
+      '@monaco-editor/loader': 1.7.0
       monaco-editor: 0.52.2
       vue: 2.7.16
       vue-demi: 0.14.10(vue@2.7.16)
@@ -5658,7 +5664,7 @@ snapshots:
     transitivePeerDependencies:
       - rollup
 
-  '@monaco-editor/loader@1.5.0':
+  '@monaco-editor/loader@1.7.0':
     dependencies:
       state-local: 1.0.7
 
@@ -6379,6 +6385,8 @@ snapshots:
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
 
+  '@vscode/l10n@0.0.18': {}
+
   '@vue/compiler-core@3.5.22':
     dependencies:
       '@babel/parser': 7.28.5
@@ -6473,7 +6481,7 @@ snapshots:
       mime-types: 2.1.35
       negotiator: 0.6.3
 
-  ace-builds@1.41.0: {}
+  ace-builds@1.44.0: {}
 
   acorn-jsx@5.3.2(acorn@8.10.0):
     dependencies:
@@ -8509,8 +8517,9 @@ snapshots:
     dependencies:
       monaco-editor: 0.52.2
 
-  monaco-yaml@5.4.0(monaco-editor@0.52.2):
+  monaco-yaml@5.5.1(monaco-editor@0.52.2):
     dependencies:
+      '@vscode/l10n': 0.0.18
       jsonc-parser: 3.3.1
       monaco-editor: 0.52.2
       monaco-languageserver-types: 0.4.1
@@ -8519,6 +8528,7 @@ snapshots:
       monaco-worker-manager: 2.0.1(monaco-editor@0.52.2)
       path-browserify: 1.0.1
       prettier: 3.6.2
+      proxy-disposable: 1.0.0
       vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.1.0
@@ -8862,6 +8872,8 @@ snapshots:
       signal-exit: 3.0.7
 
   proto-list@1.2.4: {}
+
+  proxy-disposable@1.0.0: {}
 
   proxy-from-env@2.1.0: {}
 
