@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faArrowLeft, faEdit, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, watch } from "vue";
@@ -12,9 +12,8 @@ import { usePageEditorStore } from "@/stores/pageEditorStore";
 import { errorMessageAsString } from "@/utils/simple-error.js";
 
 import HistoryPageList from "./HistoryPageList.vue";
+import PageDisplayOnly from "./PageDisplayOnly.vue";
 import PageEditorView from "./PageEditorView.vue";
-import GButton from "@/components/BaseComponents/GButton.vue";
-import Markdown from "@/components/Markdown/Markdown.vue";
 
 const props = defineProps<{
     historyId: string;
@@ -157,43 +156,13 @@ function handleBack() {
         </template>
 
         <!-- Display-only mode: rendered view -->
-        <template v-else-if="store.hasCurrentPage && displayOnly">
-            <div
-                class="page-display-toolbar d-flex align-items-center p-2 border-bottom"
-                data-description="page display toolbar">
-                <GButton
-                    color="blue"
-                    transparent
-                    size="small"
-                    data-description="page manage button"
-                    @click="handleBack">
-                    <FontAwesomeIcon :icon="faArrowLeft" />
-                    {{ labels.editorBackLabel }}
-                </GButton>
-                <span class="flex-grow-1 text-center font-weight-bold">
-                    {{ store.currentTitle || labels.defaultTitle }}
-                </span>
-                <GButton
-                    color="blue"
-                    outline
-                    size="small"
-                    data-description="page edit button"
-                    @click="handleEdit(props.pageId)">
-                    <FontAwesomeIcon :icon="faEdit" />
-                    Edit
-                </GButton>
-            </div>
-            <div class="page-display-content overflow-auto flex-grow-1" data-description="page rendered view">
-                <Markdown
-                    v-if="markdownConfig"
-                    class="px-3 pt-3"
-                    :markdown-config="markdownConfig"
-                    :read-only="true"
-                    no-heading
-                    download-endpoint=""
-                    hide-heading />
-            </div>
-        </template>
+        <PageDisplayOnly
+            v-else-if="store.hasCurrentPage && displayOnly"
+            :labels="labels"
+            :current-title="store.currentTitle"
+            :markdown-config="markdownConfig || undefined"
+            @back="handleBack"
+            @edit="handleEdit(props.pageId)" />
 
         <!-- Edit mode: delegate to unified PageEditorView -->
         <template v-else-if="pageId && !displayOnly">
@@ -210,8 +179,5 @@ function handleBack() {
 <style scoped>
 .history-page-view {
     background: var(--body-bg);
-}
-.page-display-toolbar {
-    background: var(--panel-header-bg);
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faArrowLeft, faEdit, faEye, faHistory, faSave, faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faEye, faHistory, faSave, faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert, BBadge, BButton } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -13,10 +13,10 @@ import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
 
 import ObjectPermissionsModal from "./ObjectPermissionsModal.vue";
+import PageDisplayOnly from "./PageDisplayOnly.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
 import ClickToEdit from "@/components/ClickToEdit.vue";
-import Markdown from "@/components/Markdown/Markdown.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
 const props = defineProps<{
@@ -184,30 +184,13 @@ function handleRevisionRestore(revisionId: string) {
         </BAlert>
 
         <!-- Display-only mode: rendered view -->
-        <template v-else-if="store.hasCurrentPage && displayOnly">
-            <div
-                class="page-display-toolbar d-flex align-items-center p-2 border-bottom"
-                data-description="page display toolbar">
-                <BButton variant="link" size="sm" data-description="page back button" @click="handleBack">
-                    <FontAwesomeIcon :icon="faArrowLeft" />
-                    {{ labels.editorBackLabel }}
-                </BButton>
-                <span class="flex-grow-1 text-center font-weight-bold">
-                    {{ store.currentTitle || labels.defaultTitle }}
-                </span>
-                <BButton variant="outline-primary" size="sm" data-description="page edit button" @click="handleEdit">
-                    <FontAwesomeIcon :icon="faEdit" />
-                    Edit
-                </BButton>
-            </div>
-            <div class="page-display-content overflow-auto flex-grow-1" data-description="page rendered view">
-                <Markdown
-                    v-if="markdownConfig"
-                    :markdown-config="markdownConfig"
-                    :read-only="true"
-                    download-endpoint="" />
-            </div>
-        </template>
+        <PageDisplayOnly
+            v-else-if="store.hasCurrentPage && displayOnly"
+            :labels="labels"
+            :current-title="store.currentTitle"
+            :markdown-config="markdownConfig || undefined"
+            @back="handleBack"
+            @edit="handleEdit" />
 
         <!-- Viewing a specific revision -->
         <template v-else-if="store.hasCurrentPage && store.selectedRevision">
@@ -327,8 +310,7 @@ function handleRevisionRestore(revisionId: string) {
 .page-editor-view {
     background: var(--body-bg);
 }
-.page-toolbar,
-.page-display-toolbar {
+.page-toolbar {
     background: var(--panel-header-bg);
 }
 .page-revision-panel {

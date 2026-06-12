@@ -4,25 +4,13 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { computed, onMounted, ref, watch } from "vue";
 
 import { parseMarkdown } from "./parse";
+import type { MarkdownConfig } from "./types";
 
 import GButton from "@/components/BaseComponents/GButton.vue";
 import Heading from "@/components/Common/Heading.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 import SectionWrapper from "@/components/Markdown/Sections/SectionWrapper.vue";
 import StsDownloadButton from "@/components/StsDownloadButton.vue";
-
-// Props
-interface MarkdownConfig {
-    content?: string;
-    errors?: Array<{ error?: string; line?: string }>;
-    generate_time?: string;
-    generate_version?: string;
-    id?: string;
-    markdown?: string;
-    model_class?: string;
-    title?: string;
-    update_time?: string;
-}
 
 const props = defineProps<{
     markdownConfig: MarkdownConfig;

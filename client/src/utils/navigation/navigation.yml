@@ -645,9 +645,6 @@ pages:
         type: data-description
         selector: 'page editor toolbar'
       toolbar_title: '[data-description="page editor title"] > span'
-      manage_button:
-        type: data-description
-        selector: 'page manage button'
       save_button:
         type: data-description
         selector: 'page save button'
