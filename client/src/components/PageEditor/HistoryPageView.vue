@@ -58,11 +58,13 @@ onUnmounted(() => {
 });
 
 watch(
-    () => props.historyId,
-    async (newId) => {
-        await store.loadPages(newId, props.invocationId);
-        if (props.pageId && props.displayOnly) {
-            await store.loadPageById(props.pageId);
+    () => [props.historyId, props.invocationId],
+    async ([newHistoryId, newInvocationId]) => {
+        if (newHistoryId) {
+            await store.loadPages(newHistoryId, newInvocationId);
+            if (props.pageId && props.displayOnly) {
+                await store.loadPageById(props.pageId);
+            }
         }
     },
 );
