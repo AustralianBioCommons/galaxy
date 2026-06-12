@@ -372,7 +372,7 @@ class BaseGalaxyAgent(ABC):
 
     agent_type: str
     agent: Agent[GalaxyAgentDependencies, Any]
-    _INTERNAL_CONTEXT_KEYS = frozenset({"run_state"})
+    _INTERNAL_CONTEXT_KEYS = frozenset({"run_state", "responding_to_clarification"})
 
     # Fallback when no max_tokens is configured. 8k leaves headroom on every
     # backend we currently support (smallest is Qwen3-32B at 32k context).
