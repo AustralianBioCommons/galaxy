@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faEdit, faExternalLinkAlt, faEye, faHistory } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faEye, faHistory, faSitemap } from "@fortawesome/free-solid-svg-icons";
 import { computed } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
@@ -24,14 +24,14 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-    (e: "select"): void;
+    (e: "edit"): void;
     (e: "view"): void;
 }>();
 
 const title: Title = {
     label: props.page.title || props.defaultTitle,
     title: props.editTitle,
-    handler: () => emit("select"),
+    handler: () => emit("edit"),
 };
 
 const badges = computed<CardBadge[]>(() => {
@@ -48,12 +48,10 @@ const badges = computed<CardBadge[]>(() => {
         retBadges.push({
             id: "is-invocation-notebook",
             label: `Invocation ${props.page.source_invocation_id}`,
-            icon: faExternalLinkAlt,
-            title: "This notebook is a report created from a workflow invocation (Click to view the original report)",
+            icon: faSitemap,
+            title: "This notebook is a report created from a workflow invocation (Click to view the original report under the invocation)",
             class: "unselectable",
-            handler: () => {
-                window.open(`/workflows/invocations/${props.page.source_invocation_id}/report`, "_blank");
-            },
+            to: `/workflows/invocations/${props.page.source_invocation_id}/reports?id=${props.page.id}`,
             variant: "primary",
         });
     }
@@ -66,7 +64,7 @@ const primaryActions: CardAction[] = [
         label: "Edit",
         icon: faEdit,
         title: props.editTitle,
-        handler: () => emit("select"),
+        handler: () => emit("edit"),
     },
 ];
 

@@ -24,13 +24,6 @@ const props = defineProps<{
     historyId?: string;
     invocationId?: string;
     displayOnly?: boolean;
-    emitsActions?: boolean;
-}>();
-
-const emit = defineEmits<{
-    (e: "edit-page"): void;
-    (e: "go-back"): void;
-    (e: "view-page", id: string): void;
 }>();
 
 const router = useRouter();
@@ -99,11 +92,9 @@ watch(
 
 function handleBack() {
     store.clearCurrentPage();
-    if (props.emitsActions) {
-        emit("go-back");
-        return;
-    }
-    if (props.historyId) {
+    if (props.invocationId) {
+        router.push(`/workflows/invocations/${props.invocationId}/reports`);
+    } else if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages`);
     } else {
         router.push("/pages/list");
@@ -111,11 +102,9 @@ function handleBack() {
 }
 
 function handlePreview() {
-    if (props.emitsActions) {
-        emit("view-page", props.pageId);
-        return;
-    }
-    if (props.historyId) {
+    if (props.invocationId) {
+        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`);
+    } else if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages/${props.pageId}?displayOnly=true`);
     } else {
         // Standalone: open in window manager when active, else navigate inline.
@@ -129,10 +118,6 @@ function handlePreview() {
 }
 
 function handleEdit() {
-    if (props.emitsActions) {
-        emit("edit-page");
-        return;
-    }
     if (props.historyId) {
         router.push(`/histories/${props.historyId}/pages/${props.pageId}`);
     } else {
@@ -146,8 +131,8 @@ async function handleSave() {
 
 async function handleSaveAndView() {
     await store.savePage();
-    if (props.emitsActions) {
-        emit("view-page", props.pageId);
+    if (props.invocationId) {
+        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`);
         return;
     }
     if (store.currentPage) {

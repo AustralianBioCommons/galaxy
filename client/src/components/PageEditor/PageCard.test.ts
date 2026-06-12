@@ -36,9 +36,9 @@ describe("PageCard", () => {
         expect(title.text()).toBe("My Analysis");
         expect(title.attributes("title")).toBe("Edit Notebook");
 
-        // Click to emit select event
+        // Click to emit edit event
         await title.trigger("click");
-        expect(wrapper.emitted().select).toBeTruthy();
+        expect(wrapper.emitted().edit).toBeTruthy();
     });
 
     it("shows 'Untitled Notebook' when title is empty", () => {
@@ -81,6 +81,6 @@ describe("PageCard", () => {
 
         const editButton = wrapper.find(getSelector("edit", FAKE_PAGE_SUMMARY.id));
         await editButton.trigger("click");
-        expect(wrapper.emitted().select).toBeTruthy();
+        expect(wrapper.emitted().edit).toBeTruthy();
     });
 });

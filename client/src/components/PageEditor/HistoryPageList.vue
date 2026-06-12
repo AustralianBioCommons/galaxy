@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { computed, toRef } from "vue";
 
@@ -8,6 +8,7 @@ import { PAGE_LABELS } from "@/components/Page/constants";
 import { useHistoryBreadCrumbsTo } from "@/composables/historyBreadcrumbs";
 
 import BreadcrumbHeading from "../Common/BreadcrumbHeading.vue";
+import Heading from "../Common/Heading.vue";
 import PageCard from "./PageCard.vue";
 import GButton from "@/components/BaseComponents/GButton.vue";
 
@@ -15,13 +16,13 @@ const props = defineProps<{
     pages: HistoryPageSummary[];
     historyId: string;
     invocationId?: string;
-    noHeading?: boolean;
 }>();
 
 const emit = defineEmits<{
-    (e: "select", pageId: string): void;
+    (e: "edit", pageId: string): void;
     (e: "view", pageId: string): void;
     (e: "create"): void;
+    (e: "view-runtime-report"): void;
 }>();
 
 const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
@@ -30,8 +31,8 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
 </script>
 
 <template>
-    <div class="d-flex flex-column overflow-hidden" data-description="history page list">
-        <BreadcrumbHeading v-if="!props.noHeading" :items="breadcrumbItems">
+    <div class="d-flex flex-column" data-description="history page list">
+        <BreadcrumbHeading v-if="!props.invocationId" :items="breadcrumbItems">
             <GButton
                 class="text-nowrap"
                 color="blue"
@@ -42,6 +43,15 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
                 {{ labels.newButton }}
             </GButton>
         </BreadcrumbHeading>
+        <div v-else class="d-flex flex-gapx-1 pb-2">
+            <Heading h1 separator inline size="md" class="flex-grow-1 mb-0">
+                Edited {{ labels.entityNamePlural }}
+            </Heading>
+            <GButton size="small" outline color="blue" @click="emit('view-runtime-report')">
+                Back to Runtime Report
+                <FontAwesomeIcon :icon="faArrowLeft" />
+            </GButton>
+        </div>
 
         <div v-if="pages.length === 0" class="empty-state text-center p-4" data-description="page empty state">
             <p class="text-muted">{{ labels.emptyStateTitle }}</p>
@@ -50,7 +60,7 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
             </p>
         </div>
 
-        <div v-else class="page-items mt-3">
+        <div v-else class="page-items mt-1">
             <PageCard
                 v-for="page in pages"
                 :key="page.id"
@@ -61,7 +71,7 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
                 :edit-title="labels.editButton"
                 :show-invocation-badge="!props.invocationId"
                 :view-title="labels.viewButton"
-                @select="emit('select', page.id)"
+                @edit="emit('edit', page.id)"
                 @view="emit('view', page.id)" />
         </div>
     </div>

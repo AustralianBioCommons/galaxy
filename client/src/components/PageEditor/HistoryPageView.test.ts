@@ -29,6 +29,13 @@ vi.mock("vue-router/composables", () => ({
     })),
 }));
 
+const mockPushToFrameOrPage = vi.fn();
+vi.mock("@/composables/windowAwareNavigation", () => ({
+    useWindowAwareNavigation: vi.fn(() => ({
+        pushToFrameOrPage: mockPushToFrameOrPage,
+    })),
+}));
+
 vi.mock("@/stores/historyStore", () => ({
     useHistoryStore: vi.fn(() => ({
         getHistoryById: vi.fn((id: string) => {
@@ -80,6 +87,7 @@ describe("HistoryPageView", () => {
     beforeEach(() => {
         pinia = createTestingPinia({ createSpy: vi.fn });
         vi.clearAllMocks();
+        mockPushToFrameOrPage.mockReset();
     });
 
     afterEach(() => {
@@ -214,6 +222,8 @@ describe("HistoryPageView", () => {
             } as any;
             store.currentContent = "# Hello";
             store.currentTitle = "My Page";
+            // hasCurrentPage is a computed (readonly) — stub it so the display toolbar renders
+            vi.spyOn(store, "hasCurrentPage", "get").mockReturnValue(true);
             return store;
         }
 
@@ -254,7 +264,9 @@ describe("HistoryPageView", () => {
             await flushPromises();
 
             const editBtn = wrapper.find(SELECTORS.EDIT_BUTTON);
-            await editBtn.trigger("click");
+            // GButton is stubbed by shallowMount; emit the Vue click event to trigger @click handler
+            await editBtn.vm.$emit("click");
+            await wrapper.vm.$nextTick();
 
             expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/${PAGE_ID}`);
         });
@@ -280,13 +292,13 @@ describe("HistoryPageView", () => {
     });
 
     describe("Navigation/Events", () => {
-        it("handleSelect navigates to page URL via router.push", async () => {
+        it("edit emit from list navigates to page edit URL", async () => {
             setupListViewStore([{ id: "nb-1", history_id: HISTORY_ID, title: "NB1" }]);
             const wrapper = mountComponent({ historyId: HISTORY_ID });
             await flushPromises();
 
             const list = wrapper.findComponent(HistoryPageList);
-            list.vm.$emit("select", "nb-1");
+            list.vm.$emit("edit", "nb-1");
             await wrapper.vm.$nextTick();
 
             expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/nb-1`);
@@ -307,11 +319,11 @@ describe("HistoryPageView", () => {
             list.vm.$emit("create");
             await flushPromises();
 
-            expect(store.createPage).toHaveBeenCalledWith({ title: "Untitled Notebook" });
+            expect(store.createPage).toHaveBeenCalledWith();
             expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/new-page`);
         });
 
-        it("view emit from list navigates to displayOnly URL", async () => {
+        it("view emit from list navigates to displayOnly URL via pushToFrameOrPage", async () => {
             setupListViewStore([{ id: "nb-1", history_id: HISTORY_ID, title: "NB1" }]);
             const wrapper = mountComponent({ historyId: HISTORY_ID });
             await flushPromises();
@@ -320,7 +332,11 @@ describe("HistoryPageView", () => {
             list.vm.$emit("view", "nb-1");
             await wrapper.vm.$nextTick();
 
-            expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/nb-1?displayOnly=true`);
+            expect(mockPushToFrameOrPage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    inlineUrl: `/histories/${HISTORY_ID}/pages/nb-1?displayOnly=true`,
+                }),
+            );
         });
     });
 
@@ -329,20 +345,22 @@ describe("HistoryPageView", () => {
             mockGalaxyInstance.frame.active = false;
         });
 
-        it("handleSelect opens in WinBox when WM is active", async () => {
+        it("view emit opens in WinBox when WM is active", async () => {
             mockGalaxyInstance.frame.active = true;
             setupListViewStore([{ id: "nb-1", history_id: HISTORY_ID, title: "NB1" }]);
             const wrapper = mountComponent({ historyId: HISTORY_ID });
             await flushPromises();
 
             const list = wrapper.findComponent(HistoryPageList);
-            list.vm.$emit("select", "nb-1");
+            list.vm.$emit("view", "nb-1");
             await wrapper.vm.$nextTick();
 
-            expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/nb-1?displayOnly=true`, {
-                title: "Galaxy Notebook: NB1",
-                preventWindowManager: false,
-            });
+            expect(mockPushToFrameOrPage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    inlineUrl: `/histories/${HISTORY_ID}/pages/nb-1?displayOnly=true`,
+                    title: "Galaxy Notebook: NB1",
+                }),
+            );
         });
     });
 
@@ -352,7 +370,7 @@ describe("HistoryPageView", () => {
             mountComponent({ historyId: HISTORY_ID });
             await flushPromises();
 
-            expect(store.loadPages).toHaveBeenCalledWith(HISTORY_ID);
+            expect(store.loadPages).toHaveBeenCalledWith(HISTORY_ID, undefined);
         });
 
         it("does not call store.loadPageById on mount when no pageId", async () => {

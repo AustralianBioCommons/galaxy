@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { faFileContract } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { storeToRefs } from "pinia";
 import { computed, provide, ref } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { fetchInvocationReport } from "@/api/invocations";
 import { useConfig } from "@/composables/config";
 import { useToast } from "@/composables/toast";
+import { usePageEditorStore } from "@/stores/pageEditorStore.js";
+import { errorMessageAsString } from "@/utils/simple-error.js";
 
 import GButton from "../BaseComponents/GButton.vue";
 import HelpText from "../Help/HelpText.vue";
@@ -16,10 +19,7 @@ const props = defineProps<{
     invocationId: string;
     /** Whether to enforce displaying a "Runtime Report" heading with help text */
     fromRuntimeReport?: boolean;
-}>();
-
-const emit = defineEmits<{
-    (e: "view-existing-reports"): void;
+    historyId?: string;
 }>();
 
 const { config, isConfigLoaded } = useConfig(true);
@@ -28,9 +28,18 @@ const Toast = useToast();
 
 const router = useRouter();
 
+const pageEditorStore = usePageEditorStore();
+const { isLoadingPage } = storeToRefs(pageEditorStore);
+
 const markdownConfig = ref({});
 
 const exportUrl = computed(() => `/api/invocations/${props.invocationId}/report.pdf`);
+
+const editButtonConfig = computed(() => ({
+    tooltip: "Click to create a Galaxy Notebook from this invocation's Runtime Report",
+    label: "Edit",
+    disabled: isLoadingPage.value,
+}));
 
 fetchReport();
 
@@ -43,8 +52,25 @@ async function fetchReport() {
     }
 }
 
-function onEdit() {
-    router.push(`/pages/create?invocation_id=${props.invocationId}`);
+async function onEdit() {
+    if (props.historyId) {
+        try {
+            pageEditorStore.setCurrentContext(props.historyId, props.invocationId);
+            const page = await pageEditorStore.createPage();
+            if (page) {
+                const editUrl =
+                    `/histories/${props.historyId}/pages/${page.id}` +
+                    (props.invocationId ? `?invocation_id=${props.invocationId}` : "");
+                router.push(editUrl);
+            } else {
+                pageEditorStore.clearCurrentPage();
+            }
+        } catch (error) {
+            Toast.error(errorMessageAsString(error), "Failed to create a Galaxy Notebook");
+        }
+    } else {
+        router.push(`/pages/create?invocation_id=${props.invocationId}`);
+    }
 }
 
 // Provide invocationId to all descendant components for inline directive resolution
@@ -55,6 +81,7 @@ provide("invocationId", props.invocationId);
     <Markdown
         v-if="isConfigLoaded"
         :markdown-config="markdownConfig"
+        :edit-button-config="editButtonConfig"
         :enable_beta_markdown_export="config.enable_beta_markdown_export"
         :export-link="exportUrl"
         :download-endpoint="exportUrl"
@@ -65,13 +92,14 @@ provide("invocationId", props.invocationId);
             <HelpText uri="galaxy.invocations.reports.runtimeReport" info-icon />
         </template>
 
-        <template v-if="props.fromRuntimeReport" v-slot:extra-actions>
+        <template v-slot:extra-actions>
             <GButton
+                size="small"
                 tooltip
-                title="Click to view existing/edited report for this workflow invocation"
+                title="Click to view existing/edited reports for this workflow invocation"
                 outline
                 color="blue"
-                @click="emit('view-existing-reports')">
+                @click="router.push(`/workflows/invocations/${props.invocationId}/reports`)">
                 View Existing Reports
                 <FontAwesomeIcon :icon="faFileContract" />
             </GButton>

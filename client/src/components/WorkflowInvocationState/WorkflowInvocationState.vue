@@ -9,6 +9,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert, BBadge, BNav, BNavItem } from "bootstrap-vue";
 import { computed, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router/composables";
 
 import { type InvocationStep, isWorkflowInvocationElementView } from "@/api/invocations";
 import { usePersistentToggle } from "@/composables/persistentToggle";
@@ -26,8 +27,10 @@ import {
 } from "./util";
 
 import GButton from "../BaseComponents/GButton.vue";
+import HistoryPageView from "../PageEditor/HistoryPageView.vue";
 import ProgressBar from "../ProgressBar.vue";
 import WorkflowInvocationSteps from "../Workflow/Invocation/Graph/WorkflowInvocationSteps.vue";
+import InvocationReport from "../Workflow/InvocationReport.vue";
 import WorkflowAnnotation from "../Workflow/WorkflowAnnotation.vue";
 import WorkflowNavigationTitle from "../Workflow/WorkflowNavigationTitle.vue";
 import TabsDisabledAlert from "./TabsDisabledAlert.vue";
@@ -36,12 +39,11 @@ import WorkflowInvocationFeedback from "./WorkflowInvocationFeedback.vue";
 import WorkflowInvocationInputOutputTabs from "./WorkflowInvocationInputOutputTabs.vue";
 import WorkflowInvocationMetrics from "./WorkflowInvocationMetrics.vue";
 import WorkflowInvocationOverview from "./WorkflowInvocationOverview.vue";
-import WorkflowInvocationReports from "./WorkflowInvocationReports.vue";
 import WorkflowInvocationSearch from "./WorkflowInvocationSearch.vue";
 import WorkflowInvocationShare from "./WorkflowInvocationShare.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 
-type InvocationViewTab = "steps" | "inputs" | "outputs" | "report" | "export" | "metrics" | "debug";
+type InvocationViewTab = "steps" | "inputs" | "outputs" | "report" | "reports" | "export" | "metrics" | "debug";
 
 interface Props {
     invocationId: string;
@@ -60,6 +62,8 @@ const emit = defineEmits<{
     (e: "invocation-cancelled"): void;
 }>();
 
+const route = useRoute();
+
 const invocationStore = useInvocationStore();
 
 const stepStatesInterval = ref<any>(undefined);
@@ -70,6 +74,11 @@ const cancellingInvocation = ref(false);
 const isPolling = ref(false);
 
 const { toggled: headerCollapsed, toggle: toggleHeaderCollapse } = usePersistentToggle("invocation-header-collapsed");
+
+/** Returns the ID of the currently viewed Galaxy notebook report, if any */
+const currentViewedReportId = computed<string | undefined>(() =>
+    props.tab === "reports" && typeof route.query.id === "string" ? route.query.id : undefined,
+);
 
 const uniqueMessages = computed(() => {
     const messages = invocation.value?.messages || [];
@@ -99,7 +108,10 @@ const disabledTabTooltip = computed(() => {
 
 /** We are on the default "Overview" tab if the tab prop is not set or is not one of the expected tab values */
 const onOverviewTab = computed(() => {
-    return !props.tab || !["steps", "inputs", "outputs", "report", "export", "metrics", "debug"].includes(props.tab);
+    return (
+        !props.tab ||
+        !["steps", "inputs", "outputs", "report", "reports", "export", "metrics", "debug"].includes(props.tab)
+    );
 });
 
 const invocation = computed(() => {
@@ -413,7 +425,7 @@ async function onCancel() {
             <BNavItem
                 :title="!tabsDisabled ? 'Report' : disabledTabTooltip"
                 class="invocation-report-tab"
-                :active="!tabsDisabled && props.tab === 'report'"
+                :active="!tabsDisabled && (props.tab === 'report' || props.tab === 'reports')"
                 :to="`/workflows/invocations/${props.invocationId}/report`"
                 :disabled="tabsDisabled">
                 Report
@@ -481,7 +493,7 @@ async function onCancel() {
                 :invocation="invocation"
                 :terminal="invocationAndJobTerminal"
                 :tab="props.tab" />
-            <div v-if="props.tab === 'report'">
+            <div v-if="props.tab === 'report' || props.tab === 'reports'" class="steps-tab-content">
                 <BAlert v-if="isSubworkflow" variant="info" show>
                     <span v-localize>Report is not available for subworkflow.</span>
                 </BAlert>
@@ -489,7 +501,17 @@ async function onCancel() {
                     v-else-if="tabsDisabled"
                     :invocation-id="props.invocationId"
                     :tooltip="disabledTabTooltip" />
-                <WorkflowInvocationReports v-else :invocation-id="invocation.id" :history-id="invocation.history_id" />
+                <InvocationReport
+                    v-else-if="props.tab === 'report'"
+                    :invocation-id="invocation.id"
+                    :history-id="invocation.history_id"
+                    from-runtime-report />
+                <HistoryPageView
+                    v-else
+                    :invocation-id="props.invocationId"
+                    :history-id="invocation.history_id"
+                    :page-id="currentViewedReportId"
+                    display-only />
             </div>
             <div v-if="props.tab === 'export'">
                 <TabsDisabledAlert

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faDownload, faEdit } from "@fortawesome/free-solid-svg-icons";
+import { faDownload, faEdit, type IconDefinition } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { computed, onMounted, ref, watch } from "vue";
 
@@ -32,6 +32,8 @@ const props = defineProps<{
     exportLink?: string;
     showIdentifier?: boolean;
     directDownloadLink?: boolean;
+    noHeading?: boolean;
+    editButtonConfig?: { tooltip?: string; icon?: IconDefinition; label: string; disabled?: boolean };
 }>();
 
 // Refs and data
@@ -94,7 +96,7 @@ onMounted(() => {
         <div v-else class="d-flex flex-column">
             <div class="d-flex flex-column sticky-top bg-white">
                 <div class="d-flex">
-                    <Heading h1 separator inline size="md" class="flex-grow-1">
+                    <Heading v-if="!props.noHeading" h1 separator inline size="md" class="flex-grow-1">
                         <slot name="heading">
                             {{ pageTitle }}
                         </slot>
@@ -131,12 +133,13 @@ onMounted(() => {
                             tooltip
                             class="markdown-edit"
                             size="small"
-                            title="Edit Markdown"
+                            :title="editButtonConfig?.tooltip || 'Edit Markdown'"
+                            :disabled="editButtonConfig?.disabled"
                             outline
                             color="blue"
                             @click="$emit('onEdit')">
-                            Edit
-                            <FontAwesomeIcon :icon="faEdit" />
+                            {{ editButtonConfig?.label || "Edit" }}
+                            <FontAwesomeIcon :icon="editButtonConfig?.icon || faEdit" />
                         </GButton>
                     </div>
                 </div>

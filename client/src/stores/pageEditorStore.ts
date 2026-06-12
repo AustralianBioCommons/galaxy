@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
+import { fetchInvocationReport } from "@/api/invocations";
 import {
     createHistoryPage,
     type CreateHistoryPagePayload,
@@ -17,7 +18,7 @@ import {
     updateHistoryPage,
     type UpdateHistoryPagePayload,
 } from "@/api/pages";
-import { ERROR_MESSAGES } from "@/components/Page/constants";
+import { ERROR_MESSAGES, PAGE_LABELS } from "@/components/Page/constants";
 import { useUserLocalStorage } from "@/composables/userLocalStorage";
 import { errorMessageAsString } from "@/utils/simple-error";
 
@@ -72,8 +73,12 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
             selectedRevision.value.id === revisions.value[revisions.value.length - 1]?.id,
     );
 
+    function setCurrentContext(historyId: string | null, invocationId?: string) {
+        currentContext.value = { historyId, invocationId };
+    }
+
     async function loadPages(newHistoryId: string, invocationId?: string) {
-        currentContext.value = { historyId: newHistoryId, invocationId };
+        setCurrentContext(newHistoryId, invocationId);
         isLoadingList.value = true;
         error.value = null;
         try {
@@ -122,11 +127,23 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         isLoadingPage.value = true;
         error.value = null;
         try {
+            // if content is not provided, and we're in invocation context, attempt to prefill with invocation report content
+            let newContent: string = payload?.content || "";
+            const labels = currentContext.value.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.standalone;
+            let newTitle: string = payload?.title || labels.defaultTitle;
+            if (!newContent && currentContext.value.invocationId) {
+                const data = await fetchInvocationReport(currentContext.value.invocationId);
+                newContent = data.invocation_markdown || "";
+                newTitle = data.title ? `${data.title} ${labels.entityName}` : newTitle;
+            }
+
+            // now create the page with the determined title and content
             const data = await createHistoryPage({
-                title: payload?.title || "",
+                title: newTitle,
                 history_id: historyId.value,
-                content: payload?.content ?? null,
+                content: newContent,
                 content_format: "markdown",
+                ...(currentContext.value.invocationId && { invocation_id: currentContext.value.invocationId }),
             });
             currentPage.value = data;
             const editorContent = data.content_editor ?? data.content ?? "";
@@ -405,6 +422,7 @@ export const usePageEditorStore = defineStore("pageEditor", () => {
         isSaving,
         error,
         chatError,
+        setCurrentContext,
         historyId,
         hasPages,
         hasCurrentPage,

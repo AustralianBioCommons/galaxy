@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { faArrowLeft, faEdit, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BButton } from "bootstrap-vue";
+import { BAlert } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { PAGE_LABELS } from "@/components/Page/constants";
+import { useToast } from "@/composables/toast";
 import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
+import { errorMessageAsString } from "@/utils/simple-error.js";
 
 import HistoryPageList from "./HistoryPageList.vue";
 import PageEditorView from "./PageEditorView.vue";
+import GButton from "@/components/BaseComponents/GButton.vue";
 import Markdown from "@/components/Markdown/Markdown.vue";
 
 const props = defineProps<{
@@ -18,14 +21,9 @@ const props = defineProps<{
     invocationId?: string;
     pageId?: string;
     displayOnly?: boolean;
-    emitsActions?: boolean;
 }>();
 
-const emit = defineEmits<{
-    (e: "edit-page", pageId: string): void;
-    (e: "go-back"): void;
-    (e: "view-page", pageId: string): void;
-}>();
+const Toast = useToast();
 
 const router = useRouter();
 const { pushToFrameOrPage } = useWindowAwareNavigation();
@@ -80,54 +78,44 @@ watch(
     },
 );
 
-function handleSelect(pageId: string) {
-    const page = store.pages.find((n) => n.id === pageId);
-    const pageTitle = page?.title || labels.value.entityName;
-    if (props.emitsActions) {
-        emit("edit-page", pageId);
+function handleView(viewingPageId: string) {
+    if (props.invocationId) {
+        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${viewingPageId}`);
         return;
     }
-    const inlineUrl = `/histories/${props.historyId}/pages/${pageId}`;
+    const page = store.pages.find((n) => n.id === viewingPageId);
+    const pageTitle = page?.title || labels.value.entityName;
+    const inlineUrl = `/histories/${props.historyId}/pages/${viewingPageId}?displayOnly=true`;
     pushToFrameOrPage({
-        framedUrl: `${inlineUrl}?displayOnly=true`,
+        framedUrl: inlineUrl,
         inlineUrl,
         title: `${labels.value.entityName}: ${pageTitle}`,
     });
 }
 
 async function handleCreate() {
-    const page = await store.createPage({ title: labels.value.defaultTitle });
-    if (page) {
-        if (props.emitsActions) {
-            emit("edit-page", page.id);
-            return;
-        }
-        router.push(`/histories/${props.historyId}/pages/${page.id}`);
+    try {
+        const page = await store.createPage();
+        handleEdit(page?.id);
+    } catch (error) {
+        Toast.error(errorMessageAsString(error), `Failed to create ${labels.value.entityName.toLowerCase()}`);
     }
 }
 
-function handleView(pageId: string) {
-    if (props.emitsActions) {
-        emit("view-page", pageId);
-        return;
-    }
-    router.push(`/histories/${props.historyId}/pages/${pageId}?displayOnly=true`);
-}
-
-function handleEdit() {
-    if (props.pageId) {
-        if (props.emitsActions) {
-            emit("edit-page", props.pageId);
-            return;
+function handleEdit(editingPageId?: string) {
+    if (editingPageId) {
+        let editUrl = `/histories/${props.historyId}/pages/${editingPageId}`;
+        if (props.invocationId) {
+            editUrl += `?invocation_id=${props.invocationId}`;
         }
-        router.push(`/histories/${props.historyId}/pages/${props.pageId}`);
+        router.push(editUrl);
     }
 }
 
 function handleBack() {
     store.clearCurrentPage();
-    if (props.emitsActions) {
-        emit("go-back");
+    if (props.invocationId) {
+        router.push(`/workflows/invocations/${props.invocationId}/reports`);
         return;
     }
     router.push(`/histories/${props.historyId}/pages`);
@@ -160,7 +148,8 @@ function handleBack() {
                 :history-id="props.historyId"
                 :invocation-id="props.invocationId"
                 :pages="store.pages"
-                @select="handleSelect"
+                @view-runtime-report="router.push(`/workflows/invocations/${props.invocationId}/report`)"
+                @edit="handleEdit"
                 @view="handleView"
                 @create="handleCreate" />
         </template>
@@ -170,23 +159,34 @@ function handleBack() {
             <div
                 class="page-display-toolbar d-flex align-items-center p-2 border-bottom"
                 data-description="page display toolbar">
-                <BButton variant="link" size="sm" data-description="page manage button" @click="handleBack">
+                <GButton
+                    color="blue"
+                    transparent
+                    size="small"
+                    data-description="page manage button"
+                    @click="handleBack">
                     <FontAwesomeIcon :icon="faArrowLeft" />
                     {{ labels.editorBackLabel }}
-                </BButton>
+                </GButton>
                 <span class="flex-grow-1 text-center font-weight-bold">
                     {{ store.currentTitle || labels.defaultTitle }}
                 </span>
-                <BButton variant="outline-primary" size="sm" data-description="page edit button" @click="handleEdit">
+                <GButton
+                    color="blue"
+                    outline
+                    size="small"
+                    data-description="page edit button"
+                    @click="handleEdit(props.pageId)">
                     <FontAwesomeIcon :icon="faEdit" />
                     Edit
-                </BButton>
+                </GButton>
             </div>
             <div class="page-display-content overflow-auto flex-grow-1" data-description="page rendered view">
                 <Markdown
                     v-if="markdownConfig"
                     :markdown-config="markdownConfig"
                     :read-only="true"
+                    no-heading
                     download-endpoint=""
                     hide-heading />
             </div>
@@ -194,14 +194,7 @@ function handleBack() {
 
         <!-- Edit mode: delegate to unified PageEditorView -->
         <template v-else-if="pageId && !displayOnly">
-            <PageEditorView
-                :emits-actions="props.emitsActions"
-                :page-id="pageId"
-                :history-id="historyId"
-                :invocation-id="invocationId"
-                @edit-page="handleEdit"
-                @go-back="handleBack"
-                @view-page="handleView" />
+            <PageEditorView :page-id="pageId" :history-id="historyId" :invocation-id="invocationId" />
         </template>
 
         <BAlert v-else-if="store.isLoadingPage" variant="info" show>

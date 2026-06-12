@@ -78,6 +78,8 @@ describe("HistoryPageList", () => {
         });
 
         it("renders each page as a card", () => {
+            expect(wrapper.find(SELECTORS.PAGE_ITEMS).exists()).toBe(true);
+
             const items = wrapper.findAll(SELECTORS.PAGE_ITEM);
             expect(items.length).toBe(2);
         });

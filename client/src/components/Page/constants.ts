@@ -61,7 +61,7 @@ export const PAGE_LABELS: Record<
         newButton: "New Invocation Report",
         emptyStateTitle: "No invocation reports yet",
         emptyStateDescription:
-            "Create a report to document this workflow invocation with rich markdown, embedded datasets, and visualizations.",
+            "Create a report in the form of a Galaxy Notebook to document this workflow invocation with rich markdown, embedded datasets, and visualizations.",
         editButton: "Edit Invocation Report",
         viewButton: "View Invocation Report",
         createButton: "Create Invocation Report",
