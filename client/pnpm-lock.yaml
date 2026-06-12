@@ -175,8 +175,8 @@ importers:
         specifier: ^1.13.2
         version: 1.13.2
       katex:
-        specifier: ^0.16.22
-        version: 0.16.22
+        specifier: ^0.17.0
+        version: 0.17.0
       linkify-html:
         specifier: ^4.1.1
         version: 4.1.1(linkifyjs@4.3.3)
@@ -3383,8 +3383,8 @@ packages:
     engines: {node: '>= 10'}
     hasBin: true
 
-  katex@0.16.22:
-    resolution: {integrity: sha512-XCHRdUw4lf3SKBaJe4EvgqIuWwkPSo9XoeO8GjQW94Bp7TWv9hNhzZjZ+OH9yf1UmLygb7DIT5GSFQiyt16zYg==}
+  katex@0.17.0:
+    resolution: {integrity: sha512-Vdw0ATsQ9V+LuegM/BTwQqV/6cTl5lbGcIrU+BCgLxyf6bo38ybOr372tuSIxir3CN720flu1meYR6XzNMwQnw==}
     hasBin: true
 
   kind-of@3.2.2:
@@ -8254,7 +8254,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  katex@0.16.22:
+  katex@0.17.0:
     dependencies:
       commander: 8.3.0
 
