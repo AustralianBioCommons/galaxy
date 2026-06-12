@@ -21,6 +21,7 @@ export const PAGE_LABELS: Record<
         newButton: string;
         emptyStateTitle: string;
         emptyStateDescription: string;
+        editButton: string;
         viewButton: string;
         createButton: string;
         historyCounterTooltip?: string;
@@ -35,7 +36,8 @@ export const PAGE_LABELS: Record<
         emptyStateTitle: "No notebooks yet",
         emptyStateDescription:
             "Create a notebook to document your analysis with rich markdown, embedded datasets, and visualizations.",
-        viewButton: "View notebook",
+        editButton: "Edit Notebook",
+        viewButton: "View Notebook",
         createButton: "Create Notebook",
         historyCounterTooltip: "Galaxy Notebooks",
     },
@@ -47,7 +49,8 @@ export const PAGE_LABELS: Record<
         newButton: "Create Report",
         emptyStateTitle: "No reports yet",
         emptyStateDescription: "Create a report to publish your analysis.",
-        viewButton: "View report",
+        editButton: "Edit Report",
+        viewButton: "View Report",
         createButton: "Create Report",
     },
     invocation: {
@@ -59,7 +62,8 @@ export const PAGE_LABELS: Record<
         emptyStateTitle: "No invocation reports yet",
         emptyStateDescription:
             "Create a report to document this workflow invocation with rich markdown, embedded datasets, and visualizations.",
-        viewButton: "View invocation report",
+        editButton: "Edit Invocation Report",
+        viewButton: "View Invocation Report",
         createButton: "Create Invocation Report",
     },
 } as const;

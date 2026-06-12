@@ -157,6 +157,7 @@ function handleBack() {
 
         <template v-else-if="!pageId">
             <HistoryPageList
+                :history-id="props.historyId"
                 :invocation-id="props.invocationId"
                 :pages="store.pages"
                 @select="handleSelect"

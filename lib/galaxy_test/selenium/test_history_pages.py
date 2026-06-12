@@ -87,7 +87,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.history_page_manage()
         self.history_page_assert_item_count(1)
 
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         editor = self.components.pages.history.markdown_editor
@@ -228,7 +228,7 @@ class TestHistoryPages(SeleniumTestCase):
 
         self.navigate_to_history_pages()
         self.history_page_assert_item_count(1)
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
 
         self.components.pages.history.editor.wait_for_visible()
         assert self.window_manager_window_count() == 0
@@ -269,7 +269,7 @@ class TestHistoryPages(SeleniumTestCase):
 
         self.navigate_to_history_pages()
         self.history_page_assert_item_count(1)
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.history_page_open_revisions()
@@ -285,7 +285,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.update_history_page(nb["id"], content="Modified")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.history_page_open_revisions()
@@ -329,7 +329,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.update_history_page(nb["id"], content="# New Content")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.history_page_open_revisions()
@@ -420,7 +420,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.new_history_page(history_id, title="Toggle Test", content="# Preview Me")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.components.pages.history.preview_button.wait_for_and_click()
@@ -445,7 +445,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.new_history_page(history_id, title="Original Name", content="# Content")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.history_page_rename("Renamed Page")
@@ -461,7 +461,7 @@ class TestHistoryPages(SeleniumTestCase):
         title_text = self.components.pages.history.item_title.wait_for_text()
         assert "Renamed Page" in title_text
 
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
         toolbar_title = self.components.pages.history.toolbar_title.wait_for_text()
         assert "Renamed Page" in toolbar_title
@@ -501,7 +501,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.update_history_page(nb["id"], content="# V1\n\nModified content\n\nNew section")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         self.history_page_open_revisions()
@@ -547,7 +547,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.dataset_populator.new_history_page(history_id, title="Toolbar Test", content="# Toolbar")
 
         self.navigate_to_history_pages()
-        self.components.pages.history.item.wait_for_and_click()
+        self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
         # History-page controls visible

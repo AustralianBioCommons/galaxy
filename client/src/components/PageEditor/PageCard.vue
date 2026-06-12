@@ -1,0 +1,95 @@
+<script setup lang="ts">
+import { faEdit, faExternalLinkAlt, faEye, faHistory } from "@fortawesome/free-solid-svg-icons";
+import { computed } from "vue";
+
+import type { HistoryPageSummary } from "@/api/pages";
+import type { CardAction, CardBadge, Title } from "@/components/Common/GCard.types";
+
+import GCard from "../Common/GCard.vue";
+
+interface Props {
+    page: HistoryPageSummary;
+    defaultTitle?: string;
+    entityName?: string;
+    editTitle?: string;
+    showInvocationBadge?: boolean;
+    viewTitle?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+    entityName: "Notebook",
+    editTitle: "Edit Notebook",
+    defaultTitle: "Untitled Notebook",
+    viewTitle: "View Notebook",
+});
+
+const emit = defineEmits<{
+    (e: "select"): void;
+    (e: "view"): void;
+}>();
+
+const title: Title = {
+    label: props.page.title || props.defaultTitle,
+    title: props.editTitle,
+    handler: () => emit("select"),
+};
+
+const badges = computed<CardBadge[]>(() => {
+    const retBadges: CardBadge[] = [
+        {
+            id: "notebook-revisions-count",
+            label: `${props.page.revision_ids.length} Revision${props.page.revision_ids.length !== 1 ? "s" : ""}`,
+            icon: faHistory,
+            title: "Number of revisions for this notebook",
+            class: "unselectable",
+        },
+    ];
+    if (props.showInvocationBadge && props.page.source_invocation_id) {
+        retBadges.push({
+            id: "is-invocation-notebook",
+            label: `Invocation ${props.page.source_invocation_id}`,
+            icon: faExternalLinkAlt,
+            title: "This notebook is a report created from a workflow invocation (Click to view the original report)",
+            class: "unselectable",
+            handler: () => {
+                window.open(`/workflows/invocations/${props.page.source_invocation_id}/report`, "_blank");
+            },
+            variant: "primary",
+        });
+    }
+    return retBadges;
+});
+
+const primaryActions: CardAction[] = [
+    {
+        id: "edit-notebook",
+        label: "Edit",
+        icon: faEdit,
+        title: props.editTitle,
+        handler: () => emit("select"),
+    },
+];
+
+// TODO: Once we fix sharing, we should add a sharing action
+const secondaryActions: CardAction[] = [
+    {
+        id: "view-notebook",
+        label: "View",
+        icon: faEye,
+        title: props.viewTitle,
+        handler: () => emit("view"),
+    },
+];
+</script>
+
+<template>
+    <GCard
+        :id="`page-${props.page.id}`"
+        :badges="badges"
+        :primary-actions="primaryActions"
+        :published="props.page.published"
+        :secondary-actions="secondaryActions"
+        :title="title"
+        title-size="text"
+        :update-time="props.page.update_time" />
+</template>

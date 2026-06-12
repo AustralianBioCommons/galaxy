@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { faChevronRight, faEye, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BButton } from "bootstrap-vue";
-import { computed } from "vue";
+import { computed, toRef } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
 import { PAGE_LABELS } from "@/components/Page/constants";
+import { useHistoryBreadCrumbsTo } from "@/composables/historyBreadcrumbs";
+
+import BreadcrumbHeading from "../Common/BreadcrumbHeading.vue";
+import PageCard from "./PageCard.vue";
+import GButton from "@/components/BaseComponents/GButton.vue";
 
 const props = defineProps<{
     pages: HistoryPageSummary[];
+    historyId: string;
     invocationId?: string;
+    noHeading?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
     (e: "select", pageId: string): void;
     (e: "view", pageId: string): void;
     (e: "create"): void;
@@ -20,29 +26,22 @@ defineEmits<{
 
 const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
 
-function getPageTitle(page: HistoryPageSummary): string {
-    return page.title || labels.value.defaultTitle;
-}
-
-function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
+const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), labels.value.entityNamePlural);
 </script>
 
 <template>
-    <div class="history-page-list" data-description="history page list">
-        <div class="list-header d-flex justify-content-between align-items-center p-3 border-bottom">
-            <h4 class="mb-0">{{ labels.entityNamePlural }}</h4>
-            <BButton variant="primary" size="sm" data-description="create page button" @click="$emit('create')">
+    <div class="d-flex flex-column overflow-hidden" data-description="history page list">
+        <BreadcrumbHeading v-if="!props.noHeading" :items="breadcrumbItems">
+            <GButton
+                class="text-nowrap"
+                color="blue"
+                size="small"
+                data-description="create page button"
+                @click="emit('create')">
                 <FontAwesomeIcon :icon="faPlus" />
                 {{ labels.newButton }}
-            </BButton>
-        </div>
+            </GButton>
+        </BreadcrumbHeading>
 
         <div v-if="pages.length === 0" class="empty-state text-center p-4" data-description="page empty state">
             <p class="text-muted">{{ labels.emptyStateTitle }}</p>
@@ -51,34 +50,19 @@ function formatDate(dateStr: string): string {
             </p>
         </div>
 
-        <div v-else class="page-items">
-            <div
+        <div v-else class="page-items mt-3">
+            <PageCard
                 v-for="page in pages"
                 :key="page.id"
-                class="page-item p-3 border-bottom cursor-pointer"
                 data-description="page item"
-                @click="$emit('select', page.id)">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="page-title fw-bold" data-description="page title">
-                            {{ getPageTitle(page) }}
-                        </div>
-                        <div class="page-meta text-muted small">Updated {{ formatDate(page.update_time) }}</div>
-                    </div>
-                    <span class="page-actions d-flex align-items-center">
-                        <BButton
-                            variant="link"
-                            size="sm"
-                            class="p-1"
-                            :title="labels.viewButton"
-                            data-description="page view button"
-                            @click.stop="$emit('view', page.id)">
-                            <FontAwesomeIcon :icon="faEye" />
-                        </BButton>
-                        <FontAwesomeIcon :icon="faChevronRight" class="text-muted" />
-                    </span>
-                </div>
-            </div>
+                :page="page"
+                :default-title="labels.defaultTitle"
+                :entity-name="labels.entityName"
+                :edit-title="labels.editButton"
+                :show-invocation-badge="!props.invocationId"
+                :view-title="labels.viewButton"
+                @select="emit('select', page.id)"
+                @view="emit('view', page.id)" />
         </div>
     </div>
 </template>
@@ -86,6 +70,10 @@ function formatDate(dateStr: string): string {
 <style scoped>
 .page-item:hover {
     background: var(--panel-header-bg);
+}
+.page-items {
+    flex: 1 1 0;
+    overflow-y: auto;
 }
 .cursor-pointer {
     cursor: pointer;
