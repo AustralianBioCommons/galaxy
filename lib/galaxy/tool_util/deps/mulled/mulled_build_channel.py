@@ -82,7 +82,7 @@ def _new_versions(quay: list[str], conda: list[str], tag_suffix: str | None = No
         # Unsuffixed legacy tags represent amd64 builds and must not suppress
         # publication of the requested non-amd64 variant.
         suffix = f"-{tag_suffix}"
-        squay = {tag.removesuffix(suffix) for tag in squay if tag.endswith(suffix)}
+        squay = {tag[: -len(suffix)] for tag in squay if tag.endswith(suffix)}
     return [v for v in conda if v not in squay]
 
 
