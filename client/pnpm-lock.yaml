@@ -292,8 +292,8 @@ importers:
         specifier: ^7.2.6
         version: 7.2.6(vue@2.7.16)
       vue-demi:
-        specifier: 0.13.11
-        version: 0.13.11(vue@2.7.16)
+        specifier: ^0.14.10
+        version: 0.14.10(vue@2.7.16)
       vue-echarts:
         specifier: ^7.0.3
         version: 7.0.3(echarts@5.5.1)(vue@2.7.16)
