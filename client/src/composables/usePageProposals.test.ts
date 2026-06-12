@@ -255,6 +255,15 @@ describe("usePageProposals", () => {
             dismissProposal(makeProposalMsg("full_replacement", "x"));
             expect(mockPersistedDismissed.value[PAGE_ID]).toBeUndefined();
         });
+
+        it("persisted dismissal survives a loadForPage reload", () => {
+            const { dismissProposal, loadForPage, dismissedProposals } = setup();
+            const msg = makeProposalMsg("full_replacement", "x");
+            dismissProposal(msg);
+            dismissedProposals.value = new Set();
+            loadForPage(PAGE_ID);
+            expect(dismissedProposals.value.has(msg.id)).toBe(true);
+        });
     });
 
     describe("applyFullReplacement", () => {
@@ -295,8 +304,11 @@ describe("usePageProposals", () => {
 
         it("marks message as dismissed after applying", async () => {
             const { dismissedProposals, applySectionPatched } = setup();
-            const msg = makeMsg();
-            await applySectionPatched("patched", msg);
+            const msg = makeProposalMsg("section_patch", "", {
+                target_section_heading: "Methods",
+                new_section_content: "# Methods\nUpdated",
+            });
+            await applySectionPatched("# Patched doc", msg);
             expect(dismissedProposals.value.has(msg.id)).toBe(true);
         });
     });

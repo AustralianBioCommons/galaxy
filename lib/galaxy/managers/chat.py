@@ -1,9 +1,12 @@
 import json
+import logging
 from typing import (
     Any,
     Optional,
     Union,
 )
+
+log = logging.getLogger(__name__)
 
 from pydantic_ai.messages import (
     ModelMessage,
@@ -63,6 +66,29 @@ class ChatManager:
         trans.sa_session.add(chat_message)
         trans.sa_session.commit()
         return chat_exchange
+
+    def resolve_page_from_interface_context(
+        self, trans: ProvidesUserContext, query_context: Optional[dict[str, Any]]
+    ) -> tuple[Optional[int], Optional["Page"]]:
+        """Extract and validate a page from an interface_context notebook payload.
+
+        Swallows only ID-decode failures; access-control errors propagate.
+        Returns (None, None) when the payload is absent or the encoded ID is invalid.
+        """
+        interface_context = query_context.get("interface_context") if isinstance(query_context, dict) else None
+        if not (
+            isinstance(interface_context, dict)
+            and interface_context.get("contextType") == "notebook"
+            and interface_context.get("pageId")
+        ):
+            return None, None
+        try:
+            page_id = trans.security.decode_id(interface_context["pageId"])
+        except Exception:
+            log.warning("Ignoring invalid notebook pageId in interface_context: %s", interface_context.get("pageId"))
+            return None, None
+        page_obj = self.get_accessible_page(trans, page_id)
+        return page_id, page_obj
 
     def get_accessible_page(self, trans: ProvidesUserContext, page_id: int) -> Page:
         """Return a Page the current user is allowed to read, or raise."""

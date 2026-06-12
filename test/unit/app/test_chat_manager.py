@@ -219,3 +219,54 @@ class TestGetRoutingHistory:
         exchange = self._exchange_with("not valid json{{{")
         _, responding = self._routing_history(mgr, trans, exchange)
         assert responding is False
+
+
+class TestResolvePageFromInterfaceContext:
+    """resolve_page_from_interface_context extracts and validates a page from
+    an interface_context notebook payload, delegating access-check to
+    get_accessible_page."""
+
+    def _trans(self, decoded_id=99):
+        trans = _make_trans()
+        trans.security = mock.Mock()
+        trans.security.decode_id.return_value = decoded_id
+        return trans
+
+    def test_returns_none_none_when_query_context_is_none(self):
+        mgr = ChatManager()
+        assert mgr.resolve_page_from_interface_context(_make_trans(), None) == (None, None)
+
+    def test_returns_none_none_when_interface_context_absent(self):
+        mgr = ChatManager()
+        assert mgr.resolve_page_from_interface_context(_make_trans(), {"other_key": "value"}) == (None, None)
+
+    def test_returns_none_none_when_context_type_is_not_notebook(self):
+        mgr = ChatManager()
+        trans = self._trans()
+        ctx = {"interface_context": {"contextType": "tool", "pageId": "abc"}}
+        assert mgr.resolve_page_from_interface_context(trans, ctx) == (None, None)
+
+    def test_returns_none_none_when_page_id_missing(self):
+        mgr = ChatManager()
+        trans = self._trans()
+        ctx = {"interface_context": {"contextType": "notebook"}}
+        assert mgr.resolve_page_from_interface_context(trans, ctx) == (None, None)
+
+    def test_returns_none_none_when_decode_raises(self):
+        mgr = ChatManager()
+        trans = self._trans()
+        trans.security.decode_id.side_effect = Exception("bad id")
+        ctx = {"interface_context": {"contextType": "notebook", "pageId": "invalid"}}
+        assert mgr.resolve_page_from_interface_context(trans, ctx) == (None, None)
+
+    def test_returns_page_id_and_page_obj_on_success(self):
+        mgr = ChatManager()
+        trans = self._trans(decoded_id=42)
+        fake_page = mock.Mock()
+        with mock.patch.object(mgr, "get_accessible_page", return_value=fake_page) as mock_get:
+            ctx = {"interface_context": {"contextType": "notebook", "pageId": "encodedAbc"}}
+            page_id, page_obj = mgr.resolve_page_from_interface_context(trans, ctx)
+
+        assert page_id == 42
+        assert page_obj is fake_page
+        mock_get.assert_called_once_with(trans, 42)
