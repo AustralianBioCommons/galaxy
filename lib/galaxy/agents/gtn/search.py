@@ -80,6 +80,8 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     'find "exact phrase" in data'
     >>> sanitize_fts5_query('find "exact phrase" in data', preserve_phrases=False)
     'find exact phrase in data'
+    >>> sanitize_fts5_query("color deconvolution site:example.org/path")
+    'color deconvolution site example org path'
     """
     if not query or not query.strip():
         return ""
@@ -88,7 +90,11 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     # word individually rather than treating the hyphenated form as one token.
     sanitized = query.replace("-", " ")
 
-    for char in ",():+?!;[]":
+    # Models sometimes paste URL- or operator-flavored tokens (site:, dotted
+    # hostnames, slashes, column-filter colons). Left in, ".", ":" and "/" reach
+    # FTS5 as syntax and the whole search errors out as no-results -- so strip
+    # them along with the other FTS5 operators.
+    for char in ",.:/()+?!;[]^=~@<>{}|&":
         sanitized = sanitized.replace(char, " ")
 
     # Phrase preservation only works with a balanced pair of quotes. An odd
