@@ -466,6 +466,7 @@ export function getRouter(Galaxy) {
                             historyId: route.params.historyId,
                             pageId: route.params.pageId,
                             displayOnly: route.query.displayOnly === "true",
+                            invocationId: route.query.invocation_id,
                         }),
                     },
                     {
@@ -588,8 +589,8 @@ export function getRouter(Galaxy) {
                         component: Sharing,
                         props: (route) => ({
                             id: route.query.id,
-                            pluralName: "Reports",
-                            modelClass: "Report",
+                            pluralName: "Pages",
+                            modelClass: "Page",
                         }),
                     },
                     {
