@@ -593,6 +593,55 @@ class TestAgentUnitMocked:
             assert args[0] == "Tell me more about the second one"
 
     @pytest.mark.asyncio
+    async def test_router_injects_interface_context_into_prompt(self):
+        """The router must fold the active interface context (e.g. the tool the user is
+        viewing) into the prompt it sends to the model. Without this, "how do I use this
+        tool?" reaches the model with no referent and it answers "what tool?" even though
+        the UI shows the context. Specialists get this via _prepare_prompt; the router has
+        to do the same for the queries it answers directly rather than handing off."""
+        router = QueryRouterAgent(self.deps)
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = "Here is how to use Random Lines."
+            mock_run.return_value = mock_result
+
+            await router.process(
+                "how do I use this tool?",
+                context={
+                    "interface_context": {
+                        "contextType": "tool",
+                        "toolName": "Random Lines",
+                        "toolId": "random_lines1",
+                    }
+                },
+            )
+
+            mock_run.assert_called_once()
+            prompt = mock_run.call_args[0][0]
+            assert "Random Lines" in prompt
+            assert "how do I use this tool?" in prompt
+
+    @pytest.mark.asyncio
+    async def test_router_does_not_leak_routing_flags_into_prompt(self):
+        """Routing-only bookkeeping (responding_to_clarification) is for the router's own
+        logic, not the model -- it must never surface in the prompt text."""
+        router = QueryRouterAgent(self.deps)
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = "Routed."
+            mock_run.return_value = mock_result
+
+            await router.process(
+                "the second one",
+                context={"responding_to_clarification": True},
+            )
+
+            prompt = mock_run.call_args[0][0]
+            assert "responding_to_clarification" not in prompt
+
+    @pytest.mark.asyncio
     async def test_router_asks_for_clarification(self):
         """When the model calls ask_for_clarification, the router surfaces it as a
         clarification turn (agent_type="clarification") rather than guessing a route."""
