@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert, BButton } from "bootstrap-vue";
 import { storeToRefs } from "pinia";
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router/composables";
 
 import type { PublishedItem as PublishedItemType } from "@/components/Common/models/PublishedItem";
 import { PAGE_LABELS, PUBLISHED_LABELS } from "@/components/Page/constants";
@@ -36,6 +37,8 @@ const props = withDefaults(defineProps<Props>(), {
     showHeading: true,
     displayOnly: false,
 });
+
+const router = useRouter();
 
 const { config, isConfigLoaded } = useConfig(true);
 const userStore = useUserStore();
@@ -86,7 +89,7 @@ onMounted(() => {
 });
 
 function onEdit() {
-    window.location.href = `/pages/editor?id=${props.pageId}`;
+    router.push(`/pages/editor?id=${props.pageId}`);
 }
 
 /** Whether to render chrome-free (embed or displayOnly). */
