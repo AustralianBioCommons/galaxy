@@ -41,23 +41,14 @@ from .util import dict_verify_each
 TOOLS_THAT_USE_UNQUALIFIED_PARAMETER_ACCESS = [
     "boolean_conditional.xml",
     "simple_constructs.xml",
-    "section.xml",
-    "collection_paired_conditional_structured_like.xml",
-    "output_action_change_format.xml",
-    "top_level_data.xml",
     "disambiguate_cond.xml",
     "multi_repeats.xml",
     "implicit_default_conds.xml",
-    "min_repeat.xml",
 ]
 
 # tools that use truevalue/falsevalue in parameter setting, I think we're going to
 # forbid this for a future tool profile version. Potential ambigouity could result.
-TOOLS_THAT_USE_TRUE_FALSE_VALUE_BOOLEAN_SPECIFICATION = [
-    "inputs_as_json_profile.xml",
-    "inputs_as_json_with_paths.xml",
-    "inputs_as_json.xml",
-]
+TOOLS_THAT_USE_TRUE_FALSE_VALUE_BOOLEAN_SPECIFICATION: List[str] = []
 
 TOOLS_THAT_USE_SELECT_BY_VALUE = [
     "multi_select.xml",

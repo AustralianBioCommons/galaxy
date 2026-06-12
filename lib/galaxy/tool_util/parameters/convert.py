@@ -10,6 +10,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Union,
 )
 
 from galaxy.tool_util_models.parameters import (
@@ -74,7 +75,7 @@ DereferenceCallable = Callable[[DataRequestUri], DataRequestInternalHda]
 DereferenceCollectionCallable = Callable[[DataRequestCollectionUri], DataRequestInternalHdca]
 # interfaces for adapting test data dictionaries to tool request dictionaries
 # e.g. {class: File, path: foo.bed} => {src: hda, id: ab1235cdfea3}
-AdaptDatasets = Callable[[JsonTestDatasetDefDict], DataRequestHda]
+AdaptDatasets = Callable[[JsonTestDatasetDefDict], Union[DataRequestHda, DataRequestUri]]
 AdaptCollections = Callable[[JsonTestCollectionDefDict], DataCollectionRequest]
 
 OPENAPI_REF_TEMPLATE = "#/components/schemas/{model}"
@@ -289,6 +290,9 @@ def encode_test(
                     assert isinstance(value, dict), str(value)
                     test_dataset = cast(JsonTestDatasetDefDict, value)
                     return adapt_datasets(test_dataset).model_dump()
+            elif parameter.url_default:
+                url_default_dict = cast(Any, {"class": "File", "location": parameter.url_default})
+                return adapt_datasets(url_default_dict).model_dump()
         elif isinstance(parameter, DataCollectionParameterModel):
             if value is not None:
                 assert isinstance(value, dict), str(value)

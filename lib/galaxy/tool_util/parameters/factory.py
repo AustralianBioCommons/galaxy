@@ -218,11 +218,16 @@ def _from_input_source_galaxy(input_source: InputSource, profile: float) -> Tool
             # missing datasets); only known user is cufflinks which sets it.
             optional = input_source.parse_optional() if param_type == "data" else True
             multiple = input_source.get_bool("multiple", False)
+            url_default = None
+            default_value = input_source.parse_default()
+            if isinstance(default_value, dict) and default_value.get("location"):
+                url_default = default_value["location"]
             return DataParameterModel(
                 type="data",
                 name=input_source.parse_name(),
                 optional=optional,
                 multiple=multiple,
+                url_default=url_default,
                 **_common_param_kwargs(input_source),
             )
         elif param_type == "data_collection":

@@ -175,17 +175,25 @@ def _label_value_dicts(options: List[Any]) -> List[Dict[str, Any]]:
     return [{"label": o.label, "value": o.value, "selected": o.selected} for o in options]
 
 
+_UNSET: Any = object()
+
+
 def dynamic_model_information_from_py_type(
     param_model: ParamModel,
     py_type: Type,
     requires_value: Optional[bool] = None,
     validators=None,
     extra_json_schema: Optional[Dict[str, Any]] = None,
+    default: Any = _UNSET,
 ):
     name = safe_field_name(param_model.name)
-    if requires_value is None:
-        requires_value = param_model.request_requires_value
-    initialize = ... if requires_value else None
+    if default is not _UNSET:
+        initialize = default
+        requires_value = False
+    else:
+        if requires_value is None:
+            requires_value = param_model.request_requires_value
+        initialize = ... if requires_value else None
     py_type_is_optional = is_optional(py_type)
     validators = validators or {}
     if not py_type_is_optional and not requires_value:
@@ -1150,6 +1158,7 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
     multiple: Annotated[bool, Field(description="Allow multiple values to be selected.")] = False
     min: Optional[int] = None
     max: Optional[int] = None
+    url_default: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -1248,9 +1257,13 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
             return dynamic_model_information_from_py_type(self, self.py_type_job_internal, requires_value=True)
         elif state_representation == "job_runtime":
             return dynamic_model_information_from_py_type(self, self.py_type_internal_json, requires_value=True)
-        elif state_representation == "test_case_xml":
-            return dynamic_model_information_from_py_type(self, self.py_type_test_case)
-        elif state_representation == "test_case_json":
+        elif state_representation in ("test_case_xml", "test_case_json"):
+            if self.url_default:
+                return dynamic_model_information_from_py_type(
+                    self,
+                    self.py_type_test_case,
+                    default={"class": "File", "location": self.url_default},
+                )
             return dynamic_model_information_from_py_type(self, self.py_type_test_case)
         elif state_representation == "workflow_step":
             return dynamic_model_information_from_py_type(self, type(None), requires_value=False)

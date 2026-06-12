@@ -36,10 +36,12 @@ from typing_extensions import (
 )
 
 from galaxy import util
+from galaxy.exceptions import RequestParameterInvalidException
 from galaxy.tool_util.client.staging import StagingInterface
 from galaxy.tool_util.parameters import (
     DataCollectionRequest,
     DataRequestHda,
+    DataRequestUri,
     encode_test,
     input_models_from_json,
     TestCaseToolState,
@@ -844,7 +846,13 @@ class GalaxyInteractorApi:
             assert request_schema is not None, "Request schema not set"
             parameters = request_schema["parameters"]
 
-            def adapt_datasets(test_input: JsonTestDatasetDefDict) -> DataRequestHda:
+            def adapt_datasets(test_input: JsonTestDatasetDefDict) -> Union[DataRequestHda, DataRequestUri]:
+                location = test_input.get("location")
+                if location:
+                    import posixpath
+
+                    ext = posixpath.splitext(posixpath.basename(location))[1].lstrip(".") or "data"
+                    return DataRequestUri(url=location, ext=ext)
                 # if path is not set it might be a composite file with a path,
                 # e.g. composite_shapefile
                 test_input_path = test_input.get("path", "")
@@ -1790,8 +1798,8 @@ def verify_tool(
             tool_response = galaxy_interactor.resolve_tool_submission(submission)
             data_list, jobs = tool_response.outputs, tool_response.jobs
             data_collection_list = tool_response.output_collections
-        except RunToolException as e:
-            tool_inputs = e.inputs
+        except (RunToolException, RequestParameterInvalidException) as e:
+            tool_inputs = getattr(e, "inputs", None)
             tool_execution_exception = e
             if not testdef.expect_failure:
                 raise e
