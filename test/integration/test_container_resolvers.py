@@ -1217,3 +1217,61 @@ class TestCachedExplicitSingularityContainerResolverWithSingularityRequirement(
     def handle_galaxy_config_kwds(cls, config) -> None:
         super().handle_galaxy_config_kwds(config)
         config["container_resolvers"] = cls.container_resolvers_config
+
+
+class TestCachedExplicitSingularityContainerResolverWithNamespace(
+    SingularityContainerResolverTestCase, ContainerResolverTestCases, ExplicitTestCase
+):
+    """
+    test cached_explicit_singularity container resolver with namespace stripping
+
+    when namespace="biocontainers" is configured, the resolver strips
+    docker://quay.io/biocontainers/ from the image identifier so that the
+    cached image is stored as a flat filename (e.g. bwa:0.7.17--h7132678_9)
+    compatible with CVMFS-hosted biocontainer caches.
+    """
+
+    _image_name = ExplicitTestCase.mulled_hash.rsplit("/", 1)[-1]
+
+    container_resolvers_config: list[dict[str, Any]] = [
+        {"type": "cached_explicit_singularity", "namespace": "biocontainers"},
+    ]
+    assumptions: dict[str, Any] = {
+        "run": {
+            "output": [
+                "Program: bwa (alignment via Burrows-Wheeler transformation)",
+                "Version: 0.7.17-r1188",
+            ],
+            "cached": True,
+            "resolver_type": "cached_explicit_singularity",
+            "cache_name": _image_name,
+            "cache_namespace": "biocontainers",
+        },
+        # With namespace set the resolver returns None when the image is not yet
+        # cached, so listing resolves to NullDependency before any install.
+        "list": [
+            {"unresolved": True},
+            {"unresolved": True},
+        ],
+        "build": [
+            {
+                "resolver_type": "cached_explicit_singularity",
+                "identifier": f"/tmp/.*/singularity/explicit/{_image_name}",
+                "cached": True,
+                "cache_name": _image_name,
+                "cache_namespace": "biocontainers",
+            },
+            {
+                "resolver_type": "cached_explicit_singularity",
+                "identifier": f"/tmp/.*/singularity/explicit/{_image_name}",
+                "cached": True,
+                "cache_name": _image_name,
+                "cache_namespace": "biocontainers",
+            },
+        ],
+    }
+
+    @classmethod
+    def handle_galaxy_config_kwds(cls, config) -> None:
+        super().handle_galaxy_config_kwds(config)
+        config["container_resolvers"] = cls.container_resolvers_config
