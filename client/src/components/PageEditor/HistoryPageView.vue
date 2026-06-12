@@ -186,6 +186,7 @@ function handleBack() {
             <div class="page-display-content overflow-auto flex-grow-1" data-description="page rendered view">
                 <Markdown
                     v-if="markdownConfig"
+                    class="px-3 pt-3"
                     :markdown-config="markdownConfig"
                     :read-only="true"
                     no-heading
