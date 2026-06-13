@@ -207,6 +207,7 @@ pydantic-ai==1.99.0
 pydantic-ai-slim==1.99.0
 pydantic-core==2.46.4
 pydantic-evals==1.99.0
+pydantic-extra-types==2.11.1
 pydantic-graph==1.99.0
 pydantic-handlebars==0.1.0
 pydantic-settings==2.14.1

@@ -41,6 +41,7 @@ from pydantic import (
     TypeAdapter,
 )
 from pydantic.json_schema import SkipJsonSchema
+from pydantic_extra_types.color import Color
 from typing_extensions import (
     Annotated,
     Literal,
@@ -1540,15 +1541,10 @@ def ensure_color_valid(value: Optional[Any]):
         return
     if not isinstance(value, str):
         raise ValueError(f"Invalid color value type {value.__class__} encountered.")
-    value_str: str = value
-    message = f"Invalid color value string format {value_str} encountered."
-    if len(value_str) != 7:
-        raise ValueError(message + "0")
-    if value_str[0] != "#":
-        raise ValueError(message + "1")
-    for byte_str in value_str[1:]:
-        if byte_str not in "0123456789abcdef":
-            raise ValueError(message + "2")
+    try:
+        Color(value)
+    except Exception as e:
+        raise ValueError(f"Invalid color value {value!r}: {e}")
 
 
 class ColorParameterModel(BaseGalaxyToolParameterModelDefinition):
@@ -1558,7 +1554,7 @@ class ColorParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     def field_kwargs(self) -> Dict[str, Any]:
         kwargs = super().field_kwargs()
-        kwargs["json_schema_extra"]["pattern"] = "^#[0-9a-f]{6}$"
+        kwargs["json_schema_extra"]["format"] = "color"
         return kwargs
 
     @property

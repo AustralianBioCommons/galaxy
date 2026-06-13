@@ -76,6 +76,7 @@ dependencies = [
     "pycryptodome",
     "pydantic[email]>=2.7.4",  # https://github.com/pydantic/pydantic/pull/9639
     "pydantic-ai>=1.56.0",  # https://github.com/pydantic/pydantic-ai/security/advisories/GHSA-2jrp-274c-jhv3
+    "pydantic-extra-types",
     "pydicom; python_version >= '3.10'",
     "PyJWT",
     "pykwalify",
