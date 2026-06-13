@@ -652,4 +652,5 @@ class TestMCPServerSmoke(IntegrationTestCase):
         assert "content" not in old_rev.data
         # revert appends a new "restore" revision carrying the original directive content
         assert reverted.data["edit_source"] == "restore"
-        assert hda_id in reverted.data["content"]
+        assert hda_id in reverted.data["content_editor"]
+        assert "content" not in reverted.data

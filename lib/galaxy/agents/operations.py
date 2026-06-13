@@ -1104,6 +1104,17 @@ class AgentOperationsManager:
 
     # ==================== Pages (notebooks and reports) ====================
 
+    def _dump_page(self, model, include_rendered: bool = False) -> dict[str, Any]:
+        """Serialize a page/revision schema, dropping the large rendered form by default.
+
+        content_editor (editable encoded-id markdown) is always kept; content (the
+        embed-expanded render form) is included only when include_rendered is True.
+        """
+        result = model.model_dump(mode="json")
+        if not include_rendered:
+            result.pop("content", None)
+        return result
+
     def list_pages(
         self,
         history_id: Optional[str] = None,
@@ -1146,10 +1157,7 @@ class AgentOperationsManager:
         """
         decoded_page_id = self.trans.security.decode_id(page_id)
         details = self.pages_service.show(self.trans, decoded_page_id)
-        result = details.model_dump(mode="json")
-        if not include_rendered:
-            result.pop("content", None)
-        return result
+        return self._dump_page(details, include_rendered)
 
     def create_page(
         self,
@@ -1172,24 +1180,23 @@ class AgentOperationsManager:
             slug=slug,
         )
         details = self.pages_service.create(self.trans, payload)
-        return details.model_dump(mode="json")
+        return self._dump_page(details)
 
     def update_page(
         self,
         page_id: str,
         content: Optional[str] = None,
         title: Optional[str] = None,
-        edit_source: str = "agent",
     ) -> dict[str, Any]:
-        """Update a page. Supplying content creates a new revision tagged with edit_source."""
+        """Update a page. Supplying content creates a new revision tagged edit_source=agent."""
         decoded_page_id = self.trans.security.decode_id(page_id)
         payload = UpdatePagePayload(
             content=content,
             title=title,
-            edit_source=edit_source,
+            edit_source="agent",
         )
         details = self.pages_service.update(self.trans, decoded_page_id, payload)
-        return details.model_dump(mode="json")
+        return self._dump_page(details)
 
     def list_page_revisions(self, page_id: str, sort_desc: bool = False) -> dict[str, Any]:
         """List the revision history of a page (provenance via edit_source)."""
@@ -1210,14 +1217,11 @@ class AgentOperationsManager:
         decoded_page_id = self.trans.security.decode_id(page_id)
         decoded_revision_id = self.trans.security.decode_id(revision_id)
         revision = self.pages_service.show_revision(self.trans, decoded_page_id, decoded_revision_id)
-        result = revision.model_dump(mode="json")
-        if not include_rendered:
-            result.pop("content", None)
-        return result
+        return self._dump_page(revision, include_rendered)
 
     def revert_page_revision(self, page_id: str, revision_id: str) -> dict[str, Any]:
         """Roll a page back to an earlier revision (creates a new 'restore' revision)."""
         decoded_page_id = self.trans.security.decode_id(page_id)
         decoded_revision_id = self.trans.security.decode_id(revision_id)
         revision = self.pages_service.revert_revision(self.trans, decoded_page_id, decoded_revision_id)
-        return revision.model_dump(mode="json")
+        return self._dump_page(revision)
