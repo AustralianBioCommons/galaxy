@@ -424,9 +424,8 @@ class AgentOperationsManager:
         dbkey: str = "?",
         file_name: str | None = None,
     ) -> dict[str, Any]:
-        decoded_history_id = self.trans.security.decode_id(history_id)
         fetch_payload = FetchDataPayload(
-            history_id=decoded_history_id,
+            history_id=history_id,
             targets=[
                 DataElementsTarget(
                     destination=HdaDestination(type="hdas"),
