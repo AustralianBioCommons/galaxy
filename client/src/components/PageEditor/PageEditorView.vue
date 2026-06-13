@@ -13,6 +13,7 @@ import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
 
 import GButton from "../BaseComponents/GButton.vue";
+import GModal from "../BaseComponents/GModal.vue";
 import ObjectPermissionsModal from "./ObjectPermissionsModal.vue";
 import PageDisplayOnly from "./PageDisplayOnly.vue";
 import PageDisplayToolbar from "./PageDisplayToolbar.vue";
@@ -158,8 +159,9 @@ function handleContentUpdate(newContent: string) {
     store.updateContent(newContent);
 }
 
-function handleRevisionSelect(revisionId: string) {
-    store.loadRevision(revisionId);
+async function handleRevisionSelect(revisionId: string) {
+    await store.loadRevision(revisionId);
+    store.showRevisions = false;
 }
 
 function handleRevisionRestore(revisionId: string) {
@@ -229,14 +231,26 @@ function handleRevisionRestore(revisionId: string) {
                         :title="editorTitle"
                         @update="handleContentUpdate" />
                 </div>
-                <div v-if="store.showRevisions" class="page-revision-panel border-left">
+                <GModal
+                    data-description="page revisions modal"
+                    fixed-height
+                    :show.sync="store.showRevisions"
+                    size="small"
+                    :title="`${labels.entityName} Revisions`">
+                    <template v-slot:header>
+                        <div class="d-flex align-items-center flex-gapx-1">
+                            <FontAwesomeIcon v-if="store.isLoadingRevision" :icon="faSpinner" spin fixed-width />
+                            Click to select and view a revision in the editor
+                        </div>
+                    </template>
                     <PageRevisionList
                         :revisions="store.revisions"
                         :is-loading="store.isLoadingRevisions"
                         :is-reverting="store.isReverting"
+                        :selected-revision-id="store.selectedRevision?.id"
                         @select="handleRevisionSelect"
                         @restore="handleRevisionRestore" />
-                </div>
+                </GModal>
             </div>
         </template>
     </div>
@@ -244,12 +258,6 @@ function handleRevisionRestore(revisionId: string) {
 
 <style scoped>
 .page-editor-view {
-    background: var(--body-bg);
-}
-.page-revision-panel {
-    width: 300px;
-    min-width: 300px;
-    overflow-y: auto;
     background: var(--body-bg);
 }
 .page-editor-pane {

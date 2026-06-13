@@ -525,7 +525,7 @@ class TestHistoryPages(SeleniumTestCase):
         assert "Modified content" in diff_text or "New section" in diff_text
 
         # Go back, click oldest revision
-        self.components.pages.history.revision_back_button.wait_for_and_click()
+        self.history_page_open_revisions()
         items = self.components.pages.history.revision_item.all()
         items[-1].click()
         self.components.pages.history.revision_view.wait_for_visible()
