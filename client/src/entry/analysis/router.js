@@ -556,6 +556,7 @@ export function getRouter(Galaxy) {
                             invocationId: route.query.invocation_id,
                             mode: "create",
                         }),
+                        redirect: redirectAnon(),
                     },
                     {
                         path: "pages/edit",
@@ -564,6 +565,7 @@ export function getRouter(Galaxy) {
                             id: route.query.id,
                             mode: "edit",
                         }),
+                        redirect: redirectAnon(),
                     },
                     {
                         path: "/pages/editor",

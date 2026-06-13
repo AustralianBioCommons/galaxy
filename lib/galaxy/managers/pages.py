@@ -273,6 +273,8 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
 
     def create_page(self, trans, payload: CreatePagePayload):
         user = trans.get_user()
+        if not user:
+            raise exceptions.AuthenticationRequired("You must be logged in to create pages.")
         history_id = getattr(payload, "history_id", None)
 
         # When creating from an invocation, automatically attach to its history
@@ -343,6 +345,8 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
 
     def update_page(self, trans, id: int, payload: UpdatePagePayload):
         user = trans.get_user()
+        if not user:
+            raise exceptions.AuthenticationRequired("You must be logged in to update pages.")
 
         # Load page from database
         page = trans.sa_session.get(model.Page, id)
