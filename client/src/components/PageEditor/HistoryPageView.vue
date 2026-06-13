@@ -159,7 +159,6 @@ function handleBack() {
         <PageDisplayOnly
             v-else-if="store.hasCurrentPage && displayOnly"
             :labels="labels"
-            :current-title="store.currentTitle"
             :markdown-config="markdownConfig || undefined"
             @back="handleBack"
             @edit="handleEdit(props.pageId)" />

@@ -8,6 +8,9 @@
  *
  * Change strings here to rename across the entire UI.
  */
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { faBook, faFileContract } from "@fortawesome/free-solid-svg-icons";
+
 import type { PageEditorMode } from "@/stores/pageEditorStore";
 
 /** Per-mode labels used by the page editor, history page list, chat panel, etc. */
@@ -16,6 +19,7 @@ export const PAGE_LABELS: Record<
     {
         entityName: string;
         entityNamePlural: string;
+        titleIcon: IconDefinition;
         defaultTitle: string;
         editorBackLabel: string;
         newButton: string;
@@ -30,6 +34,7 @@ export const PAGE_LABELS: Record<
     history: {
         entityName: "Galaxy Notebook",
         entityNamePlural: "Galaxy Notebooks",
+        titleIcon: faBook,
         defaultTitle: "Untitled Notebook",
         editorBackLabel: "This History's Notebooks",
         newButton: "New Notebook",
@@ -44,6 +49,7 @@ export const PAGE_LABELS: Record<
     standalone: {
         entityName: "Report",
         entityNamePlural: "Reports",
+        titleIcon: faFileContract,
         defaultTitle: "Untitled Report",
         editorBackLabel: "Back to Reports",
         newButton: "Create Report",
@@ -56,6 +62,7 @@ export const PAGE_LABELS: Record<
     invocation: {
         entityName: "Invocation Report",
         entityNamePlural: "Invocation Reports",
+        titleIcon: faFileContract,
         defaultTitle: "Untitled Invocation Report",
         editorBackLabel: "This Invocation's Reports",
         newButton: "New Invocation Report",

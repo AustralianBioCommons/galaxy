@@ -187,7 +187,6 @@ function handleRevisionRestore(revisionId: string) {
         <PageDisplayOnly
             v-else-if="store.hasCurrentPage && displayOnly"
             :labels="labels"
-            :current-title="store.currentTitle"
             :markdown-config="markdownConfig || undefined"
             @back="handleBack"
             @edit="handleEdit" />
@@ -209,9 +208,7 @@ function handleRevisionRestore(revisionId: string) {
 
         <!-- Edit mode: toolbar + editor + optional chat/revision panels -->
         <template v-else-if="store.hasCurrentPage">
-            <div
-                class="page-toolbar d-flex align-items-center p-2 border-bottom"
-                data-description="page editor toolbar">
+            <div class="d-flex align-items-center p-2 border-bottom" data-description="page editor toolbar">
                 <BButton variant="link" size="sm" data-description="page back button" @click="handleBack">
                     <FontAwesomeIcon :icon="faArrowLeft" />
                     {{ labels.editorBackLabel }}
@@ -309,9 +306,6 @@ function handleRevisionRestore(revisionId: string) {
 <style scoped>
 .page-editor-view {
     background: var(--body-bg);
-}
-.page-toolbar {
-    background: var(--panel-header-bg);
 }
 .page-revision-panel {
     width: 300px;
