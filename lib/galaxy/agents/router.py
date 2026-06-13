@@ -5,7 +5,7 @@ Uses pydantic-ai output functions to either:
 - Answer general Galaxy questions directly (returns str)
 - Hand off to error_analysis for job debugging
 - Hand off to custom_tool for explicit tool creation requests
-- Hand off to tool_recommendation for tool discovery
+- Hand off to tool_recommendation for tool and IWC workflow discovery
 - Hand off to gtn_training for tutorial and learning requests
 
 Also exposes a small set of @agent.tool fast-path tools for read-only browsing
@@ -330,13 +330,14 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ctx: RunContext[GalaxyAgentDependencies],
             query: str,
         ) -> str:
-            """Route to tool recommendation agent for finding Galaxy tools.
+            """Route to tool recommendation agent for finding Galaxy tools and IWC workflows.
 
             Use this when the user:
             - Asks what tool to use for a task ("what tool aligns reads?")
             - Wants to find tools for a specific analysis type
             - Needs help discovering available tools
             - Asks "is there a tool that does X?"
+            - Asks to import or find a workflow from IWC for an analysis (it searches IWC and surfaces an import action)
 
             Do NOT use for:
             - How to USE a specific tool (answer directly)
@@ -344,7 +345,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
             - Job errors (use hand_off_to_error_analysis)
 
             Args:
-                query: The tool discovery question
+                query: The tool or workflow discovery question
             """
             return await self._execute_handoff(ctx, AgentType.TOOL_RECOMMENDATION, query)
 
