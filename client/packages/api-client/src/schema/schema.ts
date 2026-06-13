@@ -19995,6 +19995,12 @@ export interface components {
         PageRevisionDetails: {
             /** Content */
             content?: string | null;
+            /**
+             * Content for Editor
+             * @description Raw text contents of the last page revision (type dependent on content_format).
+             * @default
+             */
+            content_editor: string | null;
             content_format?: components["schemas"]["PageContentFormat"] | null;
             /**
              * Create Time
