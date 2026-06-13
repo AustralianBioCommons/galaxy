@@ -1961,10 +1961,7 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         action_chains = self.action_chains()
         action_chains.move_to_element(workflow).perform()
         workflow.find_element(By.CSS_SELECTOR, ".g-card-rename").click()
-        self.components.workflows.rename_input.wait_for_visible().clear()
-        self.components.workflows.rename_input.wait_for_and_send_keys(new_name)
-        self.components.workflows.rename_input.wait_for_and_send_keys(Keys.ENTER)
-        self.wait_for_selector_absent_or_hidden(".g-modal")
+        self.rename_modal_rename("workflow", new_name)
 
     def workflow_delete_by_name(self, name):
         self.workflow_index_search_for(name)
@@ -2330,14 +2327,25 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
         items = self.components.pages.history.revision_item.all()
         assert len(items) == n, f"Expected {n} revision items, found {len(items)}"
 
-    def history_page_rename(self, new_name):
-        """Rename page via ClickToEdit in toolbar."""
-        self.components.pages.history.toolbar_title.wait_for_and_click()
-        title_input = self.components.pages.history.toolbar_title_input.wait_for_visible()
-        self.aggressive_clear(title_input)
-        title_input.send_keys(new_name)
-        self.send_enter(title_input)
-        self.sleep_for(self.wait_types.UX_RENDER)
+    def history_page_rename(self, page_type: str, new_name: str):
+        """Rename page via RenameModal in toolbar."""
+        self.components.pages.history.rename_button.wait_for_and_click()
+        self.rename_modal_rename(page_type, new_name)
+
+    def rename_modal_rename(self, item_type: str, new_name: str):
+        """Rename via RenameModal: opens the rename modal, types new name, and submits."""
+        # Clear via JS + dispatch Vue-compatible input event so nameModel is updated to empty,
+        # then type the new name so each keystroke fires input events and updates nameModel.
+        item_name_input = self.wait_for_selector(f"[data-description='{item_type} name input']")
+        self.execute_script(
+            "arguments[0].value = ''; arguments[0].dispatchEvent(new Event('input', {bubbles: true}));",
+            item_name_input,
+        )
+        item_name_input.send_keys(new_name)
+
+        self.wait_for_and_click_selector(".g-modal-confirm-buttons button:last-child")
+        # Wait for the rename promise to resolve (modal closes in the finally block)
+        self.wait_for_selector_absent_or_hidden(f"#{item_type}-name-input")
 
     @retry_during_transitions
     def click_history_options(self):

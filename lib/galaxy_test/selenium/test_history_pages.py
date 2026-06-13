@@ -104,7 +104,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.components.pages.history.editor.wait_for_visible()
 
         save_button = self.components.pages.history.save_button
-        save_button.assert_disabled()
+        assert save_button.has_class("g-disabled")
 
         self.components.pages.history.unsaved_indicator.assert_absent_or_hidden()
 
@@ -112,7 +112,7 @@ class TestHistoryPages(SeleniumTestCase):
 
         @retry_assertion_during_transitions
         def assert_save_enabled():
-            assert not save_button.has_class("disabled")
+            assert not save_button.has_class("g-disabled")
 
         assert_save_enabled()
 
@@ -120,7 +120,7 @@ class TestHistoryPages(SeleniumTestCase):
 
         @retry_assertion_during_transitions
         def assert_save_disabled_again():
-            save_button.assert_disabled()
+            assert save_button.has_class("g-disabled")
 
         assert_save_disabled_again()
         self.screenshot("history_page_save_disabled")
@@ -439,8 +439,8 @@ class TestHistoryPages(SeleniumTestCase):
 
     @selenium_test
     @managed_history
-    def test_inline_rename_page(self):
-        """Rename page title via ClickToEdit, save, verify persistence."""
+    def test_rename_page(self):
+        """Rename page title via the RenameModal, save, verify persistence."""
         history_id = self.current_history_id()
         self.dataset_populator.new_history_page(history_id, title="Original Name", content="# Content")
 
@@ -448,7 +448,7 @@ class TestHistoryPages(SeleniumTestCase):
         self.components.pages.history.item_edit.wait_for_and_click()
         self.components.pages.history.editor.wait_for_visible()
 
-        self.history_page_rename("Renamed Page")
+        self.history_page_rename("galaxy notebook", "Renamed Page")
 
         self.components.pages.history.unsaved_indicator.wait_for_visible()
         self.screenshot("history_page_renamed_unsaved")
@@ -557,7 +557,6 @@ class TestHistoryPages(SeleniumTestCase):
 
         # Standalone-only controls absent
         self.components.pages.history.permissions_button.assert_absent_or_hidden()
-        self.components.pages.history.save_view_button.assert_absent_or_hidden()
 
         # Back button says "This History's Pages" not "Back to Pages"
         back_text = self.components.pages.history.back_button.wait_for_text()

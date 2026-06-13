@@ -644,7 +644,7 @@ pages:
       toolbar:
         type: data-description
         selector: 'page editor toolbar'
-      toolbar_title: '[data-description="page editor title"] > span'
+      toolbar_title: '[data-description="page editor title"]'
       save_button:
         type: data-description
         selector: 'page save button'
@@ -694,16 +694,15 @@ pages:
       edit_button:
         type: data-description
         selector: 'page edit button'
-      toolbar_title_input: '[data-description="page editor title"] input'
+      rename_button:
+        type: data-description
+        selector: 'page rename button'
       back_button:
         type: data-description
         selector: 'page back button'
       permissions_button:
         type: data-description
         selector: 'page permissions button'
-      save_view_button:
-        type: data-description
-        selector: 'page save-view button'
       revision_compare_current_button:
         type: data-description
         selector: 'revision compare current button'

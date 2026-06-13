@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { faArrowLeft, faEye, faHistory, faSave, faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { BAlert, BBadge, BButton } from "bootstrap-vue";
+import { BAlert } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
-import { getGalaxyInstance } from "@/app";
-import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
+// import { getGalaxyInstance } from "@/app";
+// import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
 import { PAGE_LABELS } from "@/components/Page/constants";
 import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
 
+import GButton from "../BaseComponents/GButton.vue";
 import ObjectPermissionsModal from "./ObjectPermissionsModal.vue";
 import PageDisplayOnly from "./PageDisplayOnly.vue";
+import PageDisplayToolbar from "./PageDisplayToolbar.vue";
 import PageRevisionList from "./PageRevisionList.vue";
 import PageRevisionView from "./PageRevisionView.vue";
-import ClickToEdit from "@/components/ClickToEdit.vue";
 import MarkdownEditor from "@/components/Markdown/MarkdownEditor.vue";
 
 const props = defineProps<{
@@ -125,39 +126,33 @@ function handleEdit() {
     }
 }
 
-async function handleSave() {
-    await store.savePage();
-}
-
-async function handleSaveAndView() {
-    await store.savePage();
-    if (props.invocationId) {
-        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`);
-        return;
-    }
-    if (store.currentPage) {
-        const Galaxy = getGalaxyInstance();
-        const isWmActive = Galaxy?.frame?.active;
-        if (isWmActive) {
-            const url = `/published/page?id=${props.pageId}&embed=true`;
-            const options: RouterPushOptions = {
-                title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
-                preventWindowManager: false,
-            };
-            // @ts-ignore - monkeypatched router
-            router.push(url, options);
-        } else {
-            const data = store.currentPage as any;
-            if (data.username && data.slug) {
-                window.location.href = `/u/${data.username}/p/${data.slug}`;
-            }
-        }
-    }
-}
-
-function handleTitleChange(newTitle: string) {
-    store.updateTitle(newTitle);
-}
+// TODO: Uncomment when router guards with unsaved changes protection are implemented
+//       Before, we had a Save & View button that is now removed.
+// async function handleSaveAndView() {
+//     await store.savePage();
+//     if (props.invocationId) {
+//         router.push(`/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`);
+//         return;
+//     }
+//     if (store.currentPage) {
+//         const Galaxy = getGalaxyInstance();
+//         const isWmActive = Galaxy?.frame?.active;
+//         if (isWmActive) {
+//             const url = `/published/page?id=${props.pageId}&embed=true`;
+//             const options: RouterPushOptions = {
+//                 title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
+//                 preventWindowManager: false,
+//             };
+//             // @ts-ignore - monkeypatched router
+//             router.push(url, options);
+//         } else {
+//             const data = store.currentPage as any;
+//             if (data.username && data.slug) {
+//                 window.location.href = `/u/${data.username}/p/${data.slug}`;
+//             }
+//         }
+//     }
+// }
 
 function handleContentUpdate(newContent: string) {
     store.updateContent(newContent);
@@ -208,78 +203,24 @@ function handleRevisionRestore(revisionId: string) {
 
         <!-- Edit mode: toolbar + editor + optional chat/revision panels -->
         <template v-else-if="store.hasCurrentPage">
-            <div class="d-flex align-items-center p-2 border-bottom" data-description="page editor toolbar">
-                <BButton variant="link" size="sm" data-description="page back button" @click="handleBack">
-                    <FontAwesomeIcon :icon="faArrowLeft" />
-                    {{ labels.editorBackLabel }}
-                </BButton>
-                <ClickToEdit
-                    :value="store.currentTitle || labels.defaultTitle"
-                    tag-name="span"
-                    :placeholder="labels.defaultTitle"
-                    class="flex-grow-1 text-center font-weight-bold"
-                    data-description="page editor title"
-                    @input="handleTitleChange" />
-                <BButton
-                    variant="outline-primary"
-                    size="sm"
-                    class="mr-2"
-                    data-description="page revisions button"
-                    @click="store.toggleRevisions">
-                    <FontAwesomeIcon :icon="faHistory" />
-                    Revisions
-                    <BBadge v-if="store.revisionCount > 0" variant="light" class="ml-1">
-                        {{ store.revisionCount }}
-                    </BBadge>
-                </BButton>
-                <BButton
-                    variant="outline-primary"
-                    size="sm"
-                    class="mr-2"
-                    data-description="page preview button"
-                    @click="handlePreview">
-                    <FontAwesomeIcon :icon="faEye" />
-                    Preview
-                </BButton>
-                <template v-if="isStandalone">
+            <PageDisplayToolbar :labels="labels" mode="editor" @preview="handlePreview" @back="handleBack">
+                <template v-if="isStandalone" v-slot:extra-actions>
                     <ObjectPermissionsModal
                         id="object-permissions-modal"
                         v-model="showPermissions"
                         :markdown-content="store.currentContent" />
-                    <BButton
+                    <GButton
                         v-b-modal:object-permissions-modal
-                        variant="outline-primary"
-                        size="sm"
-                        class="mr-2"
-                        data-description="page permissions button">
+                        color="blue"
+                        outline
+                        size="small"
+                        data-description="page permissions button"
+                        @click="showPermissions = true">
                         <FontAwesomeIcon :icon="faUsers" />
                         Permissions
-                    </BButton>
+                    </GButton>
                 </template>
-                <BButton
-                    variant="primary"
-                    size="sm"
-                    :class="{ 'mr-2': isStandalone }"
-                    data-description="page save button"
-                    :disabled="!store.canSave"
-                    @click="handleSave">
-                    <FontAwesomeIcon :icon="store.isSaving ? faSpinner : faSave" :spin="store.isSaving" />
-                    Save
-                </BButton>
-                <BButton
-                    v-if="isStandalone"
-                    variant="primary"
-                    size="sm"
-                    data-description="page save-view button"
-                    :disabled="!store.canSave"
-                    @click="handleSaveAndView">
-                    <FontAwesomeIcon :icon="faEye" />
-                    Save &amp; View
-                </BButton>
-                <span v-if="store.isDirty" class="ml-2 text-warning small" data-description="page unsaved indicator">
-                    Unsaved
-                </span>
-            </div>
+            </PageDisplayToolbar>
 
             <div class="page-body d-flex flex-grow-1 overflow-hidden">
                 <div class="page-content flex-grow-1 overflow-auto">
