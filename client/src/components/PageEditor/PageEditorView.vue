@@ -186,21 +186,6 @@ function handleRevisionRestore(revisionId: string) {
             @back="handleBack"
             @edit="handleEdit" />
 
-        <!-- Viewing a specific revision -->
-        <template v-else-if="store.hasCurrentPage && store.selectedRevision">
-            <PageRevisionView
-                :revision="store.selectedRevision"
-                :current-content="store.currentContent"
-                :previous-content="store.previousRevisionContent"
-                :is-newest-revision="store.isNewestRevision"
-                :is-oldest-revision="store.isOldestRevision"
-                :view-mode="store.revisionViewMode"
-                :is-reverting="store.isReverting"
-                @back="store.clearSelectedRevision"
-                @restore="handleRevisionRestore"
-                @update:viewMode="store.revisionViewMode = $event" />
-        </template>
-
         <!-- Edit mode: toolbar + editor + optional chat/revision panels -->
         <template v-else-if="store.hasCurrentPage">
             <PageDisplayToolbar :labels="labels" mode="editor" @preview="handlePreview" @back="handleBack">
@@ -224,7 +209,20 @@ function handleRevisionRestore(revisionId: string) {
 
             <div class="page-body d-flex flex-grow-1 overflow-hidden">
                 <div class="page-content flex-grow-1 overflow-auto">
+                    <PageRevisionView
+                        v-if="store.selectedRevision"
+                        :revision="store.selectedRevision"
+                        :current-content="store.currentContent"
+                        :previous-content="store.previousRevisionContent"
+                        :is-newest-revision="store.isNewestRevision"
+                        :is-oldest-revision="store.isOldestRevision"
+                        :view-mode="store.revisionViewMode"
+                        :is-reverting="store.isReverting"
+                        @back="store.clearSelectedRevision"
+                        @restore="handleRevisionRestore"
+                        @update:viewMode="store.revisionViewMode = $event" />
                     <MarkdownEditor
+                        v-else
                         class="h-100"
                         :markdown-text="store.currentContent"
                         :mode="markdownEditorMode"

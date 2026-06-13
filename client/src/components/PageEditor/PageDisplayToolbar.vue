@@ -37,16 +37,19 @@ const emit = defineEmits<{
 
 const showRename = ref(false);
 
+const currentEntity = computed(() => {
+    return props.labels.entityName.toLowerCase();
+});
+
 const saveDisabledTitle = computed(() => {
-    const entity = props.labels.entityName.toLowerCase();
     if (props.mode === "display") {
-        return `Currently previewing this ${entity}. Click 'Edit' to make changes and enable saving.`;
+        return `Currently previewing this ${currentEntity.value}. Click 'Edit' to make changes and enable saving.`;
     }
     if (isSaving.value) {
-        return `This ${entity} is being saved`;
+        return `This ${currentEntity.value} is being saved`;
     }
     if (!canSave.value) {
-        return `There are no changes to save to this ${entity}`;
+        return `There are no changes to save to this ${currentEntity.value}`;
     }
     return "";
 });
@@ -64,9 +67,7 @@ function handleTitleChange(newTitle: string): Promise<void> {
 </script>
 
 <template>
-    <div
-        class="page-display-toolbar d-flex align-items-center py-2 px-3 border-bottom flex-gapx-1 justify-content-between"
-        :data-description="`page ${props.mode} toolbar`">
+    <div class="page-display-toolbar border-bottom" :data-description="`page ${props.mode} toolbar`">
         <div class="d-flex align-items-center flex-gapx-1 title-section">
             <FontAwesomeIcon :icon="props.labels.titleIcon" fixed-width />
             <b class="page-title" :data-description="`page ${props.mode} title`">
@@ -77,7 +78,7 @@ function handleTitleChange(newTitle: string): Promise<void> {
                 inline
                 transparent
                 data-description="page rename button"
-                :title="`Rename this ${props.labels.entityName.toLowerCase()}`"
+                :title="`Rename this ${currentEntity}`"
                 @click="showRename = true">
                 <FontAwesomeIcon :icon="faPen" />
             </GButton>
@@ -111,7 +112,7 @@ function handleTitleChange(newTitle: string): Promise<void> {
                 @click="pageEditorStore.toggleRevisions">
                 <FontAwesomeIcon :icon="faHistory" />
                 Revisions
-                <BBadge v-if="revisionCount > 0" variant="light" class="ml-1">
+                <BBadge v-if="revisionCount > 0" variant="light" style="top: 0">
                     {{ revisionCount }}
                 </BBadge>
             </GButton>
@@ -155,7 +156,7 @@ function handleTitleChange(newTitle: string): Promise<void> {
 
         <RenameModal
             v-if="showRename"
-            :item-type="props.labels.entityName"
+            :item-type="currentEntity"
             :name="currentTitle || props.labels.defaultTitle"
             :rename-action="handleTitleChange"
             @close="showRename = false" />
@@ -165,6 +166,11 @@ function handleTitleChange(newTitle: string): Promise<void> {
 <style scoped>
 .page-display-toolbar {
     background: var(--color-grey-100);
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+    justify-content: space-between;
 }
 .title-section {
     min-width: 0;
