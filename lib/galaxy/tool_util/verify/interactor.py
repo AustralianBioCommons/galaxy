@@ -849,9 +849,7 @@ class GalaxyInteractorApi:
             def adapt_datasets(test_input: JsonTestDatasetDefDict) -> Union[DataRequestHda, DataRequestUri]:
                 location = test_input.get("location")
                 if location:
-                    import posixpath
-
-                    ext = posixpath.splitext(posixpath.basename(location))[1].lstrip(".") or "data"
+                    ext = test_input.get("filetype") or "auto"
                     return DataRequestUri(url=location, ext=ext)
                 # if path is not set it might be a composite file with a path,
                 # e.g. composite_shapefile

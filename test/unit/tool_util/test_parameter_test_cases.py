@@ -46,10 +46,6 @@ TOOLS_THAT_USE_UNQUALIFIED_PARAMETER_ACCESS = [
     "implicit_default_conds.xml",
 ]
 
-# tools that use truevalue/falsevalue in parameter setting, I think we're going to
-# forbid this for a future tool profile version. Potential ambigouity could result.
-TOOLS_THAT_USE_TRUE_FALSE_VALUE_BOOLEAN_SPECIFICATION: List[str] = []
-
 TOOLS_THAT_USE_SELECT_BY_VALUE = [
     "multi_select.xml",
 ]
@@ -62,7 +58,6 @@ TOOLS_THAT_ARE_OUTSTANDING_ISSUES = [
 
 TEST_TOOL_THAT_DO_NOT_VALIDATE = (
     TOOLS_THAT_USE_UNQUALIFIED_PARAMETER_ACCESS
-    + TOOLS_THAT_USE_TRUE_FALSE_VALUE_BOOLEAN_SPECIFICATION
     + TOOLS_THAT_USE_SELECT_BY_VALUE
     + TOOLS_THAT_ARE_OUTSTANDING_ISSUES
     + [
@@ -85,7 +80,7 @@ def test_parameter_test_cases_validate():
 
 
 def test_legacy_features_fail_validation_with_24_2(tmp_path):
-    for filename in TOOLS_THAT_USE_UNQUALIFIED_PARAMETER_ACCESS + TOOLS_THAT_USE_TRUE_FALSE_VALUE_BOOLEAN_SPECIFICATION:
+    for filename in TOOLS_THAT_USE_UNQUALIFIED_PARAMETER_ACCESS:
         _assert_tool_test_parsing_only_fails_with_newer_profile(tmp_path, filename, index=None)
 
     # column parameters need to be indexes
