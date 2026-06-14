@@ -451,7 +451,9 @@ class IntegerParameterModel(BaseGalaxyToolParameterModelDefinition):
     def pydantic_template(self, state_representation: StateRepresentationT) -> DynamicModelInformation:
         py_type = self.py_type
         validators = self.validators[:]
-        if self.min is not None or self.max is not None:
+        # min/max on integer params are UI hints (slider range) that were not enforced by the
+        # old /api/tools endpoint. Only enforce them during strict internal job states.
+        if (self.min is not None or self.max is not None) and state_representation in ("job_internal", "job_runtime"):
             validators.append(InRangeParameterValidatorModel(min=self.min, max=self.max, implicit=True))
         py_type = decorate_type_with_validators_if_needed(py_type, validators)
         if state_representation == "workflow_step_linked":
@@ -499,7 +501,9 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
         elif _is_landing_request(state_representation):
             requires_value = False
         validators = self.validators[:]
-        if self.min is not None or self.max is not None:
+        # min/max on float params are UI hints that were not enforced by the old /api/tools endpoint.
+        # Only enforce them during strict internal job states.
+        if (self.min is not None or self.max is not None) and state_representation in ("job_internal", "job_runtime"):
             validators.append(InRangeParameterValidatorModel(min=self.min, max=self.max, implicit=True))
         py_type = decorate_type_with_validators_if_needed(py_type, validators)
         return dynamic_model_information_from_py_type(self, py_type, requires_value=requires_value)
@@ -1554,10 +1558,8 @@ def ensure_color_valid(value: Optional[Any]):
         return
     if not isinstance(value, str):
         raise ValueError(f"Invalid color value type {value.__class__} encountered.")
-    try:
-        Color(value)
-    except Exception as e:
-        raise ValueError(f"Invalid color value {value!r}: {e}")
+    # Accept any string — matplotlib colormap names and other non-CSS color strings are valid
+    # in Galaxy tools even though they don't pass pydantic_extra_types color validation.
 
 
 class ColorParameterModel(BaseGalaxyToolParameterModelDefinition):

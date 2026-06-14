@@ -134,11 +134,15 @@ def _from_input_source_galaxy(input_source: InputSource, profile: float) -> Tool
         elif param_type == "boolean":
             nullable = input_source.parse_optional()
             value = input_source.get_bool_or_none("checked", None if nullable else False)
+            truevalue = input_source.get("truevalue", None)
+            falsevalue = input_source.get("falsevalue", None)
             return BooleanParameterModel(
                 type="boolean",
                 name=input_source.parse_name(),
                 optional=nullable,
                 value=value,
+                truevalue=truevalue,
+                falsevalue=falsevalue,
                 **_common_param_kwargs(input_source),
             )
         elif param_type == "text":

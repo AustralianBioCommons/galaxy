@@ -111,9 +111,14 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
             try:
                 result_value = asbool(value)
             except ValueError:
-                warnings.append(
-                    "Likely using deprected truevalue/falsevalue in tool parameter - switch to 'true' or 'false'"
-                )
+                if parameter.truevalue is not None and value == parameter.truevalue:
+                    result_value = True
+                elif parameter.falsevalue is not None and value == parameter.falsevalue:
+                    result_value = False
+                else:
+                    warnings.append(
+                        "Likely using deprected truevalue/falsevalue in tool parameter - switch to 'true' or 'false'"
+                    )
         elif isinstance(parameter, (GroupTagParameterModel,)):
             if parameter.multiple:
                 result_value = multiple_select_value_split(value)
@@ -356,8 +361,14 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
     for input in inputs:
         if input["name"] == flat_state_path:
             return input
-    else:
-        return None
+    # Fallback for legacy test cases that specify conditional/section params without the pipe-separated
+    # prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
+    if "|" in flat_state_path:
+        short_name = flat_state_path.rsplit("|", 1)[1]
+        for input in inputs:
+            if input["name"] == short_name:
+                return input
+    return None
 
 
 def validate_test_cases_for_tool_source(
