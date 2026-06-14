@@ -326,7 +326,7 @@ server within an InteractiveTool container now must serve the contents under a p
         When ``requires_path_in_url="True"`` in the ``entry_point`` tag, the InteractiveTool proxy service forwards the HTTP requests
         with the full path intact.
 
-    Both values of ``requires_path_in_url`` can be combined with both injection mechanisms, leading two four configuration variants
+    Both values of ``requires_path_in_url`` can be combined with both injection mechanisms, leading to four configuration variants
     for path-based InteractiveTools. Choosing the correct one depends on the implementation of the web server contained in the
     InteractiveTool and can be a bit tricky to get correct. In some cases, none of these options will work. One solution can then
     be to configure another highly customized proxy web server within the InteractiveTool, e.g. using NGINX.
