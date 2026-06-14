@@ -57,7 +57,7 @@ update:propname event syntax whenever possible [to facilitate .sync
 binds](https://vuejs.org/v2/guide/components-custom-events.html#sync-Modifier)).
 
 Whatever happens to that new object is somebody else's job. As soon as you tie the data management
-to the rendering, the re-usability of your components craters.
+to the rendering, the re-usability of your components crater.
 
 ## The Provider
 
