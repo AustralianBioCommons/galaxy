@@ -345,7 +345,7 @@ class PageManager(sharable.SharableModelManager[model.Page], UsesAnnotations):
         page = trans.sa_session.get(model.Page, id)
         if not page:
             raise exceptions.ObjectNotFound("Page not found")
-        page = base.security_check(trans, page, check_ownership=False, check_accessible=True)
+        page = base.security_check(trans, page, check_ownership=True, check_accessible=True)
 
         # Validate slug changes (only for non-history pages)
         if payload.slug is not None and payload.slug != page.slug:
