@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from re import compile
 from typing import (
@@ -319,12 +320,24 @@ def _merge_into_state(
                         if state_representation == "test_case_json":
                             input_value_list = test_input["value"] if test_input["value"] is not None else []
                         else:
-                            test_input_values = cast(str, value).split(",")
-                            for test_input_value in test_input_values:
-                                instance_test_input = test_input.copy()
-                                instance_test_input["value"] = test_input_value
-                                input_value_json = xml_data_input_to_json(instance_test_input)
-                                input_value_list.append(input_value_json)
+                            location = test_input.get("attributes", {}).get("location")
+                            if location:
+                                # location may be a comma-separated list of URLs; split per URL
+                                for single_location in location.split(","):
+                                    single_location = single_location.strip()
+                                    instance_test_input = dict(test_input)
+                                    instance_test_input["attributes"] = dict(test_input["attributes"])
+                                    instance_test_input["value"] = os.path.basename(single_location)
+                                    instance_test_input["attributes"]["location"] = single_location
+                                    input_value_json = xml_data_input_to_json(instance_test_input)
+                                    input_value_list.append(input_value_json)
+                            else:
+                                test_input_values = cast(str, value).split(",")
+                                for test_input_value in test_input_values:
+                                    instance_test_input = test_input.copy()
+                                    instance_test_input["value"] = test_input_value
+                                    input_value_json = xml_data_input_to_json(instance_test_input)
+                                    input_value_list.append(input_value_json)
 
                     input_value = input_value_list
                 else:
