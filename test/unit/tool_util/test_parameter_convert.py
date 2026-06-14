@@ -24,6 +24,14 @@ from galaxy.tool_util.parameters import (
     strictify,
 )
 from galaxy.tool_util.parser.util import parse_profile_version
+from galaxy.tool_util_models.parameters import (
+    BooleanParameterModel,
+    ConditionalParameterModel,
+    ConditionalWhen,
+    DataParameterModel,
+    SectionParameterModel,
+    ToolParameterBundleModel,
+)
 from .test_parameter_test_cases import tool_source_for
 
 EXAMPLE_ID_1_ENCODED = "123456789abcde"
@@ -180,6 +188,81 @@ def test_dereference():
     dereferenced_state.validate(bundle)
 
 
+def test_dereference_url_default_after_default_fill():
+    bundle = ToolParameterBundleModel(
+        parameters=[
+            DataParameterModel(
+                type="data",
+                name="parameter",
+                url_default="https://example.com/1.bed",
+            )
+        ]
+    )
+
+    dereferenced_state = _strict_async_decode_default_fill_and_dereference({}, bundle)
+
+    assert dereferenced_state.input_state == {"parameter": {"src": "hda", "id": EXAMPLE_ID_1}}
+
+
+def test_dereference_section_url_default_after_default_fill():
+    bundle = ToolParameterBundleModel(
+        parameters=[
+            SectionParameterModel(
+                type="section",
+                name="section_parameter",
+                parameters=[
+                    DataParameterModel(
+                        type="data",
+                        name="data_parameter",
+                        url_default="https://example.com/1.bed",
+                    )
+                ],
+            )
+        ]
+    )
+
+    dereferenced_state = _strict_async_decode_default_fill_and_dereference({}, bundle)
+
+    assert dereferenced_state.input_state == {
+        "section_parameter": {"data_parameter": {"src": "hda", "id": EXAMPLE_ID_1}}
+    }
+
+
+def test_dereference_conditional_url_default_after_default_fill():
+    bundle = ToolParameterBundleModel(
+        parameters=[
+            ConditionalParameterModel(
+                type="conditional",
+                name="conditional_parameter",
+                test_parameter=BooleanParameterModel(type="boolean", name="test_parameter"),
+                whens=[
+                    ConditionalWhen(
+                        discriminator=False,
+                        is_default_when=True,
+                        parameters=[
+                            DataParameterModel(
+                                type="data",
+                                name="data_parameter",
+                                url_default="https://example.com/1.bed",
+                            )
+                        ],
+                    ),
+                    ConditionalWhen(discriminator=True, is_default_when=False, parameters=[]),
+                ],
+            )
+        ]
+    )
+
+    dereferenced_state = _strict_async_decode_default_fill_and_dereference({}, bundle)
+
+    assert dereferenced_state.input_state == {
+        "conditional_parameter": {
+            "test_parameter": False,
+            "data_parameter": {"src": "hda", "id": EXAMPLE_ID_1},
+        }
+    }
+
+
 def test_fill_defaults():
     with_defaults = fill_state_for({}, "parameters/gx_int")
     assert with_defaults["parameter"] == 1
@@ -306,6 +389,16 @@ def _fake_decode(input: str) -> int:
 
 def _fake_encode(input: int) -> str:
     return ID_MAP[input]
+
+
+def _strict_async_decode_default_fill_and_dereference(
+    tool_state: Dict[str, Any], bundle: ToolParameterBundleModel
+) -> RequestInternalDereferencedToolState:
+    request_state = RequestToolState(tool_state)
+    request_state.validate(bundle)
+    request_internal_state = decode(request_state, bundle, _fake_decode)
+    fill_static_defaults(request_internal_state.input_state, bundle, 24.0, partial=True, url_data_defaults=True)
+    return dereference(request_internal_state, bundle, _fake_dereference, _fake_collection_deference)
 
 
 def fill_state_for(tool_state: Dict[str, Any], tool_path: str, partial: bool = False) -> Dict[str, Any]:

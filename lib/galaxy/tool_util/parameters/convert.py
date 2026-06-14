@@ -249,7 +249,9 @@ def dereference(
         if isinstance(parameter, DataParameterModel):
             if value is None:
                 if parameter.url_default:
-                    return dereference_dict(DataRequestUri(url=parameter.url_default, ext="auto").model_dump())
+                    return dereference_dict(
+                        DataRequestUri(url=parameter.url_default, ext="auto", deferred=True).model_dump()
+                    )
                 return VISITOR_NO_REPLACEMENT
             if parameter.multiple and isinstance(value, list):
                 return list(map(dereference_dict, value))
@@ -279,7 +281,7 @@ def encode_test(
     input_models: ToolParameterBundle,
     adapt_datasets: AdaptDatasets,
     adapt_collections: AdaptCollections,
-):
+) -> RequestToolState:
 
     def encode_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
@@ -293,8 +295,7 @@ def encode_test(
                     test_dataset = cast(JsonTestDatasetDefDict, value)
                     return adapt_datasets(test_dataset).model_dump()
             elif parameter.url_default:
-                url_default_dict = cast(Any, {"class": "File", "location": parameter.url_default})
-                return adapt_datasets(url_default_dict).model_dump()
+                return DataRequestUri(url=parameter.url_default, ext="auto", deferred=True).model_dump()
         elif isinstance(parameter, DataCollectionParameterModel):
             if value is not None:
                 assert isinstance(value, dict), str(value)
@@ -329,13 +330,17 @@ def encode_test(
 
 
 def fill_static_defaults(
-    tool_state: Dict[str, Any], input_models: ToolParameterBundle, profile: float, partial: bool = True
+    tool_state: Dict[str, Any],
+    input_models: ToolParameterBundle,
+    profile: float,
+    partial: bool = True,
+    url_data_defaults: bool = False,
 ) -> Dict[str, Any]:
     """If additional defaults might stem from Galaxy runtime, partial should be true.
 
     Setting partial to True, prevents runtime validation.
     """
-    _fill_defaults(tool_state, input_models)
+    _fill_defaults(tool_state, input_models, url_data_defaults=url_data_defaults)
 
     if not partial:
         internal_state = JobInternalToolState(tool_state)
@@ -343,12 +348,14 @@ def fill_static_defaults(
     return tool_state
 
 
-def _fill_defaults(tool_state: Dict[str, Any], input_models: ToolParameterBundle) -> None:
+def _fill_defaults(
+    tool_state: Dict[str, Any], input_models: ToolParameterBundle, url_data_defaults: bool = False
+) -> None:
     for parameter in input_models.parameters:
-        _fill_default_for(tool_state, parameter)
+        _fill_default_for(tool_state, parameter, url_data_defaults=url_data_defaults)
 
 
-def _fill_default_for(tool_state: Dict[str, Any], parameter: ToolParameterT) -> None:
+def _fill_default_for(tool_state: Dict[str, Any], parameter: ToolParameterT, url_data_defaults: bool = False) -> None:
     parameter_name = parameter.name
     if isinstance(parameter, BooleanParameterModel):
         if parameter_name not in tool_state:
@@ -394,19 +401,24 @@ def _fill_default_for(tool_state: Dict[str, Any], parameter: ToolParameterT) -> 
         )
         test_value = validate_explicit_conditional_test_value(test_parameter_name, explicit_test_value)
         when = _select_which_when(parameter, test_value, conditional_state)
-        _fill_default_for(conditional_state, test_parameter)
-        _fill_defaults(conditional_state, when)
+        _fill_default_for(conditional_state, test_parameter, url_data_defaults=url_data_defaults)
+        _fill_defaults(conditional_state, when, url_data_defaults=url_data_defaults)
     elif isinstance(parameter, RepeatParameterModel):
         repeat_instances = _initialize_repeat_state(parameter, tool_state)
         for instance_state in repeat_instances:
-            _fill_defaults(instance_state, parameter)
+            _fill_defaults(instance_state, parameter, url_data_defaults=url_data_defaults)
     elif isinstance(parameter, SectionParameterModel):
         section_state = _initialize_section_state(parameter, tool_state)
-        _fill_defaults(section_state, parameter)
+        _fill_defaults(section_state, parameter, url_data_defaults=url_data_defaults)
     elif isinstance(parameter, DataCollectionParameterModel):
         collection_parameter = parameter
         if parameter_name not in tool_state and collection_parameter.optional:
             tool_state[parameter_name] = None
+    elif isinstance(parameter, DataParameterModel):
+        if url_data_defaults and parameter_name not in tool_state and parameter.url_default:
+            tool_state[parameter_name] = DataRequestUri(
+                url=parameter.url_default, ext="auto", deferred=True
+            ).model_dump()
     elif isinstance(parameter, TextParameterModel):
         if parameter_name not in tool_state:
             if not parameter.optional:

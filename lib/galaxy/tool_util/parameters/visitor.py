@@ -74,10 +74,6 @@ def _visit_input_values(
         name = model.name
         input_value = input_values.get(name, VISITOR_UNDEFINED)
         if input_value is VISITOR_UNDEFINED:
-            if model.parameter_type not in ("gx_repeat", "gx_section", "gx_conditional"):
-                replacement = callback(model, None)
-                if replacement != no_replacement_value:
-                    new_input_values[name] = replacement
             continue
 
         if model.parameter_type == "gx_repeat":

@@ -182,10 +182,10 @@ def dynamic_model_information_from_py_type(
     param_model: ParamModel,
     py_type: Type,
     requires_value: Optional[bool] = None,
-    validators=None,
+    validators: Optional[Dict[str, Any]] = None,
     extra_json_schema: Optional[Dict[str, Any]] = None,
     default: Any = _UNSET,
-):
+) -> DynamicModelInformation:
     name = safe_field_name(param_model.name)
     if default is not _UNSET:
         initialize = default
@@ -1321,7 +1321,7 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     @property
     def request_requires_value(self) -> bool:
-        return not self.optional
+        return not self.optional and self.url_default is None
 
 
 class DataCollectionRequest(StrictModel):
