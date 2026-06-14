@@ -43,7 +43,7 @@ const labels = computed(() => PAGE_LABELS[editorMode.value]);
 const editorTitle = computed(() => {
     if (props.historyId) {
         const history = historyStore.getHistoryById(props.historyId);
-        return history?.name || labels.value.entityName;
+        return `History: ${history?.name}` || labels.value.entityName;
     }
     return store.currentTitle || labels.value.defaultTitle;
 });
