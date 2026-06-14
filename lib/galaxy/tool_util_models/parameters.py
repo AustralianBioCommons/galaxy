@@ -470,6 +470,26 @@ class IntegerParameterModel(BaseGalaxyToolParameterModelDefinition):
         return not self.optional and self.value is None
 
 
+_INFINITY_SENTINEL = "__Infinity__"
+_NEG_INFINITY_SENTINEL = "__-Infinity__"
+
+
+def _convert_infinity_sentinel(v: Any) -> Any:
+    """Convert Galaxy JSON sentinel strings for infinity back to Python floats.
+
+    Galaxy's custom JSON encoder (galaxy.util.json.safe_dumps) serializes
+    float('inf') as '__Infinity__' and float('-inf') as '__-Infinity__' to
+    produce valid JSON.  When these sentinel values appear in deserialized
+    parameter dicts (e.g. from GET /api/tools/{id}/test_data) Pydantic must
+    accept them as valid float input.
+    """
+    if v == _INFINITY_SENTINEL:
+        return float("inf")
+    elif v == _NEG_INFINITY_SENTINEL:
+        return float("-inf")
+    return v
+
+
 class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     parameter_type: Literal["gx_float"] = "gx_float"
     type: Literal["float"]
@@ -477,6 +497,11 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     min: Optional[float] = None
     max: Optional[float] = None
     validators: List[NumberCompatiableValidators] = []
+
+    @field_validator("value", "min", "max", mode="before")
+    @classmethod
+    def convert_infinity_sentinels(cls, v: Any) -> Any:
+        return _convert_infinity_sentinel(v)
 
     def field_kwargs(self) -> Dict[str, Any]:
         kwargs = super().field_kwargs()
@@ -490,6 +515,10 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     @property
     def py_type(self) -> Type:
         return optional_if_needed(union_type([StrictInt, StrictFloat]), self.optional)
+
+    @staticmethod
+    def _convert_infinity_sentinel_static(v: Any) -> Any:
+        return _convert_infinity_sentinel(v)
 
     def pydantic_template(self, state_representation: StateRepresentationT) -> DynamicModelInformation:
         py_type = self.py_type
@@ -506,7 +535,17 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
         if (self.min is not None or self.max is not None) and state_representation in ("job_internal", "job_runtime"):
             validators.append(InRangeParameterValidatorModel(min=self.min, max=self.max, implicit=True))
         py_type = decorate_type_with_validators_if_needed(py_type, validators)
-        return dynamic_model_information_from_py_type(self, py_type, requires_value=requires_value)
+        # Convert Galaxy JSON sentinel strings ("__Infinity__", "__-Infinity__") to Python floats
+        # before Pydantic validates the field. These sentinels appear when float('inf') values are
+        # round-tripped through Galaxy's safe_dumps/json.loads path (e.g. GET /api/tools/{id}/test_data).
+        dynamic_validators: Dict[str, Any] = {
+            "infinity_sentinel": field_validator(safe_field_name(self.name), mode="before")(
+                FloatParameterModel._convert_infinity_sentinel_static
+            )
+        }
+        return dynamic_model_information_from_py_type(
+            self, py_type, requires_value=requires_value, validators=dynamic_validators
+        )
 
     @property
     def request_requires_value(self) -> bool:

@@ -1117,6 +1117,8 @@ gx_float:
   test_case_xml_valid:
     - parameter: 5
     - parameter: 5.0
+    - parameter: "__Infinity__"
+    - parameter: "__-Infinity__"
     - {}
   test_case_xml_invalid:
     - parameter: null
@@ -1188,6 +1190,8 @@ gx_float_optional:
   test_case_xml_valid:
     - parameter: 5
     - parameter: 5.0
+    - parameter: "__Infinity__"
+    - parameter: "__-Infinity__"
     - {}
     - parameter: null
   test_case_xml_invalid:
