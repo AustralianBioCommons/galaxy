@@ -372,6 +372,49 @@ def test_nested_conditional_duplicate_short_names_are_distinct_when_qualified():
     dict_verify_each(tool_state.input_state, expectations)
 
 
+def test_legacy_partial_conditional_paths_are_resolved_for_request_state():
+    tool_source = tool_source_for("disambiguate_cond")
+    test_case = tool_source.parse_tests_to_dict()["tests"][1]
+
+    tool_state = case_state_for(tool_source, test_case).tool_state
+
+    expectations = [
+        (["p1", "use"], True),
+        (["p2", "use"], False),
+        (["p3", "use"], True),
+        (["files", "p4", "use"], True),
+        (["files", "p4", "file", "path"], "simple_line.txt"),
+    ]
+    dict_verify_each(tool_state.input_state, expectations)
+
+
+def test_legacy_unqualified_repeat_inputs_are_expanded_for_request_state():
+    tool_source = tool_source_for("multi_repeats")
+    test_cases = tool_source.parse_tests_to_dict()["tests"]
+
+    test_case_state = case_state_for(tool_source, test_cases[2]).tool_state
+
+    expectations = [
+        (["queries", 0, "input2", "path"], "simple_line.txt"),
+        (["queries", 1, "input2", "path"], "simple_line.txt"),
+        (["more_queries", 0, "more_queries_input", "path"], "simple_line.txt"),
+        (["more_queries", 1, "more_queries_input", "path"], "simple_line.txt"),
+    ]
+    dict_verify_each(test_case_state.input_state, expectations)
+
+
+def test_legacy_select_labels_are_converted_to_values_for_request_state():
+    tool_source = tool_source_for("multi_select")
+    test_case = tool_source.parse_tests_to_dict()["tests"][1]
+
+    test_case_state = case_state_for(tool_source, test_case).tool_state
+
+    expectations = [
+        (["select_ex", 0], "--ex1"),
+    ]
+    dict_verify_each(test_case_state.input_state, expectations)
+
+
 def test_convert_to_requests():
     tools = [
         "parameters/gx_drill_down_recurse_multiple",

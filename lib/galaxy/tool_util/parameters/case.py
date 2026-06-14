@@ -132,6 +132,10 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
                 # value="" is a legacy convention for "nothing selected"; filter empty parts to produce [].
                 # Tools with profile >= 26.1 must use value_json="[]" explicitly.
                 result_value = multiple_select_value_split(value)
+                if Version(profile) < Version("24.2"):
+                    result_value = [_legacy_select_label_to_value(parameter, v) for v in result_value]
+            elif Version(profile) < Version("24.2"):
+                result_value = _legacy_select_label_to_value(parameter, value)
         elif isinstance(parameter, (DataColumnParameterModel,)):
             if parameter.multiple:
                 integers_match = INTEGER_STR_PATTERN.match(value)
@@ -161,6 +165,18 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
     return result_value
 
 
+def _legacy_select_label_to_value(parameter: SelectParameterModel, value: str) -> str:
+    if parameter.options is None:
+        return value
+    for option in parameter.options:
+        if option.value == value:
+            return value
+    for option in parameter.options:
+        if option.label == value:
+            return option.value
+    return value
+
+
 def test_case_state(
     test_dict: ToolSourceTest,
     tool_parameter_bundle: List[ToolParameterT],
@@ -187,8 +203,15 @@ def test_case_state(
     if validate:
         tool_state.validate(tool_parameter_bundle, name=name)
         for input_name in unhandled_inputs:
-            raise Exception(f"Invalid parameter name found {input_name}")
+            if not _input_name_was_handled_by_legacy_fallback(input_name, handled_inputs, profile):
+                raise Exception(f"Invalid parameter name found {input_name}")
     return TestCaseStateAndWarnings(tool_state, warnings, unhandled_inputs)
+
+
+def _input_name_was_handled_by_legacy_fallback(input_name: str, handled_inputs: Set[str], profile: str) -> bool:
+    return Version(profile) < Version("24.2") and any(
+        handled_input == input_name or handled_input.endswith(f"|{input_name}") for handled_input in handled_inputs
+    )
 
 
 def test_case_validation(
@@ -274,10 +297,10 @@ def _merge_into_state(
         if input_name not in state_at_level:
             state_at_level[input_name] = repeat_state_array
 
-        repeat_instance_inputs = repeat_inputs_to_array(state_path, _inputs_as_dict(inputs))
+        repeat_instance_inputs = _repeat_inputs_to_array(state_path, tool_input.parameters, inputs)
         if tool_input.min is not None:
             while len(repeat_instance_inputs) < tool_input.min:
-                repeat_instance_inputs.append({})
+                repeat_instance_inputs.append([])
         for i, _ in enumerate(repeat_instance_inputs):
             while len(repeat_state_array) <= i:
                 repeat_state_array.append({})
@@ -286,7 +309,7 @@ def _merge_into_state(
             handled_inputs.update(
                 _merge_level_into_state(
                     tool_input.parameters,
-                    inputs,
+                    repeat_instance_inputs[i],
                     repeat_state_array[i],
                     profile,
                     state_representation,
@@ -354,6 +377,27 @@ def _merge_into_state(
     return handled_inputs
 
 
+def _repeat_inputs_to_array(
+    state_path: str, parameters: List[ToolParameterT], inputs: ToolSourceTestInputs
+) -> List[ToolSourceTestInputs]:
+    repeat_instance_input_dicts = repeat_inputs_to_array(state_path, _inputs_as_dict(inputs))
+    repeat_instance_inputs = [list(instance_inputs.values()) for instance_inputs in repeat_instance_input_dicts]
+    if repeat_instance_inputs:
+        return repeat_instance_inputs
+
+    legacy_repeat_inputs: List[ToolSourceTestInputs] = []
+    for parameter in parameters:
+        parameter_name = parameter.name
+        matching_inputs = [input for input in inputs if input["name"] == parameter_name]
+        for i, input in enumerate(matching_inputs):
+            while len(legacy_repeat_inputs) <= i:
+                legacy_repeat_inputs.append([])
+            synthetic_input = cast(ToolSourceTestInput, dict(input))
+            synthetic_input["name"] = f"{state_path}_{i}|{parameter_name}"
+            legacy_repeat_inputs[i].append(synthetic_input)
+    return legacy_repeat_inputs
+
+
 def _select_which_when(
     conditional: ConditionalParameterModel, state: dict, inputs: ToolSourceTestInputs, prefix: str
 ) -> ConditionalWhen:
@@ -383,6 +427,16 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
     # Fallback for legacy test cases that specify conditional/section params without the pipe-separated
     # prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
     if "|" in flat_state_path:
+        suffix_matching_inputs = []
+        for input in inputs:
+            input_name = input["name"]
+            if "|" in input_name and flat_state_path.endswith(f"|{input_name}"):
+                suffix_matching_inputs.append(input)
+        if len(suffix_matching_inputs) == 1:
+            return suffix_matching_inputs[0]
+        elif len(suffix_matching_inputs) > 1:
+            raise Exception(f"Ambiguous partially qualified test parameter name for ({flat_state_path})")
+
         short_name = flat_state_path.rsplit("|", 1)[1]
         matching_inputs = []
         for input in inputs:
