@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faFileContract } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faFileContract } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { storeToRefs } from "pinia";
 import { computed, provide, ref } from "vue";
@@ -7,6 +7,7 @@ import { useRouter } from "vue-router/composables";
 
 import { fetchInvocationReport } from "@/api/invocations";
 import { useConfig } from "@/composables/config";
+import { useConfirmDialog } from "@/composables/confirmDialog.js";
 import { useToast } from "@/composables/toast";
 import { usePageEditorStore } from "@/stores/pageEditorStore.js";
 import { errorMessageAsString } from "@/utils/simple-error.js";
@@ -24,6 +25,8 @@ const props = defineProps<{
 
 const { config, isConfigLoaded } = useConfig(true);
 
+const { confirm } = useConfirmDialog();
+
 const Toast = useToast();
 
 const router = useRouter();
@@ -32,11 +35,12 @@ const pageEditorStore = usePageEditorStore();
 const { isLoadingPage } = storeToRefs(pageEditorStore);
 
 const markdownConfig = ref({});
+const isCreatingReport = ref(false);
 
 const exportUrl = computed(() => `/api/invocations/${props.invocationId}/report.pdf`);
 
 const editButtonConfig = computed(() => ({
-    tooltip: "Click to create a Galaxy Notebook from this invocation's Runtime Report",
+    tooltip: "Click to create an editable report from this invocation's Runtime Report",
     label: "Edit",
     disabled: isLoadingPage.value,
 }));
@@ -54,7 +58,20 @@ async function fetchReport() {
 
 async function onEdit() {
     if (props.historyId) {
+        isCreatingReport.value = true;
         try {
+            const confirmed = await confirm(
+                "Are you sure you want to create a new Invocation Report? This report will have context of the history and invocation that created the Runtime Report.",
+                {
+                    title: "Create a new Invocation Report?",
+                    okText: "Create Report",
+                    okIcon: faEdit,
+                },
+            );
+            if (!confirmed) {
+                return;
+            }
+
             pageEditorStore.setCurrentContext(props.historyId, props.invocationId);
             const page = await pageEditorStore.createPage();
             if (page) {
@@ -67,6 +84,8 @@ async function onEdit() {
             }
         } catch (error) {
             Toast.error(errorMessageAsString(error), "Failed to create a Galaxy Notebook");
+        } finally {
+            isCreatingReport.value = false;
         }
     } else {
         router.push(`/pages/create?invocation_id=${props.invocationId}`);
