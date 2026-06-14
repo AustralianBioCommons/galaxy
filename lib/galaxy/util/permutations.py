@@ -114,16 +114,21 @@ def state_set_value(state_dict: dict, key: str, value: Any, nested: bool) -> Non
         first, rest = key.split("|", 1)
         if first not in state_dict and looks_like_flattened_repeat_key(first):
             repeat_name, index = split_flattened_repeat_key(first)
-            if repeat_name not in state_dict:
-                state_dict[repeat_name] = []
-            repeat_state = state_dict[repeat_name]
-            while len(repeat_state) <= index:
-                repeat_state.append({})
-            state_set_value(repeat_state[index], rest, value, nested)
-        else:
-            if first not in state_dict:
-                state_dict[first] = {}
-            state_set_value(state_dict[first], rest, value, nested)
+            # Only treat as a flattened repeat key if the repeat list already exists
+            # or this is the first element (index 0). This avoids misidentifying
+            # conditional names ending in _N (e.g. "inner_options_1") as repeat indices
+            # when no repeat list has been started yet.
+            if index == 0 or isinstance(state_dict.get(repeat_name), list):
+                if repeat_name not in state_dict:
+                    state_dict[repeat_name] = []
+                repeat_state = state_dict[repeat_name]
+                while len(repeat_state) <= index:
+                    repeat_state.append({})
+                state_set_value(repeat_state[index], rest, value, nested)
+                return
+        if first not in state_dict:
+            state_dict[first] = {}
+        state_set_value(state_dict[first], rest, value, nested)
 
 
 def state_remove_value(state_dict, key, nested):

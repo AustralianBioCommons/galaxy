@@ -288,6 +288,24 @@ def test_state_set_value_creates_nested_parent_state():
     }
 
 
+def test_state_set_value_does_not_misidentify_conditional_names_with_digit_suffix():
+    # Conditional parameter names ending in _N (e.g. "inner_options_1") must not be
+    # treated as flattened repeat indices when no repeat list has been started yet.
+    state: dict[str, Any] = {}
+
+    state_set_value(state, "outer|inner_options_1|mode", "by_index", nested=True)
+    state_set_value(state, "outer|inner_options_1|col", 1, nested=True)
+    state_set_value(state, "outer|inner_options_2|mode", "by_name", nested=True)
+    state_set_value(state, "outer|inner_options_2|label", "foo", nested=True)
+
+    assert state == {
+        "outer": {
+            "inner_options_1": {"mode": "by_index", "col": 1},
+            "inner_options_2": {"mode": "by_name", "label": "foo"},
+        }
+    }
+
+
 def test_test_case_request_conversion_preserves_non_default_select_and_booleans():
     tool_source = raw_xml_tool_source("""
 <tool id="async_request_regression" name="async_request_regression" version="1.0.0">
