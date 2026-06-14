@@ -35,6 +35,7 @@ from galaxy.tool_util_models.parameters import (
     IntegerParameterModel,
     RepeatParameterModel,
     SectionParameterModel,
+    SelectParameterModel,
     ToolParameterT,
 )
 from galaxy.util import asbool
@@ -124,6 +125,11 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
                 result_value = multiple_select_value_split(value)
         elif isinstance(parameter, (GenomeBuildParameterModel,)):
             if parameter.multiple:
+                result_value = multiple_select_value_split(value)
+        elif isinstance(parameter, SelectParameterModel):
+            if parameter.multiple and Version(profile) < Version("26.1"):
+                # value="" is a legacy convention for "nothing selected"; filter empty parts to produce [].
+                # Tools with profile >= 26.1 must use value_json="[]" explicitly.
                 result_value = multiple_select_value_split(value)
         elif isinstance(parameter, (DataColumnParameterModel,)):
             if parameter.multiple:
@@ -378,7 +384,7 @@ def validate_test_cases_for_tool_source(
     tool_parameter_bundle = input_models_for_tool_source(tool_source)
     if use_latest_profile:
         # this might get old but it is fine, just needs to be updated when test case changes are made
-        profile = "24.2"
+        profile = "26.1"
     else:
         profile = tool_source.parse_profile()
     test_cases: List[ToolSourceTest] = tool_source.parse_tests_to_dict()["tests"]
