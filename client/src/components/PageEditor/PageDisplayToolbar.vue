@@ -112,7 +112,11 @@ function handleTitleChange(newTitle: string): Promise<void> {
                 @click="pageEditorStore.toggleRevisions">
                 <FontAwesomeIcon :icon="faHistory" />
                 Revisions
-                <BBadge v-if="revisionCount > 0" variant="light" style="top: 0">
+                <BBadge
+                    v-if="revisionCount > 0"
+                    variant="light"
+                    style="top: 0"
+                    data-description="page revision count badge">
                     {{ revisionCount }}
                 </BBadge>
             </GButton>

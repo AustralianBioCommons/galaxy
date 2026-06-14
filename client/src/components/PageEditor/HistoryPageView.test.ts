@@ -9,8 +9,8 @@ import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 import HistoryPageList from "./HistoryPageList.vue";
 import HistoryPageView from "./HistoryPageView.vue";
+import PageDisplayOnly from "./PageDisplayOnly.vue";
 import PageEditorView from "./PageEditorView.vue";
-import Markdown from "@/components/Markdown/Markdown.vue";
 
 vi.mock("@/composables/config", () => ({
     useConfig: vi.fn(() => ({
@@ -60,10 +60,7 @@ const PAGE_ID = "page-1";
 const SELECTORS = {
     INFO_ALERT: "balert-stub[variant='info']",
     ERROR_ALERT: "balert-stub[variant='danger']",
-    DISPLAY_TOOLBAR: "[data-description='page display toolbar']",
-    EDIT_BUTTON: "[data-description='page edit button']",
-    MANAGE_BUTTON: "[data-description='page manage button']",
-};
+} as const;
 
 let pinia: Pinia;
 
@@ -203,7 +200,7 @@ describe("HistoryPageView", () => {
             await flushPromises();
 
             expect(wrapper.findComponent(PageEditorView).exists()).toBe(false);
-            expect(wrapper.findComponent(Markdown).exists()).toBe(true);
+            expect(wrapper.findComponent(PageDisplayOnly).exists()).toBe(true);
         });
     });
 
@@ -232,30 +229,19 @@ describe("HistoryPageView", () => {
             const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
             await flushPromises();
 
-            expect(wrapper.findComponent(Markdown).exists()).toBe(true);
+            expect(wrapper.findComponent(PageDisplayOnly).exists()).toBe(true);
         });
 
-        it("passes correct markdownConfig to Markdown", async () => {
+        it("passes correct markdownConfig to PageDisplayOnly", async () => {
             setupLoadedPage();
             const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
             await flushPromises();
 
-            const md = wrapper.findComponent(Markdown);
+            const md = wrapper.findComponent(PageDisplayOnly);
             const config = md.props("markdownConfig");
             expect(config.id).toBe(PAGE_ID);
             expect(config.title).toBe("My Page");
             expect(config.content).toBe("# Hello");
-        });
-
-        it("shows display toolbar with Edit button", async () => {
-            setupLoadedPage();
-            const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
-            await flushPromises();
-
-            expect(wrapper.find(SELECTORS.DISPLAY_TOOLBAR).exists()).toBe(true);
-            const editBtn = wrapper.find(SELECTORS.EDIT_BUTTON);
-            expect(editBtn.exists()).toBe(true);
-            expect(editBtn.text()).toContain("Edit");
         });
 
         it("Edit button navigates to edit mode (no displayOnly)", async () => {
@@ -263,10 +249,7 @@ describe("HistoryPageView", () => {
             const wrapper = mountComponent({ historyId: HISTORY_ID, pageId: PAGE_ID, displayOnly: true });
             await flushPromises();
 
-            const editBtn = wrapper.find(SELECTORS.EDIT_BUTTON);
-            // GButton is stubbed by shallowMount; emit the Vue click event to trigger @click handler
-            await editBtn.vm.$emit("click");
-            await wrapper.vm.$nextTick();
+            wrapper.findComponent(PageDisplayOnly).vm.$emit("edit");
 
             expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/${PAGE_ID}`);
         });
