@@ -29,6 +29,7 @@ from typing import (
 
 import yaml
 
+from galaxy.exceptions import ConfigurationError
 from galaxy.managers.context import ProvidesUserContext
 from galaxy.model import User
 from galaxy.schema.agents import (
@@ -376,6 +377,11 @@ class BaseGalaxyAgent(ABC):
     # Fallback when no max_tokens is configured. 8k leaves headroom on every
     # backend we currently support (smallest is Qwen3-32B at 32k context).
     DEFAULT_MAX_TOKENS = 8192
+
+    # Retry budget passed to Agent(retries=...) (tool calls and output validation).
+    # pydantic-ai defaults to 1; 3 gives a flaky model a couple more chances to
+    # produce conforming output before the run fails.
+    DEFAULT_AGENT_RETRIES = 3
 
     def __init__(self, deps: GalaxyAgentDependencies):
         self.deps = deps
@@ -812,6 +818,19 @@ class BaseGalaxyAgent(ABC):
                 return self.deps.config.ai_api_base_url
         return default
 
+    def _get_agent_specific_config(self, key: str, default: Any = None) -> Any:
+        """Read a value only from this agent's own ``inference_services`` block.
+
+        Unlike :meth:`_get_agent_config`, this skips the shared ``default`` block so a
+        caller-pinned builtin is overridden only by an explicit per-agent entry.
+        """
+        inference_config = getattr(self.deps.config, "inference_services", {})
+        if isinstance(inference_config, dict):
+            agent_specific = inference_config.get(self.agent_type, {})
+            if isinstance(agent_specific, dict) and key in agent_specific:
+                return agent_specific[key]
+        return default
+
     def _get_model_name(self) -> str:
         return self._get_agent_config("model", "gpt-4o-mini")
 
@@ -855,6 +874,30 @@ class BaseGalaxyAgent(ABC):
 
     def _get_max_tokens(self) -> int:
         return self._get_agent_config("max_tokens", self.DEFAULT_MAX_TOKENS)
+
+    def _get_retries(self, default: Optional[int] = None) -> int:
+        """Retry budget for the agent's pydantic-ai ``Agent(retries=...)``.
+
+        With no ``default``, the budget resolves per-agent > ``default`` block >
+        builtin (:attr:`DEFAULT_AGENT_RETRIES`). A caller-pinned ``default`` (e.g.
+        custom_tool's producer keeps 0 so its own reflection loop owns the retry) is
+        a correctness requirement, not a tunable: only an explicit per-agent
+        ``retries`` overrides it -- a shared ``default`` block must not silently
+        re-enable pydantic-ai retries there.
+        """
+        if default is None:
+            raw = self._get_agent_config("retries", self.DEFAULT_AGENT_RETRIES)
+        else:
+            raw = self._get_agent_specific_config("retries", default)
+        try:
+            retries = int(raw)
+        except (TypeError, ValueError):
+            retries = None
+        if retries is None or retries < 0:
+            raise ConfigurationError(
+                f"inference_services 'retries' for agent '{self.agent_type}' must be a non-negative integer, got {raw!r}"
+            )
+        return retries
 
     async def _call_agent_from_tool(
         self,
@@ -906,6 +949,7 @@ class SimpleGalaxyAgent(BaseGalaxyAgent):
             self._get_model(),
             deps_type=GalaxyAgentDependencies,
             system_prompt=self.get_system_prompt(),
+            retries=self._get_retries(),
         )
 
     def _format_response(self, result: Any, query: str, context: dict[str, Any]) -> AgentResponse:

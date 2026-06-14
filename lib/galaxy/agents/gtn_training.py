@@ -101,6 +101,7 @@ class GTNTrainingAgent(BaseGalaxyAgent):
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         agent = Agent(
@@ -110,8 +111,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             system_prompt=self.get_system_prompt(),
             # gpt-oss occasionally emits prose instead of a valid GTNSearchResponse;
             # the pydantic-ai default of 1 output retry turns that into a hard error.
-            # Allow a couple more attempts so an occasional malformed output recovers.
-            retries=3,
+            # Configurable via inference_services, defaulting to 3 so an occasional
+            # malformed output recovers.
+            retries=self._get_retries(),
         )
 
         @agent.tool

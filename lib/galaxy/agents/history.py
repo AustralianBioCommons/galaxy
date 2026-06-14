@@ -39,6 +39,7 @@ class HistoryAgent(BaseGalaxyAgent):
             self._get_model(),
             deps_type=GalaxyAgentDependencies,
             system_prompt=self.get_system_prompt(),
+            retries=self._get_retries(),
         )
 
         @agent.tool

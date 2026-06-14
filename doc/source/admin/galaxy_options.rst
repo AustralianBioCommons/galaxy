@@ -5671,8 +5671,8 @@
 :Description:
     Configuration for AI inference services used by agents and
     visualization plugins. Supports per-agent or per-plugin model,
-    temperature, max_tokens, api_key, api_base_url, and enabled
-    settings. Valid keys include agent types (e.g. router,
+    temperature, max_tokens, retries, api_key, api_base_url, and
+    enabled settings. Valid keys include agent types (e.g. router,
     error_analysis) and plugin names (e.g. jupyterlite). Agents and
     plugins inherit from 'default' configuration, which itself falls
     back to global ai_model/ai_api_key settings. All agents are
@@ -5684,7 +5684,14 @@
     test/integration/static_agents.yml } Per-agent or default-block
     ``structured_output_override: true|false`` beats the model
     capability table -- see ``agent_model_capabilities_file`` for the
-    table's location and contents.
+    table's location and contents. Per-agent or default-block
+    ``retries`` sets the pydantic-ai retry budget (tool calls and
+    output validation); it defaults to 3. Raise it if a model
+    intermittently fails to produce conforming output ("Exceeded
+    maximum output retries"). custom_tool's producer keeps a budget of
+    0 because it runs its own reflection loop; a shared ``default``
+    block does not change that -- set ``custom_tool.retries``
+    explicitly to override it.
 :Default: ``None``
 :Type: any
 
@@ -6267,3 +6274,6 @@
     for user defined tools.
 :Default: ``false``
 :Type: bool
+
+
+
