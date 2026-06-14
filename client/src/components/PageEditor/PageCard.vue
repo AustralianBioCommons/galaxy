@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { faEdit, faEye, faHistory, faSitemap } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faEye, faHistory, faSitemap, faUser } from "@fortawesome/free-solid-svg-icons";
 import { computed } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
 import type { CardAction, CardBadge, Title } from "@/components/Common/GCard.types";
+import { useUserStore } from "@/stores/userStore.js";
 
 import GCard from "../Common/GCard.vue";
 
@@ -28,6 +29,8 @@ const emit = defineEmits<{
     (e: "view"): void;
 }>();
 
+const userStore = useUserStore();
+
 const title: Title = {
     label: props.page.title || props.defaultTitle,
     title: props.editTitle,
@@ -44,6 +47,16 @@ const badges = computed<CardBadge[]>(() => {
             class: "unselectable",
         },
     ];
+    if (!userStore.matchesCurrentUsername(props.page.username)) {
+        retBadges.push({
+            id: "owned-by-other-user",
+            label: `Owned by ${props.page.username}`,
+            icon: faUser,
+            title: "This notebook is owned by another user. Editing it will create a copy owned by you.",
+            class: "unselectable",
+            variant: "outline-primary",
+        });
+    }
     if (props.showInvocationBadge && props.page.source_invocation_id) {
         retBadges.push({
             id: "is-invocation-notebook",
@@ -52,7 +65,7 @@ const badges = computed<CardBadge[]>(() => {
             title: "This notebook is a report created from a workflow invocation (Click to view the original report under the invocation)",
             class: "unselectable",
             to: `/workflows/invocations/${props.page.source_invocation_id}/reports?id=${props.page.id}`,
-            variant: "primary",
+            variant: "info",
         });
     }
     return retBadges;

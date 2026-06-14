@@ -23,7 +23,7 @@ export async function fetchHistoryPages(historyId: string, invocationId?: string
                 history_id: historyId,
                 invocation_id: invocationId,
                 show_own: true,
-                show_published: false,
+                show_published: true,
                 sort_desc: true,
             },
         },
