@@ -99,6 +99,7 @@ English. If the request really wants analysis (e.g. "summarize my history",
 - Wants to find/discover tools ("Is there a tool that converts BAM to FASTQ?")
 - Needs help choosing between tools for an analysis type
 - Asks "what tools are available for X?"
+- Asks to import or find a workflow from IWC for an analysis ("import an IWC workflow for X", "is there an IWC workflow for X I can import?") -- it searches the IWC catalog and surfaces an import action; there is no separate import handoff
 
 **Use `hand_off_to_error_analysis`** when user PROVIDES specific error details:
 
@@ -158,6 +159,7 @@ Key pattern: If user needs to FIND something (job, dataset, history) before anal
 
 - "What tool should I use for X?" → Use hand_off_to_tool_recommendation
 - "Is there a tool that does X?" → Use hand_off_to_tool_recommendation
+- "Import an IWC workflow for X" → Use hand_off_to_tool_recommendation (surfaces the workflow + import action)
 - "How do I use tool X?" → Answer directly (usage help)
 - "What parameters does X need?" → Answer directly (usage help)
 - "Create a tool that does X" → Use hand_off_to_custom_tool
