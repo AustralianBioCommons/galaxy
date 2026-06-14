@@ -34,6 +34,7 @@ from galaxy.tool_util_models.tool_source import (
     JsonTestCollectionDefDict,
     JsonTestDatasetDefDict,
 )
+from galaxy.util.permutations import is_in_state
 from .util import dict_verify_each
 
 # legacy tools allows specifying parameter and repeat parameters without
@@ -255,6 +256,122 @@ def test_test_case_state_conversion():
     dict_verify_each(state.tool_state.input_state, expectations)
 
 
+def test_is_in_state_supports_nested_keys():
+    state = {
+        "section": {
+            "parameter": "value",
+        },
+    }
+
+    assert is_in_state(state, "section|parameter", nested=True)
+    assert not is_in_state(state, "section|missing", nested=True)
+
+
+
+
+def test_test_case_request_conversion_preserves_non_default_select_and_booleans():
+    tool_source = raw_xml_tool_source(
+        """
+<tool id="async_request_regression" name="async_request_regression" version="1.0.0">
+    <command>echo</command>
+    <inputs>
+        <param name="output_type" type="select">
+            <option value="meta" selected="true">MetaBAT2</option>
+            <option value="semi">SemiBin2</option>
+        </param>
+        <param name="full_contig_name" type="boolean" truevalue="--full-contig-name" falsevalue="" />
+        <section name="advanced_settings" expanded="false">
+            <param name="method" type="select">
+                <option value="hybrid" selected="true">Hybrid</option>
+                <option value="wgs">WGS</option>
+            </param>
+            <param name="remove_identical_sequences" type="boolean" truevalue="-d" falsevalue="" />
+        </section>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <param name="output_type" value="semi" />
+            <param name="full_contig_name" value="true" />
+            <section name="advanced_settings">
+                <param name="method" value="wgs" />
+                <param name="remove_identical_sequences" value="true" />
+            </section>
+        </test>
+    </tests>
+</tool>
+        """
+    )
+    parameters = input_models_for_tool_source(tool_source)
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+    test_case_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+
+    request_state = encode_test(test_case_state, parameters, mock_adapt_datasets, mock_adapt_collections)
+
+    expectations = [
+        (["output_type"], "semi"),
+        (["full_contig_name"], True),
+        (["advanced_settings", "method"], "wgs"),
+        (["advanced_settings", "remove_identical_sequences"], True),
+    ]
+    dict_verify_each(request_state.input_state, expectations)
+
+
+def test_nested_conditional_duplicate_short_names_are_distinct_when_qualified():
+    tool_source = raw_xml_tool_source(
+        """
+<tool id="duplicate_use_regression" name="duplicate_use_regression" version="1.0.0">
+    <command>echo</command>
+    <inputs>
+        <conditional name="operation">
+            <param name="use" type="select">
+                <option value="droplets" selected="true">Droplets</option>
+                <option value="other">Other</option>
+            </param>
+            <when value="droplets">
+                <conditional name="method">
+                    <param name="use" type="select">
+                        <option value="default" selected="true">Default</option>
+                        <option value="expected">Expected</option>
+                    </param>
+                    <when value="default" />
+                    <when value="expected">
+                        <param name="expected" type="integer" value="1000" />
+                    </when>
+                </conditional>
+            </when>
+            <when value="other" />
+        </conditional>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <conditional name="operation">
+                <param name="use" value="droplets" />
+                <conditional name="method">
+                    <param name="use" value="expected" />
+                    <param name="expected" value="2000" />
+                </conditional>
+            </conditional>
+        </test>
+    </tests>
+</tool>
+        """
+    )
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+
+    tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+
+    expectations = [
+        (["operation", "use"], "droplets"),
+        (["operation", "method", "use"], "expected"),
+        (["operation", "method", "expected"], 2000),
+    ]
+    dict_verify_each(tool_state.input_state, expectations)
+
+
 def test_convert_to_requests():
     tools = [
         "parameters/gx_drill_down_recurse_multiple",
@@ -314,6 +431,18 @@ def case_state_for(tool_source: ToolSource, test_case: ToolSourceTest) -> TestCa
     parsed_tool = parse_tool(tool_source)
     profile = tool_source.parse_profile()
     return case_state(test_case, parsed_tool.inputs, profile)
+
+
+def raw_xml_tool_source(raw_tool_source: str) -> ToolSource:
+    return get_tool_source(tool_source_class="XmlToolSource", raw_tool_source=raw_tool_source)
+
+
+def mock_adapt_datasets(input: JsonTestDatasetDefDict) -> DataRequestHda:
+    return DataRequestHda(src="hda", id=MOCK_ID)
+
+
+def mock_adapt_collections(input: JsonTestCollectionDefDict) -> DataCollectionRequest:
+    return DataCollectionRequest(src="hdca", id=MOCK_ID)
 
 
 tool_source_for = functional_test_tool_source

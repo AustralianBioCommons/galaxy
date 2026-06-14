@@ -155,7 +155,7 @@ def is_in_state(state_dict, key, nested):
     else:
         first, rest = key.split("|", 1)
         # repeats?
-        is_in_state(state_dict.get(first), rest, nested)
+        return is_in_state(state_dict.get(first), rest, nested)
 
 
 def looks_like_flattened_repeat_key(key: str) -> bool:

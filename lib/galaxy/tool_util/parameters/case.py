@@ -384,9 +384,14 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
     # prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
     if "|" in flat_state_path:
         short_name = flat_state_path.rsplit("|", 1)[1]
+        matching_inputs = []
         for input in inputs:
             if input["name"] == short_name:
-                return input
+                matching_inputs.append(input)
+        if len(matching_inputs) == 1:
+            return matching_inputs[0]
+        elif len(matching_inputs) > 1:
+            raise Exception(f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})")
     return None
 
 
