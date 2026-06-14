@@ -48,6 +48,18 @@ vi.mock("@/stores/historyStore", () => ({
     })),
 }));
 
+vi.mock("@/stores/userStore", () => ({
+    useUserStore: vi.fn(() => ({
+        matchesCurrentUsername: vi.fn((username: string) => username === "test-owner"),
+    })),
+}));
+
+vi.mock("@/composables/confirmDialog.js", () => ({
+    useConfirmDialog: vi.fn(() => ({
+        confirm: vi.fn().mockResolvedValue(true),
+    })),
+}));
+
 const mockGalaxyInstance = { frame: { active: false } };
 vi.mock("@/app", () => ({
     getGalaxyInstance: vi.fn(() => mockGalaxyInstance),
@@ -79,9 +91,11 @@ function setupLoadedPage(historyId?: string) {
         title: "My Page",
         content: "# Hello",
         update_time: "2024-01-01T00:00:00",
+        username: "test-owner",
     } as Partial<HistoryPageDetails> as HistoryPageDetails;
     store.currentContent = "# Hello";
     store.currentTitle = "My Page";
+    vi.spyOn(store, "hasCurrentPage", "get").mockReturnValue(true);
     return store;
 }
 

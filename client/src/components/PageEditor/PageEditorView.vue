@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
+import { faCopy, faSpinner, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -8,9 +8,11 @@ import { useRouter } from "vue-router/composables";
 // import { getGalaxyInstance } from "@/app";
 // import type { RouterPushOptions } from "@/components/History/Content/router-push-options";
 import { PAGE_LABELS } from "@/components/Page/constants";
+import { useConfirmDialog } from "@/composables/confirmDialog.js";
 import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { useHistoryStore } from "@/stores/historyStore";
 import { type PageEditorMode, usePageEditorStore } from "@/stores/pageEditorStore";
+import { useUserStore } from "@/stores/userStore.js";
 
 import GButton from "../BaseComponents/GButton.vue";
 import GModal from "../BaseComponents/GModal.vue";
@@ -29,10 +31,12 @@ const props = defineProps<{
     hideHeader?: boolean;
 }>();
 
+const { confirm } = useConfirmDialog();
 const router = useRouter();
 const { pushToFrameOrPage } = useWindowAwareNavigation();
 const store = usePageEditorStore();
 const historyStore = useHistoryStore();
+const userStore = useUserStore();
 
 const editorMode = computed<PageEditorMode>(() =>
     props.invocationId ? "invocation" : props.historyId ? "history" : "standalone",
@@ -64,6 +68,8 @@ const markdownConfig = computed(() => {
         update_time: store.currentPage.update_time,
     };
 });
+
+const isOwnedPage = computed(() => userStore.matchesCurrentUsername(store.currentPage?.username));
 
 const showPermissions = ref(false);
 
@@ -124,11 +130,38 @@ function handlePreview() {
     });
 }
 
-function handleEdit() {
-    if (props.historyId) {
-        router.push(`/histories/${props.historyId}/pages/${props.pageId}`);
-    } else {
-        router.push(`/pages/editor?id=${props.pageId}`);
+async function handleEdit() {
+    let editingPageId: string | undefined = props.pageId;
+
+    if (!isOwnedPage.value) {
+        const entity = labels.value.entityName;
+
+        const confirmed = await confirm(
+            `You are not the owner of this ${entity}. To edit it, a copy with its contents, owned by you, will be created. Do you want to proceed?`,
+            {
+                title: `Copy this ${entity}?`,
+                okText: `Copy ${entity}`,
+                okIcon: faCopy,
+            },
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        const copiedPage = await store.createPage({
+            title: store.currentTitle ? `Copy of "${store.currentTitle}"` : labels.value.defaultTitle,
+            content: store.currentContent,
+        });
+
+        editingPageId = copiedPage?.id;
+    }
+
+    if (editingPageId) {
+        if (props.historyId) {
+            router.push(`/histories/${props.historyId}/pages/${editingPageId}`);
+        } else {
+            router.push(`/pages/editor?id=${editingPageId}`);
+        }
     }
 }
 
@@ -187,7 +220,7 @@ function handleRevisionRestore(revisionId: string) {
 
         <!-- Display-only mode: rendered view -->
         <PageDisplayOnly
-            v-else-if="store.hasCurrentPage && displayOnly"
+            v-else-if="store.hasCurrentPage && (displayOnly || !isOwnedPage)"
             :labels="labels"
             :markdown-config="markdownConfig || undefined"
             :hide-header="props.hideHeader"

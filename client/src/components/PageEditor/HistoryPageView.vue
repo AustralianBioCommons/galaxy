@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faCopy, faPlus, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BAlert } from "bootstrap-vue";
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router/composables";
 
 import { PAGE_LABELS } from "@/components/Page/constants";
+import { useConfirmDialog } from "@/composables/confirmDialog.js";
 import { useToast } from "@/composables/toast";
 import { useWindowAwareNavigation } from "@/composables/windowAwareNavigation";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
+import { useUserStore } from "@/stores/userStore.js";
 import { errorMessageAsString } from "@/utils/simple-error.js";
 
 import HistoryPageList from "./HistoryPageList.vue";
@@ -24,8 +26,10 @@ const props = defineProps<{
 
 const Toast = useToast();
 
+const { confirm } = useConfirmDialog();
 const router = useRouter();
 const { pushToFrameOrPage } = useWindowAwareNavigation();
+const userStore = useUserStore();
 const store = usePageEditorStore();
 const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
 
@@ -79,6 +83,38 @@ watch(
     },
 );
 
+async function createAPage(isCopy = false) {
+    const entity = labels.value.entityName;
+
+    const modalText = isCopy
+        ? `You are not the owner of this ${entity}. To edit it, a copy with its contents, owned by you, will be created. Do you want to proceed?`
+        : `A new ${entity} will be created and will be added to the list of ${labels.value.entityNamePlural} for this ${props.invocationId ? "invocation" : "history"}. Do you want to proceed?`;
+
+    const modalTitle = isCopy ? `Copy this ${entity}?` : `Create new ${entity}?`;
+    const okText = isCopy ? `Copy ${entity}` : `Create ${entity}`;
+    const okIcon = isCopy ? faCopy : faPlus;
+
+    const confirmed = await confirm(modalText, {
+        title: modalTitle,
+        okText,
+        okIcon,
+    });
+    if (!confirmed) {
+        return;
+    }
+
+    const newPage = await store.createPage({
+        title: isCopy
+            ? store.currentTitle
+                ? `Copy of "${store.currentTitle}"`
+                : labels.value.defaultTitle
+            : undefined,
+        content: isCopy ? store.currentContent : undefined,
+    });
+
+    return newPage;
+}
+
 function handleView(viewingPageId: string) {
     const page = store.pages.find((n) => n.id === viewingPageId);
     const pageTitle = page?.title || labels.value.entityName;
@@ -95,16 +131,25 @@ function handleView(viewingPageId: string) {
 
 async function handleCreate() {
     try {
-        const page = await store.createPage();
-        handleEdit(page?.id);
+        const createdPage = await createAPage();
+        if (createdPage) {
+            handleEdit(createdPage.id, createdPage.username);
+        }
     } catch (error) {
         Toast.error(errorMessageAsString(error), `Failed to create ${labels.value.entityName.toLowerCase()}`);
     }
 }
 
-function handleEdit(editingPageId?: string) {
-    if (editingPageId) {
-        let editUrl = `/histories/${props.historyId}/pages/${editingPageId}`;
+async function handleEdit(editingPageId: string, ownerUsername: string) {
+    let routedId: string | undefined = editingPageId;
+
+    if (routedId && ownerUsername && !userStore.matchesCurrentUsername(ownerUsername)) {
+        const copiedPage = await createAPage(true);
+        routedId = copiedPage?.id;
+    }
+
+    if (routedId) {
+        let editUrl = `/histories/${props.historyId}/pages/${routedId}`;
         if (props.invocationId) {
             editUrl += `?invocation_id=${props.invocationId}`;
         }
@@ -156,11 +201,11 @@ function handleBack() {
 
         <!-- Display-only mode: rendered view -->
         <PageDisplayOnly
-            v-else-if="store.hasCurrentPage && displayOnly"
+            v-else-if="store.currentPage?.id && store.currentPage.id === props.pageId && displayOnly"
             :labels="labels"
             :markdown-config="markdownConfig || undefined"
             @back="handleBack"
-            @edit="handleEdit(props.pageId)" />
+            @edit="handleEdit(store.currentPage.id, store.currentPage.username)" />
 
         <!-- Edit mode: delegate to unified PageEditorView -->
         <template v-else-if="pageId && !displayOnly">

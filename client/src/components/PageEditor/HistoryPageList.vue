@@ -19,7 +19,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: "edit", pageId: string): void;
+    (e: "edit", pageId: string, username: string): void;
     (e: "view", pageId: string): void;
     (e: "create"): void;
     (e: "view-runtime-report"): void;
@@ -71,7 +71,7 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
                 :edit-title="labels.editButton"
                 :show-invocation-badge="!props.invocationId"
                 :view-title="labels.viewButton"
-                @edit="emit('edit', page.id)"
+                @edit="emit('edit', page.id, page.username)"
                 @view="emit('view', page.id)" />
         </div>
     </div>

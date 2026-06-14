@@ -36,6 +36,12 @@ vi.mock("@/composables/windowAwareNavigation", () => ({
     })),
 }));
 
+vi.mock("@/composables/confirmDialog.js", () => ({
+    useConfirmDialog: vi.fn(() => ({
+        confirm: vi.fn().mockResolvedValue(true),
+    })),
+}));
+
 vi.mock("@/stores/historyStore", () => ({
     useHistoryStore: vi.fn(() => ({
         getHistoryById: vi.fn((id: string) => {
@@ -302,7 +308,7 @@ describe("HistoryPageView", () => {
             list.vm.$emit("create");
             await flushPromises();
 
-            expect(store.createPage).toHaveBeenCalledWith();
+            expect(store.createPage).toHaveBeenCalledWith({ title: undefined, content: undefined });
             expect(mockPush).toHaveBeenCalledWith(`/histories/${HISTORY_ID}/pages/new-page`);
         });
 

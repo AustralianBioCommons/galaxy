@@ -2287,6 +2287,8 @@ class NavigatesGalaxy(HasDriverProxy[WaitType]):
     def history_page_create(self, screenshot_name=None):
         """Click the create button on the page list. Returns to editor view."""
         self.components.pages.history.create_button.wait_for_and_click()
+        self.components.confirm_dialog.ok_button.wait_for_and_click()
+        self.sleep_for(self.wait_types.UX_RENDER)
         self.components.pages.history.toolbar.wait_for_visible()
         if screenshot_name:
             self.screenshot(screenshot_name)
