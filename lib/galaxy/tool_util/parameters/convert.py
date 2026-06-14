@@ -248,6 +248,8 @@ def dereference(
     def dereference_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
             if value is None:
+                if parameter.url_default:
+                    return dereference_dict(DataRequestUri(url=parameter.url_default, ext="auto").model_dump())
                 return VISITOR_NO_REPLACEMENT
             if parameter.multiple and isinstance(value, list):
                 return list(map(dereference_dict, value))
@@ -612,6 +614,8 @@ def runtimeify(
 
     def to_runtime_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
+            if value is None:
+                return VISITOR_NO_REPLACEMENT
             if parameter.multiple and isinstance(value, list):
                 return list(map(adapt_dict, value))
             else:

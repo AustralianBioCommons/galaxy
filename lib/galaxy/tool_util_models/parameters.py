@@ -1273,14 +1273,20 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     def pydantic_template(self, state_representation: StateRepresentationT) -> DynamicModelInformation:
         if state_representation in ["request", "relaxed_request"]:
-            return allow_batching(dynamic_model_information_from_py_type(self, self.py_type), BatchDataInstance)
+            requires_value = None if not self.url_default else False
+            return allow_batching(
+                dynamic_model_information_from_py_type(self, self.py_type, requires_value=requires_value),
+                BatchDataInstance,
+            )
         elif state_representation == "landing_request":
             return allow_batching(
                 dynamic_model_information_from_py_type(self, self.py_type, requires_value=False), BatchDataInstance
             )
         elif state_representation == "request_internal":
+            requires_value = None if not self.url_default else False
             return allow_batching(
-                dynamic_model_information_from_py_type(self, self.py_type_internal), BatchDataInstanceInternal
+                dynamic_model_information_from_py_type(self, self.py_type_internal, requires_value=requires_value),
+                BatchDataInstanceInternal,
             )
         elif state_representation == "landing_request_internal":
             return allow_batching(
