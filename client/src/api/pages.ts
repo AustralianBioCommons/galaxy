@@ -19,7 +19,13 @@ export type UpdateHistoryPagePayload = components["schemas"]["UpdatePagePayload"
 export async function fetchHistoryPages(historyId: string, invocationId?: string): Promise<HistoryPageSummary[]> {
     const { data, error } = await GalaxyApi().GET("/api/pages", {
         params: {
-            query: { history_id: historyId, invocation_id: invocationId, show_own: true, show_published: false },
+            query: {
+                history_id: historyId,
+                invocation_id: invocationId,
+                show_own: true,
+                show_published: false,
+                sort_desc: true,
+            },
         },
     });
     if (error) {
