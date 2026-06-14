@@ -41,7 +41,7 @@ is not available already.
 Automatic build of Linux containers
 -----------------------------------
 
-We utilize involucro_ to automatically convert all packages in Bioconda_ into Linux container images
+We utilize mulled_ (with involucro_) to automatically convert all packages in Bioconda_ into Linux container images
 and make them available at the `BioContainers Quay.io account`_.
 
 We have developed small utilities around this technology stack, which is currently included in the ``galaxy-tool-util``
@@ -74,7 +74,7 @@ Each mulled container is identified with a hash such as ``mulled-v2-8186960447c5
 The user can specify whether to generate hashes for either version 1 or version 2 containers with ``--hash``; version 2 is the default.
 
 
-Build all packages from bioconda from the last 25h
+Build all packages from bioconda from the last 24h
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The BioConda community is building a container for every package they create with a command similar to this.
@@ -83,7 +83,7 @@ The BioConda community is building a container for every package they create wit
 
    $ mulled-build-channel --channel bioconda --namespace biocontainers \
       --involucro-path ./involucro --recipes-dir ./bioconda-recipes \
-      --diff-hours 25 --repo-data bioconda build
+      --diff-hours 24 --repo-data bioconda build
 
 
 Building Docker containers for local Conda packages
@@ -104,7 +104,7 @@ This also demonstrates how you can build a container locally and on-the-fly.
 
 .. code-block:: bash
 
-   $ conda index /home/bag/miniconda2/conda-bld/linux-64/
+   $ conda index /home/bag/miniconda3/conda-bld/linux-64/
 
 3) Build a container for your local package
 
