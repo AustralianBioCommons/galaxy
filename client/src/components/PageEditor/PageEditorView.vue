@@ -26,6 +26,7 @@ const props = defineProps<{
     historyId?: string;
     invocationId?: string;
     displayOnly?: boolean;
+    hideHeader?: boolean;
 }>();
 
 const router = useRouter();
@@ -103,20 +104,24 @@ function handleBack() {
     }
 }
 
+/** Open basic md display in window manager when active, else navigate inline according to context */
 function handlePreview() {
+    const framedUrl = `/pages/editor?id=${props.pageId}&displayOnly=true&hideHeader=true`;
+
+    let inlineUrl: string;
     if (props.invocationId) {
-        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`);
+        inlineUrl = `/workflows/invocations/${props.invocationId}/reports?id=${props.pageId}`;
     } else if (props.historyId) {
-        router.push(`/histories/${props.historyId}/pages/${props.pageId}?displayOnly=true`);
+        inlineUrl = `/histories/${props.historyId}/pages/${props.pageId}?displayOnly=true`;
     } else {
-        // Standalone: open in window manager when active, else navigate inline.
-        const previewUrl = `/pages/editor?id=${props.pageId}&displayOnly=true`;
-        pushToFrameOrPage({
-            framedUrl: previewUrl,
-            inlineUrl: previewUrl,
-            title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
-        });
+        inlineUrl = `/pages/editor?id=${props.pageId}&displayOnly=true`;
     }
+
+    pushToFrameOrPage({
+        framedUrl,
+        inlineUrl,
+        title: `${labels.value.entityName}: ${store.currentTitle || labels.value.defaultTitle}`,
+    });
 }
 
 function handleEdit() {
@@ -185,6 +190,7 @@ function handleRevisionRestore(revisionId: string) {
             v-else-if="store.hasCurrentPage && displayOnly"
             :labels="labels"
             :markdown-config="markdownConfig || undefined"
+            :hide-header="props.hideHeader"
             @back="handleBack"
             @edit="handleEdit" />
 

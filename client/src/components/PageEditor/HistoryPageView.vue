@@ -80,15 +80,14 @@ watch(
 );
 
 function handleView(viewingPageId: string) {
-    if (props.invocationId) {
-        router.push(`/workflows/invocations/${props.invocationId}/reports?id=${viewingPageId}`);
-        return;
-    }
     const page = store.pages.find((n) => n.id === viewingPageId);
     const pageTitle = page?.title || labels.value.entityName;
-    const inlineUrl = `/histories/${props.historyId}/pages/${viewingPageId}?displayOnly=true`;
+    const inlineUrl = props.invocationId
+        ? `/workflows/invocations/${props.invocationId}/reports?id=${viewingPageId}`
+        : `/histories/${props.historyId}/pages/${viewingPageId}?displayOnly=true`;
+
     pushToFrameOrPage({
-        framedUrl: inlineUrl,
+        framedUrl: `/pages/editor?id=${viewingPageId}&displayOnly=true&hideHeader=true`,
         inlineUrl,
         title: `${labels.value.entityName}: ${pageTitle}`,
     });

@@ -573,6 +573,7 @@ export function getRouter(Galaxy) {
                         props: (route) => ({
                             pageId: route.query.id,
                             displayOnly: route.query.displayOnly === "true",
+                            hideHeader: route.query.hideHeader === "true",
                         }),
                     },
                     {

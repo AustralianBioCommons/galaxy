@@ -9,6 +9,7 @@ import PageDisplayToolbar from "./PageDisplayToolbar.vue";
 const props = defineProps<{
     labels: (typeof PAGE_LABELS)[keyof typeof PAGE_LABELS];
     markdownConfig?: MarkdownConfig;
+    hideHeader?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,7 +20,12 @@ const emit = defineEmits<{
 
 <template>
     <div class="d-flex flex-column">
-        <PageDisplayToolbar :labels="props.labels" mode="display" @edit="emit('edit')" @back="emit('back')" />
+        <PageDisplayToolbar
+            v-if="!props.hideHeader"
+            :labels="props.labels"
+            mode="display"
+            @edit="emit('edit')"
+            @back="emit('back')" />
         <div class="page-display-content" data-description="page rendered view">
             <Markdown
                 v-if="markdownConfig"
