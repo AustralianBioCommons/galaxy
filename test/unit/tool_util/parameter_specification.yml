@@ -1234,9 +1234,11 @@ gx_color:
    - parameter: '#aabbcc'
    - parameter: '#000000'
    - parameter: '#abcd'
+   - parameter: 'red'
   request_invalid:
    - parameter: null
    - parameter: {}
+   - parameter: 'foobar'
   workflow_step_valid:
    - parameter: '#aabbcc'
    - parameter: '#000000'
@@ -1253,9 +1255,6 @@ gx_color:
     - parameter: 'foobar'
     - parameter: 5
     - parameter: {__class__: 'ConnectedValue2'}
-  _json_schema_skip:
-    workflow_step_invalid: "color validator uses AfterValidator"
-    workflow_step_linked_invalid: "color validator uses AfterValidator"
 
 gx_data:
   request_valid:
