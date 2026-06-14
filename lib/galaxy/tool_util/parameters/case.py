@@ -325,7 +325,7 @@ def _merge_into_state(
                                 # location may be a comma-separated list of URLs; split per URL
                                 for single_location in location.split(","):
                                     single_location = single_location.strip()
-                                    instance_test_input = dict(test_input)
+                                    instance_test_input = cast(ToolSourceTestInput, dict(test_input))
                                     instance_test_input["attributes"] = dict(test_input["attributes"])
                                     instance_test_input["value"] = os.path.basename(single_location)
                                     instance_test_input["attributes"]["location"] = single_location

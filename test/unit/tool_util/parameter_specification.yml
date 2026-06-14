@@ -1139,6 +1139,8 @@ gx_float:
     - parameter: null
     - parameter: 'foobar'
     - parameter: {__class__: 'ConnectedValue2'}
+  _json_schema_valid_skip:
+    test_case_xml_valid: "Galaxy infinity sentinels (__Infinity__, __-Infinity__) are strings not expressible as JSON Schema numbers"
 
 
 gx_float_optional:
@@ -1212,6 +1214,8 @@ gx_float_optional:
   workflow_step_linked_invalid:
     - parameter: 'foobar'
     - parameter: {__class__: 'ConnectedValue2'}
+  _json_schema_valid_skip:
+    test_case_xml_valid: "Galaxy infinity sentinels (__Infinity__, __-Infinity__) are strings not expressible as JSON Schema numbers"
 
 gx_float_validation_range:
   request_valid:
