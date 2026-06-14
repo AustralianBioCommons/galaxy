@@ -34,7 +34,10 @@ from galaxy.tool_util_models.tool_source import (
     JsonTestCollectionDefDict,
     JsonTestDatasetDefDict,
 )
-from galaxy.util.permutations import is_in_state
+from galaxy.util.permutations import (
+    is_in_state,
+    state_set_value,
+)
 from .util import dict_verify_each
 
 # legacy tools allows specifying parameter and repeat parameters without
@@ -267,11 +270,26 @@ def test_is_in_state_supports_nested_keys():
     assert not is_in_state(state, "section|missing", nested=True)
 
 
+def test_state_set_value_creates_nested_parent_state():
+    state: dict[str, Any] = {}
+
+    state_set_value(state, "p1|p1use", True, nested=True)
+    state_set_value(state, "files_0|file", "dataset", nested=True)
+
+    assert state == {
+        "p1": {
+            "p1use": True,
+        },
+        "files": [
+            {
+                "file": "dataset",
+            }
+        ],
+    }
 
 
 def test_test_case_request_conversion_preserves_non_default_select_and_booleans():
-    tool_source = raw_xml_tool_source(
-        """
+    tool_source = raw_xml_tool_source("""
 <tool id="async_request_regression" name="async_request_regression" version="1.0.0">
     <command>echo</command>
     <inputs>
@@ -300,8 +318,7 @@ def test_test_case_request_conversion_preserves_non_default_select_and_booleans(
         </test>
     </tests>
 </tool>
-        """
-    )
+        """)
     parameters = input_models_for_tool_source(tool_source)
     parsed_tool = parse_tool(tool_source)
     test_case = tool_source.parse_tests_to_dict()["tests"][0]
@@ -319,8 +336,7 @@ def test_test_case_request_conversion_preserves_non_default_select_and_booleans(
 
 
 def test_nested_conditional_duplicate_short_names_are_distinct_when_qualified():
-    tool_source = raw_xml_tool_source(
-        """
+    tool_source = raw_xml_tool_source("""
 <tool id="duplicate_use_regression" name="duplicate_use_regression" version="1.0.0">
     <command>echo</command>
     <inputs>
@@ -357,8 +373,7 @@ def test_nested_conditional_duplicate_short_names_are_distinct_when_qualified():
         </test>
     </tests>
 </tool>
-        """
-    )
+        """)
     parsed_tool = parse_tool(tool_source)
     test_case = tool_source.parse_tests_to_dict()["tests"][0]
 

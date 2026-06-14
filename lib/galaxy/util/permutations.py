@@ -8,7 +8,11 @@ with itertools product and permutations. These are open questions.
 """
 
 import copy
-from typing import Tuple
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+)
 
 from galaxy.exceptions import MessageException
 from galaxy.util.bunch import Bunch
@@ -103,7 +107,7 @@ def state_copy(inputs, nested):
     return state_dict_copy
 
 
-def state_set_value(state_dict, key, value, nested):
+def state_set_value(state_dict: dict, key: str, value: Any, nested: bool) -> None:
     if "|" not in key or not nested:
         state_dict[key] = value
     else:
@@ -117,6 +121,8 @@ def state_set_value(state_dict, key, value, nested):
                 repeat_state.append({})
             state_set_value(repeat_state[index], rest, value, nested)
         else:
+            if first not in state_dict:
+                state_dict[first] = {}
             state_set_value(state_dict[first], rest, value, nested)
 
 
@@ -147,7 +153,7 @@ def state_get_value(state_dict, key, nested):
             return state_get_value(state_dict[first], rest, nested)
 
 
-def is_in_state(state_dict, key, nested):
+def is_in_state(state_dict: Optional[dict], key: str, nested: bool) -> bool:
     if not state_dict:
         return False
     if "|" not in key or not nested:
