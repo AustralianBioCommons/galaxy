@@ -310,6 +310,11 @@ def _merge_into_state(
                 test_parameter, inputs, conditional_state, profile, state_representation, warnings, state_path
             )
         )
+        # If the discriminator was omitted but a non-default when was inferred from the
+        # provided parameters, record the inferred discriminator so the state validates
+        # against that branch rather than the __absent__/default branch.
+        if test_parameter.name not in conditional_state and not when.is_default_when:
+            conditional_state[test_parameter.name] = when.discriminator
         handled_inputs.update(
             _merge_level_into_state(
                 when.parameters, inputs, conditional_state, profile, state_representation, warnings, state_path
@@ -451,6 +456,14 @@ def _select_which_when(
     if is_boolean and isinstance(explicit_test_value, str):
         explicit_test_value = asbool(explicit_test_value)
     test_value = validate_explicit_conditional_test_value(test_parameter_name, explicit_test_value)
+    if test_value is None:
+        # The discriminator was omitted. Like the synchronous tool API, infer the active
+        # when from the parameters the test actually provides before falling back to the
+        # default when (otherwise a test that supplies a non-default branch's params fails
+        # to validate against the default branch).
+        inferred_when = _infer_when_from_inputs(conditional, inputs, prefix)
+        if inferred_when is not None:
+            return inferred_when
     for when in conditional.whens:
         if test_value is None and when.is_default_when:
             return when
@@ -458,6 +471,53 @@ def _select_which_when(
             return when
     else:
         raise Exception(f"Invalid conditional test value ({explicit_test_value}) for parameter ({test_parameter_name})")
+
+
+def _leaf_param_short_names(parameters: List[ToolParameterT]) -> Set[str]:
+    """Collect the leaf parameter short names reachable from a list of parameters,
+    descending into repeats, sections and nested conditionals."""
+    names: Set[str] = set()
+    for parameter in parameters:
+        if isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
+            names |= _leaf_param_short_names(parameter.parameters)
+        elif isinstance(parameter, ConditionalParameterModel):
+            names.add(parameter.test_parameter.name)
+            for when in parameter.whens:
+                names |= _leaf_param_short_names(when.parameters)
+        else:
+            names.add(parameter.name)
+    return names
+
+
+def _infer_when_from_inputs(
+    conditional: ConditionalParameterModel, inputs: ToolSourceTestInputs, prefix: Optional[str]
+) -> Optional[ConditionalWhen]:
+    """When a conditional's discriminator is omitted, pick the when whose parameters the
+    test supplies. Returns the best-matching when only when it is a strictly better match
+    than the default when; otherwise None so the caller uses the default when."""
+    scope = f"{prefix}|" if prefix else ""
+    provided_short_names: Set[str] = set()
+    for input in inputs:
+        name = input["name"]
+        if scope and not name.startswith(scope):
+            continue
+        provided_short_names.add(name.rsplit("|", 1)[-1])
+    if not provided_short_names:
+        return None
+
+    best_when: Optional[ConditionalWhen] = None
+    best_score = 0
+    default_score = 0
+    for when in conditional.whens:
+        score = len(_leaf_param_short_names(when.parameters) & provided_short_names)
+        if when.is_default_when:
+            default_score = score
+        if score > best_score:
+            best_score = score
+            best_when = when
+    if best_when is not None and best_score > default_score:
+        return best_when
+    return None
 
 
 def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[ToolSourceTestInput]:

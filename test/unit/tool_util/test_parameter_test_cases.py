@@ -494,6 +494,58 @@ def test_legacy_unqualified_repeat_inside_conditional_is_resolved():
     dict_verify_each(tool_state.input_state, expectations)
 
 
+def test_omitted_conditional_discriminator_inferred_from_provided_params():
+    # When a conditional's discriminator is omitted, the active when must be inferred from
+    # the parameters the test actually supplies (matching the synchronous tool API) rather
+    # than defaulting to the selected="true" branch. Regression for the quast async failure
+    # where `inputs` is a repeat in the non-default when but a data param in the default:
+    #   mode.co.in.__absent__.inputs.0.class - ...
+    tool_source = raw_xml_tool_source("""
+<tool id="infer_when" name="infer_when" version="1.0.0" profile="22.01">
+    <command>echo</command>
+    <inputs>
+        <conditional name="in">
+            <param name="custom" type="select">
+                <option value="true">Custom names</option>
+                <option value="false" selected="true">Dataset names</option>
+            </param>
+            <when value="true">
+                <repeat name="inputs" min="1">
+                    <param name="input" type="data" format="txt" />
+                    <param name="labels" type="text" value="" />
+                </repeat>
+            </when>
+            <when value="false">
+                <param name="inputs" type="data" format="txt" multiple="true" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <conditional name="in">
+                <repeat name="inputs">
+                    <param name="input" value="simple_line.txt" />
+                    <param name="labels" value="c1" />
+                </repeat>
+            </conditional>
+        </test>
+    </tests>
+</tool>
+        """)
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+
+    tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+
+    expectations = [
+        (["in", "custom"], "true"),
+        (["in", "inputs", 0, "input", "path"], "simple_line.txt"),
+        (["in", "inputs", 0, "labels"], "c1"),
+    ]
+    dict_verify_each(tool_state.input_state, expectations)
+
+
 def test_duplicate_identical_unqualified_test_param_is_tolerated():
     # A test may list the same unqualified conditional param twice (a common authoring
     # slip). When the duplicate values are identical it is tolerated - matching the
