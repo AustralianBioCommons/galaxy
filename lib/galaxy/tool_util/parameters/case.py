@@ -209,9 +209,15 @@ def test_case_state(
 
 
 def _input_name_was_handled_by_legacy_fallback(input_name: str, handled_inputs: Set[str], profile: str) -> bool:
-    return Version(profile) < Version("24.2") and any(
-        handled_input == input_name or handled_input.endswith(f"|{input_name}") for handled_input in handled_inputs
-    )
+    if Version(profile) >= Version("24.2"):
+        return False
+    for handled_input in handled_inputs:
+        if handled_input == input_name or handled_input.endswith(f"|{input_name}"):
+            return True
+        # conditional names may be elided in the test while the section/repeat prefix is kept
+        if "|" in input_name and _is_conditional_elided_match(input_name, handled_input.split("|")):
+            return True
+    return False
 
 
 def test_case_validation(
@@ -463,7 +469,36 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
             return matching_inputs[0]
         elif len(matching_inputs) > 1:
             raise Exception(f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})")
+
+        # Fallback for legacy test cases that elide intermediate conditional names but keep
+        # the enclosing section/repeat prefix (e.g. <section name="adv"><param name="esf">
+        # for a param whose real path is adv|esf_cond|esf). The input name is an ordered
+        # subsequence of the qualified path - sharing the head and the leaf - rather than a
+        # plain suffix.
+        path_segments = flat_state_path.split("|")
+        elided_matching_inputs = [
+            input for input in inputs if _is_conditional_elided_match(input["name"], path_segments)
+        ]
+        if len(elided_matching_inputs) == 1:
+            return elided_matching_inputs[0]
+        elif len(elided_matching_inputs) > 1:
+            raise Exception(f"Ambiguous partially qualified test parameter name for ({flat_state_path})")
     return None
+
+
+def _is_conditional_elided_match(input_name: str, path_segments: List[str]) -> bool:
+    """True if ``input_name`` is the qualified ``path_segments`` with intermediate
+    (conditional) segments removed - sharing the head and leaf segments.
+
+    e.g. input_name "advanced_options|esf" matches path ["advanced_options", "esf_cond", "esf"].
+    """
+    input_segments = input_name.split("|")
+    if len(input_segments) < 2 or len(input_segments) >= len(path_segments):
+        return False
+    if input_segments[0] != path_segments[0] or input_segments[-1] != path_segments[-1]:
+        return False
+    path_iter = iter(path_segments)
+    return all(segment in path_iter for segment in input_segments)
 
 
 def validate_test_cases_for_tool_source(
