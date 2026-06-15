@@ -1,0 +1,53 @@
+<tool id="async_ambiguous_unqualified_name" name="async_ambiguous_unqualified_name" version="1.0.0">
+    <description>async regression: unqualified test param name present in multiple conditional whens is ambiguous</description>
+    <!--
+      Models gatk4 mutect2 test 3, which lists the conditional param
+      `reference_sequence` TWICE by its unqualified short name in the same test.
+
+      Sync (POST /api/tools): the duplicate unqualified entry is tolerated; the
+      discriminator resolves the branch and the job runs.
+
+      Async: _input_for() resolves the qualified path reference_source|ref_seq
+      down to the short name `ref_seq`, finds two matching test inputs, and aborts
+      the request build:
+        could not build request: Ambiguous unqualified test parameter name
+        (ref_seq) for (reference_source|ref_seq)
+
+      NOTE: run this one with GALAXY_TEST_USE_LEGACY_TOOL_API=never. Because the
+      failure happens during request BUILDING (request is None), the "if_needed"
+      mode silently falls back to the legacy sync API and masks the bug; only
+      "never" forces the async path and surfaces it.
+    -->
+    <command><![CDATA[
+cat '$reference_source.ref_seq' > '$out_file1'
+    ]]></command>
+    <inputs>
+        <conditional name="reference_source">
+            <param name="reference_source_selector" type="select" label="Reference source">
+                <option value="history" selected="true">History</option>
+                <option value="cached">Cached</option>
+            </param>
+            <when value="history">
+                <param name="ref_seq" type="data" format="txt" label="Reference" />
+            </when>
+            <when value="cached">
+                <param name="ref_seq" type="data" format="txt" label="Reference" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs>
+        <data name="out_file1" format="txt" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="reference_source_selector" value="history" />
+            <param name="ref_seq" value="simple_line.txt" />
+            <param name="ref_seq" value="simple_line.txt" />
+            <output name="out_file1">
+                <assert_contents>
+                    <has_text text="line" />
+                </assert_contents>
+            </output>
+        </test>
+    </tests>
+</tool>

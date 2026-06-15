@@ -58,6 +58,11 @@ TOOLS_THAT_USE_SELECT_BY_VALUE = [
 TOOLS_THAT_ARE_OUTSTANDING_ISSUES = [
     "gx_conditional_boolean_optional.xml",
     "gx_conditional_boolean_discriminate_on_string_value.xml",
+    # Intentionally reproduces the async "ambiguous unqualified test parameter name"
+    # regression (duplicate unqualified param in a test) - see
+    # test/functional/tools/async_ambiguous_unqualified_name.xml. Remove once
+    # _input_for ambiguity is resolved / surfaced as a TestCaseValidationError.
+    "async_ambiguous_unqualified_name.xml",
 ]
 
 TEST_TOOL_THAT_DO_NOT_VALIDATE = (
@@ -434,6 +439,109 @@ def test_legacy_unqualified_repeat_inputs_are_expanded_for_request_state():
         (["more_queries", 1, "more_queries_input", "path"], "simple_line.txt"),
     ]
     dict_verify_each(test_case_state.input_state, expectations)
+
+
+def test_legacy_unqualified_repeat_inside_conditional_is_resolved():
+    # A repeat that lives inside a conditional may be specified unqualified (at the top
+    # level of the test, without the enclosing <conditional> wrapper). Its nested params
+    # must still resolve - including across two levels of repeat nesting - matching the
+    # synchronous /api/tools path. Regression for the deseq2 async submission failure:
+    #   select_data.__absent__.rep_factorName.0.rep_factorLevel.0.countsFile - Field required
+    tool_source = raw_xml_tool_source("""
+<tool id="unqualified_repeat_in_conditional" name="unqualified_repeat_in_conditional" version="1.0.0" profile="22.01">
+    <command>echo</command>
+    <inputs>
+        <conditional name="select_data">
+            <param name="how" type="select">
+                <option value="datasets_per_level">Datasets per level</option>
+                <option value="group_tags">Group tags</option>
+            </param>
+            <when value="datasets_per_level">
+                <repeat name="rep_factorName" min="1">
+                    <param name="factorName" type="text" value="" />
+                    <repeat name="rep_factorLevel" min="1">
+                        <param name="factorLevel" type="text" value="" />
+                        <param name="countsFile" type="data" format="txt" />
+                    </repeat>
+                </repeat>
+            </when>
+            <when value="group_tags">
+                <param name="countsFile" type="data" format="txt" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <repeat name="rep_factorName">
+                <param name="factorName" value="Treatment" />
+                <repeat name="rep_factorLevel">
+                    <param name="factorLevel" value="Treated" />
+                    <param name="countsFile" value="simple_line.txt" />
+                </repeat>
+            </repeat>
+        </test>
+    </tests>
+</tool>
+        """)
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+
+    tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+
+    expectations = [
+        (["select_data", "rep_factorName", 0, "factorName"], "Treatment"),
+        (["select_data", "rep_factorName", 0, "rep_factorLevel", 0, "factorLevel"], "Treated"),
+        (["select_data", "rep_factorName", 0, "rep_factorLevel", 0, "countsFile", "path"], "simple_line.txt"),
+    ]
+    dict_verify_each(tool_state.input_state, expectations)
+
+
+def test_legacy_unqualified_conditional_discriminator_in_section_is_resolved():
+    # A conditional inside a section may have its name elided in the test, with the
+    # discriminator given directly under the section (e.g. <section name="adv">
+    # <param name="esf" value="user"/> rather than wrapping it in <conditional
+    # name="esf_cond">). The section prefix is kept but the conditional name is dropped.
+    # Regression for the deseq2 async submission failure:
+    #   Invalid parameter name found advanced_options|esf
+    tool_source = raw_xml_tool_source("""
+<tool id="elided_conditional_in_section" name="elided_conditional_in_section" version="1.0.0" profile="22.01">
+    <command>echo</command>
+    <inputs>
+        <section name="advanced_options" title="Advanced">
+            <conditional name="esf_cond">
+                <param name="esf" type="select">
+                    <option value="default" selected="true">Default</option>
+                    <option value="user">User supplied</option>
+                </param>
+                <when value="default" />
+                <when value="user">
+                    <param name="size_factor_input" type="data" format="txt" />
+                </when>
+            </conditional>
+        </section>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <section name="advanced_options">
+                <param name="esf" value="user" />
+                <param name="size_factor_input" value="simple_line.txt" />
+            </section>
+        </test>
+    </tests>
+</tool>
+        """)
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+
+    tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+
+    expectations = [
+        (["advanced_options", "esf_cond", "esf"], "user"),
+        (["advanced_options", "esf_cond", "size_factor_input", "path"], "simple_line.txt"),
+    ]
+    dict_verify_each(tool_state.input_state, expectations)
 
 
 def test_legacy_select_labels_are_converted_to_values_for_request_state():
