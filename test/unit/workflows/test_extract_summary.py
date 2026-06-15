@@ -42,16 +42,31 @@ class TestWorkflowExtractSummary(TestCase):
         assert job_dict[hda3.job] == [("out3", hda3)]
 
     def test_finds_original_job_if_copied(self):
+        # Passive copies (no creating job of their own) normalize back to the
+        # source, so the output is attributed to the source's creating job.
         hda = MockHda()
-        derived_hda_1 = MockHda()
+        derived_hda_1 = MockHda(job=UNDEFINED_JOB)
         derived_hda_1.copied_from_history_dataset_association = hda
-        derived_hda_2 = MockHda()
+        derived_hda_2 = MockHda(job=UNDEFINED_JOB)
         derived_hda_2.copied_from_history_dataset_association = derived_hda_1
         self.history.active_datasets.append(derived_hda_2)
         job_dict, warnings = self._summarize()
         assert not warnings
         assert len(job_dict) == 1
         assert job_dict[hda.job] == [("out1", derived_hda_2)]
+
+    def test_keeps_copy_with_own_creating_job(self):
+        # A copy that records its own creating job (e.g. Extract Dataset output)
+        # is a real step and must not normalize past copied_from to the source.
+        hda = MockHda()
+        derived_hda = MockHda()
+        derived_hda.copied_from_history_dataset_association = hda
+        self.history.active_datasets.append(derived_hda)
+        job_dict, warnings = self._summarize()
+        assert not warnings
+        assert len(job_dict) == 1
+        assert job_dict[derived_hda.job] == [("out1", derived_hda)]
+        assert hda.job not in job_dict
 
     def test_fake_job_hda(self):
         """Fakes job if creating_job_associations is empty."""
