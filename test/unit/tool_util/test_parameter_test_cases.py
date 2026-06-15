@@ -497,6 +497,42 @@ def test_legacy_unqualified_repeat_inside_conditional_is_resolved():
     dict_verify_each(tool_state.input_state, expectations)
 
 
+def test_legacy_boolean_test_values_are_coerced_to_booleans():
+    # The test-case builder must submit a real boolean for a boolean param. A test may
+    # supply the param's truevalue/falsevalue command-line string, a plain true/false,
+    # or (for legacy tools) a non-boolean placeholder such as "-" that the synchronous
+    # tool API coerces via string_as_bool. Regression for the quast async failure:
+    #   advanced.skip_unaligned_mis_contigs - Input should be a valid boolean, input_value='-'
+    tool_template = """
+<tool id="boolean_legacy_values" name="boolean_legacy_values" version="1.0.0" profile="{profile}">
+    <command>echo</command>
+    <inputs>
+        <param name="flag" type="boolean" truevalue="" falsevalue="--skip" checked="true" />
+    </inputs>
+    <outputs />
+    <tests>
+        <test><param name="flag" value="{value}" /></test>
+    </tests>
+</tool>
+        """
+
+    def flag_value_for(value: str, profile: str = "23.02"):
+        tool_source = raw_xml_tool_source(tool_template.format(value=value, profile=profile))
+        parsed_tool = parse_tool(tool_source)
+        test_case = tool_source.parse_tests_to_dict()["tests"][0]
+        tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+        return tool_state.input_state["flag"]
+
+    # plain booleans
+    assert flag_value_for("true") is True
+    assert flag_value_for("false") is False
+    # truevalue / falsevalue command-line strings mapped back to booleans
+    assert flag_value_for("") is True
+    assert flag_value_for("--skip") is False
+    # legacy non-boolean placeholder coerced to False (matches synchronous string_as_bool)
+    assert flag_value_for("-") is False
+
+
 def test_legacy_unqualified_conditional_discriminator_in_section_is_resolved():
     # A conditional inside a section may have its name elided in the test, with the
     # discriminator given directly under the section (e.g. <section name="adv">

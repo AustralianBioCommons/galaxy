@@ -39,7 +39,10 @@ from galaxy.tool_util_models.parameters import (
     SelectParameterModel,
     ToolParameterT,
 )
-from galaxy.util import asbool
+from galaxy.util import (
+    asbool,
+    string_as_bool,
+)
 from .factory import input_models_for_tool_source
 from .state import TestCaseToolState
 from .visitor import (
@@ -110,17 +113,31 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
                 warnings.append(
                     f"Implicitly converted {parameter.name} to a boolean from a string value, please use 'value_json' to define this test input parameter value instead."
                 )
-            try:
-                result_value = asbool(value)
-            except ValueError:
-                if parameter.truevalue is not None and value == parameter.truevalue:
-                    result_value = True
-                elif parameter.falsevalue is not None and value == parameter.falsevalue:
-                    result_value = False
-                else:
-                    warnings.append(
-                        "Likely using deprected truevalue/falsevalue in tool parameter - switch to 'true' or 'false'"
-                    )
+            # Map the parameter's truevalue/falsevalue back to a boolean when the test
+            # specified the command-line string rather than 'true'/'false', so the
+            # submitted payload is a real boolean.
+            if parameter.truevalue is not None and value == parameter.truevalue:
+                result_value = True
+            elif parameter.falsevalue is not None and value == parameter.falsevalue:
+                result_value = False
+            else:
+                try:
+                    result_value = asbool(value)
+                except ValueError:
+                    if Version(profile) < Version("24.2"):
+                        # Legacy tools sometimes use a non-boolean placeholder such as
+                        # "-" as a test value. The synchronous tool API coerces these
+                        # via string_as_bool (any non-true value -> False); match that
+                        # so the payload is a valid boolean without requiring test edits.
+                        result_value = string_as_bool(value)
+                        warnings.append(
+                            f"Non-boolean test value ({value!r}) for {parameter.name} coerced to "
+                            f"{result_value} - use 'true' or 'false'."
+                        )
+                    else:
+                        warnings.append(
+                            "Likely using deprected truevalue/falsevalue in tool parameter - switch to 'true' or 'false'"
+                        )
         elif isinstance(parameter, (GroupTagParameterModel,)):
             if parameter.multiple:
                 result_value = multiple_select_value_split(value)
