@@ -74,7 +74,7 @@ async function retryBatch(batchId: string) {
 
         <div class="upload-progress-content flex-grow-1 overflow-auto p-3">
             <div v-if="activeItems.length > 0 || batchesWithProgress.length > 0" class="h-100 d-flex flex-column">
-                <div class="file-details-list flex-grow-1 overflow-auto">
+                <div class="file-details-list flex-grow-1 overflow-auto pt-1">
                     <div v-for="item in paginatedItems" :key="item.type === 'batch' ? item.batch.id : item.upload.id">
                         <BatchUploadGroup
                             v-if="item.type === 'batch'"
@@ -87,7 +87,7 @@ async function retryBatch(batchId: string) {
                     </div>
                 </div>
 
-                <div v-if="showPagination" class="d-flex justify-content-center py-3 mt-3">
+                <div v-if="showPagination" class="d-flex justify-content-center mt-3">
                     <BPagination
                         :value="currentPage"
                         :total-rows="orderedUploadItems.length"
