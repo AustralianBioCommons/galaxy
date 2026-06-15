@@ -380,7 +380,24 @@ def _merge_into_state(
 def _repeat_inputs_to_array(
     state_path: str, parameters: List[ToolParameterT], inputs: ToolSourceTestInputs
 ) -> List[ToolSourceTestInputs]:
-    repeat_instance_input_dicts = repeat_inputs_to_array(state_path, _inputs_as_dict(inputs))
+    inputs_as_dict = _inputs_as_dict(inputs)
+    repeat_instance_input_dicts = repeat_inputs_to_array(state_path, inputs_as_dict)
+    if not repeat_instance_input_dicts and "|" in state_path:
+        # Legacy test cases may reference a repeat that lives inside a conditional or
+        # section by its unqualified name (e.g. <repeat name="rep"> at the top level
+        # instead of wrapped in the enclosing <conditional>). The test inputs are
+        # unqualified with respect to conditionals/sections but still carry repeat
+        # instance indices, so progressively strip leading (conditional/section)
+        # segments - keeping any enclosing repeat-instance prefix - until the repeat's
+        # nested params resolve. The downstream _input_for() suffix match then
+        # re-attaches them to the fully qualified path. Longest candidate is tried
+        # first to avoid matching an unrelated like-named repeat.
+        parts = state_path.split("|")
+        for start in range(1, len(parts)):
+            candidate_path = "|".join(parts[start:])
+            repeat_instance_input_dicts = repeat_inputs_to_array(candidate_path, inputs_as_dict)
+            if repeat_instance_input_dicts:
+                break
     repeat_instance_inputs = [list(instance_inputs.values()) for instance_inputs in repeat_instance_input_dicts]
     if repeat_instance_inputs:
         return repeat_instance_inputs
