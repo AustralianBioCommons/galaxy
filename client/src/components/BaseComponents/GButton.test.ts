@@ -1,10 +1,12 @@
 import { getLocalVue } from "@tests/vitest/helpers";
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
+import VueRouter from "vue-router";
 
 import GButton from "./GButton.vue";
 
 const localVue = getLocalVue(true);
+localVue.use(VueRouter);
 
 function mountGButton(props: object) {
     return mount(GButton as object, { propsData: props, localVue });
@@ -63,5 +65,48 @@ describe("GButton.vue", () => {
         await wrapper.get("button").trigger("click");
 
         expect(wrapper.emitted("click")).toHaveLength(1);
+    });
+});
+
+describe("GButton.vue disabled navigation", () => {
+    // A disabled button with a `to` prop must not navigate. The component-level @click
+    // guard does not run for a RouterLink (Vue 2 treats @click on a component as a
+    // component listener, not a native one), and an empty `to` is not a reliable no-op
+    // in vue-router -- so a disabled GButton renders as a plain button instead.
+    it("renders an enabled router-link button as an anchor", () => {
+        const router = new VueRouter({ mode: "abstract", routes: [{ path: "/" }, { path: "/pages/create" }] });
+        const wrapper = mount(GButton as object, {
+            propsData: { to: "/pages/create" },
+            localVue,
+            router,
+        });
+
+        expect(wrapper.element.tagName).toBe("A");
+    });
+
+    it("renders a disabled router-link button as a plain button", () => {
+        const router = new VueRouter({ mode: "abstract", routes: [{ path: "/" }, { path: "/pages/create" }] });
+        const wrapper = mount(GButton as object, {
+            propsData: { to: "/pages/create", disabled: true, disabledTitle: "Nope" },
+            localVue,
+            router,
+        });
+
+        expect(wrapper.element.tagName).toBe("BUTTON");
+    });
+
+    it("does not navigate when a disabled router-link button is clicked", async () => {
+        const router = new VueRouter({ mode: "abstract", routes: [{ path: "/start" }, { path: "/pages/create" }] });
+        await router.push("/start?keep=me");
+        const routeBeforeClick = router.currentRoute.fullPath;
+        const wrapper = mount(GButton as object, {
+            propsData: { to: "/pages/create", disabled: true },
+            localVue,
+            router,
+        });
+
+        await wrapper.trigger("click");
+
+        expect(router.currentRoute.fullPath).toBe(routeBeforeClick);
     });
 });
