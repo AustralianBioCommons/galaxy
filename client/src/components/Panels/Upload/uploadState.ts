@@ -192,7 +192,7 @@ export function useUploadState() {
                 upload,
             }));
 
-        return [...batchItems, ...standaloneItems].sort((a, b) => a.createdAt - b.createdAt);
+        return [...batchItems, ...standaloneItems].sort((a, b) => b.createdAt - a.createdAt);
     });
 
     /**
