@@ -1,22 +1,20 @@
 <tool id="async_ambiguous_unqualified_name" name="async_ambiguous_unqualified_name" version="1.0.0">
-    <description>async regression: unqualified test param name present in multiple conditional whens is ambiguous</description>
+    <description>async regression: a duplicated identical unqualified test param is tolerated</description>
     <!--
-      Models gatk4 mutect2 test 3, which lists the conditional param
-      `reference_sequence` TWICE by its unqualified short name in the same test.
+      Models gatk4 mutect2 test 3 (and hisat2 test 5), which list a conditional
+      param by its unqualified short name TWICE in the same test with the SAME
+      value - a common test-authoring slip.
 
-      Sync (POST /api/tools): the duplicate unqualified entry is tolerated; the
-      discriminator resolves the branch and the job runs.
+      Sync (POST /api/tools): the duplicate identical entry is tolerated.
 
-      Async: _input_for() resolves the qualified path reference_source|ref_seq
-      down to the short name `ref_seq`, finds two matching test inputs, and aborts
-      the request build:
+      Async previously aborted the request build because _input_for() found two
+      matching test inputs for the short name (ref_seq):
         could not build request: Ambiguous unqualified test parameter name
         (ref_seq) for (reference_source|ref_seq)
 
-      NOTE: run this one with GALAXY_TEST_USE_LEGACY_TOOL_API=never. Because the
-      failure happens during request BUILDING (request is None), the "if_needed"
-      mode silently falls back to the legacy sync API and masks the bug; only
-      "never" forces the async path and surfaces it.
+      Now duplicate matches with equivalent values are de-duplicated like the
+      synchronous path; only genuinely conflicting values are reported ambiguous.
+      This tool therefore validates and runs green under both submission paths.
     -->
     <command><![CDATA[
 cat '$reference_source.ref_seq' > '$out_file1'

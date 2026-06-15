@@ -7,6 +7,8 @@ from typing import (
     Tuple,
 )
 
+import pytest
+
 from galaxy.tool_util.model_factory import parse_tool
 from galaxy.tool_util.parameters import (
     DataCollectionRequest,
@@ -58,11 +60,6 @@ TOOLS_THAT_USE_SELECT_BY_VALUE = [
 TOOLS_THAT_ARE_OUTSTANDING_ISSUES = [
     "gx_conditional_boolean_optional.xml",
     "gx_conditional_boolean_discriminate_on_string_value.xml",
-    # Intentionally reproduces the async "ambiguous unqualified test parameter name"
-    # regression (duplicate unqualified param in a test) - see
-    # test/functional/tools/async_ambiguous_unqualified_name.xml. Remove once
-    # _input_for ambiguity is resolved / surfaced as a TestCaseValidationError.
-    "async_ambiguous_unqualified_name.xml",
 ]
 
 TEST_TOOL_THAT_DO_NOT_VALIDATE = (
@@ -495,6 +492,55 @@ def test_legacy_unqualified_repeat_inside_conditional_is_resolved():
         (["select_data", "rep_factorName", 0, "rep_factorLevel", 0, "countsFile", "path"], "simple_line.txt"),
     ]
     dict_verify_each(tool_state.input_state, expectations)
+
+
+def test_duplicate_identical_unqualified_test_param_is_tolerated():
+    # A test may list the same unqualified conditional param twice (a common authoring
+    # slip). When the duplicate values are identical it is tolerated - matching the
+    # synchronous tool API - rather than aborting the request build. Regression for the
+    # gatk4 mutect2 / hisat2 async failure:
+    #   could not build request: Ambiguous unqualified test parameter name (...)
+    tool_template = """
+<tool id="duplicate_unqualified" name="duplicate_unqualified" version="1.0.0" profile="22.01">
+    <command>echo</command>
+    <inputs>
+        <conditional name="reference_source">
+            <param name="selector" type="select">
+                <option value="history" selected="true">History</option>
+                <option value="cached">Cached</option>
+            </param>
+            <when value="history">
+                <param name="ref" type="text" value="" />
+            </when>
+            <when value="cached">
+                <param name="ref" type="text" value="" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs />
+    <tests>
+        <test>
+            <param name="selector" value="history" />
+            <param name="ref" value="{first}" />
+            <param name="ref" value="{second}" />
+        </test>
+    </tests>
+</tool>
+        """
+
+    # identical duplicate -> tolerated
+    tool_source = raw_xml_tool_source(tool_template.format(first="hg38", second="hg38"))
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+    tool_state = case_state(test_case, parsed_tool.inputs, tool_source.parse_profile()).tool_state
+    dict_verify_each(tool_state.input_state, [(["reference_source", "ref"], "hg38")])
+
+    # conflicting duplicate -> still ambiguous
+    tool_source = raw_xml_tool_source(tool_template.format(first="hg38", second="hg19"))
+    parsed_tool = parse_tool(tool_source)
+    test_case = tool_source.parse_tests_to_dict()["tests"][0]
+    with pytest.raises(Exception, match="[Aa]mbiguous"):
+        case_state(test_case, parsed_tool.inputs, tool_source.parse_profile())
 
 
 def test_legacy_boolean_test_values_are_coerced_to_booleans():

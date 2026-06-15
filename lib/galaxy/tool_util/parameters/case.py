@@ -467,25 +467,24 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
     # Fallback for legacy test cases that specify conditional/section params without the pipe-separated
     # prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
     if "|" in flat_state_path:
-        suffix_matching_inputs = []
-        for input in inputs:
-            input_name = input["name"]
-            if "|" in input_name and flat_state_path.endswith(f"|{input_name}"):
-                suffix_matching_inputs.append(input)
-        if len(suffix_matching_inputs) == 1:
-            return suffix_matching_inputs[0]
-        elif len(suffix_matching_inputs) > 1:
-            raise Exception(f"Ambiguous partially qualified test parameter name for ({flat_state_path})")
+        suffix_matching_inputs = [
+            input
+            for input in inputs
+            if "|" in input["name"] and flat_state_path.endswith(f"|{input['name']}")
+        ]
+        resolved = _resolve_matching_inputs(
+            suffix_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
+        )
+        if resolved is not None:
+            return resolved
 
         short_name = flat_state_path.rsplit("|", 1)[1]
-        matching_inputs = []
-        for input in inputs:
-            if input["name"] == short_name:
-                matching_inputs.append(input)
-        if len(matching_inputs) == 1:
-            return matching_inputs[0]
-        elif len(matching_inputs) > 1:
-            raise Exception(f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})")
+        matching_inputs = [input for input in inputs if input["name"] == short_name]
+        resolved = _resolve_matching_inputs(
+            matching_inputs, f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})"
+        )
+        if resolved is not None:
+            return resolved
 
         # Fallback for legacy test cases that elide intermediate conditional names but keep
         # the enclosing section/repeat prefix (e.g. <section name="adv"><param name="esf">
@@ -496,11 +495,35 @@ def _input_for(flat_state_path: str, inputs: ToolSourceTestInputs) -> Optional[T
         elided_matching_inputs = [
             input for input in inputs if _is_conditional_elided_match(input["name"], path_segments)
         ]
-        if len(elided_matching_inputs) == 1:
-            return elided_matching_inputs[0]
-        elif len(elided_matching_inputs) > 1:
-            raise Exception(f"Ambiguous partially qualified test parameter name for ({flat_state_path})")
+        resolved = _resolve_matching_inputs(
+            elided_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
+        )
+        if resolved is not None:
+            return resolved
     return None
+
+
+def _resolve_matching_inputs(
+    matching_inputs: List[ToolSourceTestInput], ambiguity_message: str
+) -> Optional[ToolSourceTestInput]:
+    """Resolve a list of test inputs that matched a parameter to a single input.
+
+    Returns None when nothing matched (so the caller can try the next fallback). A single
+    match is returned directly. Multiple matches are tolerated when they are equivalent -
+    a duplicate identical entry is a common test-authoring slip and the synchronous tool
+    API accepts it - but genuinely conflicting values raise.
+    """
+    if not matching_inputs:
+        return None
+    first = matching_inputs[0]
+    if len(matching_inputs) == 1:
+        return first
+    if all(
+        input.get("value") == first.get("value") and input.get("attributes") == first.get("attributes")
+        for input in matching_inputs[1:]
+    ):
+        return first
+    raise Exception(ambiguity_message)
 
 
 def _is_conditional_elided_match(input_name: str, path_segments: List[str]) -> bool:
