@@ -498,6 +498,13 @@ steps:
         show_json = show_response.json()
         assert show_json["annotation"] == "newannotation"
 
+    def test_update_as_other_user(self):
+        response_json = self._create_valid_page_with_slug("pagetoupdateasother")
+        page_id = response_json["id"]
+        with self._different_user():
+            update_response = self._update_page(page_id, "newannotation", "newslug", "newtitle", error_code=403)
+            assert update_response["err_msg"] == "Page is not owned by the current user"
+
     def test_403_on_unowner_show(self):
         response_json = self._create_valid_page_as("others_page_show@bx.psu.edu", "otherspageshow")
         show_response = self._get(f"pages/{response_json['id']}")
