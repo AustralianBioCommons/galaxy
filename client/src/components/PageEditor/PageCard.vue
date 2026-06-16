@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faEdit, faEye, faHistory, faSitemap, faUser } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faEye, faHistory, faShareAlt, faSitemap, faUser } from "@fortawesome/free-solid-svg-icons";
 import { computed } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
@@ -82,8 +82,16 @@ const primaryActions: CardAction[] = [
     },
 ];
 
-// TODO: Once we fix sharing, we should add a sharing action
 const secondaryActions: CardAction[] = [
+    {
+        id: "share-access-management",
+        label: "Share and Publish",
+        title: `Make this ${props.entityName} accessible or public`,
+        icon: faShareAlt,
+        variant: "outline-primary",
+        to: `/pages/sharing?id=${props.page.id}`,
+        visible: !props.page.deleted && userStore.matchesCurrentUsername(props.page.username),
+    },
     {
         id: "view-notebook",
         label: "View",
