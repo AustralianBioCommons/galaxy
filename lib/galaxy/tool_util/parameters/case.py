@@ -547,7 +547,11 @@ def _infer_when_from_inputs(
     provided_short_names: Set[str] = set()
     for input in inputs:
         name = input["name"]
-        if scope and not name.startswith(scope):
+        # Consider inputs scoped to this conditional, plus legacy unqualified (bare) inputs -
+        # a test may supply a non-default branch's param by its short name without the
+        # enclosing conditional prefix (e.g. <param name="reference"> for
+        # reference_cond|reference). Skip only inputs qualified to a *different* prefix.
+        if scope and not name.startswith(scope) and "|" in name:
             continue
         provided_short_names.add(name.rsplit("|", 1)[-1])
     if not provided_short_names:

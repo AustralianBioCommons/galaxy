@@ -792,3 +792,33 @@ def test_build_xml_tool_source_preserves_validator_whitespace():
     ]
     assert regex_validators, "expected a regex validator in the parsed model"
     assert regex_validators[0].expression == " *(\\d+, *)*\\d+ *$"
+
+
+def test_infer_when_from_bare_unqualified_branch_param():
+    """A legacy test may supply a non-default branch's param by its bare short name (without
+    the enclosing conditional prefix) and omit the discriminator. The async builder must infer
+    the active when from that bare param, as the sync API does - otherwise it defaults to the
+    (empty) default branch and rejects the param as unhandled. Models novoplasty reference_cond
+    / hisat2 adv|spliced_options.
+    """
+    from galaxy.tool_util.parser.factory import build_xml_tool_source
+
+    tool_xml = (
+        '<tool id="bare_branch" name="bare_branch" version="1.0" profile="20.01">'
+        "<command>echo</command><inputs>"
+        '<conditional name="use_ref">'
+        '<param name="enabled" type="select"><option value="no" selected="true">No</option>'
+        '<option value="yes">Yes</option></param>'
+        '<when value="no"/>'
+        '<when value="yes"><param name="reference" type="text" value="" /></when>'
+        "</conditional></inputs><outputs/>"
+        "<tests><test>"
+        '<param name="reference" value="ref.fa"/>'  # bare, non-default branch, discriminator omitted
+        "</test></tests></tool>"
+    )
+    ts = build_xml_tool_source(tool_xml)
+    bundle = input_models_for_tool_source(ts)
+    test = ts.parse_tests_to_dict()["tests"][0]
+    # should not raise - the 'yes' branch is inferred from the bare 'reference'
+    state = case_state(test, bundle.parameters, ts.parse_profile(), validate=True)
+    assert state.tool_state.input_state["use_ref"]["enabled"] == "yes"
