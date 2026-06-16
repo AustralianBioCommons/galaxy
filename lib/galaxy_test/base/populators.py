@@ -5067,6 +5067,32 @@ class TargetHistory:
         )
         return HasSrcDict("hda", new_dataset)
 
+    def with_dataset_for_test_file(
+        self,
+        filename: str,
+        file_type: str,
+        named: Optional[str] = None,
+    ) -> "HasSrcDict":
+        """Upload a real test-data file with an explicit ``file_type`` (ext preserved).
+
+        Unlike ``with_dataset`` (which uploads inline text and lets the server
+        sniff/auto-decompress), this stages an actual file - e.g. a compressed
+        ``*.fasta.gz`` - and forces ``ext`` to ``file_type`` so it is kept in
+        that (possibly compressed) datatype. Useful for exercising job-time
+        implicit conversion of compressed inputs.
+        """
+        test_data_resolver = TestDataResolver()
+        kwd: dict[str, Any] = {"file_type": file_type, "wait": True}
+        if named is not None:
+            kwd["name"] = named
+        new_dataset = self._dataset_populator.new_dataset(
+            history_id=self._history_id,
+            content=open(test_data_resolver.get_filename(filename), "rb"),
+            assert_ok=True,
+            **kwd,
+        )
+        return HasSrcDict("hda", new_dataset)
+
     def with_deferred_dataset(
         self,
         uri: str,
