@@ -149,6 +149,57 @@ describe("ChatInput", () => {
         });
     });
 
+    describe("auto-resize", () => {
+        function mockScrollHeight(el: HTMLTextAreaElement, value: number) {
+            Object.defineProperty(el, "scrollHeight", { configurable: true, value });
+        }
+
+        it("sizes the textarea to its content on mount", () => {
+            // onMounted resizes synchronously, so mock scrollHeight on the
+            // prototype before mounting and restore it afterwards.
+            const proto = window.HTMLTextAreaElement.prototype;
+            const original = Object.getOwnPropertyDescriptor(proto, "scrollHeight");
+            Object.defineProperty(proto, "scrollHeight", { configurable: true, get: () => 96 });
+            try {
+                const wrapper = mountInput({ value: "line one\nline two\nline three" });
+                const el = wrapper.find("textarea").element as HTMLTextAreaElement;
+                expect(el.style.height).toBe("96px");
+            } finally {
+                if (original) {
+                    Object.defineProperty(proto, "scrollHeight", original);
+                } else {
+                    delete (proto as { scrollHeight?: number }).scrollHeight;
+                }
+            }
+        });
+
+        it("grows when the value changes (typing / mention insert)", async () => {
+            const wrapper = mountInput({ value: "short" });
+            const el = wrapper.find("textarea").element as HTMLTextAreaElement;
+
+            mockScrollHeight(el, 120);
+            await wrapper.setProps({ value: "much\nlonger\ncontent\nhere" });
+            await wrapper.vm.$nextTick();
+
+            expect(el.style.height).toBe("120px");
+        });
+
+        it("shrinks back down when the value is cleared after submit", async () => {
+            const wrapper = mountInput({ value: "a\nb\nc\nd\ne" });
+            const el = wrapper.find("textarea").element as HTMLTextAreaElement;
+
+            mockScrollHeight(el, 140);
+            await wrapper.setProps({ value: "a\nb\nc\nd\ne\nf" });
+            await wrapper.vm.$nextTick();
+            expect(el.style.height).toBe("140px");
+
+            mockScrollHeight(el, 40);
+            await wrapper.setProps({ value: "" });
+            await wrapper.vm.$nextTick();
+            expect(el.style.height).toBe("40px");
+        });
+    });
+
     describe("busy state UI", () => {
         it("shows loading indicator when busy", () => {
             const wrapper = mountInput({ busy: true });
