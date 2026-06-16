@@ -1,10 +1,14 @@
 import os
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    replace,
+)
 from re import compile
 from typing import (
     Any,
     cast,
     Dict,
+    FrozenSet,
     List,
     Optional,
     Set,
@@ -195,6 +199,117 @@ def _legacy_select_label_to_value(parameter: SelectParameterModel, value: str) -
     return value
 
 
+@dataclass(frozen=True)
+class LegacyTestInputResolver:
+    """Resolve a (possibly legacy/unqualified) parameter path to the test input that supplies it.
+
+    Owns the raw test inputs and the set of discriminator names already consumed by enclosing
+    conditionals, and encapsulates the fuzzy fallback cascade legacy test cases rely on (exact
+    name, then suffix / bare short-name / elided-conditional matches). A consumed discriminator
+    is excluded from those fallbacks so a nested conditional does not re-match an ancestor's
+    discriminator of the same name.
+
+    Immutable: ``consuming`` and ``for_inputs`` return child resolvers, so an exclusion stays
+    scoped to one subtree of the parameter walk (a sibling subtree never sees it) and a repeat
+    instance can be resolved against its own slice of the inputs.
+    """
+
+    inputs: ToolSourceTestInputs
+    consumed_discriminators: FrozenSet[str] = frozenset()
+
+    def consuming(self, discriminator_name: Optional[str]) -> "LegacyTestInputResolver":
+        if discriminator_name is None:
+            return self
+        return replace(self, consumed_discriminators=self.consumed_discriminators | {discriminator_name})
+
+    def for_inputs(self, inputs: ToolSourceTestInputs) -> "LegacyTestInputResolver":
+        return replace(self, inputs=inputs)
+
+    def input_for(self, flat_state_path: str) -> Optional[ToolSourceTestInput]:
+        # A consumed discriminator belongs to an enclosing conditional and must not be
+        # re-matched by the loose fallbacks below when resolving a descendant's discriminator
+        # (otherwise e.g. an omitted nested ``selector`` greedily picks up the parent
+        # conditional's ``selector`` value - see ``_select_which_when``).
+        exclude = self.consumed_discriminators
+        for input in self.inputs:
+            if input["name"] == flat_state_path:
+                return input
+        # Fallback for legacy test cases that specify conditional/section params without the
+        # pipe-separated prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
+        if "|" in flat_state_path:
+            suffix_matching_inputs = [
+                input
+                for input in self.inputs
+                if "|" in input["name"]
+                and input["name"] not in exclude
+                and flat_state_path.endswith(f"|{input['name']}")
+            ]
+            resolved = _resolve_matching_inputs(
+                suffix_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
+            )
+            if resolved is not None:
+                return resolved
+
+            short_name = flat_state_path.rsplit("|", 1)[1]
+            matching_inputs = [
+                input for input in self.inputs if input["name"] == short_name and input["name"] not in exclude
+            ]
+            resolved = _resolve_matching_inputs(
+                matching_inputs, f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})"
+            )
+            if resolved is not None:
+                return resolved
+
+            # Fallback for legacy test cases that elide intermediate conditional names but keep
+            # the enclosing section/repeat prefix (e.g. <section name="adv"><param name="esf">
+            # for a param whose real path is adv|esf_cond|esf). The input name is an ordered
+            # subsequence of the qualified path - sharing the head and the leaf - rather than a
+            # plain suffix.
+            path_segments = flat_state_path.split("|")
+            elided_matching_inputs = [
+                input
+                for input in self.inputs
+                if input["name"] not in exclude and _is_conditional_elided_match(input["name"], path_segments)
+            ]
+            resolved = _resolve_matching_inputs(
+                elided_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
+            )
+            if resolved is not None:
+                return resolved
+        return None
+
+
+@dataclass(frozen=True)
+class MergeContext:
+    """The values threaded unchanged through the recursive test-case merge.
+
+    Bundling them keeps ``_merge_into_state`` and friends to their per-node arguments
+    (the parameter, the state at this level, the prefix) instead of re-passing the
+    resolver, profile, state representation and warnings at every call site. ``warnings``
+    is a shared list accumulated across the whole merge; ``consuming`` / ``for_inputs``
+    return a child context whose resolver is scoped to a conditional branch or repeat
+    instance.
+    """
+
+    resolver: LegacyTestInputResolver
+    profile: str
+    state_representation: Literal["test_case_xml", "test_case_json"]
+    warnings: List[str]
+
+    @property
+    def inputs(self) -> ToolSourceTestInputs:
+        return self.resolver.inputs
+
+    def input_for(self, flat_state_path: str) -> Optional[ToolSourceTestInput]:
+        return self.resolver.input_for(flat_state_path)
+
+    def consuming(self, discriminator_name: Optional[str]) -> "MergeContext":
+        return replace(self, resolver=self.resolver.consuming(discriminator_name))
+
+    def for_inputs(self, inputs: ToolSourceTestInputs) -> "MergeContext":
+        return replace(self, resolver=self.resolver.for_inputs(inputs))
+
+
 def test_case_state(
     test_dict: ToolSourceTest,
     tool_parameter_bundle: List[ToolParameterT],
@@ -208,9 +323,8 @@ def test_case_state(
     state: Dict[str, Any] = {}
 
     state_representation = test_dict.get("value_state_representation", "test_case_xml")
-    handled_inputs = _merge_level_into_state(
-        tool_parameter_bundle, inputs, state, profile, state_representation, warnings, None
-    )
+    context = MergeContext(LegacyTestInputResolver(inputs), profile, state_representation, warnings)
+    handled_inputs = _merge_level_into_state(tool_parameter_bundle, context, state, None)
 
     for test_input in inputs:
         input_name = test_input["name"]
@@ -260,28 +374,13 @@ def test_case_validation(
 
 def _merge_level_into_state(
     tool_inputs: List[ToolParameterT],
-    inputs: ToolSourceTestInputs,
+    context: MergeContext,
     state_at_level: dict,
-    profile: str,
-    state_representation: Literal["test_case_xml", "test_case_json"],
-    warnings: List[str],
     prefix: Optional[str],
-    consumed_discriminators: Optional[Set[str]] = None,
 ) -> Set[str]:
     handled_inputs: Set[str] = set()
     for tool_input in tool_inputs:
-        handled_inputs.update(
-            _merge_into_state(
-                tool_input,
-                inputs,
-                state_at_level,
-                profile,
-                state_representation,
-                warnings,
-                prefix,
-                consumed_discriminators,
-            )
-        )
+        handled_inputs.update(_merge_into_state(tool_input, context, state_at_level, prefix))
 
     return handled_inputs
 
@@ -296,13 +395,9 @@ def _inputs_as_dict(inputs: ToolSourceTestInputs) -> Dict[str, ToolSourceTestInp
 
 def _merge_into_state(
     tool_input: ToolParameterT,
-    inputs: ToolSourceTestInputs,
+    context: MergeContext,
     state_at_level: dict,
-    profile: str,
-    state_representation: Literal["test_case_xml", "test_case_json"],
-    warnings: List[str],
     prefix: Optional[str],
-    consumed_discriminators: Optional[Set[str]] = None,
 ) -> Set[str]:
     handled_inputs = set()
 
@@ -315,22 +410,9 @@ def _merge_into_state(
         if input_name not in state_at_level:
             state_at_level[input_name] = conditional_state
 
-        when, discriminator_name = _select_which_when(
-            tool_input, conditional_state, inputs, state_path, consumed_discriminators
-        )
+        when, discriminator_name = _select_which_when(tool_input, conditional_state, context, state_path)
         test_parameter = tool_input.test_parameter
-        handled_inputs.update(
-            _merge_into_state(
-                test_parameter,
-                inputs,
-                conditional_state,
-                profile,
-                state_representation,
-                warnings,
-                state_path,
-                consumed_discriminators,
-            )
-        )
+        handled_inputs.update(_merge_into_state(test_parameter, context, conditional_state, state_path))
         # If the discriminator was omitted, record the selected when's discriminator so the
         # state validates against that branch rather than the phantom __absent__ branch. This
         # is the active branch _select_which_when chose: a non-default when inferred from the
@@ -339,21 +421,12 @@ def _merge_into_state(
         # payload.
         if test_parameter.name not in conditional_state and when.discriminator is not None:
             conditional_state[test_parameter.name] = when.discriminator
-        # The discriminator consumed here belongs to this conditional; mark it so the loose
-        # fallbacks do not re-match it when resolving a nested conditional's discriminator.
-        when_consumed = consumed_discriminators
-        if discriminator_name is not None:
-            when_consumed = set(consumed_discriminators or set()) | {discriminator_name}
+        # The discriminator consumed here belongs to this conditional; the branch context marks
+        # it so the loose fallbacks do not re-match it when resolving a nested conditional's
+        # discriminator.
         handled_inputs.update(
             _merge_level_into_state(
-                when.parameters,
-                inputs,
-                conditional_state,
-                profile,
-                state_representation,
-                warnings,
-                state_path,
-                when_consumed,
+                when.parameters, context.consuming(discriminator_name), conditional_state, state_path
             )
         )
     elif isinstance(tool_input, (RepeatParameterModel,)):
@@ -361,7 +434,7 @@ def _merge_into_state(
         if input_name not in state_at_level:
             state_at_level[input_name] = repeat_state_array
 
-        repeat_instance_inputs = _repeat_inputs_to_array(state_path, tool_input.parameters, inputs)
+        repeat_instance_inputs = _repeat_inputs_to_array(state_path, tool_input.parameters, context.inputs)
         if tool_input.min is not None:
             while len(repeat_instance_inputs) < tool_input.min:
                 repeat_instance_inputs.append([])
@@ -373,13 +446,9 @@ def _merge_into_state(
             handled_inputs.update(
                 _merge_level_into_state(
                     tool_input.parameters,
-                    repeat_instance_inputs[i],
+                    context.for_inputs(repeat_instance_inputs[i]),
                     repeat_state_array[i],
-                    profile,
-                    state_representation,
-                    warnings,
                     repeat_instance_prefix,
-                    consumed_discriminators,
                 )
             )
     elif isinstance(tool_input, (SectionParameterModel,)):
@@ -387,20 +456,9 @@ def _merge_into_state(
         if input_name not in state_at_level:
             state_at_level[input_name] = section_state
 
-        handled_inputs.update(
-            _merge_level_into_state(
-                tool_input.parameters,
-                inputs,
-                section_state,
-                profile,
-                state_representation,
-                warnings,
-                state_path,
-                consumed_discriminators,
-            )
-        )
+        handled_inputs.update(_merge_level_into_state(tool_input.parameters, context, section_state, state_path))
     else:
-        test_input = _input_for(state_path, inputs, exclude_names=consumed_discriminators)
+        test_input = context.input_for(state_path)
         if test_input is not None:
             input_value: Any
             if isinstance(tool_input, (DataCollectionParameterModel,)):
@@ -412,7 +470,7 @@ def _merge_into_state(
                     value = test_input["value"]
                     input_value_list: List[Any] = []
                     if value:
-                        if state_representation == "test_case_json":
+                        if context.state_representation == "test_case_json":
                             input_value_list = test_input["value"] if test_input["value"] is not None else []
                         else:
                             location = test_input.get("attributes", {}).get("location")
@@ -436,13 +494,13 @@ def _merge_into_state(
 
                     input_value = input_value_list
                 else:
-                    if state_representation == "test_case_json":
+                    if context.state_representation == "test_case_json":
                         input_value = test_input["value"]
                     else:
                         input_value = xml_data_input_to_json(test_input)
             else:
                 input_value = test_input["value"]
-                input_value = legacy_from_string(tool_input, input_value, warnings, profile)
+                input_value = legacy_from_string(tool_input, input_value, context.warnings, context.profile)
 
             state_at_level[input_name] = input_value
 
@@ -461,7 +519,7 @@ def _repeat_inputs_to_array(
         # unqualified with respect to conditionals/sections but still carry repeat
         # instance indices, so progressively strip leading (conditional/section)
         # segments - keeping any enclosing repeat-instance prefix - until the repeat's
-        # nested params resolve. The downstream _input_for() suffix match then
+        # nested params resolve. The downstream input_for() suffix match then
         # re-attaches them to the fully qualified path. Longest candidate is tried
         # first to avoid matching an unrelated like-named repeat.
         parts = state_path.split("|")
@@ -490,9 +548,8 @@ def _repeat_inputs_to_array(
 def _select_which_when(
     conditional: ConditionalParameterModel,
     state: dict,
-    inputs: ToolSourceTestInputs,
+    context: MergeContext,
     prefix: str,
-    consumed_discriminators: Optional[Set[str]] = None,
 ) -> Tuple[ConditionalWhen, Optional[str]]:
     """Return the selected when and the name of the test input used as the discriminator
     (or ``None`` if the discriminator was omitted). The discriminator name lets callers mark
@@ -502,7 +559,7 @@ def _select_which_when(
     test_parameter_name = test_parameter.name
     test_parameter_flat_path = flat_state_path(test_parameter_name, prefix)
 
-    test_input = _input_for(test_parameter_flat_path, inputs, exclude_names=consumed_discriminators)
+    test_input = context.input_for(test_parameter_flat_path)
     matched_name = test_input["name"] if test_input else None
     explicit_test_value = test_input["value"] if test_input else None
     if is_boolean and isinstance(explicit_test_value, str):
@@ -513,7 +570,7 @@ def _select_which_when(
         # when from the parameters the test actually provides before falling back to the
         # default when (otherwise a test that supplies a non-default branch's params fails
         # to validate against the default branch).
-        inferred_when = _infer_when_from_inputs(conditional, inputs, prefix)
+        inferred_when = _infer_when_from_inputs(conditional, context.inputs, prefix)
         if inferred_when is not None:
             return inferred_when, matched_name
     for when in conditional.whens:
@@ -572,59 +629,6 @@ def _infer_when_from_inputs(
             best_when = when
     if best_when is not None and best_score > default_score:
         return best_when
-    return None
-
-
-def _input_for(
-    flat_state_path: str, inputs: ToolSourceTestInputs, exclude_names: Optional[Set[str]] = None
-) -> Optional[ToolSourceTestInput]:
-    # ``exclude_names`` holds the names of test inputs already consumed as the discriminator
-    # of an enclosing conditional. Such an input belongs to that ancestor conditional and must
-    # not be re-matched by the loose fallbacks below when resolving a descendant's
-    # discriminator (otherwise e.g. an omitted nested ``selector`` greedily picks up the
-    # parent conditional's ``selector`` value - see _select_which_when).
-    exclude = exclude_names or set()
-    for input in inputs:
-        if input["name"] == flat_state_path:
-            return input
-    # Fallback for legacy test cases that specify conditional/section params without the pipe-separated
-    # prefix (e.g. <param name="fasta"> instead of <param name="mode|fasta">).
-    if "|" in flat_state_path:
-        suffix_matching_inputs = [
-            input
-            for input in inputs
-            if "|" in input["name"] and input["name"] not in exclude and flat_state_path.endswith(f"|{input['name']}")
-        ]
-        resolved = _resolve_matching_inputs(
-            suffix_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
-        )
-        if resolved is not None:
-            return resolved
-
-        short_name = flat_state_path.rsplit("|", 1)[1]
-        matching_inputs = [input for input in inputs if input["name"] == short_name and input["name"] not in exclude]
-        resolved = _resolve_matching_inputs(
-            matching_inputs, f"Ambiguous unqualified test parameter name ({short_name}) for ({flat_state_path})"
-        )
-        if resolved is not None:
-            return resolved
-
-        # Fallback for legacy test cases that elide intermediate conditional names but keep
-        # the enclosing section/repeat prefix (e.g. <section name="adv"><param name="esf">
-        # for a param whose real path is adv|esf_cond|esf). The input name is an ordered
-        # subsequence of the qualified path - sharing the head and the leaf - rather than a
-        # plain suffix.
-        path_segments = flat_state_path.split("|")
-        elided_matching_inputs = [
-            input
-            for input in inputs
-            if input["name"] not in exclude and _is_conditional_elided_match(input["name"], path_segments)
-        ]
-        resolved = _resolve_matching_inputs(
-            elided_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
-        )
-        if resolved is not None:
-            return resolved
     return None
 
 
