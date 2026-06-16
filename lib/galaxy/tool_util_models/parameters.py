@@ -515,10 +515,6 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     def py_type(self) -> Type:
         return optional_if_needed(union_type([StrictInt, StrictFloat]), self.optional)
 
-    @staticmethod
-    def _convert_infinity_sentinel_static(v: Any) -> Any:
-        return _convert_infinity_sentinel(v)
-
     def pydantic_template(self, state_representation: StateRepresentationT) -> DynamicModelInformation:
         py_type = self.py_type
         if state_representation == "workflow_step_linked":
@@ -536,9 +532,7 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
         # before Pydantic validates the field. These sentinels appear when float('inf') values are
         # round-tripped through Galaxy's safe_dumps/json.loads path (e.g. GET /api/tools/{id}/test_data).
         dynamic_validators: Dict[str, Any] = {
-            "infinity_sentinel": field_validator(safe_field_name(self.name), mode="before")(
-                FloatParameterModel._convert_infinity_sentinel_static
-            )
+            "infinity_sentinel": field_validator(safe_field_name(self.name), mode="before")(_convert_infinity_sentinel)
         }
         return dynamic_model_information_from_py_type(
             self, py_type, requires_value=requires_value, validators=dynamic_validators
