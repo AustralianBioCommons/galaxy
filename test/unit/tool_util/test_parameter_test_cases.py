@@ -764,3 +764,31 @@ def mock_adapt_collections(input: JsonTestCollectionDefDict) -> DataCollectionRe
 
 
 tool_source_for = functional_test_tool_source
+
+
+def test_build_xml_tool_source_preserves_validator_whitespace():
+    """Regex validators may rely on significant leading/trailing whitespace (e.g. a leading
+    `" *"` meaning "optional spaces"). Parsing a tool from its raw string source (as the async
+    tool-request path does when re-parsing the stored source) must preserve it, exactly like
+    parsing from a file does - otherwise " *(\\d+, *)*\\d+ *$" becomes the invalid "*(\\d+..."
+    and statically validating the request 500s.
+    """
+    from galaxy.tool_util.parser.factory import build_xml_tool_source
+
+    tool_xml = (
+        '<tool id="ws_validator" name="ws_validator" version="1.0" profile="24.2">'
+        "<command>echo</command><inputs>"
+        '<param name="ints" type="text" value="1, 2, 3">'
+        '<validator type="regex" message="comma separated ints"> *(\\d+, *)*\\d+ *$</validator>'
+        "</param></inputs><outputs/></tool>"
+    )
+    tool_source = build_xml_tool_source(tool_xml)
+    bundle = input_models_for_tool_source(tool_source)
+    regex_validators = [
+        v
+        for p in bundle.parameters
+        for v in (getattr(p, "validators", None) or [])
+        if getattr(v, "type", "") == "regex"
+    ]
+    assert regex_validators, "expected a regex validator in the parsed model"
+    assert regex_validators[0].expression == " *(\\d+, *)*\\d+ *$"

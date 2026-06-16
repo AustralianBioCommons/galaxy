@@ -39,7 +39,12 @@ log = logging.getLogger(__name__)
 
 
 def build_xml_tool_source(xml_string: str) -> XmlToolSource:
-    return XmlToolSource(parse_xml_string_to_etree(xml_string))
+    # Preserve significant whitespace (e.g. a leading space in a <validator> regex such as
+    # " *(\\d+, *)*\\d+ *$") to match how tools are parsed from a file (xml_macros.load uses
+    # strip_whitespace=False). Stripping it here corrupts such regexes when a tool is
+    # re-parsed from its stored raw source (async tool requests), which then raised a 500
+    # while statically validating the request.
+    return XmlToolSource(parse_xml_string_to_etree(xml_string, strip_whitespace=False))
 
 
 def build_cwl_tool_source(yaml_string: str) -> CwlToolSource:
