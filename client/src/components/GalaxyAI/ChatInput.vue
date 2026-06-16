@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import { faPaperPlane, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { nextTick, onMounted, ref, watch } from "vue";
 
@@ -7,7 +7,6 @@ import { detectMentionTrigger, type EntityType, type MentionTrigger } from "@/co
 
 import GButton from "../BaseComponents/GButton.vue";
 import MentionDropdown from "./MentionDropdown.vue";
-import LoadingSpan from "@/components/LoadingSpan.vue";
 
 const props = withDefaults(
     defineProps<{
@@ -157,8 +156,7 @@ function closeMention() {
             color="blue"
             size="large"
             @click="emit('submit')">
-            <FontAwesomeIcon v-if="!busy" :icon="faPaperPlane" fixed-width />
-            <LoadingSpan v-else message="" />
+            <FontAwesomeIcon :icon="!busy ? faPaperPlane : faSpinner" fixed-width :spin="busy" />
         </GButton>
 
         <MentionDropdown

@@ -1,3 +1,4 @@
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,7 +15,6 @@ vi.mock("@/stores/historyItemsStore", () => ({
 function mountInput(
     props: Record<string, unknown> = {},
     stubs: Record<string, boolean> = {
-        FontAwesomeIcon: true,
         LoadingSpan: true,
         MentionDropdown: true,
     },
@@ -207,14 +207,20 @@ describe("ChatInput", () => {
     });
 
     describe("busy state UI", () => {
-        it("shows loading indicator when busy", () => {
+        it("shows spinner icon when busy", () => {
             const wrapper = mountInput({ busy: true });
-            expect(wrapper.findComponent({ name: "LoadingSpan" }).exists()).toBe(true);
+            const buttonIcon = wrapper.findComponent(GButton).findComponent(FontAwesomeIcon);
+            expect(buttonIcon.classes()).toContain("fa-spinner");
+            expect(buttonIcon.classes()).toContain("fa-spin");
+            expect(buttonIcon.classes()).not.toContain("fa-paper-plane");
         });
 
-        it("hides loading indicator when not busy", () => {
+        it("shows send icon when not busy", () => {
             const wrapper = mountInput({ busy: false });
-            expect(wrapper.findComponent({ name: "LoadingSpan" }).exists()).toBe(false);
+            const buttonIcon = wrapper.findComponent(GButton).findComponent(FontAwesomeIcon);
+            expect(buttonIcon.classes()).toContain("fa-paper-plane");
+            expect(buttonIcon.classes()).not.toContain("fa-spinner");
+            expect(buttonIcon.classes()).not.toContain("fa-spin");
         });
     });
 });
