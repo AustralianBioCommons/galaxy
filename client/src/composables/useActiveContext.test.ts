@@ -135,6 +135,16 @@ describe("useActiveContext", () => {
             });
         });
 
+        it("returns null for slightly invalid notebook editor route", () => {
+            // Note how the route has "page" instead of "pages"
+            const { activeContext } = withRoute(
+                "/histories/test-history-id/page/test-page-id",
+                {},
+                { historyId: "test-history-id", pageId: "test-page-id" },
+            );
+            expect(activeContext.value).toBeNull();
+        });
+
         it("detects notebook context from invocation reports route", () => {
             const { activeContext } = withRoute(
                 "/workflows/invocations/inv-1/reports",
