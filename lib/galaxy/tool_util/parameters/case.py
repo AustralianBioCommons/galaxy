@@ -331,10 +331,13 @@ def _merge_into_state(
                 consumed_discriminators,
             )
         )
-        # If the discriminator was omitted but a non-default when was inferred from the
-        # provided parameters, record the inferred discriminator so the state validates
-        # against that branch rather than the __absent__/default branch.
-        if test_parameter.name not in conditional_state and not when.is_default_when:
+        # If the discriminator was omitted, record the selected when's discriminator so the
+        # state validates against that branch rather than the phantom __absent__ branch. This
+        # is the active branch _select_which_when chose: a non-default when inferred from the
+        # provided params, or - for a legacy conditional with no explicit selected="true" - the
+        # default (first) option, mirroring how the synchronous runtime fills an incomplete
+        # payload.
+        if test_parameter.name not in conditional_state and when.discriminator is not None:
             conditional_state[test_parameter.name] = when.discriminator
         # The discriminator consumed here belongs to this conditional; mark it so the loose
         # fallbacks do not re-match it when resolving a nested conditional's discriminator.

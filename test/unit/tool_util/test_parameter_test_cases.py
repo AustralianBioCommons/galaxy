@@ -822,3 +822,29 @@ def test_infer_when_from_bare_unqualified_branch_param():
     # should not raise - the 'yes' branch is inferred from the bare 'reference'
     state = case_state(test, bundle.parameters, ts.parse_profile(), validate=True)
     assert state.tool_state.input_state["use_ref"]["enabled"] == "yes"
+
+
+def test_omitted_conditional_records_first_option_default():
+    """For a legacy conditional with no explicit selected="true", the first option is the
+    default (is_default_when). When a test omits the discriminator entirely, the builder must
+    record that default discriminator in the state - mirroring how the synchronous runtime
+    (fill_static_defaults) fills an incomplete payload - so the state validates against the
+    default branch instead of the phantom __absent__ branch. Models multigsea's
+    proteomics/metabolomics conditionals.
+    """
+    from galaxy.tool_util.parser.factory import build_xml_tool_source
+
+    tool_xml = (
+        '<tool id="first_opt" name="first_opt" version="1.0" profile="20.05">'
+        "<command>echo</command><inputs>"
+        '<conditional name="opt">'
+        '<param name="selector" type="select">'
+        '<option value="a">A</option><option value="b">B</option></param>'  # no selected="true"
+        '<when value="a"><param name="x" type="text" value="dx"/></when>'
+        '<when value="b"/></conditional>'
+        "</inputs><outputs/><tests><test/></tests></tool>"  # discriminator omitted entirely
+    )
+    ts = build_xml_tool_source(tool_xml)
+    bundle = input_models_for_tool_source(ts)
+    state = case_state(ts.parse_tests_to_dict()["tests"][0], bundle.parameters, ts.parse_profile(), validate=True)
+    assert state.tool_state.input_state["opt"]["selector"] == "a"  # first option recorded, not __absent__
