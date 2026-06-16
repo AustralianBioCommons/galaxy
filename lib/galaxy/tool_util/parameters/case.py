@@ -243,7 +243,7 @@ class LegacyTestInputResolver:
                 for input in self.inputs
                 if "|" in input["name"]
                 and input["name"] not in exclude
-                and flat_state_path.endswith(f"|{input['name']}")
+                and _path_ends_with_param(flat_state_path, input["name"])
             ]
             resolved = _resolve_matching_inputs(
                 suffix_matching_inputs, f"Ambiguous partially qualified test parameter name for ({flat_state_path})"
@@ -342,10 +342,11 @@ def test_case_state(
 
 
 def _input_name_was_handled_by_legacy_fallback(input_name: str, handled_inputs: Set[str], profile: str) -> bool:
+    # Intentionally a loose string-match against every visited parameter path, NOT a record of which inputs were actually consumed: the raw-name->path relation is many-to-many for legacy tests (bare/duplicate names validly satisfy multiple params), so consumption-tracking wrongly rejects degenerate-but-valid cases - tried and reverted, don't reintroduce it.
     if Version(profile) >= Version("24.2"):
         return False
     for handled_input in handled_inputs:
-        if handled_input == input_name or handled_input.endswith(f"|{input_name}"):
+        if handled_input == input_name or _path_ends_with_param(handled_input, input_name):
             return True
         # conditional names may be elided in the test while the section/repeat prefix is kept
         if "|" in input_name and _is_conditional_elided_match(input_name, handled_input.split("|")):
@@ -649,6 +650,15 @@ def _resolve_matching_inputs(
     ):
         return first
     raise Exception(ambiguity_message)
+
+
+def _path_ends_with_param(qualified_path: str, param_name: str) -> bool:
+    """True if ``param_name`` is the trailing (pipe-separated) segment(s) of ``qualified_path``.
+
+    The legacy unqualified/partially-qualified suffix match, shared by ``input_for`` and
+    ``_input_name_was_handled_by_legacy_fallback`` so the rule lives in one place.
+    """
+    return qualified_path.endswith(f"|{param_name}")
 
 
 def _is_conditional_elided_match(input_name: str, path_segments: List[str]) -> bool:
