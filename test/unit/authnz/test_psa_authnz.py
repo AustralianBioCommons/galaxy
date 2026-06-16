@@ -8,7 +8,6 @@ from datetime import (
     timedelta,
 )
 from types import SimpleNamespace
-from typing import Optional
 from unittest.mock import (
     MagicMock,
     patch,
@@ -107,15 +106,15 @@ class AuthTokenData:
 
 def create_access_token(
     email: str = "user@example.com",
-    roles: Optional[list[str]] = None,
+    roles: list[str] | None = None,
     iss: str = "https://issuer.example.com",
-    sub: Optional[str] = None,
-    iat: Optional[int] = None,
-    exp: Optional[int] = None,
+    sub: str | None = None,
+    iat: int | None = None,
+    exp: int | None = None,
     aud: str = "https://audience.example.com",
-    scope: Optional[list[str]] = None,
-    azp: Optional[str] = None,
-    permissions: Optional[list[str]] = None,
+    scope: list[str] | None = None,
+    azp: str | None = None,
+    permissions: list[str] | None = None,
     algorithm: str = "RS256",
     public_key_id: str = "example-key",
 ) -> AuthTokenData:
