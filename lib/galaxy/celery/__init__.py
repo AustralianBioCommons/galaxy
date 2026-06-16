@@ -113,39 +113,6 @@ def get_galaxy_app():
     return build_app()
 
 
-def _register_worker_datatype_converters(galaxy_app) -> None:
-    """Register datatype converter tools in the Celery worker's datatypes registry.
-
-    Async tool-request execution (``execute_async`` -> ``collect_input_datasets``) runs in
-    the Celery worker and applies implicit datatype conversion (e.g. decompressing a
-    ``fasta.gz`` input for a ``fasta`` parameter). That relies on
-    ``datatypes_registry.datatype_converters`` being populated, which normally happens via
-    ``load_datatype_converters(toolbox)`` in the web ``UniverseApplication``. The worker's
-    minimal ``GalaxyManagerApplication`` has no toolbox, so load the (few, built-in)
-    converter tools directly using the same toolbox-less path ``queue_jobs`` uses for the
-    submitted tool. Without this, ``find_conversion_destination`` finds no converter and the
-    raw (compressed) dataset is handed to the tool. See ``lib/galaxy/tools/actions/__init__.py``.
-    """
-    from galaxy.tool_util.parser import get_tool_source
-    from galaxy.tools import create_tool_from_source
-
-    registry = galaxy_app.datatypes_registry
-    converters_path = registry.converters_path
-    if not converters_path:
-        return
-    for converter_file, source_ext, target_ext in registry.converters:
-        config_path = os.path.join(converters_path, converter_file)
-        try:
-            tool_source = get_tool_source(config_file=config_path)
-            converter = create_tool_from_source(galaxy_app, tool_source, config_file=config_path)
-            registry.converter_tools.add(converter)
-            registry.datatype_converters.setdefault(source_ext, {})[target_ext] = converter
-        except Exception:
-            log.exception("Failed to load datatype converter %s for Celery worker", config_path)
-    # Drop any cached (empty) converter lookups computed before registration.
-    registry._converters_by_datatype = {}
-
-
 @lru_cache(maxsize=1)
 def build_app():
     if kwargs := get_app_properties():
@@ -155,7 +122,9 @@ def build_app():
         import galaxy.app
 
         galaxy_app = galaxy.app.GalaxyManagerApplication(configure_logging=False, **kwargs)
-        _register_worker_datatype_converters(galaxy_app)
+        # GalaxyManagerApplication has no toolbox, so the converter tools the async
+        # execution path relies on must be loaded directly into the datatypes registry.
+        galaxy_app.datatypes_registry.load_datatype_converters_without_toolbox(galaxy_app)
         return galaxy_app
 
 

@@ -685,15 +685,44 @@ class Registry:
             try:
                 config_path = os.path.join(converter_path, tool_config)
                 converter = toolbox.load_tool(config_path, use_cached=use_cached)
-                self.converter_tools.add(converter)
                 toolbox.register_tool(converter)
-                if source_datatype not in self.datatype_converters:
-                    self.datatype_converters[source_datatype] = {}
-                self.datatype_converters[source_datatype][target_datatype] = converter
+                self._register_converter_tool(converter, source_datatype, target_datatype)
                 if not hasattr(toolbox.app, "tool_cache") or converter.id in toolbox.app.tool_cache._new_tool_ids:
                     self.log.debug("Loaded converter: %s", converter.id)
             except Exception:
                 self.log.exception(f"Error loading converter ({converter_path})")
+
+    def load_datatype_converters_without_toolbox(self, app) -> None:
+        """Load datatype converters for an app that has no toolbox (e.g. the Celery worker).
+
+        Mirrors ``load_datatype_converters`` but builds each converter directly from its tool
+        source rather than through a toolbox, since the Celery worker's minimal
+        ``GalaxyManagerApplication`` has none. Async tool-request execution runs in the worker
+        and relies on ``datatype_converters`` being populated to apply implicit datatype
+        conversion (e.g. decompressing a ``fasta.gz`` input for a ``fasta`` parameter); without
+        this ``find_conversion_destination`` finds no converter and hands the raw dataset to the
+        tool.
+        """
+        # Imported here to avoid a circular import - galaxy.tools depends on galaxy.datatypes.
+        from galaxy.tool_util.parser import get_tool_source
+        from galaxy.tools import create_tool_from_source
+
+        if not self.converters_path:
+            return
+        for tool_config, source_datatype, target_datatype in self.converters:
+            config_path = os.path.join(self.converters_path, tool_config)
+            try:
+                tool_source = get_tool_source(config_file=config_path)
+                converter = create_tool_from_source(app, tool_source, config_file=config_path)
+                self._register_converter_tool(converter, source_datatype, target_datatype)
+            except Exception:
+                self.log.exception(f"Error loading converter ({config_path})")
+        # Drop any cached (empty) converter lookups computed before registration.
+        self._converters_by_datatype = {}
+
+    def _register_converter_tool(self, converter, source_datatype, target_datatype) -> None:
+        self.converter_tools.add(converter)
+        self.datatype_converters.setdefault(source_datatype, {})[target_datatype] = converter
 
     def load_display_applications(self, app):
         """
