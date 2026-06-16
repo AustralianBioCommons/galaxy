@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { faArrowLeft, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { BAlert } from "bootstrap-vue";
 import { computed, toRef } from "vue";
 
 import type { HistoryPageSummary } from "@/api/pages";
 import { PAGE_LABELS } from "@/components/Page/constants";
 import { useHistoryBreadCrumbsTo } from "@/composables/historyBreadcrumbs";
+import { useHistoryStore } from "@/stores/historyStore.js";
+import { useUserStore } from "@/stores/userStore.js";
 
 import BreadcrumbHeading from "../Common/BreadcrumbHeading.vue";
 import Heading from "../Common/Heading.vue";
@@ -24,6 +27,17 @@ const emit = defineEmits<{
     (e: "create"): void;
     (e: "view-runtime-report"): void;
 }>();
+
+const historyStore = useHistoryStore();
+const userStore = useUserStore();
+
+const history = computed(() => historyStore.getHistoryById(props.historyId));
+
+const unownedHistory = computed(() =>
+    history.value && "user_id" in history.value
+        ? !userStore.matchesCurrentUserId(history.value.user_id as string)
+        : undefined,
+);
 
 const labels = computed(() => (props.invocationId ? PAGE_LABELS.invocation : PAGE_LABELS.history));
 
@@ -52,6 +66,12 @@ const { breadcrumbItems } = useHistoryBreadCrumbsTo(toRef(props, "historyId"), l
                 <FontAwesomeIcon :icon="faArrowLeft" />
             </GButton>
         </div>
+
+        <BAlert v-if="unownedHistory" show>
+            You do not own this history
+            <span v-if="props.invocationId">(associated with the invocation)</span>
+            so only {{ labels.entityNamePlural }} that you created against this history are shown.
+        </BAlert>
 
         <div v-if="pages.length === 0" class="empty-state text-center p-4" data-description="page empty state">
             <p class="text-muted">{{ labels.emptyStateTitle }}</p>
