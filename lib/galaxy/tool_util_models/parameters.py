@@ -501,14 +501,13 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
         return False
 
 
-DataSrcT = Literal["hda", "ldda"]
-MultiDataSrcT = Literal["hda", "ldda", "hdca", "dce"]
-# @jmchilton you meant CollectionSrcT - fix that at some point please.
-CollectionStrT = Literal["hdca"]
+# External collection source type. ``dce`` is accepted because a job that maps
+# over a nested collection (e.g. subcollection mapping over a ``list:paired``)
+# records its input as a ``DatasetCollectionElement``; rerunning such a job
+# resubmits that ``dce`` reference through the request model.
+CollectionSrcT = Literal["hdca", "dce"]
 # Internal collection source type - includes dce for subcollection mapping
 CollectionInternalSrcT = Literal["hdca", "dce"]
-
-TestCaseDataSrcT = Literal["File"]
 
 
 class LegacyRequestModelAttributes(StrictModel):
@@ -1267,12 +1266,12 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
 
 
 class DataCollectionRequest(StrictModel):
-    src: CollectionStrT
+    src: CollectionSrcT
     id: StrictStr
 
 
 class BatchCollectionInstance(StrictModel):
-    src: CollectionStrT
+    src: CollectionSrcT
     id: StrictStr
     map_over_type: Optional[str] = None
 
