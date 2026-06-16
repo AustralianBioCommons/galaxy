@@ -151,8 +151,6 @@ def build_app():
     if kwargs := get_app_properties():
         kwargs["check_migrate_databases"] = False
         kwargs["use_display_applications"] = False
-        # Collect converter definitions (the converters list) so we can register the
-        # converter tools below; the worker needs them for implicit datatype conversion.
         kwargs["use_converters"] = True
         import galaxy.app
 
