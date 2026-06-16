@@ -39,6 +39,7 @@ from galaxy.tool_util_models.parameters import (
     GenomeBuildParameterModel,
     GroupTagParameterModel,
     IntegerParameterModel,
+    iter_parameter_models,
     RepeatParameterModel,
     SectionParameterModel,
     SelectParameterModel,
@@ -583,18 +584,13 @@ def _select_which_when(
 
 def _leaf_param_short_names(parameters: List[ToolParameterT]) -> Set[str]:
     """Collect the leaf parameter short names reachable from a list of parameters,
-    descending into repeats, sections and nested conditionals."""
-    names: Set[str] = set()
-    for parameter in parameters:
-        if isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
-            names |= _leaf_param_short_names(parameter.parameters)
-        elif isinstance(parameter, ConditionalParameterModel):
-            names.add(parameter.test_parameter.name)
-            for when in parameter.whens:
-                names |= _leaf_param_short_names(when.parameters)
-        else:
-            names.add(parameter.name)
-    return names
+    descending into repeats, sections and nested conditionals (including each
+    conditional's discriminator)."""
+    return {
+        parameter.name
+        for parameter in iter_parameter_models(parameters)
+        if not isinstance(parameter, (RepeatParameterModel, SectionParameterModel, ConditionalParameterModel))
+    }
 
 
 def _infer_when_from_inputs(

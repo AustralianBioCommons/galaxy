@@ -37,6 +37,7 @@ from galaxy.tool_util_models.parameters import (
     GenomeBuildParameterModel,
     HiddenParameterModel,
     IntegerParameterModel,
+    iter_parameter_models,
     RepeatParameterModel,
     SectionParameterModel,
     SelectParameterModel,
@@ -590,17 +591,12 @@ def assert_yaml_v1_parameters(parameters: Sequence[ToolParameterT]) -> None:
     an unsupported type silently pass through ``runtimeify``'s default-case
     ``VISITOR_NO_REPLACEMENT``.
     """
-    for parameter in parameters:
+    for parameter in iter_parameter_models(parameters):
         if type(parameter) not in YAML_V1_SUPPORTED_PARAMETER_MODELS:
             raise AssertionError(
                 f"YAML-origin tool produced unsupported parameter type "
                 f"{type(parameter).__name__} for parameter {getattr(parameter, 'name', '?')!r}"
             )
-        if isinstance(parameter, ConditionalParameterModel):
-            for when in parameter.whens:
-                assert_yaml_v1_parameters(when.parameters)
-        elif isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
-            assert_yaml_v1_parameters(parameter.parameters)
 
 
 def runtimeify(

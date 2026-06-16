@@ -9,6 +9,7 @@ from typing import (
     Dict,
     get_args,
     Iterable,
+    Iterator,
     List,
     Mapping,
     NamedTuple,
@@ -2585,6 +2586,28 @@ def simple_input_models(
     parameters: Union[List[ToolParameterModel], List[ToolParameterT]],
 ) -> Iterable[ToolParameterT]:
     return [to_simple_model(m) for m in parameters]
+
+
+def iter_parameter_models(parameters: Iterable[ToolParameterT]) -> Iterator[ToolParameterT]:
+    """Yield every parameter in a parameter tree, depth-first.
+
+    Descends into repeats, sections and *all* branches of every conditional - the purely
+    structural view of the tree, independent of any state. A conditional yields the
+    conditional itself, then its discriminator ``test_parameter``, then every parameter
+    across all of its whens; a repeat/section yields the group node then its children.
+
+    Use this for structure-only queries (collecting names, validating types). When the walk
+    needs to follow values - and so only the active when of each conditional - use
+    ``visit_input_values`` instead.
+    """
+    for parameter in parameters:
+        yield parameter
+        if isinstance(parameter, ConditionalParameterModel):
+            yield parameter.test_parameter
+            for when in parameter.whens:
+                yield from iter_parameter_models(when.parameters)
+        elif isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
+            yield from iter_parameter_models(parameter.parameters)
 
 
 def create_model_strict(*args, **kwd) -> Type[BaseModel]:

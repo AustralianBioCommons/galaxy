@@ -20,9 +20,7 @@ from galaxy.tool_util_models.assertions import (
     relaxed_assertion_list,
 )
 from galaxy.tool_util_models.parameters import (
-    ConditionalParameterModel,
-    RepeatParameterModel,
-    SectionParameterModel,
+    iter_parameter_models,
     SelectParameterModel,
     ToolParameterT,
 )
@@ -218,16 +216,11 @@ def _cleanup_pydantic_error(error) -> str:
 
 
 def _collect_multiple_select_names(parameters: List["ToolParameterT"]) -> Set[str]:
-    names: Set[str] = set()
-    for param in parameters:
-        if isinstance(param, SelectParameterModel) and param.multiple:
-            names.add(param.name)
-        elif isinstance(param, (ConditionalParameterModel,)):
-            for when in param.whens:
-                names.update(_collect_multiple_select_names(when.parameters))
-        elif isinstance(param, (SectionParameterModel, RepeatParameterModel)):
-            names.update(_collect_multiple_select_names(param.parameters))
-    return names
+    return {
+        param.name
+        for param in iter_parameter_models(parameters)
+        if isinstance(param, SelectParameterModel) and param.multiple
+    }
 
 
 class TestsMultipleSelectEmptyValue(Linter):
