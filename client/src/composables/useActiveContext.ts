@@ -1,6 +1,8 @@
+import { faFile, faMagic, faSitemap, faWrench } from "@fortawesome/free-solid-svg-icons";
 import { computed } from "vue";
 import { useRoute } from "vue-router/composables";
 
+import { PAGE_LABELS } from "@/components/Page/constants";
 import { useToolStore } from "@/stores/toolStore";
 
 export type ActiveContext =
@@ -9,7 +11,7 @@ export type ActiveContext =
     | { contextType: "workflow_editor"; workflowId: string }
     | { contextType: "workflow_run"; workflowId: string }
     | { contextType: "job"; jobId: string; toolId?: string }
-    | { contextType: "notebook"; pageId: string; historyId?: string };
+    | { contextType: "notebook"; pageId: string; historyId?: string; invocationId?: string };
 
 export function useActiveContext() {
     const route = useRoute();
@@ -68,12 +70,28 @@ export function useActiveContext() {
             };
         }
 
+        if (path.startsWith("/workflows/invocations/") && params.invocationId && query.id) {
+            const invocationId = String(params.invocationId);
+            if (path === `/workflows/invocations/${invocationId}/reports`) {
+                return {
+                    contextType: "notebook",
+                    pageId: String(query.id),
+                    invocationId,
+                };
+            }
+        }
+
         if (path.startsWith("/histories/") && params.historyId && params.pageId) {
-            return {
-                contextType: "notebook",
-                pageId: String(params.pageId),
-                historyId: String(params.historyId),
-            };
+            const historyId = String(params.historyId);
+            const pageId = String(params.pageId);
+            if (path === `/histories/${historyId}/pages/${pageId}`) {
+                return {
+                    contextType: "notebook",
+                    pageId,
+                    historyId,
+                    invocationId: query.invocation_id ? String(query.invocation_id) : undefined,
+                };
+            }
         }
 
         if (path === "/pages/editor" && query.id) {
@@ -102,15 +120,46 @@ export function useActiveContext() {
                 return `Running workflow: ${ctx.workflowId}`;
             case "job":
                 return `Job: ${ctx.jobId}`;
-            case "notebook":
-                return ctx.historyId ? `History Notebook: ${ctx.pageId}` : `Page: ${ctx.pageId}`;
+            case "notebook": {
+                const notebookLabels = getNotebookLabels(ctx);
+                return `${notebookLabels.entityName}: ${ctx.pageId}`;
+            }
             default:
                 return null;
         }
     });
 
+    const contextIcon = computed(() => {
+        switch (activeContext.value?.contextType) {
+            case "tool":
+                return faWrench;
+            case "dataset":
+                return faFile;
+            case "workflow_editor":
+            case "workflow_run":
+                return faSitemap;
+            case "notebook": {
+                const notebookLabels = getNotebookLabels(activeContext.value);
+                return notebookLabels.titleIcon;
+            }
+            default:
+                return faMagic;
+        }
+    });
+
+    function getNotebookLabels(noteBookContext: Extract<ActiveContext, { contextType: "notebook" }>) {
+        if (noteBookContext.invocationId) {
+            return PAGE_LABELS.invocation;
+        } else if (noteBookContext.historyId) {
+            return PAGE_LABELS.history;
+        } else {
+            return PAGE_LABELS.standalone;
+        }
+    }
+
     return {
         activeContext,
+        contextIcon,
         contextLabel,
     };
 }

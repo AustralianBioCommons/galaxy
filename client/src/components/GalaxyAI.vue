@@ -1,14 +1,5 @@
 <script setup lang="ts">
-import {
-    faBook,
-    faFile,
-    faFileContract,
-    faMagic,
-    faSitemap,
-    faTimes,
-    faTrash,
-    faWrench,
-} from "@fortawesome/free-solid-svg-icons";
+import { faMagic, faTimes, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { BSkeleton } from "bootstrap-vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -58,7 +49,7 @@ const router = useRouter();
 const chatStore = useChatStore();
 const Toast = useToast();
 
-const { activeContext, contextLabel } = useActiveContext();
+const { activeContext, contextLabel, contextIcon } = useActiveContext();
 const pageEditorStore = usePageEditorStore();
 const contextDismissed = ref(false);
 
@@ -108,22 +99,6 @@ const effectiveContext = computed(() => {
         return null;
     }
     return activeContext.value;
-});
-
-const contextIcon = computed(() => {
-    switch (effectiveContext.value?.contextType) {
-        case "tool":
-            return faWrench;
-        case "dataset":
-            return faFile;
-        case "workflow_editor":
-        case "workflow_run":
-            return faSitemap;
-        case "notebook":
-            return effectiveContext.value?.historyId ? faBook : faFileContract;
-        default:
-            return faMagic;
-    }
 });
 
 /** The chat is in "route mode": It's being viewed in the center and the route starts with `/galaxyai`
