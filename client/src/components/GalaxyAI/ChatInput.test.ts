@@ -154,7 +154,13 @@ describe("ChatInput", () => {
             Object.defineProperty(el, "scrollHeight", { configurable: true, value });
         }
 
-        it("sizes the textarea to its content on mount", () => {
+        it("does not set height on mount when value is empty", () => {
+            const wrapper = mountInput({ value: "" });
+            const el = wrapper.find("textarea").element as HTMLTextAreaElement;
+            expect(el.style.height).toBe("");
+        });
+
+        it("sizes the textarea to its content on mount when value is non-empty", () => {
             // onMounted resizes synchronously, so mock scrollHeight on the
             // prototype before mounting and restore it afterwards.
             const proto = window.HTMLTextAreaElement.prototype;
@@ -184,7 +190,7 @@ describe("ChatInput", () => {
             expect(el.style.height).toBe("120px");
         });
 
-        it("shrinks back down when the value is cleared after submit", async () => {
+        it("resets height to '' when value is cleared (e.g. after submit)", async () => {
             const wrapper = mountInput({ value: "a\nb\nc\nd\ne" });
             const el = wrapper.find("textarea").element as HTMLTextAreaElement;
 
@@ -193,10 +199,9 @@ describe("ChatInput", () => {
             await wrapper.vm.$nextTick();
             expect(el.style.height).toBe("140px");
 
-            mockScrollHeight(el, 40);
             await wrapper.setProps({ value: "" });
             await wrapper.vm.$nextTick();
-            expect(el.style.height).toBe("40px");
+            expect(el.style.height).toBe("");
         });
     });
 

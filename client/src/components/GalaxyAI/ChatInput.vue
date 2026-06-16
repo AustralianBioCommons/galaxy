@@ -35,6 +35,12 @@ function resize() {
     if (!textarea) {
         return;
     }
+    if (!textarea.value) {
+        // No content — let CSS min-height govern; don't measure scrollHeight
+        // which would include the placeholder's wrapped height.
+        textarea.style.height = "";
+        return;
+    }
     // Reset first so the element can shrink, then grow to fit content.
     // CSS max-height caps growth and overflow-y:auto takes over past the cap.
     textarea.style.height = "auto";
@@ -49,7 +55,11 @@ watch(
     () => nextTick(resize),
 );
 
-onMounted(resize);
+onMounted(() => {
+    if (props.value) {
+        resize();
+    }
+});
 
 function onInput(event: Event) {
     const textarea = event.target as HTMLTextAreaElement;
