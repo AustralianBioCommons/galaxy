@@ -208,6 +208,7 @@ isort = true
 exclude = [
     "lib/tool_shed/test/test_data/repos"
 ]
+line-length = 120
 src = ["lib"]
 namespace-packages = ["lib/galaxy"]
 
