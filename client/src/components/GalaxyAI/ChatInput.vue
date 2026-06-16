@@ -5,6 +5,7 @@ import { nextTick, onMounted, ref, watch } from "vue";
 
 import { detectMentionTrigger, type EntityType, type MentionTrigger } from "@/composables/useEntityMentions";
 
+import GButton from "../BaseComponents/GButton.vue";
 import MentionDropdown from "./MentionDropdown.vue";
 import LoadingSpan from "@/components/LoadingSpan.vue";
 
@@ -150,13 +151,15 @@ function closeMention() {
             class="form-control chat-input"
             @input="onInput"
             @keydown="onKeydown" />
-        <button
+        <GButton
             :disabled="busy || disabled || !props.value.trim()"
-            class="btn btn-primary send-button"
+            class="send-button"
+            color="blue"
+            size="large"
             @click="emit('submit')">
             <FontAwesomeIcon v-if="!busy" :icon="faPaperPlane" fixed-width />
             <LoadingSpan v-else message="" />
-        </button>
+        </GButton>
 
         <MentionDropdown
             ref="dropdownRef"
@@ -175,7 +178,7 @@ function closeMention() {
 .chat-input-container {
     display: flex;
     gap: 0.5rem;
-    align-items: flex-end;
+    align-items: flex-start;
     position: relative;
 
     .chat-input {
@@ -197,9 +200,7 @@ function closeMention() {
     }
 
     .send-button {
-        flex-shrink: 0;
-        border-radius: $border-radius-base;
-        padding: 0.5rem 0.875rem;
+        display: block;
     }
 }
 

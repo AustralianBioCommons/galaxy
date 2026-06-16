@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
+import GButton from "../BaseComponents/GButton.vue";
 import ChatInput from "./ChatInput.vue";
 
 vi.mock("@/stores/historyStore", () => ({
@@ -66,27 +67,27 @@ describe("ChatInput", () => {
 
         it("disables send button when value is empty", () => {
             const wrapper = mountInput({ value: "" });
-            expect((wrapper.find("button").element as HTMLButtonElement).disabled).toBe(true);
+            expect(wrapper.findComponent(GButton).props("disabled")).toBe(true);
         });
 
         it("disables send button when value is whitespace", () => {
             const wrapper = mountInput({ value: "   " });
-            expect((wrapper.find("button").element as HTMLButtonElement).disabled).toBe(true);
+            expect(wrapper.findComponent(GButton).props("disabled")).toBe(true);
         });
 
         it("enables send button when value has content", () => {
             const wrapper = mountInput({ value: "hello" });
-            expect((wrapper.find("button").element as HTMLButtonElement).disabled).toBe(false);
+            expect(wrapper.findComponent(GButton).props("disabled")).toBe(false);
         });
 
         it("disables send button when busy even with content", () => {
             const wrapper = mountInput({ value: "hello", busy: true });
-            expect((wrapper.find("button").element as HTMLButtonElement).disabled).toBe(true);
+            expect(wrapper.findComponent(GButton).props("disabled")).toBe(true);
         });
 
         it("disables send button when disabled prop is true even with content", () => {
             const wrapper = mountInput({ value: "hello", disabled: true });
-            expect((wrapper.find("button").element as HTMLButtonElement).disabled).toBe(true);
+            expect(wrapper.findComponent(GButton).props("disabled")).toBe(true);
         });
     });
 
@@ -102,7 +103,7 @@ describe("ChatInput", () => {
 
         it("emits submit on send button click", async () => {
             const wrapper = mountInput({ value: "hello" });
-            await wrapper.find("button").trigger("click");
+            await wrapper.findComponent(GButton).trigger("click");
             expect(wrapper.emitted("submit")).toBeTruthy();
         });
 
