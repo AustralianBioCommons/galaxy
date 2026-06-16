@@ -27,7 +27,8 @@ const props = defineProps<{
 }>();
 
 const pageEditorStore = usePageEditorStore();
-const { canSave, currentTitle, revisionCount, showRevisions, isDirty, isSaving } = storeToRefs(pageEditorStore);
+const { canSave, currentPage, currentTitle, revisionCount, showRevisions, isDirty, isSaving } =
+    storeToRefs(pageEditorStore);
 
 const emit = defineEmits<{
     (e: "back"): void;
@@ -127,6 +128,7 @@ function handleTitleChange(newTitle: string): Promise<void> {
                     outline
                     :pressed="props.mode === 'editor'"
                     data-description="page edit button"
+                    :disabled="currentPage?.deleted"
                     size="small"
                     @click="emit('edit')">
                     <FontAwesomeIcon :icon="faEdit" />

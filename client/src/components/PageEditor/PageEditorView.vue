@@ -220,7 +220,7 @@ function handleRevisionRestore(revisionId: string) {
 
         <!-- Display-only mode: rendered view -->
         <PageDisplayOnly
-            v-else-if="store.hasCurrentPage && (displayOnly || !isOwnedPage)"
+            v-else-if="store.hasCurrentPage && (displayOnly || !isOwnedPage || store.currentPage?.deleted)"
             :labels="labels"
             :markdown-config="markdownConfig || undefined"
             :hide-header="props.hideHeader"

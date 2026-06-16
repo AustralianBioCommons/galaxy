@@ -76,8 +76,9 @@ const primaryActions: CardAction[] = [
         id: "edit-notebook",
         label: "Edit",
         icon: faEdit,
-        title: props.editTitle,
+        title: !props.page.deleted ? props.editTitle : `This ${props.entityName} is deleted`,
         handler: () => emit("edit"),
+        disabled: props.page.deleted,
     },
 ];
 
