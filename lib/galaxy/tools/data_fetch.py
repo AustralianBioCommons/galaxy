@@ -29,7 +29,10 @@ from galaxy.files.uris import (
     stream_to_file,
     stream_url_to_file,
 )
-from galaxy.schema.drs import ContentsObject
+from galaxy.schema.drs import (
+    ContentsObject,
+    DrsObject,
+)
 from galaxy.util import (
     in_directory,
     safe_makedirs,
@@ -511,8 +514,7 @@ def _drs_contents_to_items(
     headers: Optional[dict[str, str]],
 ) -> list[dict[str, Any]]:
     """
-    Convert a DRS bundle contents object into a list of items - items in the bundle
-    might be files or nested bundles.
+    Convert DRS bundle contents into a flat list of fetch items.
     """
     items = []
 
@@ -520,18 +522,16 @@ def _drs_contents_to_items(
         child_uri = _drs_child_uri(parent_uri, child)
         child_object = get_drs_object(child_uri, force_http=force_http, headers=headers)
         name = child.name or child_object.name or child_object.id
+        nested_contents = _drs_nested_contents(child_uri, child_object)
 
-        if child_object.contents:
-            items.append(
-                {
-                    "name": name,
-                    "elements": _drs_contents_to_items(
-                        child_uri,
-                        child_object.contents,
-                        force_http=force_http,
-                        headers=headers,
-                    ),
-                }
+        if nested_contents:
+            items.extend(
+                _drs_contents_to_items(
+                    child_uri,
+                    nested_contents,
+                    force_http=force_http,
+                    headers=headers,
+                )
             )
         else:
             item = {
@@ -545,6 +545,24 @@ def _drs_contents_to_items(
             items.append(item)
 
     return items
+
+
+def _drs_nested_contents(object_uri: str, drs_object: DrsObject) -> list[ContentsObject]:
+    return [
+        content
+        for content in drs_object.contents or []
+        if not _drs_content_references_object(object_uri, drs_object, content)
+    ]
+
+
+def _drs_content_references_object(object_uri: str, drs_object: DrsObject, content: ContentsObject) -> bool:
+    if content.id and content.id == drs_object.id:
+        return True
+
+    object_uris = {object_uri}
+    if drs_object.self_uri:
+        object_uris.add(drs_object.self_uri)
+    return bool(content.drs_uri and object_uris.intersection(content.drs_uri))
 
 
 def _drs_child_uri(parent_uri: str, child: ContentsObject) -> str:
