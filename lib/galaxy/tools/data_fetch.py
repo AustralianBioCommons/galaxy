@@ -23,16 +23,12 @@ from galaxy.files.models import (
     FilesSourceOptions,
     PartialFilesSourceProperties,
 )
-from galaxy.files.sources.util import get_drs_object
 from galaxy.files.uris import (
     ensure_file_sources,
     stream_to_file,
     stream_url_to_file,
 )
-from galaxy.schema.drs import (
-    ContentsObject,
-    DrsObject,
-)
+from galaxy.tools.data_fetch_utils import drs_bundle_to_items
 from galaxy.util import (
     in_directory,
     safe_makedirs,
@@ -117,7 +113,7 @@ def _fetch_target(upload_config: "UploadConfig", target: dict[str, Any]):
                 _, elements_from_path, _ = _has_src_to_path(upload_config, target_or_item, is_dataset=False)
                 items = _directory_to_items(elements_from_path)
             elif elements_from == "drs_bundle":
-                items = _drs_bundle_to_items(upload_config, target_or_item)
+                items = drs_bundle_to_items(upload_config, target_or_item)
             else:
                 raise Exception(f"Unknown elements from type encountered [{elements_from}]")
 
@@ -477,103 +473,6 @@ def _bagit_to_items(directory):
     bdbag.bdbag_api.validate_bag(directory)
     items = _directory_to_items(os.path.join(directory, "data"))
     return items
-
-
-def _drs_bundle_to_items(upload_config: "UploadConfig", target: dict[str, Any]) -> list[dict[str, Any]]:
-    drs_uri = target["url"]
-    file_sources = ensure_file_sources(upload_config.file_sources)
-    file_source_path = file_sources.get_file_source_path(drs_uri)
-    file_source = file_source_path.file_source
-
-    if file_source.plugin_type != "drs":
-        raise Exception(f"URI [{drs_uri}] did not resolve to a DRS file source")
-
-    context = file_source._get_runtime_context(user_context=None)
-    config = context.config
-    headers = dict(config.http_headers or {})
-    headers.update(target.get("headers") or {})
-    resolved_headers = headers or None
-
-    drs_object = get_drs_object(drs_uri, force_http=config.force_http, headers=resolved_headers)
-
-    if not drs_object.contents:
-        raise Exception(f"DRS object [{drs_uri}] is not a bundle")
-
-    return _drs_contents_to_items(
-        drs_uri,
-        drs_object.contents,
-        force_http=config.force_http,
-        headers=resolved_headers,
-    )
-
-
-def _drs_contents_to_items(
-    parent_uri: str,
-    contents: list[ContentsObject],
-    force_http: bool,
-    headers: Optional[dict[str, str]],
-) -> list[dict[str, Any]]:
-    """
-    Convert DRS bundle contents into a flat list of fetch items.
-    """
-    items = []
-
-    for child in contents:
-        child_uri = _drs_child_uri(parent_uri, child)
-        child_object = get_drs_object(child_uri, force_http=force_http, headers=headers)
-        name = child.name or child_object.name or child_object.id
-        nested_contents = _drs_nested_contents(child_uri, child_object)
-
-        if nested_contents:
-            items.extend(
-                _drs_contents_to_items(
-                    child_uri,
-                    nested_contents,
-                    force_http=force_http,
-                    headers=headers,
-                )
-            )
-        else:
-            item = {
-                "src": "url",
-                "url": child_uri,
-                "name": name,
-                "ext": "auto",
-            }
-            if headers:
-                item["headers"] = headers
-            items.append(item)
-
-    return items
-
-
-def _drs_nested_contents(object_uri: str, drs_object: DrsObject) -> list[ContentsObject]:
-    return [
-        content
-        for content in drs_object.contents or []
-        if not _drs_content_references_object(object_uri, drs_object, content)
-    ]
-
-
-def _drs_content_references_object(object_uri: str, drs_object: DrsObject, content: ContentsObject) -> bool:
-    if content.id and content.id == drs_object.id:
-        return True
-
-    object_uris = {object_uri}
-    if drs_object.self_uri:
-        object_uris.add(drs_object.self_uri)
-    return bool(content.drs_uri and object_uris.intersection(content.drs_uri))
-
-
-def _drs_child_uri(parent_uri: str, child: ContentsObject) -> str:
-    if child.drs_uri:
-        return child.drs_uri[0]
-
-    if child.id:
-        authority = parent_uri[len("drs://") :].split("/", 1)[0]
-        return f"drs://{authority}/{child.id}"
-
-    raise Exception(f"DRS bundle child [{child.name}] has no drs_uri or id")
 
 
 def _decompress_target(upload_config: "UploadConfig", target: dict[str, Any]):
