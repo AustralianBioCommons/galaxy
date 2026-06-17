@@ -21,6 +21,7 @@ from pydantic_evals import Dataset
 from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
     bioinformatics_workflows_dataset,
+    capabilities_dataset,
     error_analysis_dataset,
     orchestrator_planning_dataset,
     router_tool_use_dataset,
@@ -240,6 +241,22 @@ def build_bioinformatics_workflows(
     )
 
 
+def build_capabilities(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """Groundedness of the router's "what can you do?" answer (no action over-claims)."""
+    dataset = capabilities_dataset(judge_model=judge_model, only=only)
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_content_task(deps, usage_buffer=usage_buffer),
+        primary_score="LLMJudge",
+    )
+
+
 def build_staining_quantification(
     deps: GalaxyAgentDependencies,
     judge_model: Optional[Model] = None,
@@ -286,6 +303,7 @@ SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "tool_recommendation": build_tool_recommendation,
     "router_tool_use": build_router_tool_use,
     "bioinformatics_workflows": build_bioinformatics_workflows,
+    "capabilities": build_capabilities,
     "orchestrator_planning": build_orchestrator_planning,
     "staining_quantification": build_staining_quantification,
 }

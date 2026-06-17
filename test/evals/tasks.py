@@ -118,6 +118,7 @@ def make_deps(
         user=MagicMock(),
         config=config,
         get_agent=_registry.get_agent,
+        get_capability_blurb=_registry.get_capability_blurb,
     )
 
 
@@ -177,6 +178,7 @@ def make_live_deps(
         # through to base_config via __getattr__.
         config=cast("GalaxyAppConfiguration", config),
         get_agent=_registry.get_agent,
+        get_capability_blurb=_registry.get_capability_blurb,
     )
 
 
