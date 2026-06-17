@@ -262,9 +262,8 @@ class JobsService(ServiceBase):
             request_state = RequestToolState(inputs or {})
         request_state.validate(parameter_bundle, f"{tool.id} (request model)")
         request_internal_state = decode(request_state, parameter_bundle, trans.security.decode_id)
-        # request_internal is the representation where absent inputs stay absent - defaults
-        # (including url_default data inputs) are resolved later, at dereference/job_internal
-        # time. Do not fill them here or we would record inputs that were never requested.
+        # request_internal records absent inputs as absent; static defaults (incl. url_default
+        # data inputs) are filled later, at dereference/job_internal time (see fill_static_defaults).
         request_internal_state.validate(parameter_bundle, f"{tool.id} (request internal model)")
         tool_request = ToolRequest()
         # TODO: hash and such...

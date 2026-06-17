@@ -131,10 +131,8 @@ def legacy_from_string(parameter: ToolParameterT, value: Optional[Any], warnings
                     result_value = asbool(value)
                 except ValueError:
                     if Version(profile) < Version("24.2"):
-                        # Legacy tools sometimes use a non-boolean placeholder such as
-                        # "-" as a test value. The synchronous tool API coerces these
-                        # via string_as_bool (any non-true value -> False); match that
-                        # so the payload is a valid boolean without requiring test edits.
+                        # Coerce a legacy non-boolean placeholder (e.g. "-") via string_as_bool
+                        # (any non-true value -> False), matching the synchronous tool API.
                         result_value = string_as_bool(value)
                         warnings.append(
                             f"Non-boolean test value ({value!r}) for {parameter.name} coerced to "
@@ -227,10 +225,8 @@ class LegacyTestInputResolver:
         return replace(self, inputs=inputs)
 
     def input_for(self, flat_state_path: str) -> Optional[ToolSourceTestInput]:
-        # A consumed discriminator belongs to an enclosing conditional and must not be
-        # re-matched by the loose fallbacks below when resolving a descendant's discriminator
-        # (otherwise e.g. an omitted nested ``selector`` greedily picks up the parent
-        # conditional's ``selector`` value - see ``_select_which_when``).
+        # Discriminators consumed by enclosing conditionals are excluded from the loose fallbacks
+        # below, so a descendant's omitted discriminator does not re-match an ancestor's.
         exclude = self.consumed_discriminators
         for input in self.inputs:
             if input["name"] == flat_state_path:
@@ -342,7 +338,12 @@ def test_case_state(
 
 
 def _input_name_was_handled_by_legacy_fallback(input_name: str, handled_inputs: Set[str], profile: str) -> bool:
-    # Intentionally a loose string-match against every visited parameter path, NOT a record of which inputs were actually consumed: the raw-name->path relation is many-to-many for legacy tests (bare/duplicate names validly satisfy multiple params), so consumption-tracking wrongly rejects degenerate-but-valid cases - tried and reverted, don't reintroduce it.
+    """True if a pre-24.2 legacy fallback already covered input_name (loose suffix-match).
+
+    The match is deliberately loose - against every visited path, not consumed inputs - because
+    the raw-name->path relation is many-to-many for legacy tests (bare/duplicate names validly
+    satisfy multiple params). Only applies below profile 24.2.
+    """
     if Version(profile) >= Version("24.2"):
         return False
     for handled_input in handled_inputs:
@@ -415,17 +416,12 @@ def _merge_into_state(
         when, discriminator_name = _select_which_when(tool_input, conditional_state, context, state_path)
         test_parameter = tool_input.test_parameter
         handled_inputs.update(_merge_into_state(test_parameter, context, conditional_state, state_path))
-        # If the discriminator was omitted, record the selected when's discriminator so the
-        # state validates against that branch rather than the phantom __absent__ branch. This
-        # is the active branch _select_which_when chose: a non-default when inferred from the
-        # provided params, or - for a legacy conditional with no explicit selected="true" - the
-        # default (first) option, mirroring how the synchronous runtime fills an incomplete
-        # payload.
+        # If the discriminator was omitted, record the when _select_which_when chose so the state
+        # validates against that branch rather than the phantom __absent__ branch.
         if test_parameter.name not in conditional_state and when.discriminator is not None:
             conditional_state[test_parameter.name] = when.discriminator
-        # The discriminator consumed here belongs to this conditional; the branch context marks
-        # it so the loose fallbacks do not re-match it when resolving a nested conditional's
-        # discriminator.
+        # Mark this conditional's discriminator consumed so a nested conditional's loose fallbacks
+        # do not re-match it.
         handled_inputs.update(
             _merge_level_into_state(
                 when.parameters, context.consuming(discriminator_name), conditional_state, state_path
@@ -515,15 +511,10 @@ def _repeat_inputs_to_array(
     inputs_as_dict = _inputs_as_dict(inputs)
     repeat_instance_input_dicts = repeat_inputs_to_array(state_path, inputs_as_dict)
     if not repeat_instance_input_dicts and "|" in state_path:
-        # Legacy test cases may reference a repeat that lives inside a conditional or
-        # section by its unqualified name (e.g. <repeat name="rep"> at the top level
-        # instead of wrapped in the enclosing <conditional>). The test inputs are
-        # unqualified with respect to conditionals/sections but still carry repeat
-        # instance indices, so progressively strip leading (conditional/section)
-        # segments - keeping any enclosing repeat-instance prefix - until the repeat's
-        # nested params resolve. The downstream input_for() suffix match then
-        # re-attaches them to the fully qualified path. Longest candidate is tried
-        # first to avoid matching an unrelated like-named repeat.
+        # A legacy test may name a repeat inside a conditional/section by its unqualified name.
+        # Progressively strip leading conditional/section segments (longest candidate first, to
+        # avoid an unrelated like-named repeat) until the repeat's params resolve; input_for()'s
+        # suffix match re-attaches them to the qualified path.
         parts = state_path.split("|")
         for start in range(1, len(parts)):
             candidate_path = "|".join(parts[start:])
@@ -568,10 +559,8 @@ def _select_which_when(
         explicit_test_value = asbool(explicit_test_value)
     test_value = validate_explicit_conditional_test_value(test_parameter_name, explicit_test_value)
     if test_value is None:
-        # The discriminator was omitted. Like the synchronous tool API, infer the active
-        # when from the parameters the test actually provides before falling back to the
-        # default when (otherwise a test that supplies a non-default branch's params fails
-        # to validate against the default branch).
+        # Discriminator omitted: infer the active when from the params the test provides (like
+        # the synchronous tool API) before falling back to the default when.
         inferred_when = _infer_when_from_inputs(conditional, context.inputs, prefix)
         if inferred_when is not None:
             return inferred_when, matched_name

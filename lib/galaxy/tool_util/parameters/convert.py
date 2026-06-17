@@ -345,9 +345,11 @@ def fill_static_defaults(
     profile: float,
     partial: bool = True,
 ) -> Dict[str, Any]:
-    """If additional defaults might stem from Galaxy runtime, partial should be true.
+    """Fill static defaults into a job_internal tool state; pass only that representation.
 
-    Setting partial to True, prevents runtime validation.
+    Request/request_internal states record absent inputs as absent - filling them here would
+    declare inputs that were never requested. Pass partial=True when further defaults may stem
+    from Galaxy runtime; partial=True skips final runtime validation.
     """
     _fill_defaults(tool_state, input_models)
 
