@@ -49,6 +49,7 @@ class ErrorAnalysisAgent(BaseGalaxyAgent):
     """Agent for diagnosing tool failures and providing solutions."""
 
     agent_type = AgentType.ERROR_ANALYSIS
+    capability_blurb = "Troubleshoot a failed job when you share its error message or job details."
 
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, Any]:
         if self._supports_structured_output():

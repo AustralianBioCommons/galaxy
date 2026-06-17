@@ -41,6 +41,7 @@ class AgentService:
             job_manager=self.job_manager,
             toolbox=toolbox,
             get_agent=self.registry.get_agent,
+            get_capability_blurb=self.registry.get_capability_blurb,
         )
 
     async def execute_agent(

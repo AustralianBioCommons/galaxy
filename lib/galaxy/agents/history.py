@@ -28,6 +28,9 @@ class HistoryAgent(BaseGalaxyAgent):
     """Agent for understanding and answering questions about Galaxy histories."""
 
     agent_type = AgentType.HISTORY
+    capability_blurb = (
+        "Summarize a history, draft a methods section, and describe or interpret your datasets and results."
+    )
     DEFAULT_MAX_TOKENS = 16384
 
     def __init__(self, deps: GalaxyAgentDependencies):

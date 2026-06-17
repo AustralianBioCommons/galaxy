@@ -70,6 +70,7 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
     """Agent for recommending Galaxy tools based on user requirements."""
 
     agent_type = AgentType.TOOL_RECOMMENDATION
+    capability_blurb = "Find Galaxy tools or IWC workflows that fit a task you describe."
 
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, Any]:
         if self._supports_structured_output():

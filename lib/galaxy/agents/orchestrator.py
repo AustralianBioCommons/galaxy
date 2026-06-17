@@ -49,6 +49,7 @@ class WorkflowOrchestratorAgent(BaseGalaxyAgent):
     """Coordinates multiple specialist agents for complex tasks."""
 
     agent_type = AgentType.ORCHESTRATOR
+    capability_blurb = "Suggest next steps and handle requests that combine several of these."
     DEFAULT_MAX_TOKENS = 16384
 
     def __init__(self, deps: GalaxyAgentDependencies):
