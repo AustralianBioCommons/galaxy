@@ -55,7 +55,6 @@ from galaxy.schema.tasks import (
 from galaxy.security.idencoding import IdEncodingHelper
 from galaxy.tool_util.parameters import (
     decode,
-    fill_static_defaults,
     RelaxedRequestToolState,
     RequestToolState,
     strictify,
@@ -263,16 +262,9 @@ class JobsService(ServiceBase):
             request_state = RequestToolState(inputs or {})
         request_state.validate(parameter_bundle, f"{tool.id} (request model)")
         request_internal_state = decode(request_state, parameter_bundle, trans.security.decode_id)
-        # Fill url_default values and re-validate before persisting the ToolRequest.
-        # The execution path handles general defaults, but the internal state must be
-        # fully resolved here so the persisted request is self-contained.
-        fill_static_defaults(
-            request_internal_state.input_state,
-            parameter_bundle,
-            tool.profile,
-            partial=True,
-            url_data_defaults=True,
-        )
+        # request_internal is the representation where absent inputs stay absent - defaults
+        # (including url_default data inputs) are resolved later, at dereference/job_internal
+        # time. Do not fill them here or we would record inputs that were never requested.
         request_internal_state.validate(parameter_bundle, f"{tool.id} (request internal model)")
         tool_request = ToolRequest()
         # TODO: hash and such...
