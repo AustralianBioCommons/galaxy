@@ -85,9 +85,7 @@ def test_drs_bundle_to_items_flattens_bundle_and_merges_headers(monkeypatch):
     def mock_get_drs_object(drs_uri, force_http=False, headers=None):
         seen_get_drs_object_calls.append((drs_uri, force_http, headers))
         if drs_uri == root_uri:
-            return SimpleNamespace(
-                contents=[ContentsObject(name="child-name.txt", id="child")]
-            )
+            return SimpleNamespace(contents=[ContentsObject(name="child-name.txt", id="child")])
         assert drs_uri == "drs://example.org/child"
         return SimpleNamespace(id="child", name="child-object-name.txt", contents=None)
 
