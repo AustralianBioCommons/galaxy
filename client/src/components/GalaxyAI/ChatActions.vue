@@ -19,6 +19,8 @@ import { getGalaxyInstance } from "@/app";
 import { useActivityStore } from "@/stores/activityStore.js";
 import { useChatStore } from "@/stores/chatStore";
 
+import { useStartNewChat } from "./useStartNewChat";
+
 import GButton from "../BaseComponents/GButton.vue";
 
 const props = defineProps<{
@@ -37,15 +39,12 @@ const route = useRoute();
 const router = useRouter();
 const chatStore = useChatStore();
 const activityStore = useActivityStore("default");
+const startNewChat = useStartNewChat();
 
 const showingActivityPanel = computed(() => activityStore.toggledSideBar === "galaxyai");
 
 function startNew() {
-    if (props.source === "center") {
-        router.push("/galaxyai/new");
-    } else {
-        chatStore.showChat(null);
-    }
+    startNewChat(props.source === "center");
     emit("update:collapsed", false);
 }
 

@@ -15,6 +15,7 @@ import { errorMessageAsString } from "@/utils/simple-error";
 
 import { getAgentIcon } from "./agentTypes";
 import type { ChatHistoryItem } from "./chatTypes";
+import { useStartNewChat } from "./useStartNewChat";
 
 import GButton from "../BaseComponents/GButton.vue";
 import ChatModeSelector from "./ChatModeSelector.vue";
@@ -33,6 +34,8 @@ const notebookPageId = computed(() => {
     const ctx = activeContext.value;
     return ctx?.contextType === "notebook" ? ctx.pageId : undefined;
 });
+
+const newChat = useStartNewChat();
 
 const { chatHistory, loading } = storeToRefs(chatStore);
 
@@ -78,11 +81,7 @@ function handleItemClick(item: ChatHistoryItem, index: number, event: MouseEvent
 }
 
 function startNewChat() {
-    if (chatStore.isCenterMode) {
-        router.push("/galaxyai/new");
-    } else {
-        chatStore.showChat(null);
-    }
+    newChat(chatStore.isCenterMode);
 }
 
 async function deleteSelected() {
