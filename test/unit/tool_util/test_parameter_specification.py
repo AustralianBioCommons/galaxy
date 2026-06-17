@@ -1,3 +1,4 @@
+import json
 from functools import partial
 from typing import (
     Callable,
@@ -37,6 +38,12 @@ from galaxy.tool_util.unittest_utils.parameters import (
     parameter_bundle_for_file,
     parameter_bundle_for_framework_tool,
 )
+from galaxy.tool_util_models.parameters import (
+    _INFINITY_SENTINEL,
+    _NEG_INFINITY_SENTINEL,
+    FloatParameterModel,
+)
+from galaxy.util.json import safe_dumps
 from galaxy.util.resources import resource_string
 
 
@@ -265,6 +272,45 @@ def test_encode_gx_data():
     request_tool_state = encode(request_internal_tool_state, input_bundle, encode_val)
     assert request_tool_state.input_state["parameter"]["id"] == "abcdabcd"
     assert request_tool_state.input_state["parameter"]["src"] == "hda"
+
+
+def test_float_parameter_model_infinity_sentinel_roundtrip():
+    """Regression test: FloatParameterModel must survive a safe_dumps/json.loads roundtrip.
+
+    Galaxy's safe_dumps() serialises float('inf') as '__Infinity__' and
+    float('-inf') as '__-Infinity__' to produce valid JSON.  When the tool
+    test API (GET /api/tools/{id}/test_data) returns request_schema.parameters
+    and any float parameter carries a default of inf (e.g. meme -evt), the
+    resulting JSON contains that sentinel.  Planemo then calls
+    ToolParameterBundleModel(parameters=<deserialized dicts>) which must not
+    fail even though Pydantic sees a string rather than a float.
+    """
+    for value, expected in [
+        (float("inf"), float("inf")),
+        (float("-inf"), float("-inf")),
+    ]:
+        # 1. Build the model definition
+        m = FloatParameterModel(type="float", name="test", value=value)
+        # 2. Dump to a plain dict (contains Python float inf/-inf)
+        d = m.model_dump()
+        assert d["value"] == value
+
+        # 3. Serialize through Galaxy's JSON encoder — inf becomes a sentinel string
+        galaxy_json = safe_dumps([d])
+        sentinel = _INFINITY_SENTINEL if value == float("inf") else _NEG_INFINITY_SENTINEL
+        assert sentinel in galaxy_json
+
+        # 4. Deserialize: sentinel is now a plain string in the dict
+        dicts = json.loads(galaxy_json)
+        assert dicts[0]["value"] == sentinel
+
+        # 5. Re-parse via ToolParameterBundleModel — this must not raise
+        bundle = ToolParameterBundleModel(parameters=dicts)
+
+        # 6. The parsed model should carry the correct Python float
+        parsed_param = bundle.parameters[0]
+        assert isinstance(parsed_param, FloatParameterModel)
+        assert parsed_param.value == expected
 
 
 if __name__ == "__main__":

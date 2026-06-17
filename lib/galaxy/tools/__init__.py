@@ -3772,7 +3772,10 @@ class DataManagerTool(OutputParameterJSONTool):
             return
         super().exec_after_process(app, inp_data, out_data, param_dict, job=job, final_job_state=final_job_state)
         # process results of tool
-        data_manager_id = job.data_manager_association.data_manager_id
+        # Use self.data_manager_id (from data_manager_conf.xml, set at toolbox load time) because
+        # the async API reconstructs the tool from raw XML without data_manager_id, causing the
+        # DataManagerJobAssociation to store the tool XML id instead of the conf id when those differ.
+        data_manager_id = self.data_manager_id or job.data_manager_association.data_manager_id
         data_manager = self.app.data_managers.get_manager(data_manager_id)
         assert (
             data_manager is not None
@@ -4739,6 +4742,8 @@ class RelabelFromFileTool(DatabaseOperationTool):
 
         def add_copied_value_to_new_elements(new_label, dce_object, columns):
             new_label = new_label.strip()
+            if not re.match(r"^[\w\- \.,]+$", new_label):
+                raise exceptions.MessageException(f"Invalid new collection identifier [{new_label}]")
             if new_label in new_elements:
                 raise exceptions.MessageException(
                     f"New identifier [{new_label}] appears twice in resulting collection, these values must be unique."
@@ -4796,9 +4801,6 @@ class RelabelFromFileTool(DatabaseOperationTool):
             for i, dce in enumerate(hdca.collection.elements):
                 dce_object = dce.element_object
                 add_copied_value_to_new_elements(new_labels[i], dce_object, dce.columns)
-        for key in new_elements.keys():
-            if not re.match(r"^[\w\- \.,]+$", key):
-                raise exceptions.MessageException(f"Invalid new collection identifier [{key}]")
         self._add_datasets_to_history(history, new_elements.values())
         output_collections.create_collection(
             next(iter(self.outputs.values())),

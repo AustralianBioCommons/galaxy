@@ -50,6 +50,7 @@ from galaxy.tools.execution_helpers import (
     ToolExecutionCache,
 )
 from galaxy.tools.parameters.workflow_utils import is_runtime_value
+from galaxy.util.json import swap_inf_nan
 from galaxy.work.context import WorkRequestContext
 from ._types import (
     ToolRequestT,
@@ -325,7 +326,7 @@ def _execute(
             if tool_request:
                 job.tool_request = tool_request
             if execution_slice.validated_param_combination:
-                tool_state = execution_slice.validated_param_combination.input_state
+                tool_state = swap_inf_nan(execution_slice.validated_param_combination.input_state)
                 job.tool_state = tool_state
             log.debug(job_timer.to_str(tool_id=tool.id, job_id=job.id))
             execution_tracker.record_success(execution_slice, job, result)

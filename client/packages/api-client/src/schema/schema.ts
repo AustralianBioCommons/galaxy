@@ -11080,6 +11080,8 @@ export interface components {
              * @constant
              */
             type: "data";
+            /** Url Default */
+            url_default?: string | null;
         };
         /** DataRequestCollectionUri */
         DataRequestCollectionUri: {

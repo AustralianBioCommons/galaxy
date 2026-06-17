@@ -1329,3 +1329,39 @@ steps:
         jobs = jobs_response.json()
         assert isinstance(jobs, list)
         return jobs
+
+
+class TestDataManagerJobsApi(ApiTestCase):
+    """API tests for data manager jobs submitted via the async POST /api/jobs endpoint."""
+
+    require_admin_user = True
+    dataset_populator: DatasetPopulator
+
+    def setUp(self):
+        super().setUp()
+        self.dataset_populator = DatasetPopulator(self.galaxy_interactor)
+
+    @skip_without_tool("data_manager")
+    def test_data_manager_async_submission_with_mismatched_conf_id(self):
+        # Regression for data manager jobs submitted via POST /api/jobs failing with
+        # "Invalid data manager requested" when the data_manager_conf.xml <data_manager id>
+        # differs from the tool XML <tool id>. The test tool "data_manager" (tool XML id)
+        # is registered in sample_data_manager_conf.xml as id="test_data_manager", which
+        # is exactly that mismatch. Before the fix, exec_after_process looked up the data
+        # manager using DataManagerJobAssociation.data_manager_id, which was set from the
+        # reconstructed tool's XML id ("data_manager") rather than the conf id
+        # ("test_data_manager"), causing the lookup to return None and the job to fail with
+        # exit code 0 but error state.
+        with self.dataset_populator.test_history() as history_id:
+            response = self.dataset_populator.tool_request_raw(
+                tool_id="data_manager",
+                inputs={"ignored_value": "test", "exit_code": 0},
+                history_id=history_id,
+                strict=False,
+            )
+            response.raise_for_status()
+            tool_request_id = response.json()["tool_request_id"]
+            submitted = self.dataset_populator.wait_on_tool_request(tool_request_id)
+            assert submitted, self.dataset_populator.get_tool_request(tool_request_id)
+            jobs = self.galaxy_interactor.jobs_for_tool_request(tool_request_id)
+            self.dataset_populator.wait_for_jobs(jobs, assert_ok=True)
