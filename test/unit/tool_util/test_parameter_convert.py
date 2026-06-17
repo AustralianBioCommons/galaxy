@@ -397,8 +397,18 @@ def strictify_for(tool_state: Dict[str, Any], tool_path: str) -> Dict[str, Any]:
     return strictify(relaxed_state, bundle).input_state
 
 
+# Maps each url-src / url_default fixture URL to the HDA id a real dereference would mint.
+# Keying on the URL (rather than returning a constant) makes the dereference tests assert the
+# *configured* URL actually reached the dereference boundary - an unexpected/empty URL raises
+# KeyError instead of silently passing.
+URL_ID_MAP: Dict[str, int] = {
+    "https://example.com/1.bed": EXAMPLE_ID_1,
+    "gxfiles://mystorage/1.bed": EXAMPLE_ID_2,
+}
+
+
 def _fake_dereference(input: DataRequestUri) -> DataRequestInternalHda:
-    return DataRequestInternalHda(id=EXAMPLE_ID_1, src="hda")
+    return DataRequestInternalHda(id=URL_ID_MAP[input.url], src="hda")
 
 
 def _fake_collection_deference(input: DataRequestCollectionUri) -> DataRequestInternalHdca:
