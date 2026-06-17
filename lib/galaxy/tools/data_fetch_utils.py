@@ -2,14 +2,20 @@ from datetime import (
     datetime,
     timezone,
 )
-from galaxy.files.sources.util import get_drs_object
-from galaxy.files.uris import ensure_file_sources
-from galaxy.schema.drs import ContentsObject
-from galaxy.tools.data_fetch import UploadConfig
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+    TYPE_CHECKING,
+)
 
 from galaxy.authnz.psa_authnz import locate_token_expiration
+from galaxy.files.sources.util import get_drs_object
+from galaxy.files.uris import ensure_file_sources
 from galaxy.model import User
+from galaxy.schema.drs import ContentsObject
+
+if TYPE_CHECKING:
+    from galaxy.tools.data_fetch import UploadConfig
 
 
 def iter_fetch_urls(value: Any):
