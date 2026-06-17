@@ -109,7 +109,7 @@ describe("ChatModeSelector", () => {
     describe("notebook context", () => {
         it("hides full view button when in notebook context", async () => {
             mockRoute = {
-                path: "/histories/hist-1/page/page-1",
+                path: "/histories/hist-1/pages/page-1",
                 params: { historyId: "hist-1", pageId: "page-1" },
                 query: {},
             };

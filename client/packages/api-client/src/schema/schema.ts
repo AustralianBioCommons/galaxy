@@ -44855,6 +44855,8 @@ export interface operations {
                 /** @description Sort in descending order? */
                 sort_desc?: boolean;
                 user_id?: string | null;
+                /** @description Filter pages by this workflow invocation ID. */
+                invocation_id?: string | null;
                 history_id?: string | null;
             };
             header?: {

@@ -104,7 +104,7 @@ describe("usePageEditorStore", () => {
         it("isDirty is false when content reverted to original", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             const originalContent = store.currentContent;
 
@@ -203,7 +203,7 @@ describe("usePageEditorStore", () => {
         it("populates currentPage and content on success", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await store.loadPageById(TEST_PAGE_ID);
 
@@ -215,7 +215,7 @@ describe("usePageEditorStore", () => {
         it("sets originalContent to match currentContent", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await store.loadPageById(TEST_PAGE_ID);
 
@@ -225,7 +225,7 @@ describe("usePageEditorStore", () => {
         it("sets isLoadingPage during load", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             const promise = store.loadPageById(TEST_PAGE_ID);
             expect(store.isLoadingPage).toBe(true);
@@ -241,7 +241,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await store.loadPageById(TEST_PAGE_ID);
 
@@ -262,7 +262,7 @@ describe("usePageEditorStore", () => {
         it("creates page, sets as current, refreshes list", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             const result = await store.createPage({ title: "New Page" });
 
@@ -277,7 +277,7 @@ describe("usePageEditorStore", () => {
         it("sets isLoadingPage during creation", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             const promise = store.createPage();
             expect(store.isLoadingPage).toBe(true);
@@ -293,7 +293,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await expect(store.createPage()).rejects.toThrow();
             expect(store.error).toBeTruthy();
@@ -310,7 +310,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             store.currentPage = TEST_PAGE_DETAILS;
 
             await store.savePage();
@@ -322,7 +322,7 @@ describe("usePageEditorStore", () => {
 
         it("does nothing if no currentPage", async () => {
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             store.updateContent("dirty");
 
             await store.savePage();
@@ -368,7 +368,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             expect(store.isDirty).toBe(false);
 
@@ -391,7 +391,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             store.updateContent("new content");
 
@@ -412,7 +412,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             store.updateContent("new content");
 
@@ -437,7 +437,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             store.updateContent("");
             expect(store.isDirty).toBe(true);
@@ -453,7 +453,7 @@ describe("usePageEditorStore", () => {
     describe("deleteCurrentPage", () => {
         it("does nothing if no currentPage", async () => {
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await store.deleteCurrentPage();
 
@@ -482,7 +482,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             expect(store.currentPage).not.toBeNull();
 
@@ -508,7 +508,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             store.currentPage = TEST_PAGE_DETAILS;
 
             await expect(store.deleteCurrentPage()).rejects.toThrow();
@@ -592,7 +592,7 @@ describe("usePageEditorStore", () => {
         it("loadPageById updates stored current ID", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
 
             await store.loadPageById(TEST_PAGE_ID);
 
@@ -612,7 +612,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             expect(store.getCurrentPageId(TEST_HISTORY_ID)).toBe(TEST_PAGE_ID);
 
@@ -662,7 +662,7 @@ describe("usePageEditorStore", () => {
                 }) as any,
             );
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             expect(store.currentContent).toBe("original content");
 
@@ -678,7 +678,7 @@ describe("usePageEditorStore", () => {
         it("clearCurrentPage resets current page state", async () => {
             useDefaultHandlers();
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             await store.loadPageById(TEST_PAGE_ID);
             store.updateContent("modified");
             expect(store.currentPage).not.toBeNull();
@@ -694,7 +694,7 @@ describe("usePageEditorStore", () => {
 
         it("clearCurrentPage does not affect pages list or historyId", () => {
             const store = usePageEditorStore();
-            store.$patch({ historyId: TEST_HISTORY_ID });
+            store.setCurrentContext(TEST_HISTORY_ID);
             store.pages = [TEST_PAGE_SUMMARY];
             store.currentPage = TEST_PAGE_DETAILS;
 

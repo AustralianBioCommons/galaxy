@@ -6,31 +6,20 @@ import { setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 
+import { useServerMock } from "@/api/client/__mocks__";
 import type { ActiveContext } from "@/composables/useActiveContext";
 import { useChatStore } from "@/stores/chatStore";
 import { usePageEditorStore } from "@/stores/pageEditorStore";
 
 import GalaxyAI from "./GalaxyAI.vue";
 
-// ── API mock ─────────────────────────────────────────────────────────────────
+// API mock
+const { server, http } = useServerMock();
+
 const mockGetMessages = vi.fn();
 const mockGetHistory = vi.fn();
 
-vi.mock("@/api", () => ({
-    GalaxyApi: () => ({
-        GET: (path: string, _opts: unknown) => {
-            if (path.includes("messages")) {
-                return mockGetMessages();
-            }
-            if (path.includes("history")) {
-                return mockGetHistory();
-            }
-            return { data: null, error: null };
-        },
-    }),
-}));
-
-// ── Composable stubs ──────────────────────────────────────────────────────────
+// Composable mocks
 const mockActiveContext = ref<ActiveContext | null>(null);
 
 vi.mock("@/composables/useActiveContext", () => ({
@@ -83,10 +72,10 @@ vi.mock("vue-router/composables", () => ({
     useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const localVue = getLocalVue();
 let lastWrapper: ReturnType<typeof shallowMount> | null = null;
 
+// Constants
 const EXCHANGE_ID = "exchange-abc";
 const MESSAGES_RESPONSE = [
     { role: "user", content: "Hello", timestamp: null },
@@ -94,15 +83,34 @@ const MESSAGES_RESPONSE = [
 ];
 
 function makeSuccessfulFetch(messages = MESSAGES_RESPONSE) {
-    mockGetMessages.mockResolvedValue({ data: messages, error: null });
+    server.use(
+        http.get("/api/chat/exchange/{exchange_id}/messages", ({ response }) => {
+            mockGetMessages();
+            return response(200).json(messages);
+        }),
+    );
 }
 
 function makeEmptyFetch() {
-    mockGetMessages.mockResolvedValue({ data: [], error: null });
+    server.use(
+        http.get("/api/chat/exchange/{exchange_id}/messages", ({ response }) => {
+            mockGetMessages();
+            return response(200).json([]);
+        }),
+    );
 }
 
-function makeHistoryFetch(items = [{ id: "latest-chat" }]) {
-    mockGetHistory.mockResolvedValue({ data: items, error: null });
+function makeHistoryFetch(items: { id: string }[] = [{ id: "latest-chat" }]) {
+    server.use(
+        http.get("/api/chat/history", ({ response }) => {
+            mockGetHistory();
+            return response(200).json(items as any);
+        }),
+        http.get("/api/chat/page/{page_id}/history", ({ response }) => {
+            mockGetHistory();
+            return response(200).json(items as any);
+        }),
+    );
 }
 
 interface MountOptions {
@@ -110,7 +118,6 @@ interface MountOptions {
     activeChatId?: string | null;
     cachedExchangeId?: string | null;
     pageId?: string;
-    /** Pre-populate chatStore.chatHistory and stub loadHistory as a no-op so no real HTTP call is made. */
     chatHistoryItems?: { id: string }[];
 }
 
@@ -129,8 +136,6 @@ function mountGalaxyAI({
 
     if (chatHistoryItems !== undefined) {
         chatStore.chatHistory = chatHistoryItems as any;
-        // Stub loadHistory so it doesn't make real HTTP calls (chatStore imports @/api/client
-        // which is not mocked); keep chatHistory as pre-populated.
         vi.spyOn(chatStore, "loadHistory").mockResolvedValue(undefined);
     }
 
@@ -159,12 +164,11 @@ function mountGalaxyAI({
     return { wrapper, chatStore, pageEditorStore };
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
 describe("GalaxyAI fetch operations on mount", () => {
     beforeEach(() => {
         mockActiveContext.value = null;
-        vi.clearAllMocks();
-        // Default: empty history so loadLatestChat doesn't cascade into fetchConversation
+        mockGetMessages.mockClear();
+        mockGetHistory.mockClear();
         makeHistoryFetch([]);
     });
 
@@ -174,7 +178,6 @@ describe("GalaxyAI fetch operations on mount", () => {
         vi.restoreAllMocks();
     });
 
-    // Branch 1: explicit exchangeId prop (not "new")
     describe("when exchangeId prop is provided and not 'new'", () => {
         it("fetches the specified exchange on mount", async () => {
             makeSuccessfulFetch();
@@ -185,13 +188,12 @@ describe("GalaxyAI fetch operations on mount", () => {
 
         it("does not call loadLatestChat", async () => {
             makeSuccessfulFetch();
-            mountGalaxyAI({ props: { exchangeId: EXCHANGE_ID } });
+            mountGalaxyAI({ props: { exchangeId: EXCHANGE_ID }, chatHistoryItems: [{ id: EXCHANGE_ID }] });
             await flushPromises();
             expect(mockGetHistory).not.toHaveBeenCalled();
         });
     });
 
-    // Branch 2: exchangeId === "new"
     describe("when exchangeId prop is 'new'", () => {
         it("starts a new chat without fetching messages", async () => {
             mountGalaxyAI({ props: { exchangeId: "new" } });
@@ -200,15 +202,12 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
 
         it("does not restore from activeChatId even when one is set", async () => {
-            // Regression: exchangeId='new' previously fell into the docked/panel restore branch
-            // and would fetch activeChatId, causing the route to flip back to the old chat.
             mountGalaxyAI({ props: { exchangeId: "new" }, activeChatId: EXCHANGE_ID });
             await flushPromises();
             expect(mockGetMessages).not.toHaveBeenCalled();
         });
     });
 
-    // Branch 3: docked/panel — notebook context with a cached exchange ID and no activeChatId
     describe("docked/panel — notebook context with cached exchange ID", () => {
         it("fetches the cached exchange when activeChatId is null", async () => {
             makeSuccessfulFetch();
@@ -231,10 +230,8 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
     });
 
-    // Branch 4: docked/panel — notebook context, no cached exchange but page has history
     describe("docked/panel — notebook context, no cached ID but page has history", () => {
         it("fetches the most recent chat from page history (ignores global activeChatId)", async () => {
-            // activeChatId is set but belongs to a different context — must not be used for notebook.
             makeSuccessfulFetch();
             mockActiveContext.value = { contextType: "notebook", pageId: "page-1", historyId: "hist-1" };
             mountGalaxyAI({
@@ -247,10 +244,8 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
     });
 
-    // Branch 5: docked/panel — notebook context, no cached exchange, empty history
     describe("docked/panel — notebook context, no cached ID and empty history", () => {
         it("starts a new chat without fetching", async () => {
-            // beforeEach already mocks history as empty
             mockActiveContext.value = { contextType: "notebook", pageId: "page-1", historyId: "hist-1" };
             mountGalaxyAI({ props: { docked: true }, activeChatId: null });
             await flushPromises();
@@ -258,7 +253,6 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
     });
 
-    // Branch 6: docked/panel — non-notebook context with activeChatId set
     describe("docked/panel — non-notebook context with activeChatId", () => {
         it("fetches the active chat exchange", async () => {
             makeSuccessfulFetch();
@@ -268,7 +262,6 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
     });
 
-    // Branch 7: docked/panel — non-notebook context, no activeChatId
     describe("docked/panel — non-notebook context, no activeChatId", () => {
         it("starts a new chat without fetching", async () => {
             mountGalaxyAI({ props: { docked: true }, activeChatId: null });
@@ -277,7 +270,6 @@ describe("GalaxyAI fetch operations on mount", () => {
         });
     });
 
-    // Branch 8: center mode (no exchangeId, not docked/panel)
     describe("center mode (no exchangeId, not docked/panel)", () => {
         it("calls loadLatestChat to fetch most recent history", async () => {
             mountGalaxyAI({});
