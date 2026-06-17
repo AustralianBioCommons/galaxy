@@ -3,12 +3,12 @@ from datetime import (
     timedelta,
     timezone,
 )
-from galaxy.tools.data_fetch import UploadConfig
 from types import SimpleNamespace
 from typing import cast
 
 from galaxy.model import User
 from galaxy.schema.drs import ContentsObject
+from galaxy.tools.data_fetch import UploadConfig
 from galaxy.tools.data_fetch_utils import (
     _drs_contents_to_items,
     compute_token_expiry_for_provider,
