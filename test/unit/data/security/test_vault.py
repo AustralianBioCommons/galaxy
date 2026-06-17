@@ -174,12 +174,13 @@ def test_vault_key_prefix_wrapper_emits_canonical_path(prefix):
 
 
 @pytest.mark.parametrize("prefix", ["/galaxy", "galaxy", "/galaxy/"])
-def test_vault_key_prefix_wrapper_emits_legacy_leading_slash_path(prefix):
-    # DatabaseVault keeps the legacy leading-slash location. The wrapper must
-    # prepend a single leading slash regardless of how the prefix is spelled.
+def test_vault_key_prefix_wrapper_emits_legacy_leading_slash_path_for_database_vault(prefix):
+    # DatabaseVault keeps the legacy leading-slash location because use_canonical_keys=False.
+    # The wrapper must prepend a single leading slash regardless of how the prefix is spelled.
     inner = _make_mocked_hashicorp_vault()
     inner.client.secrets.kv.read_secret_version.return_value = {"data": {"data": {"value": "v"}}}
-    vault = VaultKeyValidationWrapper(VaultKeyPrefixWrapper(inner, prefix=prefix, leading_slash=True))
+    inner.use_canonical_keys = False
+    vault = VaultKeyValidationWrapper(VaultKeyPrefixWrapper(inner, prefix=prefix))
 
     assert vault.read_secret("user/1/preferences/editor") == "v"
     inner.client.secrets.kv.read_secret_version.assert_called_once_with(path="/galaxy/user/1/preferences/editor")
