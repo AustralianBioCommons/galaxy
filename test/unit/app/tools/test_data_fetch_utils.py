@@ -3,6 +3,7 @@ from datetime import (
     timedelta,
     timezone,
 )
+from galaxy.tools.data_fetch import UploadConfig
 from types import SimpleNamespace
 from typing import cast
 
@@ -79,7 +80,7 @@ def test_drs_bundle_to_items_flattens_bundle_and_merges_headers(monkeypatch):
             "X-Config": "yes",
         },
     )
-    upload_config = SimpleNamespace(file_sources=object())
+    upload_config = cast(UploadConfig, SimpleNamespace(file_sources=object()))
     seen_get_drs_object_calls = []
 
     def mock_get_drs_object(drs_uri, force_http=False, headers=None):

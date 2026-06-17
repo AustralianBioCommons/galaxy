@@ -109,7 +109,7 @@ def _drs_contents_to_items(
                 )
             )
         else:
-            item = {
+            item: dict[str, Any] = {
                 "src": "url",
                 "url": child_uri,
                 "name": name,
