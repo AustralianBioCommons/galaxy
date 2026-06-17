@@ -65,6 +65,18 @@ class AgentRegistry:
     def get_agent_metadata(self, agent_type: str) -> dict:
         return self._agent_metadata.get(agent_type, {})
 
+    def get_capability_blurb(self, agent_type: str) -> Optional[str]:
+        """Return the agent's user-facing capability blurb, or None.
+
+        Returns None when the agent type is not registered (e.g. disabled in this
+        deployment, since disabled agents are never registered) or defines no blurb.
+        The router uses this to advertise only capabilities that actually work here.
+        A registry that never populates ``_agents`` (the static test backend) returns
+        None for every type -- correct, since no live router prompt is rendered there.
+        """
+        agent_class = self._agents.get(agent_type)
+        return getattr(agent_class, "capability_blurb", None) if agent_class else None
+
     def get_agent_info(self, agent_type: str) -> dict:
         """Get info about an agent including class, metadata, and description."""
         if agent_type not in self._agents:

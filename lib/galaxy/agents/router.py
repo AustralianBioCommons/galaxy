@@ -15,6 +15,7 @@ router can answer those directly without round-tripping through a specialist.
 
 import json
 import logging
+import re
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -235,9 +236,40 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ops = _ops(ctx)
             return await anyio.to_thread.run_sync(ops.list_user_file_sources)
 
+    # Display order for the "what can you do" capability list. Only agents enabled in
+    # this deployment (and that define a capability_blurb) are listed -- so the answer
+    # never advertises a specialist that's turned off and would error on handoff.
+    # ROUTER, PAGE_ASSISTANT, and WORKFLOW_REPORT are intentionally absent: they define
+    # no user-facing capability_blurb (the router isn't a specialist; the others aren't
+    # reachable from this surface), so they never belong in this answer.
+    _CAPABILITY_DISPLAY_ORDER = (
+        AgentType.TOOL_RECOMMENDATION,
+        AgentType.HISTORY,
+        AgentType.GTN_TRAINING,
+        AgentType.ERROR_ANALYSIS,
+        AgentType.ORCHESTRATOR,
+        AgentType.CUSTOM_TOOL,
+    )
+
+    def _capabilities_section(self) -> str:
+        """Render markdown bullets for the specialist capabilities enabled here."""
+        get_blurb = self.deps.get_capability_blurb
+        if get_blurb is None:
+            return ""
+        bullets = []
+        for agent_type in self._CAPABILITY_DISPLAY_ORDER:
+            blurb = get_blurb(agent_type)
+            if blurb:
+                bullets.append(f"- {blurb}")
+        return "\n".join(bullets)
+
     def get_system_prompt(self) -> str:
         prompt_path = Path(__file__).parent / "prompts" / "router.md"
-        return prompt_path.read_text()
+        # Strip any leading whitespace a markdown formatter may have added before the
+        # placeholder (prettier indents it under the preceding list item) so the injected
+        # bullets align at the list's top level. lambda replacement avoids backslash escapes.
+        section = self._capabilities_section()
+        return re.sub(r"[ \t]*\{\{CAPABILITIES\}\}", lambda _m: section, prompt_path.read_text())
 
     def _serialize_handoff(self, response: AgentResponse, target_agent: str) -> str:
         """Wrap a delegated agent's response in JSON to pass through the router's output function."""
@@ -614,23 +646,19 @@ For specific tools, please also cite the individual tool publications.""",
         )
 
     def _get_simple_system_prompt(self) -> str:
+        # Fallback prompt for models that can't do tool calling (e.g. DeepSeek): this
+        # router has no handoffs and no read-only lookup tools, so it can ONLY hold a
+        # conversation. Keep the prompt honest about that -- it must not imply it can
+        # inspect the user's Galaxy or perform actions, since it genuinely cannot.
         return """You are Galaxy's AI assistant. You ONLY answer questions about the Galaxy platform, Galaxy tools, and scientific data analysis (genomics, proteomics, bioinformatics, etc.).
 
-CRITICAL: Never guess or make up information. If you don't know something, say so. Never fabricate tool names, parameters, or scientific claims. It's better to admit uncertainty than provide incorrect information.
+On this connection you can only hold a conversation: you answer questions and guide the user from your own knowledge -- explaining how Galaxy and its tools work, interpreting error messages they paste in, and recommending analysis approaches. You cannot look anything up in their Galaxy (you can't list or read their histories, workflows, datasets, or installed tools), you cannot run tools, jobs, or workflows, you cannot upload data, and you cannot change any settings. When something needs their data or an action, explain how they can do it themselves in Galaxy or point them to the Galaxy Training Network (https://training.galaxyproject.org/).
 
-For general Galaxy questions: Answer directly and helpfully.
+CRITICAL: Never guess or make up information. Never fabricate tool names, parameters, or scientific claims. If you don't know something, say so -- it is better to admit uncertainty than to provide incorrect information.
 
-For job failures or errors: Explain what might have gone wrong and suggest solutions.
+If asked what you can do, describe only this: answering questions about Galaxy, tool usage, and bioinformatics, and guiding the user through how to do things themselves. Do not claim to inspect their data, run anything, or build tools for them.
 
-For tool creation requests: Explain that you can help design Galaxy tools and provide guidance.
-
-For history analysis requests: Explain that you can help summarize their analysis, generate methods sections, or describe what was done in a history.
-
-For training/tutorial requests: Search the Galaxy Training Network for relevant tutorials.
-
-For off-topic questions: Politely explain you can only help with Galaxy and scientific analysis.
-
-When uncertain, suggest the user check Galaxy documentation or the Galaxy Training Network (https://training.galaxyproject.org/)."""
+For off-topic questions (general coding, non-scientific topics), politely explain that you can only help with Galaxy and scientific analysis."""
 
     def _get_fallback_content(self) -> str:
         return (

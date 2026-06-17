@@ -359,6 +359,9 @@ class GalaxyAgentDependencies:
     config: "GalaxyAppConfiguration"
     # Callable to get agent instances, avoids circular import in base.py
     get_agent: Callable[[str, "GalaxyAgentDependencies"], "BaseGalaxyAgent"]
+    # Callable returning an agent's user-facing capability blurb, or None when that agent
+    # is not enabled in this deployment. Lets the router advertise only real capabilities.
+    get_capability_blurb: Optional[Callable[[str], Optional[str]]] = None
     job_manager: Optional["JobManager"] = None
     dataset_manager: Optional["DatasetManager"] = None
     workflow_manager: Optional["WorkflowsManager"] = None
@@ -371,6 +374,11 @@ class BaseGalaxyAgent(ABC):
     """Base class for all Galaxy AI agents."""
 
     agent_type: str
+    # One-line, user-facing description of what this agent lets the user do. The router
+    # composes its "what can you do" answer from the blurbs of the agents enabled in this
+    # deployment. None means the agent is not advertised there (e.g. the router itself, or
+    # surfaces like the notebook page assistant that users reach a different way).
+    capability_blurb: Optional[str] = None
     agent: Agent[GalaxyAgentDependencies, Any]
     _INTERNAL_CONTEXT_KEYS = frozenset({"run_state"})
 

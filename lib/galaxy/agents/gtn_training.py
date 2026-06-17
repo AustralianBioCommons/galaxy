@@ -51,6 +51,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
     """Searches GTN tutorials to help users find training materials and learning paths."""
 
     agent_type = AgentType.GTN_TRAINING
+    capability_blurb = (
+        "Find Galaxy Training Network tutorials and step-by-step guidance for an analysis you want to learn."
+    )
 
     # The model tends to keep re-searching long after it has enough material,
     # and every extra round re-sends the whole growing transcript -- a single

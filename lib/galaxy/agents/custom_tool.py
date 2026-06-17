@@ -99,6 +99,9 @@ class CustomToolAgent(BaseGalaxyAgent):
     """
 
     agent_type = AgentType.CUSTOM_TOOL
+    capability_blurb = (
+        "Generate a Galaxy tool definition (XML/YAML) when you explicitly ask to wrap a command-line program."
+    )
     DEFAULT_MAX_TOKENS = 16384
 
     def __init__(self, deps: GalaxyAgentDependencies):

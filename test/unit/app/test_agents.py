@@ -335,6 +335,70 @@ class TestAgentUnitMocked:
         with pytest.raises(ValueError, match="Unknown agent type"):
             registry.get_agent("custom_tool", self.deps)
 
+    def test_specialists_define_capability_blurbs(self):
+        """Specialists advertised in the router's 'what can you do' answer define a blurb."""
+        for agent_cls in (
+            ToolRecommendationAgent,
+            HistoryAgent,
+            GTNTrainingAgent,
+            ErrorAnalysisAgent,
+            WorkflowOrchestratorAgent,
+            CustomToolAgent,
+        ):
+            assert isinstance(agent_cls.capability_blurb, str) and agent_cls.capability_blurb.strip()
+        # The router itself and the notebook-only page assistant are not advertised there.
+        assert QueryRouterAgent.capability_blurb is None
+        assert PageAssistantAgent.capability_blurb is None
+
+    def test_registry_capability_blurb_respects_enablement(self):
+        """get_capability_blurb returns the blurb only for registered (enabled) agents."""
+        config = mock.Mock()
+        config.inference_services = {"custom_tool": {"enabled": False}}
+        registry = build_default_registry(config)
+        assert registry.get_capability_blurb("history") == HistoryAgent.capability_blurb
+        # Disabled agents are not registered, so no blurb is surfaced.
+        assert registry.get_capability_blurb("custom_tool") is None
+        assert registry.get_capability_blurb("nonexistent") is None
+
+    def test_agent_service_wires_capability_blurb(self):
+        """AgentService.create_dependencies wires get_capability_blurb to the live registry.
+
+        Guards against the silent default-None seam: if the wiring is dropped, deps fall
+        back to no capability lookups and the router renders an empty list with no error.
+        """
+        service = AgentService(config=self.mock_config, job_manager=self.mock_job_manager, registry=agent_registry)
+        deps = service.create_dependencies(self.mock_trans, self.mock_user)
+        assert deps.get_capability_blurb is not None
+        assert deps.get_capability_blurb("history") == HistoryAgent.capability_blurb
+        assert deps.get_capability_blurb("nonexistent") is None
+
+    def test_router_prompt_lists_enabled_capabilities_and_limitation(self):
+        """The composed router prompt states the limitation and lists enabled blurbs."""
+        self.mock_config.inference_services = None
+        registry = build_default_registry()
+        self.deps.get_capability_blurb = registry.get_capability_blurb
+        prompt = QueryRouterAgent(self.deps).get_system_prompt()
+
+        assert "{{CAPABILITIES}}" not in prompt
+        # Limitation stated up front: answers/guides, does not act, read-only access.
+        assert "do not upload data" in prompt.lower()
+        assert "read-only" in prompt.lower()
+        # Enabled specialist capabilities are listed verbatim from their blurbs.
+        assert HistoryAgent.capability_blurb in prompt
+        assert CustomToolAgent.capability_blurb in prompt
+
+    def test_router_prompt_omits_disabled_capabilities(self):
+        """A capability whose agent is disabled must not appear in the prompt."""
+        self.mock_config.inference_services = None
+        config = mock.Mock()
+        config.inference_services = {"custom_tool": {"enabled": False}}
+        registry = build_default_registry(config)
+        self.deps.get_capability_blurb = registry.get_capability_blurb
+        prompt = QueryRouterAgent(self.deps).get_system_prompt()
+
+        assert CustomToolAgent.capability_blurb not in prompt
+        assert HistoryAgent.capability_blurb in prompt
+
     def test_agent_registry(self):
         required_agents = [
             "router",
