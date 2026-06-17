@@ -1,6 +1,6 @@
 <template>
     <span>
-        <span v-if="!referenceEl" ref="reference">
+        <span v-if="!referenceEl" ref="reference" class="popper-reference-container">
             <slot name="reference" />
         </span>
         <div v-show="!disabled && visible" ref="popper" class="popper-element" :class="`popper-element-${mode}`">
@@ -73,6 +73,12 @@ defineExpose({
 
 @function popper-border($border-color) {
     @return 1px solid $border-color;
+}
+
+.popper-reference-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .popper-element {

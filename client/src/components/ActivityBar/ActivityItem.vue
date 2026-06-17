@@ -82,7 +82,7 @@ const meta = computed(() => store.metaForId(props.id));
     <Popper :placement="tooltipPlacement">
         <template v-slot:reference>
             <b-nav-item
-                class="activity-item my-1 p-2"
+                class="activity-item"
                 :class="{ 'nav-item-active': isActive }"
                 :link-attrs="{ id: `activity-${id}` }"
                 :link-classes="`variant-${props.variant}`"
@@ -141,6 +141,9 @@ const meta = computed(() => store.metaForId(props.id));
     position: relative;
     display: flex;
     flex-direction: column;
+    width: 5rem;
+    padding: 0.5rem;
+    margin: 0.125rem 0;
 
     &:deep(.variant-danger) {
         color: $brand-danger;
@@ -200,7 +203,6 @@ const meta = computed(() => store.metaForId(props.id));
     position: relative;
     display: flex;
     justify-content: center;
-    width: 4rem;
     margin-top: 0.5rem;
     font-size: 0.7rem;
 }
