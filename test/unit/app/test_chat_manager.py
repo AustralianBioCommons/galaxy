@@ -6,6 +6,10 @@ from unittest import mock
 import pytest
 
 from galaxy.managers.chat import ChatManager
+from galaxy.webapps.galaxy.api.chat import (
+    _responder_agent_type,
+    ChatAPI,
+)
 
 
 def _make_trans(user_id=1):
@@ -270,3 +274,66 @@ class TestResolvePageFromInterfaceContext:
         assert page_id == 42
         assert page_obj is fake_page
         mock_get.assert_called_once_with(trans, 42)
+
+
+class TestResponderAgentType:
+    """The displayed agent_type should be the agent that actually answered (the nested
+    agent_response), not the request type stored at the top level ("auto")."""
+
+    def test_prefers_nested_response_agent_type(self):
+        data = {"agent_type": "auto", "agent_response": {"agent_type": "error_analysis"}}
+        assert _responder_agent_type(data) == "error_analysis"
+
+    def test_falls_back_to_top_level_when_no_response(self):
+        data = {"agent_type": "gtn_training", "agent_response": None}
+        assert _responder_agent_type(data) == "gtn_training"
+
+    def test_unknown_when_nothing_present(self):
+        assert _responder_agent_type({}) == "unknown"
+
+
+class TestGetExchangeMessagesAttribution:
+    """Reopening a conversation should badge each turn with the real responder, so a
+    router handoff turn (persisted with top-level agent_type "auto") reloads as the
+    specialist that actually answered."""
+
+    @staticmethod
+    def _api_for(message):
+        api = ChatAPI.__new__(ChatAPI)
+        msg = mock.Mock()
+        msg.message = message
+        msg.feedback = None
+        msg.create_time = None
+        exchange = _FakeChatExchange()
+        exchange.messages = [msg]
+        api.chat_manager = mock.Mock()
+        api.chat_manager.get_exchange_by_id.return_value = exchange
+        return api
+
+    def _assistant_turn(self, message):
+        api = self._api_for(message)
+        messages = api.get_exchange_messages(exchange_id=1, trans=_make_trans(), user=mock.Mock())
+        assistant = [m for m in messages if m["role"] == "assistant"]
+        assert len(assistant) == 1
+        return assistant[0]
+
+    def test_handoff_turn_reloads_as_specialist(self):
+        message = json.dumps(
+            {
+                "query": "why did my job fail?",
+                "response": "Your tool hit an out-of-memory error.",
+                "agent_type": "auto",
+                "agent_response": {"agent_type": "error_analysis"},
+            }
+        )
+        assert self._assistant_turn(message)["agent_type"] == "error_analysis"
+
+    def test_falls_back_to_stored_type_without_response(self):
+        message = json.dumps(
+            {
+                "query": "find me a tutorial",
+                "response": "Here are some tutorials.",
+                "agent_type": "gtn_training",
+            }
+        )
+        assert self._assistant_turn(message)["agent_type"] == "gtn_training"

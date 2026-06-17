@@ -106,6 +106,16 @@ JobIdPathParam = Annotated[
 ]
 
 
+def _responder_agent_type(data: dict[str, Any]) -> str:
+    """Agent type that actually answered a stored turn.
+
+    Prefer the nested agent_response (the real responder, e.g. the specialist after a
+    router handoff) over the top-level agent_type, which records the *request* type
+    ("auto"). Older rows only stored the request type at the top level.
+    """
+    return (data.get("agent_response") or {}).get("agent_type") or data.get("agent_type", "unknown")
+
+
 @router.cbv
 class ChatAPI:
     """Chat interface for AI agents.
@@ -265,7 +275,7 @@ class ChatAPI:
                     conversation_data = {
                         "query": query_text,
                         "response": result.get("response", ""),
-                        "agent_type": agent_type,
+                        "agent_type": agent_resp.agent_type if agent_resp else agent_type,
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     message_content = json.dumps(conversation_data)
@@ -280,7 +290,7 @@ class ChatAPI:
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     exchange = self.chat_manager.create_page_chat(
-                        trans, page_id, query_text, storable_result, agent_type
+                        trans, page_id, query_text, storable_result, agent_resp.agent_type if agent_resp else agent_type
                     )
                     result["exchange_id"] = exchange.id
                 else:
@@ -290,7 +300,13 @@ class ChatAPI:
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     exchange = await anyio.to_thread.run_sync(
-                        partial(self.chat_manager.create_general_chat, trans, query_text, storable_result, agent_type)
+                        partial(
+                            self.chat_manager.create_general_chat,
+                            trans,
+                            query_text,
+                            storable_result,
+                            agent_resp.agent_type if agent_resp else agent_type,
+                        )
                     )
                     result["exchange_id"] = exchange.id
 
@@ -489,7 +505,7 @@ class ChatAPI:
                         {
                             "role": "assistant",
                             "content": data["response"],
-                            "agent_type": data.get("agent_type", "unknown"),
+                            "agent_type": _responder_agent_type(data),
                             "agent_response": data.get("agent_response"),
                             "timestamp": msg.create_time.isoformat() if msg.create_time else None,
                             "feedback": msg.feedback,
@@ -524,7 +540,7 @@ class ChatAPI:
                         id=exchange.id,
                         query=data.get("query", ""),
                         response=data.get("response", ""),
-                        agent_type=data.get("agent_type", "unknown"),
+                        agent_type=_responder_agent_type(data),
                         agent_response=agent_response,
                         timestamp=message.create_time.isoformat() if message.create_time else None,
                         feedback=message.feedback,

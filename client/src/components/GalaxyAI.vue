@@ -413,7 +413,7 @@ async function fetchConversation(exchangeId: string) {
         };
 
         if (msg.role === "assistant") {
-            message.agentType = msg.agent_type;
+            message.agentType = msg.agent_response?.agent_type || msg.agent_type;
             message.confidence = msg.agent_response?.confidence || "medium";
             message.feedback = msg.feedback === 1 ? "up" : msg.feedback === 0 ? "down" : null;
 
