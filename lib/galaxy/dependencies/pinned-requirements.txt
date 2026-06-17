@@ -59,7 +59,7 @@ cohere==7.0.3 ; sys_platform != 'emscripten'
 colorama==0.4.6 ; sys_platform == 'win32'
 coloredlogs==15.0.1
 conda-package-streaming==0.12.0
-cryptography==48.0.0
+cryptography==48.0.1
 ct3==3.4.0.post5
 cwl-upgrader==1.2.15
 cwl-utils==0.42
