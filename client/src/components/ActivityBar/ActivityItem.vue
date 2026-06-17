@@ -79,7 +79,7 @@ const meta = computed(() => store.metaForId(props.id));
 </script>
 
 <template>
-    <Popper :placement="tooltipPlacement">
+    <Popper :placement="tooltipPlacement" class="activity-item-popper">
         <template v-slot:reference>
             <b-nav-item
                 class="activity-item"
@@ -136,6 +136,15 @@ const meta = computed(() => store.metaForId(props.id));
 
 <style scoped lang="scss">
 @import "@/style/scss/theme/blue.scss";
+
+.activity-item-popper {
+    // Vertically centers the popper in the activity bar
+    :deep(.popper-reference-container) {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+}
 
 .activity-item {
     position: relative;

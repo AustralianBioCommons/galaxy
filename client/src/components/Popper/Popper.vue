@@ -75,12 +75,6 @@ defineExpose({
     @return 1px solid $border-color;
 }
 
-.popper-reference-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
 .popper-element {
     z-index: 9999;
     border-radius: $border-radius-large;
