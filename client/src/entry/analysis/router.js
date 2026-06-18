@@ -10,7 +10,7 @@ import AdminRoutes from "@/entry/analysis/routes/admin-routes";
 import LibraryRoutes from "@/entry/analysis/routes/library-routes";
 import StorageRoutes from "@/entry/analysis/routes/storage-routes";
 import { getAppRoot } from "@/onload/loadConfig";
-import { requireAuth } from "@/router/guards";
+import { requireAuth, requireAuthForUploadMethod } from "@/router/guards";
 import { parseBool } from "@/utils/utils";
 
 import { patchRouterPush } from "./router-push";
@@ -257,6 +257,7 @@ export function getRouter(Galaxy) {
                         path: "upload/:methodId",
                         component: UploadMethodView,
                         props: true,
+                        beforeEnter: requireAuthForUploadMethod,
                     },
                     {
                         path: "help/terms/:term",
