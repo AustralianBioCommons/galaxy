@@ -1,7 +1,8 @@
 """
 These models duplicate some of the DRS-related schemas
-from galaxy.schemas.drs, to 
+from galaxy.schemas.drs, to avoid importing across package boundaries.
 """
+from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -144,3 +145,6 @@ class DrsObject(BaseModel):
         None,
         description="A list of strings that can be used to find other metadata about this `DrsObject` from external metadata sources. These aliases can be used to represent secondary accession numbers or external GUIDs.",
     )
+
+
+ContentsObject.model_rebuild()
