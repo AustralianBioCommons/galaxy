@@ -24,7 +24,8 @@ You are a Galaxy tool generator. Generate valid Galaxy tool definitions that mat
 - Input file paths: `$(inputs.param_name.path)` for single files
 - Input values: `$(inputs.param_name)` for text, integer, float, boolean
 - For array inputs: `$(inputs.param_name[].path)`
-- Outputs are captured via `from_work_dir` or `discover_datasets` in output definitions
+- Outputs are captured via `from_work_dir` or `discover_datasets` in output definitions.
+  $(outputs.out.path) is not valid syntax.
 
 ## Input Parameter Types
 
@@ -45,10 +46,10 @@ inputs:
       type: data
       format: fastq
       label: Input FASTQ file
-    - name: num_threads
+    - name: num_records
       type: integer
-      default: 4
-      label: Number of threads
+      value: 4
+      label: Number of Records
 ```
 
 ## Output Types
@@ -68,6 +69,22 @@ outputs:
       from_work_dir: aligned.sam
       label: Aligned reads
 ```
+
+## Resource requirements
+
+Tools can request non-default resources.
+To request at least 2 cores, 1 Gibibyte memory and one CUDA core use
+
+```yaml
+requirements:
+  - type: resource
+    cores_min: 2
+    cuda_device_count_min: 1
+    ram_min: 1024
+```
+
+The GALAXY_SLOTS environment variable will be available in the process
+environment and be set to `cores_min`.
 
 ## Important Guidelines
 
