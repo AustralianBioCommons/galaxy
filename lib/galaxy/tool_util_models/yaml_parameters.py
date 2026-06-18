@@ -191,9 +191,29 @@ def _split_format(v):
 class YamlDataParameter(_YamlParamBase):
     type: Literal["data"]
     format: List[str] = ["data"]
-    multiple: bool = False
-    min: Optional[int] = None
-    max: Optional[int] = None
+    multiple: Annotated[
+        bool,
+        Field(description="Set true to accept several datasets (a list) for this input instead of one."),
+    ] = False
+    min: Annotated[
+        Optional[int],
+        Field(
+            description=(
+                "Minimum number of datasets the user must select. ONLY valid when 'multiple' is true. "
+                "Do NOT set this for a single-dataset input -- a data input is already required by default, "
+                "so leave 'min' unset unless the input accepts multiple datasets."
+            )
+        ),
+    ] = None
+    max: Annotated[
+        Optional[int],
+        Field(
+            description=(
+                "Maximum number of datasets the user may select. ONLY valid when 'multiple' is true; "
+                "leave unset for a single-dataset input."
+            )
+        ),
+    ] = None
 
     @field_validator("format", mode="before")
     @classmethod
