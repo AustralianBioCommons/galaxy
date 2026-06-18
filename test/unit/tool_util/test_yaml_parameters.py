@@ -381,6 +381,7 @@ def test_help_string_lenient_coerces_strict_rejects():
         "help": "### plain string help",
     }
     t = UserToolSourceAuthoringView.model_validate(doc, context=AGENT_LENIENT_CONTEXT)
+    assert t.help is not None
     assert t.help.format == "markdown" and t.help.content == "### plain string help"
 
     with pytest.raises(ValidationError):
@@ -431,7 +432,10 @@ def test_select_top_level_value_lenient_coerces_strict_rejects():
 def test_collection_output_wraps_single_discover_datasets_lenient_only():
     """Agent-ingest (lenient): a single discovery descriptor object is wrapped into a
     one-element list. Strict: reject ('Input should be a valid array')."""
-    from galaxy.tool_util_models.tool_outputs import IncomingToolOutputCollection
+    from galaxy.tool_util_models.tool_outputs import (
+        FilePatternDatasetCollectionDescription,
+        IncomingToolOutputCollection,
+    )
 
     doc = {
         "type": "collection",
@@ -442,7 +446,9 @@ def test_collection_output_wraps_single_discover_datasets_lenient_only():
     out = IncomingToolOutputCollection.model_validate(doc, context=AGENT_LENIENT_CONTEXT)
     assert isinstance(out.discover_datasets, list)
     assert len(out.discover_datasets) == 1
-    assert out.discover_datasets[0].pattern == "split_.*\\.fasta"
+    first = out.discover_datasets[0]
+    assert isinstance(first, FilePatternDatasetCollectionDescription)
+    assert first.pattern == "split_.*\\.fasta"
 
     with pytest.raises(ValidationError):
         IncomingToolOutputCollection.model_validate(doc)
@@ -453,7 +459,10 @@ def test_collection_discovery_only_requires_pattern():
     attributes default to the XML parser's values (visible=False, recurse=False,
     sort_key=filename, sort_comp=lexical, discover_via=pattern). Requiring all of
     them made `discover_datasets` nearly impossible to author by hand."""
-    from galaxy.tool_util_models.tool_outputs import IncomingToolOutputCollection
+    from galaxy.tool_util_models.tool_outputs import (
+        FilePatternDatasetCollectionDescription,
+        IncomingToolOutputCollection,
+    )
 
     out = IncomingToolOutputCollection.model_validate(
         {
@@ -463,7 +472,9 @@ def test_collection_discovery_only_requires_pattern():
             "discover_datasets": [{"pattern": "split_.*\\.fasta", "format": "fasta"}],
         }
     )
+    assert out.discover_datasets is not None
     d = out.discover_datasets[0]
+    assert isinstance(d, FilePatternDatasetCollectionDescription)
     assert d.discover_via == "pattern"
     assert (d.visible, d.assign_primary_output, d.recurse, d.match_relative_path) == (False, False, False, False)
     assert (d.sort_key, d.sort_comp) == ("filename", "lexical")

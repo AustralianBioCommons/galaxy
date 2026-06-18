@@ -372,7 +372,9 @@ class UserToolSource(UserToolSourceAuthoringView):
     # Relax ``version`` back to optional for the persisted/full model: stored rows
     # and API submissions from older Galaxy versions may lack it, and the lift path
     # must still validate them. Only the LLM-authoring view (parent) requires it.
-    version: Optional[str] = None
+    # mypy flags the parent's required ``str`` being widened to ``Optional[str]``;
+    # pydantic supports the override and the relaxation is intentional here.
+    version: Optional[str] = None  # type: ignore[assignment]
     tests: Optional[List["YamlToolTest"]] = None
 
 
