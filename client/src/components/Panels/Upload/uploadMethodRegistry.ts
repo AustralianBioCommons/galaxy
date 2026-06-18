@@ -11,13 +11,14 @@ import {
     faSitemap,
     faTable,
 } from "@fortawesome/free-solid-svg-icons";
+import { storeToRefs } from "pinia";
 import { computed, type ComputedRef, defineAsyncComponent, type Ref } from "vue";
 
 import { useConfig } from "@/composables/config";
 import { useUploadAdvancedMode } from "@/composables/upload/uploadAdvancedMode";
+import { useUserStore } from "@/stores/userStore";
 
 import type { UploadMethod, UploadMethodConfig } from "./types";
-import type { UploadModalConfig } from "./uploadModalTypes";
 
 export const uploadMethodRegistry: Record<UploadMethod, UploadMethodConfig> = {
     "local-file": {
@@ -209,17 +210,25 @@ export function useAllUploadMethods(): ComputedRef<UploadMethodConfig[]> {
 }
 
 /**
- * Reactive list of upload methods filtered by modal config and Galaxy config requirements.
+ * Reactive list of upload methods filtered by allowed methods, Galaxy config, and login requirements.
+ *
+ * @param allowedMethods - Optional list of allowed upload method IDs. When `undefined`,
+ * only `requiresLogin`, `requiresConfig`, and `requiresAdvancedMode` filters are applied.
  */
-export function useFilteredUploadMethods(config: Ref<UploadModalConfig>): ComputedRef<UploadMethodConfig[]> {
+export function useFilteredUploadMethods(
+    allowedMethods?: Ref<UploadMethod[] | undefined>,
+): ComputedRef<UploadMethodConfig[]> {
     const allMethods = useAllUploadMethods();
     const { config: galaxyConfig, isConfigLoaded } = useConfig();
+    const { isAnonymous } = storeToRefs(useUserStore());
 
     return computed(() => {
-        const allowedMethods = config.value.allowedMethods;
-
         return allMethods.value.filter((method) => {
-            if (allowedMethods && !allowedMethods.some((allowedMethod) => allowedMethod === method.id)) {
+            if (method.requiresLogin && isAnonymous.value) {
+                return false;
+            }
+
+            if (allowedMethods?.value && !allowedMethods.value.some((allowedMethod) => allowedMethod === method.id)) {
                 return false;
             }
 
