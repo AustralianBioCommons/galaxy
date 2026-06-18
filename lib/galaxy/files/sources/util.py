@@ -15,7 +15,7 @@ from galaxy.files.models import (
     FilesSourceOptions,
     PartialFilesSourceProperties,
 )
-from galaxy.files.sources.schemas import DrsObject
+from galaxy.schema.drs import DrsObject
 from galaxy.files.uris import stream_url_to_file
 from galaxy.util import (
     DEFAULT_SOCKET_TIMEOUT,
