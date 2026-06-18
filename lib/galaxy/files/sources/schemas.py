@@ -2,12 +2,17 @@
 These models duplicate some of the DRS-related schemas
 from galaxy.schemas.drs, to avoid importing across package boundaries.
 """
+
 from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    Field,
+)
 
 
 class SupportedType(Enum):
@@ -85,6 +90,7 @@ class ContentsObject(BaseModel):
         None,
         description='If this ContentsObject describes a nested bundle and the caller specified "?expand=true" on the request, then this contents array must be present and describe the objects within the nested bundle.',
     )
+
 
 class Checksum(BaseModel):
     checksum: Optional[str] = Field(..., description="The hex-string encoded checksum for the data")
