@@ -40,6 +40,7 @@ from typing_extensions import (
 
 from ._base import (
     CollectionType,
+    lenient_coercion_enabled,
     StrictModel,
     ToolSourceBaseModel,
 )
@@ -199,6 +200,17 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
         if isinstance(values, dict):
             normalize_dict(values, ["inputs", "outputs"])
         return values
+
+    @field_validator("help", mode="before")
+    @classmethod
+    def _coerce_help_string(cls, v, info):
+        # LLMs (and authors used to the XML <help> element) naturally provide help as
+        # a plain string, but the model stores it as {format, content}. In agent-ingest
+        # mode, accept a bare string and treat it as markdown; strict validation
+        # requires the explicit {format, content} object.
+        if lenient_coercion_enabled(info) and isinstance(v, str):
+            return {"format": "markdown", "content": v}
+        return v
 
     @field_validator("name", "version", mode="after")
     @classmethod
