@@ -1379,5 +1379,48 @@ class TestWorkflowExtractionSummaryApi(_ExtractionHelpersMixin, BaseWorkflowsApi
                 assert isinstance(job["checked"], bool)
                 assert isinstance(job["outputs"], list)
 
+    @skip_without_tool("cat1")
+    def test_extraction_summary_includes_hidden_intermediate(self):
+        # Histories produced by IWC-style workflows hide their intermediate
+        # datasets. The summary must still surface the jobs behind those hidden
+        # intermediates so the whole provenance graph can be extracted - not
+        # just the chain of visible outputs.
+        with self.dataset_populator.test_history() as history_id:
+            hda1 = self.dataset_populator.new_dataset(history_id, content="foo\nbar", wait=True)
+            first_run = self.dataset_populator.run_tool(
+                "cat1", {"input1": {"src": "hda", "id": hda1["id"]}}, history_id
+            )
+            self.dataset_populator.wait_for_history(history_id, assert_ok=True)
+            intermediate = first_run["outputs"][0]
+            self.dataset_populator.hide_dataset(intermediate["id"])
+
+            self.dataset_populator.run_tool("cat1", {"input1": {"src": "hda", "id": intermediate["id"]}}, history_id)
+            self.dataset_populator.wait_for_history(history_id, assert_ok=True)
+
+            summary = self._get_extraction_summary(history_id)
+            tool_jobs = [j for j in summary["jobs"] if j["step_type"] == "tool"]
+            # Both cat1 jobs must appear even though the dataset bridging them is
+            # hidden; before the fix only the job behind the visible output did.
+            assert len(tool_jobs) == 2, summary["jobs"]
+            assert all(j["checked"] for j in tool_jobs), summary["jobs"]
+
+    @skip_without_tool("random_lines1")
+    def test_extraction_summary_no_spurious_rows_for_mapover_elements(self):
+        # Map-over hides each per-element output dataset. Surfacing hidden contents
+        # must not turn those elements into their own job cards - the mapped step
+        # (its implicit collection) represents them; otherwise a pair yields a
+        # spurious extra card per element.
+        with self.dataset_populator.test_history() as history_id:
+            hdca = self.dataset_collection_populator.create_pair_in_history(
+                history_id, contents=["1 2 3\n4 5 6", "7 8 9\n10 11 10"], wait=True
+            ).json()["outputs"][0]
+            inputs = {"input": {"batch": True, "values": [{"src": "hdca", "id": hdca["id"]}]}, "num_lines": 1}
+            self._run_tool_get_collection_and_job_id(history_id, "random_lines1", inputs)
+
+            summary = self._get_extraction_summary(history_id)
+            tool_jobs = [j for j in summary["jobs"] if j["step_type"] == "tool"]
+            assert len(tool_jobs) == 1, summary["jobs"]
+            assert tool_jobs[0]["implicit_collection_jobs_id"] is not None, tool_jobs[0]
+
 
 RunJobsSummary = namedtuple("RunJobsSummary", ["history_id", "workflow_id", "inputs", "jobs"])
