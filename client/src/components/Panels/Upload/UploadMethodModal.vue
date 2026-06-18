@@ -211,6 +211,8 @@ async function handleStartClick() {
                             :description="method.description"
                             :title-icon="{ icon: method.icon, class: 'text-primary', size: 'lg' }"
                             :selected="selectedMethod?.id === method.id"
+                            :disabled="method.disabled"
+                            :disabled-title="method.disabledTitle"
                             @click="selectMethod(method)" />
                     </div>
                 </aside>

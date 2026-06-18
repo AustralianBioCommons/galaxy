@@ -101,6 +101,8 @@ function getStagingBadges(method: UploadMethodConfig): CardBadge[] {
                         :title-icon="{ icon: method.icon, class: 'text-primary', size: 'lg' }"
                         :badges="getStagingBadges(method)"
                         :data-method-id="method.id"
+                        :disabled="method.disabled"
+                        :disabled-title="method.disabledTitle"
                         @click="selectUploadMethod(method)" />
                 </template>
             </ScrollList>

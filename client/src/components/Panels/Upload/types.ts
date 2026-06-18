@@ -86,9 +86,20 @@ export interface UploadMethodConfig {
     /**
      * When true, this upload method requires the user to be logged in.
      *
-     * Methods with this flag will be hidden from anonymous users.
+     * Methods with this flag will be disabled for anonymous users.
      */
     requiresLogin?: boolean;
+
+    /**
+     * When true, this upload method is disabled and not interactive.
+     * Set reactively by `useFilteredUploadMethods` based on login state.
+     */
+    disabled?: boolean;
+
+    /**
+     * Tooltip text displayed when the method is disabled.
+     */
+    disabledTitle?: string;
 
     /**
      * When true, the Start button in the footer will be shown.

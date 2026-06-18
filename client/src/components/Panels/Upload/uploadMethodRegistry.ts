@@ -223,20 +223,35 @@ export function useFilteredUploadMethods(
     const { isAnonymous } = storeToRefs(useUserStore());
 
     return computed(() => {
-        return allMethods.value.filter((method) => {
-            if (method.requiresLogin && isAnonymous.value) {
-                return false;
-            }
+        return allMethods.value
+            .map((method) => {
+                let disabled = false;
+                let disabledTitle: string | undefined;
 
-            if (allowedMethods?.value && !allowedMethods.value.some((allowedMethod) => allowedMethod === method.id)) {
-                return false;
-            }
+                if (method.requiresLogin && isAnonymous.value) {
+                    disabled = true;
+                    disabledTitle = "You must be logged in to use this feature";
+                }
 
-            if (!isConfigLoaded.value || !method.requiresConfig) {
-                return true;
-            }
+                if (disabled) {
+                    return { ...method, disabled, disabledTitle };
+                }
 
-            return method.requiresConfig.every((configKey) => Boolean(galaxyConfig.value[configKey]));
-        });
+                return method;
+            })
+            .filter((method) => {
+                if (
+                    allowedMethods?.value &&
+                    !allowedMethods.value.some((allowedMethod) => allowedMethod === method.id)
+                ) {
+                    return false;
+                }
+
+                if (!isConfigLoaded.value || !method.requiresConfig) {
+                    return true;
+                }
+
+                return method.requiresConfig.every((configKey) => Boolean(galaxyConfig.value[configKey]));
+            });
     });
 }
