@@ -3498,11 +3498,30 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    How often (in seconds) the Celery beat task emits queue-depth,
-    SSE-connection, and WorkerProcess gauges. Only active when
-    statsd_host is set. Set to 0 to disable.
+    How often (in seconds) background observability gauges are
+    sampled: control-queue depth and WorkerProcess counts from the
+    Celery beat task, and (when enable_sse_connection_metrics is set)
+    active SSE-connection counts from each web worker. This is the
+    shared cadence for all of them. Only active when statsd_host is
+    set. Set to 0 to disable all background gauges.
 :Default: ``15``
 :Type: int
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``enable_sse_connection_metrics``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Emit the galaxy.sse.connections.active gauge from each web worker,
+    reporting how many Server-Sent Events connections that worker
+    currently holds (tagged by kind and server_name). Sampled on the
+    queue_metrics_interval cadence. Off by default so that enabling
+    statsd does not by itself start measuring SSE connections;
+    requires statsd_host to be set and queue_metrics_interval greater
+    than 0.
+:Default: ``false``
+:Type: bool
 
 
 ~~~~~~~~~~~~~~~~~~~~~~

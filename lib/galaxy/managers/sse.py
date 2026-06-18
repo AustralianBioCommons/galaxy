@@ -7,6 +7,7 @@ to async SSE endpoint handlers running in the uvicorn event loop.
 
 import asyncio
 import logging
+import threading
 from collections import defaultdict
 from collections.abc import (
     AsyncIterator,
@@ -274,6 +275,29 @@ class SSEConnectionManager:
         """Number of active SSE connections bound to a specific user_id."""
         return sum(len(queues) for queues in self._connections.values())
 
+    def emit_connection_gauges(self, server_name: str) -> None:
+        """Publish this worker's SSE connection counts as statsd gauges.
+
+        No-ops when statsd isn't configured. The counts are per-process — only
+        the worker holding a connection knows about it — so this must be called
+        from the web worker that owns the manager, and each worker tags its
+        sample with ``server_name`` so the per-worker series don't collide
+        (statsd gauges are last-write-wins per metric+tag set). Sum across
+        workers for a cluster total.
+        """
+        if self._statsd_client is None:
+            return
+        self._statsd_client.gauge(
+            "galaxy.sse.connections.active",
+            self.total_broadcast_connections,
+            tags={"kind": "broadcast", "server_name": server_name},
+        )
+        self._statsd_client.gauge(
+            "galaxy.sse.connections.active",
+            self.total_per_user_connections,
+            tags={"kind": "per_user", "server_name": server_name},
+        )
+
     # -- High-level streaming helper --
 
     async def stream(
@@ -311,3 +335,33 @@ class SSEConnectionManager:
                     yield ": keepalive\n\n"
         finally:
             self.disconnect(user_id, queue, galaxy_session_id)
+
+
+class SSEConnectionGaugeEmitter(threading.Thread):
+    """Periodically publish a web worker's SSE connection-count gauges.
+
+    Runs as a daemon thread inside each web worker — the only process that
+    knows how many SSE connections it holds. Sampling these counts from the
+    Celery beat task instead would always report zero, since that process has
+    no live connections. Reads are plain ``len()`` over the manager's
+    in-memory sets; a transient race with connect/disconnect is acceptable for
+    a monitoring gauge.
+    """
+
+    def __init__(self, manager: SSEConnectionManager, server_name: str, interval: int = 15) -> None:
+        super().__init__(name=f"sse_connection_gauge.{server_name}", daemon=True)
+        self._manager = manager
+        self._server_name = server_name
+        self._interval = interval
+        self._exit = threading.Event()
+
+    def run(self) -> None:
+        while not self._exit.is_set():
+            try:
+                self._manager.emit_connection_gauges(self._server_name)
+            except Exception:
+                log.warning("Failed to emit SSE connection gauges", exc_info=True)
+            self._exit.wait(self._interval)
+
+    def shutdown(self) -> None:
+        self._exit.set()
