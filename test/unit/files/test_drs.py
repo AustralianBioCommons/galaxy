@@ -12,7 +12,7 @@ from galaxy.files import (
     DictFileSourcesUserContext,
     ProvidesFileSourcesUserContext,
 )
-from galaxy.schema.drs import DrsObject
+from galaxy.files.sources.schemas import DrsObject
 from ._util import (
     assert_realizes_as,
     assert_realizes_contains,
