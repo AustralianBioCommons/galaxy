@@ -12,7 +12,6 @@ from typing import (
 from urllib.parse import urlparse
 
 from celery import current_task
-from lagom.exceptions import UnresolvableType
 from sqlalchemy import (
     and_,
     create_engine,
@@ -50,7 +49,6 @@ from galaxy.managers.markdown_util import generate_branded_pdf
 from galaxy.managers.model_stores import ModelStoreManager
 from galaxy.managers.notification import NotificationManager
 from galaxy.managers.queue_metrics import emit_queue_metrics
-from galaxy.managers.sse import SSEConnectionManager
 from galaxy.managers.tool_data import ToolDataImportManager
 from galaxy.managers.workflow_completion import WorkflowCompletionManager
 from galaxy.metadata.set_metadata import set_metadata_portable
@@ -770,25 +768,23 @@ def dispatch_pending_notifications(notification_manager: NotificationManager):
         log.info(f"Successfully dispatched {count} notifications.")
 
 
-@galaxy_task(action="emit queue and SSE observability metrics")
+@galaxy_task(action="emit queue and worker-process observability metrics")
 def emit_queue_metrics_task(app: MinimalManagerApp):
-    """Sample control-queue depth, SSE connection count, and worker rows → statsd.
+    """Sample control-queue depth and worker rows → statsd.
 
     Resolves the narrow collaborators ``emit_queue_metrics`` needs from the app
     container and passes them in — keeps the emitter module free of
     ``StructuredApp`` service-locator lookups.
-    """
-    try:
-        sse_manager: Optional[SSEConnectionManager] = app[SSEConnectionManager]
-    except UnresolvableType:
-        sse_manager = None
 
+    SSE connection counts are emitted by the web workers themselves (see
+    ``galaxy.managers.sse.SSEConnectionGaugeEmitter``); the Celery worker has no
+    live connections to sample.
+    """
     emit_queue_metrics(
         statsd_client=app.execution_timer_factory.galaxy_statsd_client,
         connection=app.amqp_internal_connection_obj,
         application_stack=app.application_stack,
         model=app.model,
-        sse_manager=sse_manager,
     )
 
 

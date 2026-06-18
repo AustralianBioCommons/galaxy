@@ -78,7 +78,10 @@ from galaxy.managers.notification import NotificationManager
 from galaxy.managers.object_store_instances import UserObjectStoreResolverImpl
 from galaxy.managers.roles import RoleManager
 from galaxy.managers.session import GalaxySessionManager
-from galaxy.managers.sse import SSEConnectionManager
+from galaxy.managers.sse import (
+    SSEConnectionGaugeEmitter,
+    SSEConnectionManager,
+)
 from galaxy.managers.sse_dispatch import SSEEventDispatcher
 from galaxy.managers.tasks import (
     AsyncTasksManager,
@@ -845,6 +848,7 @@ class UniverseApplication(StructuredApp, GalaxyManagerApplication, InstallationT
             ("queue worker", self._shutdown_queue_worker),
             ("file watcher", self._shutdown_watcher),
             ("database heartbeat", self._shutdown_database_heartbeat),
+            ("SSE connection gauge emitter", self._shutdown_sse_connection_gauge_emitter),
             ("history audit monitor", self._shutdown_history_audit_monitor),
             ("workflow scheduler", self._shutdown_scheduling_manager),
             ("object store", self._shutdown_object_store),
@@ -1028,6 +1032,31 @@ class UniverseApplication(StructuredApp, GalaxyManagerApplication, InstallationT
             monitor = self._register_singleton(HistoryAuditMonitor)
             self.database_heartbeat.add_audit_monitor_change_callback(monitor.on_role_change)
 
+        # Per-worker SSE connection-count gauge. The SSEConnectionManager is
+        # per-process state, so it must be sampled here in each web worker
+        # rather than from the Celery beat task (which holds no connections and
+        # would always report zero). Opt-in (enable_sse_connection_metrics) and
+        # only when statsd is actually configured (a non-None client) and the
+        # shared queue_metrics_interval cadence is enabled. The server_name is
+        # read post-fork so each worker tags its own series.
+        self.sse_connection_gauge_emitter: Optional[SSEConnectionGaugeEmitter] = None
+        statsd_client = self.execution_timer_factory.galaxy_statsd_client
+        if (
+            statsd_client is not None
+            and self.config.enable_sse_connection_metrics
+            and self.config.queue_metrics_interval > 0
+        ):
+
+            def _start_sse_connection_gauge_emitter():
+                self.sse_connection_gauge_emitter = SSEConnectionGaugeEmitter(
+                    self[SSEConnectionManager],
+                    self.config.server_name,
+                    interval=self.config.queue_metrics_interval,
+                )
+                self.sse_connection_gauge_emitter.start()
+
+            self.application_stack.register_postfork_function(_start_sse_connection_gauge_emitter)
+
         # Start web stack message handling
         self.application_stack.register_postfork_function(self.application_stack.start)
         self.application_stack.register_postfork_function(self.queue_worker.bind_and_start)
@@ -1061,6 +1090,10 @@ class UniverseApplication(StructuredApp, GalaxyManagerApplication, InstallationT
 
     def _shutdown_database_heartbeat(self):
         self.database_heartbeat.shutdown()
+
+    def _shutdown_sse_connection_gauge_emitter(self):
+        if self.sse_connection_gauge_emitter is not None:
+            self.sse_connection_gauge_emitter.shutdown()
 
     def _shutdown_history_audit_monitor(self):
         if not self.config.enable_sse_updates:
