@@ -41,6 +41,7 @@ from galaxy.managers.session import GalaxySessionManager
 from galaxy.managers.users import UserManager
 from galaxy.model import History
 from galaxy.model.base import ensure_object_added_to_session
+from galaxy.model.orm.now import now as utc_now
 from galaxy.structured_app import (
     BasicSharedApp,
     MinimalApp,
@@ -383,7 +384,7 @@ class GalaxyWebTransaction(base.DefaultWebTransaction, context.ProvidesHistoryCo
                 #
                 # Make sure we're not past the duration, and either log out or
                 # update timestamp.
-                now = datetime.datetime.now()
+                now = utc_now()
                 if self.galaxy_session.last_action:
                     expiration_time = self.galaxy_session.last_action + datetime.timedelta(
                         minutes=config.session_duration
