@@ -195,46 +195,6 @@ cases:
       citations: null
     valid: true
 
-  # NOTE: these cases validate the STRICT, canonical UserToolSource (no lenient
-  # context). The liberal-input coercions (string help, `min` on single data, a
-  # select `value`, a single discover_datasets object) are scoped to agent ingest
-  # and are exercised in test_yaml_parameters with the lenient validation context.
-
-  - name: help_as_plain_string_rejected_strict
-    # Strict path requires the {format, content} object; the string form is only
-    # accepted in agent-ingest (lenient) mode.
-    doc:
-      help: "### Overview\nThis tool does a thing."
-    expected_errors:
-      - loc: help
-        code: model_type
-
-  - name: data_min_without_multiple_rejected_strict
-    # `min`/`max` on a single data parameter blow up at tool-build time
-    # (galaxy.tools.parameters.basic.DataToolParameter); the strict path rejects
-    # them. (Agent ingest drops the meaningless bound instead.)
-    doc:
-      inputs:
-        - {type: data, name: data_input, min: 1}
-    expected_errors:
-      - loc: inputs.0.data
-        code: dynamic_tool.data_min_max_requires_multiple
-
-  - name: data_max_without_multiple_rejected_strict
-    doc:
-      inputs:
-        - {type: data, name: data_input, max: 5}
-    expected_errors:
-      - loc: inputs.0.data
-        code: dynamic_tool.data_min_max_requires_multiple
-
-  - name: data_min_max_with_multiple_accepted
-    doc:
-      shell_command: "cat '$(inputs.data_input.path)' > out.txt"
-      inputs:
-        - {type: data, name: data_input, multiple: true, min: 1, max: 5}
-    valid: true
-
   - name: format_validation_errors_distillation
     # Exact distilled bullet text used by ``format_validation_errors`` so
     # downstream UIs (the agent's bullet list, API 4xx bodies) have a

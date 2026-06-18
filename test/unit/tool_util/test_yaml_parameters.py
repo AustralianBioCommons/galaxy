@@ -15,7 +15,6 @@ from galaxy.tool_util_models import (
     UserToolSource,
     UserToolSourceAuthoringView,
 )
-from galaxy.tool_util_models._base import AGENT_LENIENT_CONTEXT
 from galaxy.tool_util_models.parameters import (
     BooleanParameterModel,
     ConditionalParameterModel,
@@ -31,9 +30,8 @@ from galaxy.tool_util_models.parameters import (
 from galaxy.tool_util_models.yaml_parameters import YamlGalaxyToolParameter
 
 
-def _validate(input_dict, lenient=False):
-    context = AGENT_LENIENT_CONTEXT if lenient else None
-    return YamlGalaxyToolParameter.model_validate(input_dict, context=context)
+def _validate(input_dict):
+    return YamlGalaxyToolParameter.model_validate(input_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -366,92 +364,6 @@ def test_authoring_view_drops_tests_and_shrinks_schema():
     slim = len(json.dumps(UserToolSourceAuthoringView.model_json_schema()))
     # Generous bound; the real reduction is ~80%. Catches accidental re-inflation.
     assert slim < full * 0.5, f"authoring view not slim enough: {slim} vs {full}"
-
-
-def test_help_string_lenient_coerces_strict_rejects():
-    """Agent-ingest (lenient): a bare string `help` becomes {format: markdown, content}.
-    Strict: the object form is required."""
-    doc = {
-        "class": "GalaxyUserTool",
-        "name": "Help tool",
-        "version": "0.1.0",
-        "container": "busybox",
-        "shell_command": "echo hi > out.txt",
-        "outputs": [{"type": "data", "name": "out", "from_work_dir": "out.txt"}],
-        "help": "### plain string help",
-    }
-    t = UserToolSourceAuthoringView.model_validate(doc, context=AGENT_LENIENT_CONTEXT)
-    assert t.help is not None
-    assert t.help.format == "markdown" and t.help.content == "### plain string help"
-
-    with pytest.raises(ValidationError):
-        UserToolSourceAuthoringView.model_validate(doc)
-
-
-def test_single_data_param_drops_meaningless_min_max_lenient_only():
-    """Agent-ingest (lenient): `min`/`max` on a single data input are meaningless
-    (a model adds `min: 1` to mean "required", already the default), so drop them.
-    Strict: reject -- a human/programmatic author shouldn't have a value silently
-    discarded."""
-    p = _validate({"type": "data", "name": "x", "min": 1, "max": 3}, lenient=True)
-    assert p.root.min is None and p.root.max is None
-    assert p.root.multiple is False
-
-    with pytest.raises(ValidationError):
-        _validate({"type": "data", "name": "x", "min": 1})
-
-
-def test_multiple_data_param_keeps_min_max():
-    """When the input genuinely accepts a list (`multiple: true`), the bounds are
-    valid and preserved in both modes."""
-    for lenient in (True, False):
-        p = _validate({"type": "data", "name": "x", "multiple": True, "min": 2, "max": 5}, lenient=lenient)
-        assert (p.root.min, p.root.max) == (2, 5)
-
-
-def test_select_top_level_value_lenient_coerces_strict_rejects():
-    """Agent-ingest (lenient): a select's top-level `value` is folded into
-    `selected: true` on the matching option. Strict: `extra="forbid"` rejects it, so
-    the canonical schema keeps one way to express a default."""
-    doc = {
-        "type": "select",
-        "name": "mode",
-        "value": "invert",
-        "options": [
-            {"label": "Keep matching", "value": "match"},
-            {"label": "Invert", "value": "invert"},
-        ],
-    }
-    p = _validate(doc, lenient=True)
-    assert {o.value: o.selected for o in p.root.options} == {"match": False, "invert": True}
-
-    with pytest.raises(ValidationError):
-        _validate(doc)
-
-
-def test_collection_output_wraps_single_discover_datasets_lenient_only():
-    """Agent-ingest (lenient): a single discovery descriptor object is wrapped into a
-    one-element list. Strict: reject ('Input should be a valid array')."""
-    from galaxy.tool_util_models.tool_outputs import (
-        FilePatternDatasetCollectionDescription,
-        IncomingToolOutputCollection,
-    )
-
-    doc = {
-        "type": "collection",
-        "name": "seqs",
-        "collection_type": "list",
-        "discover_datasets": {"discover_via": "pattern", "pattern": "split_.*\\.fasta"},
-    }
-    out = IncomingToolOutputCollection.model_validate(doc, context=AGENT_LENIENT_CONTEXT)
-    assert isinstance(out.discover_datasets, list)
-    assert len(out.discover_datasets) == 1
-    first = out.discover_datasets[0]
-    assert isinstance(first, FilePatternDatasetCollectionDescription)
-    assert first.pattern == "split_.*\\.fasta"
-
-    with pytest.raises(ValidationError):
-        IncomingToolOutputCollection.model_validate(doc)
 
 
 def test_collection_discovery_only_requires_pattern():

@@ -24,16 +24,13 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
-    model_validator,
     RootModel,
 )
-from pydantic_core import PydanticCustomError
 from typing_extensions import (
     Annotated,
     Literal,
 )
 
-from ._base import lenient_coercion_enabled
 from .parameter_validators import (
     EmptyFieldParameterValidatorModel,
     InRangeParameterValidatorModel,
@@ -165,29 +162,6 @@ class YamlSelectParameter(_YamlParamBase):
     multiple: bool = False
     validators: List[YamlSelectValidators] = []
 
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_default_value(cls, data, info):
-        # LLMs naturally express a select's default as a top-level ``value`` (as
-        # other param types do), but selects mark the default via ``selected: true``
-        # on an option. In agent-ingest mode, accept ``value`` and fold it into the
-        # matching option; strict validation leaves it for ``extra="forbid"`` to
-        # reject, so the canonical schema keeps one way to express a default.
-        if lenient_coercion_enabled(info) and isinstance(data, dict) and "value" in data:
-            data = dict(data)  # don't mutate the caller's dict
-            default = data.pop("value")
-            options = data.get("options")
-            if isinstance(options, list):
-                data["options"] = [
-                    (
-                        {**option, "selected": True}
-                        if isinstance(option, dict) and option.get("value") == default
-                        else option
-                    )
-                    for option in options
-                ]
-        return data
-
     def to_internal(self) -> SelectParameterModel:
         return SelectParameterModel(
             type="select",
@@ -217,61 +191,14 @@ def _split_format(v):
 class YamlDataParameter(_YamlParamBase):
     type: Literal["data"]
     format: List[str] = ["data"]
-    multiple: Annotated[
-        bool,
-        Field(description="Set true to accept several datasets (a list) for this input instead of one."),
-    ] = False
-    min: Annotated[
-        Optional[int],
-        Field(
-            description=(
-                "Minimum number of datasets the user must select. ONLY valid when 'multiple' is true. "
-                "Do NOT set this for a single-dataset input -- a data input is already required by default, "
-                "so leave 'min' unset unless the input accepts multiple datasets."
-            )
-        ),
-    ] = None
-    max: Annotated[
-        Optional[int],
-        Field(
-            description=(
-                "Maximum number of datasets the user may select. ONLY valid when 'multiple' is true; "
-                "leave unset for a single-dataset input."
-            )
-        ),
-    ] = None
+    multiple: bool = False
+    min: Optional[int] = None
+    max: Optional[int] = None
 
     @field_validator("format", mode="before")
     @classmethod
     def _coerce_format(cls, v):
         return _split_format(v)
-
-    @model_validator(mode="after")
-    def _check_min_max_without_multiple(self, info) -> "YamlDataParameter":
-        # min/max are the min/max number of *datasets*, which only has meaning for a
-        # multiple-dataset input -- the runtime (galaxy.tools.parameters.basic
-        # .DataToolParameter) rejects them outright on a single one.
-        #
-        # Agent-ingest (lenient): LLMs routinely add `min: 1` to a single data input
-        # to mean "required" (already the default), so drop the meaningless bound
-        # rather than fail the otherwise-fine tool.
-        # Strict (API / storage): raise -- a human/programmatic author should see the
-        # mistake, not have their value silently discarded.
-        if self.multiple or (self.min is None and self.max is None):
-            return self
-        if lenient_coercion_enabled(info):
-            self.min = None
-            self.max = None
-            return self
-        for bound in ("min", "max"):
-            if getattr(self, bound) is not None:
-                raise PydanticCustomError(
-                    "dynamic_tool.data_min_max_requires_multiple",
-                    "cannot specify '{bound}' on a single data parameter; "
-                    "set 'multiple: true' if the parameter should accept multiple datasets",
-                    {"bound": bound},
-                )
-        return self
 
     def to_internal(self) -> DataParameterModel:
         return DataParameterModel(

@@ -16,7 +16,6 @@ from typing import (
 
 from pydantic import (
     Field,
-    field_validator,
     model_validator,
 )
 from typing_extensions import (
@@ -25,10 +24,7 @@ from typing_extensions import (
     TypeVar,
 )
 
-from ._base import (
-    lenient_coercion_enabled,
-    ToolSourceBaseModel,
-)
+from ._base import ToolSourceBaseModel
 
 AnyT = TypeVar("AnyT")
 NotRequired = Optional[AnyT]
@@ -36,16 +32,6 @@ IncomingNotRequiredBoolT = TypeVar("IncomingNotRequiredBoolT")
 IncomingNotRequiredStringT = TypeVar("IncomingNotRequiredStringT")
 
 # Use IncomingNotRequired when concrete key: Optional[str] = None would be incorrect
-
-
-def _single_to_list(v: Any, info: Any) -> Any:
-    # LLMs often provide a single ``discover_datasets`` descriptor object where the
-    # model expects a list of them. In agent-ingest mode, wrap a bare dict so it
-    # validates; strict validation requires the list form ("Input should be a valid
-    # array"), keeping the canonical schema to one shape.
-    if lenient_coercion_enabled(info) and isinstance(v, dict):
-        return [v]
-    return v
 
 
 class GenericToolOutputBaseModel(ToolSourceBaseModel, Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT]):
@@ -120,8 +106,6 @@ class GenericToolOutputDataset(
     ] = None
     precreate_directory: Optional[bool] = False
 
-    _wrap_discover_datasets = field_validator("discover_datasets", mode="before")(_single_to_list)
-
 
 class ToolOutputDataset(GenericToolOutputDataset[bool, str]): ...
 
@@ -166,8 +150,6 @@ class GenericToolOutputCollection(
     collection_type_from_rules: Optional[str] = None
     structured_like: Optional[str] = None
     discover_datasets: Optional[List[DatasetCollectionDescriptionT]] = None
-
-    _wrap_discover_datasets = field_validator("discover_datasets", mode="before")(_single_to_list)
 
     @model_validator(mode="before")
     @classmethod

@@ -32,7 +32,6 @@ from galaxy.tool_util_models import (
     UserToolSource,
     UserToolSourceAuthoringView,
 )
-from galaxy.tool_util_models._base import AGENT_LENIENT_CONTEXT
 from .base import (
     ActionSuggestion,
     ActionType,
@@ -190,10 +189,6 @@ class CustomToolAgent(BaseGalaxyAgent):
             output_type=UserToolSourceAuthoringView,
             system_prompt=self.get_system_prompt(),
             retries=self._get_retries(default=0),
-            # Opt this (agent-ingest) path into the liberal-input coercions. The
-            # canonical API/storage validation runs without this context and stays
-            # strict, so coercion is scoped to model output only.
-            validation_context=AGENT_LENIENT_CONTEXT,
         )
 
     def get_system_prompt(self) -> str:
