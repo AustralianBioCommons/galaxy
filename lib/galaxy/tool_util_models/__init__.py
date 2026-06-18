@@ -357,12 +357,9 @@ class UserToolSource(UserToolSourceAuthoringView):
     back here so direct authors and stored rows can still carry tests.
     """
 
-    # Relax ``version`` back to optional for the persisted/full model: stored rows
-    # and API submissions from older Galaxy versions may lack it, and the lift path
-    # must still validate them. Only the LLM-authoring view (parent) requires it.
-    # mypy flags the parent's required ``str`` being widened to ``Optional[str]``;
-    # pydantic supports the override and the relaxation is intentional here.
-    version: Optional[str] = None  # type: ignore[assignment]
+    # ``version`` is required (inherited from UserToolSourceAuthoringView). A stored
+    # row that predates the requirement won't validate; ``lift_user_tool_source``
+    # returns it as the raw dict with status "invalid" so its author still sees it.
     tests: Optional[List["YamlToolTest"]] = None
 
 
@@ -394,7 +391,9 @@ DynamicToolSources = Annotated[Union[UserToolSource, YamlToolSource], Field(disc
 #   - on `extra_forbidden`-only failure: strips the offending paths and
 #     re-validates. Returns ("lifted", parsed_model, dropped_paths).
 #   - on any other failure: returns ("invalid", original_dict, error_summary).
-#     The endpoint exposes this so legacy/broken rows don't crash the API.
+#     The endpoint exposes this so legacy/broken rows don't crash the API -- e.g.
+#     a stored row that predates the required `version` comes back as the raw dict
+#     with status "invalid", so its author can still see and fix what they defined.
 # ---------------------------------------------------------------------------
 
 LiftStatus = Literal["ok", "lifted", "invalid"]
