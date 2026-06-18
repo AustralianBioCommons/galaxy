@@ -49,24 +49,28 @@ SortKeyT = Literal["filename", "name", "designation", "dbkey"]
 SortCompT = Literal["lexical", "numeric"]
 
 
+# Defaults below mirror the XML parser (galaxy.tool_util.parser.output_collection_def):
+# every non-essential discovery attribute has a sensible default there, so an author
+# (or an LLM) only needs to supply ``pattern``. Requiring all of them in the model is
+# the friction that makes ``discover_datasets`` nearly impossible to author by hand.
 class DatasetCollectionDescription(ToolSourceBaseModel):
     discover_via: DiscoverViaT
-    format: Optional[str]
-    visible: bool
-    assign_primary_output: bool
-    directory: Optional[str]
-    recurse: bool
-    match_relative_path: bool
+    format: Optional[str] = None
+    visible: bool = False
+    assign_primary_output: bool = False
+    directory: Optional[str] = None
+    recurse: bool = False
+    match_relative_path: bool = False
 
 
 class ToolProvidedMetadataDatasetCollection(DatasetCollectionDescription):
-    discover_via: Literal["tool_provided_metadata"]
+    discover_via: Literal["tool_provided_metadata"] = "tool_provided_metadata"
 
 
 class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):
-    discover_via: Literal["pattern"]
-    sort_key: SortKeyT
-    sort_comp: SortCompT
+    discover_via: Literal["pattern"] = "pattern"
+    sort_key: SortKeyT = "filename"
+    sort_comp: SortCompT = "lexical"
     sort_reverse: bool = False
     pattern: str
 

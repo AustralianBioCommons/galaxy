@@ -366,6 +366,27 @@ def test_authoring_view_drops_tests_and_shrinks_schema():
     assert slim < full * 0.5, f"authoring view not slim enough: {slim} vs {full}"
 
 
+def test_collection_discovery_only_requires_pattern():
+    """A discovery descriptor should validate from just a `pattern`; the boilerplate
+    attributes default to the XML parser's values (visible=False, recurse=False,
+    sort_key=filename, sort_comp=lexical, discover_via=pattern). Requiring all of
+    them made `discover_datasets` nearly impossible to author by hand."""
+    from galaxy.tool_util_models.tool_outputs import IncomingToolOutputCollection
+
+    out = IncomingToolOutputCollection.model_validate(
+        {
+            "type": "collection",
+            "name": "seqs",
+            "collection_type": "list",
+            "discover_datasets": [{"pattern": "split_.*\\.fasta", "format": "fasta"}],
+        }
+    )
+    d = out.discover_datasets[0]
+    assert d.discover_via == "pattern"
+    assert (d.visible, d.assign_primary_output, d.recurse, d.match_relative_path) == (False, False, False, False)
+    assert (d.sort_key, d.sort_comp) == ("filename", "lexical")
+
+
 def test_simple_outputs_require_name_but_not_hidden_in_authoring_schema():
     """Regression: text/integer/float/boolean outputs must require `name` (a value
     output with no name can never be referenced) but must NOT require `hidden`.
