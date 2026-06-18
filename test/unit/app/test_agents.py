@@ -1341,6 +1341,21 @@ class TestAgentUnitMocked:
         assert suggestion.parameters["name"] == "RNA-seq"
         assert suggestion.priority == 1  # promoted when no tool comes back
 
+    def test_tool_rec_tool_budget_caps_then_returns_stop_message(self):
+        # Past MAX_TOOL_CALLS the budget hands back a terminal "stop searching"
+        # message instead of more data, so the model answers from what it already
+        # found rather than looping until pydantic-ai's request_limit trips and
+        # the whole turn errors out.
+        agent = ToolRecommendationAgent.__new__(ToolRecommendationAgent)
+        agent._tool_calls = 0
+
+        allowed = [agent._charge_tool_budget() for _ in range(agent.MAX_TOOL_CALLS)]
+        assert allowed == [None] * agent.MAX_TOOL_CALLS
+
+        over_budget = agent._charge_tool_budget()
+        assert over_budget is not None
+        assert "SEARCH BUDGET REACHED" in over_budget
+
     def test_tool_rec_workflow_suggestion_demoted_when_tool_present(self):
         agent = self._make_tool_rec_agent()
         # Stub _verify_tool_exists so the tool path produces a TOOL_RUN.
