@@ -84,6 +84,13 @@ export interface UploadMethodConfig {
     requiresAdvancedMode?: boolean;
 
     /**
+     * When true, this upload method requires the user to be logged in.
+     *
+     * Methods with this flag will be hidden from anonymous users.
+     */
+    requiresLogin?: boolean;
+
+    /**
      * When true, the Start button in the footer will be shown.
      *
      * Set this to false for upload methods that handle their own submission
