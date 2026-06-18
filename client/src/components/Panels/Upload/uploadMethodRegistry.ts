@@ -148,6 +148,7 @@ export const uploadMethodRegistry: Record<UploadMethod, UploadMethodConfig> = {
         icon: faHdd,
         headerAction: "Import History",
         requiresTargetHistory: false,
+        requiresLogin: true,
         showStartButton: false,
         tips: [
             "Import a complete Galaxy history from a previously exported file or URL",
@@ -163,6 +164,7 @@ export const uploadMethodRegistry: Record<UploadMethod, UploadMethodConfig> = {
         icon: faSitemap,
         headerAction: "Import Workflow",
         requiresTargetHistory: false,
+        requiresLogin: true,
         showStartButton: false,
         tips: [
             "Import workflows from Galaxy Workflow files or public URLs",
