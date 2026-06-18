@@ -6,8 +6,8 @@ from datetime import (
 from types import SimpleNamespace
 from typing import cast
 
-from galaxy.schema.drs import ContentsObject
 from galaxy.model import User
+from galaxy.schema.drs import ContentsObject
 from galaxy.tools.data_fetch import UploadConfig
 from galaxy.tools.data_fetch_utils import (
     _drs_contents_to_items,
