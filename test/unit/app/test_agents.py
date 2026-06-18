@@ -1878,6 +1878,78 @@ class TestCustomToolAgentReflection:
         assert "previous attempt" in retry_prompt.lower()
 
     @pytest.mark.asyncio
+    async def test_lint_failure_retry_anchors_prior_yaml(self):
+        """A first-attempt lint failure (tool validates but lints dirty) feeds the
+        rendered YAML back into the retry prompt so the model fixes it in place,
+        rather than regenerating blind from the error list alone."""
+        agent = CustomToolAgent(self.deps)
+
+        with mock.patch.object(
+            agent.agent,
+            "run",
+            side_effect=[
+                _mock_run_result(_valid_tool()),
+                _mock_run_result(_valid_tool()),
+            ],
+        ) as mock_run:
+            # Tool validates both times; lint fails the first attempt, passes the second.
+            with mock.patch(
+                "galaxy.agents.custom_tool.lint_user_tool_source",
+                side_effect=[["container 'busybox' has an unexpected shape"], []],
+            ):
+                response = await agent.process("Create a tool")
+
+        assert mock_run.call_count == 2
+        retry_prompt = mock_run.call_args_list[1][0][0]
+        # The previous attempt's YAML is embedded and the model is told to patch it.
+        assert "```yaml" in retry_prompt
+        assert "fix it in place" in retry_prompt.lower()
+        # The specific lint error is carried through as a numbered problem.
+        assert "unexpected shape" in retry_prompt
+        assert response.confidence == ConfidenceLevel.HIGH
+
+    def test_invalid_attempt_yaml_recovers_rejected_tool_call_args(self):
+        """A schema-validation failure has no constructed model, but the model's
+        rejected tool-call args can still be recovered from the run messages and
+        rendered as YAML for the retry to patch."""
+        from pydantic_ai.messages import (
+            ModelResponse,
+            ToolCallPart,
+        )
+
+        from galaxy.agents.custom_tool import _invalid_attempt_yaml
+
+        messages = [
+            ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="final_result",
+                        args='{"class": "GalaxyUserTool", "name": "My Tool", '
+                        '"inputs": [{"type": "data", "name": "x", "min": 1}]}',
+                    )
+                ]
+            )
+        ]
+        out = _invalid_attempt_yaml(messages)
+        assert out is not None
+        assert "name: My Tool" in out
+        assert "min: 1" in out
+
+    def test_invalid_attempt_yaml_unrecoverable_returns_none(self):
+        from pydantic_ai.messages import (
+            ModelResponse,
+            ToolCallPart,
+        )
+
+        from galaxy.agents.custom_tool import _invalid_attempt_yaml
+
+        # No tool call at all.
+        assert _invalid_attempt_yaml([]) is None
+        # Malformed JSON surfaces as pydantic-ai's INVALID_JSON sentinel, not a tool.
+        malformed = [ModelResponse(parts=[ToolCallPart(tool_name="final_result", args="{not json")])]
+        assert _invalid_attempt_yaml(malformed) is None
+
+    @pytest.mark.asyncio
     async def test_validator_retry_exhausted_returns_validation_failure(self):
         """Both producer calls fail validation -> low-confidence validation_failed."""
         agent = CustomToolAgent(self.deps)
