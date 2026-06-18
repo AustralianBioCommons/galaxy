@@ -11,7 +11,10 @@ import pytest
 from pydantic import ValidationError
 
 from galaxy.tool_util.parameters.convert import assert_yaml_v1_parameters
-from galaxy.tool_util_models import UserToolSource
+from galaxy.tool_util_models import (
+    UserToolSource,
+    UserToolSourceAuthoringView,
+)
 from galaxy.tool_util_models.parameters import (
     BooleanParameterModel,
     ConditionalParameterModel,
@@ -343,6 +346,32 @@ def test_assert_yaml_v1_parameters_walks_nested_groups():
     repeat = RepeatParameterModel(type="repeat", name="r", parameters=[hidden], min=None, max=None)
     with pytest.raises(AssertionError):
         assert_yaml_v1_parameters([repeat])
+
+
+def test_authoring_view_drops_tests_and_shrinks_schema():
+    """The LLM-facing authoring view omits the `tests` block, which pulls in the
+    test-assertion DSL (~70% of the full schema). This is what keeps the
+    structured-output schema small; guard against `tests` creeping back onto the
+    shared base (which would silently re-inflate it)."""
+    import json
+
+    assert "tests" not in UserToolSourceAuthoringView.model_fields
+    assert "tests" in UserToolSource.model_fields
+    # A produced view is a strict subset and promotes to a full UserToolSource.
+    assert issubclass(UserToolSource, UserToolSourceAuthoringView)
+
+    full = len(json.dumps(UserToolSource.model_json_schema()))
+    slim = len(json.dumps(UserToolSourceAuthoringView.model_json_schema()))
+    # Generous bound; the real reduction is ~80%. Catches accidental re-inflation.
+    assert slim < full * 0.5, f"authoring view not slim enough: {slim} vs {full}"
+
+
+def test_authoring_view_round_trips_to_user_tool_source():
+    view = UserToolSourceAuthoringView.model_validate(CAT_USER_DEFINED)
+    tool = UserToolSource.model_validate(view.model_dump(by_alias=True))
+    assert isinstance(tool, UserToolSource)
+    assert tool.id == view.id
+    assert tool.tests is None
 
 
 def test_published_tool_source_schema_has_no_xml_only_leaks():
