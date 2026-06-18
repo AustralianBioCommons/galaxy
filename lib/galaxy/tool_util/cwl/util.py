@@ -26,7 +26,6 @@ from typing_extensions import (
 )
 
 from galaxy.util import (
-    str_removeprefix,
     unicodify,
 )
 
@@ -664,9 +663,9 @@ def guess_artifact_type(path):
         if not object_id:
             object_id = "main"  # default object id
 
-        # Have to use str_removeprefix() instead of rstrip() because only the
+        # Have to use str.removeprefix() instead of rstrip() because only the
         # first '#' should be removed from the object id
-        matching_objects = [o for o in objects if str_removeprefix(o["id"], "#") == object_id]
+        matching_objects = [o for o in objects if o["id"].removeprefix("#") == object_id]
         if len(matching_objects) == 0:
             raise Exception(f"No process object with id [{object_id}]")
         if len(matching_objects) > 1:

@@ -13,7 +13,6 @@ import json
 import os
 import random
 import re
-import shlex
 import shutil
 import smtplib
 import stat
@@ -162,14 +161,6 @@ from .path import (  # noqa: F401
 )
 from .rst_to_html import rst_to_html  # noqa: F401
 
-try:
-    shlex_join = shlex.join  # type: ignore[attr-defined, unused-ignore]
-except AttributeError:
-    # Python < 3.8
-    def shlex_join(split_command):
-        return " ".join(map(shlex.quote, split_command))
-
-
 if TYPE_CHECKING:
     from galaxy.util.resources import Traversable
 
@@ -204,13 +195,6 @@ defaultdict = collections.defaultdict
 UNKNOWN = "unknown"
 
 DOI_MAX_LENGTH = 200  # This is a reasonable limit. The DOI spec does not set a limit.
-
-
-def str_removeprefix(s: str, prefix: str):
-    """
-    str.removeprefix() equivalent for Python < 3.9
-    """
-    return s.removeprefix(prefix)
 
 
 @overload

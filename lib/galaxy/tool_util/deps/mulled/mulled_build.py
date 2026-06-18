@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import platform as _platform_module
+import shlex
 import shutil
 import stat
 import string
@@ -44,7 +45,6 @@ from galaxy.util import (
     commands,
     download_to_file,
     safe_makedirs,
-    shlex_join,
     unicodify,
 )
 from ._cli import arg_parser
@@ -457,7 +457,7 @@ def mull_targets(
 
     if dry_run:
         cmd = involucro_context.build_command(involucro_args)
-        print(f"Executing: {shlex_join(cmd)}")
+        print(f"Executing: {shlex.join(cmd)}")
         return 0
 
     ensure_installed(involucro_context, True)
