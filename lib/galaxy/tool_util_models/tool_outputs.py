@@ -165,33 +165,66 @@ class IncomingToolOutputCollection(GenericToolOutputCollection[NotRequired[bool]
     hidden: Annotated[Optional[bool], Field(description="If true, the output will not be shown in the history.")] = None
 
 
-class ToolOutputSimple(GenericToolOutputBaseModel):
+class GenericToolOutputSimple(
+    GenericToolOutputBaseModel[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+    Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+):
     pass
 
 
-class ToolOutputText(ToolOutputSimple):
+# Internal / parser-facing variants: ``name`` and ``hidden`` are required, matching
+# how ``ToolOutput*Model`` instances are constructed in the output parser (which
+# always supplies both). Binding the type vars to ``[bool, str]`` mirrors
+# ``ToolOutputDataset`` / ``ToolOutputCollection``.
+class ToolOutputText(GenericToolOutputSimple[bool, str]):
     type: Literal["text"]
 
 
-class ToolOutputInteger(ToolOutputSimple):
+class ToolOutputInteger(GenericToolOutputSimple[bool, str]):
     type: Literal["integer"]
 
 
-class ToolOutputFloat(ToolOutputSimple):
+class ToolOutputFloat(GenericToolOutputSimple[bool, str]):
     type: Literal["float"]
 
 
-class ToolOutputBoolean(ToolOutputSimple):
+class ToolOutputBoolean(GenericToolOutputSimple[bool, str]):
+    type: Literal["boolean"]
+
+
+# Incoming / authoring variants: ``hidden`` is optional (it has a sensible
+# default), but ``name`` stays *required* -- unlike datasets/collections, a simple
+# value output has no discovery step to supply a name, so an unnamed one can never
+# be referenced. Previously these reused the strict types above, whose unbound type
+# vars also forced ``hidden`` to be required -- a bug that made the published schema
+# demand a ``hidden`` flag on every simple output.
+class IncomingToolOutputSimple(GenericToolOutputSimple[NotRequired[bool], str]):
+    hidden: Annotated[Optional[bool], Field(description="If true, the output will not be shown in the history.")] = None
+
+
+class IncomingToolOutputText(IncomingToolOutputSimple):
+    type: Literal["text"]
+
+
+class IncomingToolOutputInteger(IncomingToolOutputSimple):
+    type: Literal["integer"]
+
+
+class IncomingToolOutputFloat(IncomingToolOutputSimple):
+    type: Literal["float"]
+
+
+class IncomingToolOutputBoolean(IncomingToolOutputSimple):
     type: Literal["boolean"]
 
 
 IncomingToolOutputT = Union[
     IncomingToolOutputDataset,
     IncomingToolOutputCollection,
-    ToolOutputText,
-    ToolOutputInteger,
-    ToolOutputFloat,
-    ToolOutputBoolean,
+    IncomingToolOutputText,
+    IncomingToolOutputInteger,
+    IncomingToolOutputFloat,
+    IncomingToolOutputBoolean,
 ]
 IncomingToolOutput = Annotated[IncomingToolOutputT, Field(discriminator="type")]
 ToolOutputT = Union[

@@ -366,6 +366,52 @@ def test_authoring_view_drops_tests_and_shrinks_schema():
     assert slim < full * 0.5, f"authoring view not slim enough: {slim} vs {full}"
 
 
+def test_simple_outputs_require_name_but_not_hidden_in_authoring_schema():
+    """Regression: text/integer/float/boolean outputs must require `name` (a value
+    output with no name can never be referenced) but must NOT require `hidden`.
+    They previously reused the strict internal output types whose unbound type vars
+    forced `hidden` to be required too, so the published schema demanded a `hidden`
+    flag on every simple output."""
+    defs = UserToolSourceAuthoringView.model_json_schema()["$defs"]
+    for name in (
+        "IncomingToolOutputText",
+        "IncomingToolOutputInteger",
+        "IncomingToolOutputFloat",
+        "IncomingToolOutputBoolean",
+    ):
+        required = set(defs[name]["required"])
+        assert "name" in required, f"{name} should require 'name'"
+        assert "hidden" not in required, f"{name} should not require 'hidden'"
+
+    # A named text output without `hidden` validates.
+    tool = UserToolSourceAuthoringView.model_validate(
+        {
+            "class": "GalaxyUserTool",
+            "name": "pvalue tool",
+            "version": "0.1.0",
+            "container": "busybox",
+            "shell_command": "echo 0.03 > p.txt",
+            "outputs": [
+                {"type": "data", "name": "plot", "from_work_dir": "p.txt"},
+                {"type": "text", "name": "pvalue"},
+            ],
+        }
+    )
+    assert tool.outputs[1].hidden is None
+
+    # A simple output WITHOUT a name is rejected.
+    with pytest.raises(ValidationError):
+        UserToolSourceAuthoringView.model_validate(
+            {
+                "class": "GalaxyUserTool",
+                "name": "pvalue tool",
+                "container": "busybox",
+                "shell_command": "echo 0.03 > p.txt",
+                "outputs": [{"type": "text"}],
+            }
+        )
+
+
 def test_authoring_view_round_trips_to_user_tool_source():
     view = UserToolSourceAuthoringView.model_validate(CAT_USER_DEFINED)
     tool = UserToolSource.model_validate(view.model_dump(by_alias=True))
