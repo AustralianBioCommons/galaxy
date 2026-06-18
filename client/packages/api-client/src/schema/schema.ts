@@ -25822,8 +25822,12 @@ export interface components {
             shell_command: string;
             /** tests */
             tests?: components["schemas"]["YamlToolTest-Input"][] | null;
-            /** version */
-            version?: string | null;
+            /**
+             * version
+             * @description Version for the tool.
+             * @example 0.1.0
+             */
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
@@ -25925,8 +25929,12 @@ export interface components {
             shell_command: string;
             /** tests */
             tests?: components["schemas"]["YamlToolTest-Output"][] | null;
-            /** version */
-            version?: string | null;
+            /**
+             * version
+             * @description Version for the tool.
+             * @example 0.1.0
+             */
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
