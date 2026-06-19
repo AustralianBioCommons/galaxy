@@ -2046,30 +2046,42 @@ export interface components {
         }
         /** FilePatternDatasetCollectionDescription */
         FilePatternDatasetCollectionDescription: {
-            /** Assign Primary Output */
+            /**
+             * Assign Primary Output
+             * @default false
+             */
             assign_primary_output: boolean
             /** Directory */
-            directory: string | null
+            directory?: string | null
             /**
              * Discover Via
+             * @default pattern
              * @constant
              */
             discover_via: "pattern"
             /** Format */
-            format: string | null
-            /** Match Relative Path */
+            format?: string | null
+            /**
+             * Match Relative Path
+             * @default false
+             */
             match_relative_path: boolean
             /** Pattern */
             pattern: string
-            /** Recurse */
+            /**
+             * Recurse
+             * @default false
+             */
             recurse: boolean
             /**
              * Sort Comp
+             * @default lexical
              * @enum {string}
              */
             sort_comp: "lexical" | "numeric"
             /**
              * Sort Key
+             * @default filename
              * @enum {string}
              */
             sort_key: "filename" | "name" | "designation" | "dbkey"
@@ -2078,7 +2090,10 @@ export interface components {
              * @default false
              */
             sort_reverse: boolean
-            /** Visible */
+            /**
+             * Visible
+             * @default false
+             */
             visible: boolean
         }
         /** FloatParameterModel */
@@ -3627,7 +3642,7 @@ export interface components {
              * Hidden
              * @description If true, the output will not be shown in the history.
              */
-            hidden: unknown
+            hidden: boolean
             /**
              * Label
              * @description Output label. Will be used as dataset name in history.
@@ -3637,7 +3652,7 @@ export interface components {
              * Name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
-            name: unknown
+            name: string
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -3743,7 +3758,7 @@ export interface components {
              * Hidden
              * @description If true, the output will not be shown in the history.
              */
-            hidden: unknown
+            hidden: boolean
             /**
              * Label
              * @description Output label. Will be used as dataset name in history.
@@ -3753,7 +3768,7 @@ export interface components {
              * Name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
-            name: unknown
+            name: string
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -3766,7 +3781,7 @@ export interface components {
              * Hidden
              * @description If true, the output will not be shown in the history.
              */
-            hidden: unknown
+            hidden: boolean
             /**
              * Label
              * @description Output label. Will be used as dataset name in history.
@@ -3776,7 +3791,7 @@ export interface components {
              * Name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
-            name: unknown
+            name: string
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -3789,7 +3804,7 @@ export interface components {
              * Hidden
              * @description If true, the output will not be shown in the history.
              */
-            hidden: unknown
+            hidden: boolean
             /**
              * Label
              * @description Output label. Will be used as dataset name in history.
@@ -3799,7 +3814,7 @@ export interface components {
              * Name
              * @description Parameter name. Used when referencing parameter in workflows.
              */
-            name: unknown
+            name: string
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -3808,22 +3823,34 @@ export interface components {
         }
         /** ToolProvidedMetadataDatasetCollection */
         ToolProvidedMetadataDatasetCollection: {
-            /** Assign Primary Output */
+            /**
+             * Assign Primary Output
+             * @default false
+             */
             assign_primary_output: boolean
             /** Directory */
-            directory: string | null
+            directory?: string | null
             /**
              * Discover Via
              * @constant
              */
             discover_via: "tool_provided_metadata"
             /** Format */
-            format: string | null
-            /** Match Relative Path */
+            format?: string | null
+            /**
+             * Match Relative Path
+             * @default false
+             */
             match_relative_path: boolean
-            /** Recurse */
+            /**
+             * Recurse
+             * @default false
+             */
             recurse: boolean
-            /** Visible */
+            /**
+             * Visible
+             * @default false
+             */
             visible: boolean
         }
         /** ToolVersion */

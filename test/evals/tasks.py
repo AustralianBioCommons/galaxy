@@ -26,6 +26,7 @@ from galaxy.agents.base import (
     extract_usage_info,
     GalaxyAgentDependencies,
 )
+from galaxy.agents.custom_tool import CustomToolAgent
 from galaxy.agents.error_analysis import ErrorAnalysisAgent
 from galaxy.agents.registry import build_default_registry
 from galaxy.agents.router import QueryRouterAgent
@@ -316,6 +317,46 @@ def make_tool_recommendation_task(
         return response.content
 
     return tool_recommendation_task
+
+
+def make_custom_tool_task(
+    deps: GalaxyAgentDependencies,
+    context: Optional[dict] = None,
+    usage_buffer: UsageBuffer = None,
+) -> Callable[[str], Awaitable[dict[str, Any]]]:
+    """Build an async callable: NL request -> custom-tool generation result dict.
+
+    Returns the signals the custom-tool evaluators read:
+
+    - ``ok``: a structured, schema-valid, lint-clean tool was produced
+      (``response.metadata["method"] == "structured"``).
+    - ``attempts``: 1 if produced first try, 2 if a validator retry was spent.
+    - ``tool_yaml``: the generated tool definition (for structural checks / judge).
+    - ``content``: the agent's full response text.
+    - ``error`` / ``validation_errors``: failure detail when ``ok`` is False.
+
+    Unlike the recommendation tasks this needs no live toolbox -- tool authoring
+    is self-contained (validate + lint), so the mocked-deps path is a faithful
+    measurement. (An end-to-end "does it build into a real Galaxy tool" check
+    belongs in the live integration eval, where a real toolbox exists.)
+    """
+
+    async def custom_tool_task(query: str) -> dict[str, Any]:
+        agent = CustomToolAgent(deps)
+        response = await agent.process(query, context=context)
+        _record_response_usage(usage_buffer, response)
+        meta = response.metadata or {}
+        agent_data = meta.get("agent_data") or {}
+        return {
+            "ok": meta.get("method") == "structured",
+            "attempts": agent_data.get("attempts"),
+            "tool_yaml": agent_data.get("tool_yaml") or "",
+            "content": response.content,
+            "error": meta.get("error"),
+            "validation_errors": agent_data.get("validation_errors") or [],
+        }
+
+    return custom_tool_task
 
 
 def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:

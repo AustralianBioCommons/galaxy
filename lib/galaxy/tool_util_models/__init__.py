@@ -168,7 +168,7 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
         Field(
             title="shell_command",
             description="A string that contains the command to be executed. Parameters can be referenced inside $().",
-            examples=["head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'"],
+            examples=["head -n '$(inputs.num_lines)' '$(inputs.input_file.path)' > output.txt"],
         ),
     ]
     inputs: List[YamlGalaxyToolParameter] = []
@@ -186,7 +186,12 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
     xrefs: Optional[List[XrefDict]] = None
     profile: Optional[float] = None
     help: Annotated[Optional[HelpContent], Field(description="Help text shown below the tool interface.")] = None
-    tests: Optional[List["YamlToolTest"]] = None
+    # NOTE: `tests` is intentionally NOT declared here. It lives on the concrete
+    # subclasses (`UserToolSource`, `YamlToolSource`) so that the slim
+    # `UserToolSourceAuthoringView` can inherit everything *except* the test
+    # field. The test-assertion DSL pulled in by `tests` is ~70% of the JSON
+    # schema; keeping it off the authoring view is what shrinks the
+    # structured-output schema handed to LLM tool-generation agents.
 
     @model_validator(mode="before")
     @classmethod
@@ -246,11 +251,44 @@ class _DynamicToolSourceBase(ToolSourceBaseModel):
         return self
 
 
-class UserToolSource(_DynamicToolSourceBase):
+# Schema-narrowed view of ``UserToolSource`` for LLM tool authoring.
+#
+# This is the *parent* of ``UserToolSource`` and carries every field and
+# validator except ``tests``. Authoring agents (see ``galaxy.agents.custom_tool``)
+# point their structured-output ``output_type`` at this view so the JSON schema
+# the model must satisfy omits the test-assertion DSL — ~70% of
+# ``UserToolSource``'s ~150 KB schema and never written in the first generation
+# pass. Shrinking the schema cuts per-call token cost and sidesteps the
+# nested-``$defs`` grammar failures some local inference backends hit (see
+# ``CustomToolAgent._handle_model_http_error``).
+#
+# A produced view is a strict subset of ``UserToolSource``; convert with
+# ``UserToolSource.model_validate(view.model_dump(by_alias=True))`` before storing
+# or linting so downstream types stay honest.
+#
+# NOTE: the class docstring below is published verbatim as the structured-output
+# tool *description* sent to the model on every call — keep it model-facing and
+# concise; put implementation rationale in comments like this one, not the
+# docstring.
+class UserToolSourceAuthoringView(_DynamicToolSourceBase):
+    """A Galaxy user-defined tool: a containerized shell command wrapped with typed inputs and outputs.
+
+    Provide the tool's identity (``id``, ``name``, ``version``), a ``container``
+    image to run in, and a ``shell_command`` that references inputs as
+    ``$(inputs.NAME)`` for scalar values or ``$(inputs.NAME.path)`` for files.
+    Declare every referenced input under ``inputs`` and every produced file under
+    ``outputs`` (each output must set ``from_work_dir`` or ``discover_datasets``).
+    """
+
     class_: Annotated[Literal["GalaxyUserTool"], Field(alias="class")]
     container: Annotated[
         str, Field(description="Container image to use for this tool.", examples=["quay.io/biocontainers/python:3.13"])
     ]
+    # Required here (it's optional on the base for stored/legacy rows). Galaxy's
+    # linter rejects a versionless tool, so forcing it into the structured-output
+    # ``required`` set stops the model dropping it -- notably on a retry, where the
+    # model would otherwise regenerate without it and trip ``ToolVersionMissing``.
+    version: Annotated[str, Field(description="Version for the tool.", examples=["0.1.0"])]
 
     # Field declaration order puts subclass fields (class_, container) after
     # parent ones, which serializes them at the end. Re-order on dump so the
@@ -310,6 +348,21 @@ class UserToolSource(_DynamicToolSourceBase):
         return ordered
 
 
+class UserToolSource(UserToolSourceAuthoringView):
+    """Full unprivileged tool source, including the optional ``tests`` block.
+
+    This is the model persisted and validated on the API surface
+    (``DynamicUnprivilegedToolCreatePayload.representation``). LLM authoring
+    uses the slimmer ``UserToolSourceAuthoringView`` parent; ``tests`` is added
+    back here so direct authors and stored rows can still carry tests.
+    """
+
+    # ``version`` is required (inherited from UserToolSourceAuthoringView). A stored
+    # row that predates the requirement won't validate; ``lift_user_tool_source``
+    # returns it as the raw dict with status "invalid" so its author still sees it.
+    tests: Optional[List["YamlToolTest"]] = None
+
+
 class YamlToolSource(_DynamicToolSourceBase):
     class_: Annotated[Literal["GalaxyTool"], Field(alias="class")]
     container: Annotated[
@@ -319,6 +372,7 @@ class YamlToolSource(_DynamicToolSourceBase):
             examples=["quay.io/biocontainers/python:3.13"],
         ),
     ] = None
+    tests: Optional[List["YamlToolTest"]] = None
 
 
 DynamicToolSources = Annotated[Union[UserToolSource, YamlToolSource], Field(discriminator="class_")]
@@ -337,7 +391,9 @@ DynamicToolSources = Annotated[Union[UserToolSource, YamlToolSource], Field(disc
 #   - on `extra_forbidden`-only failure: strips the offending paths and
 #     re-validates. Returns ("lifted", parsed_model, dropped_paths).
 #   - on any other failure: returns ("invalid", original_dict, error_summary).
-#     The endpoint exposes this so legacy/broken rows don't crash the API.
+#     The endpoint exposes this so legacy/broken rows don't crash the API -- e.g.
+#     a stored row that predates the required `version` comes back as the raw dict
+#     with status "invalid", so its author can still see and fix what they defined.
 # ---------------------------------------------------------------------------
 
 LiftStatus = Literal["ok", "lifted", "invalid"]

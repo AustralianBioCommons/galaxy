@@ -22,6 +22,7 @@ from galaxy.agents.base import GalaxyAgentDependencies
 from .datasets import (
     bioinformatics_workflows_dataset,
     capabilities_dataset,
+    custom_tool_dataset,
     error_analysis_dataset,
     orchestrator_planning_dataset,
     router_tool_use_dataset,
@@ -33,13 +34,17 @@ from .datasets import (
     tool_recommendation_dataset,
 )
 from .evaluators import (
+    FirstAttemptOk,
     HandoffMatch,
     MustMention,
     MustMentionAny,
     OrchestratorPlanIncludes,
     ToolCallMatch,
+    ToolProduced,
+    ToolYamlContains,
 )
 from .tasks import (
+    make_custom_tool_task,
     make_error_analysis_task,
     make_orchestrator_plan_task,
     make_router_clarification_task,
@@ -210,6 +215,25 @@ def build_tool_recommendation(
     )
 
 
+def build_custom_tool(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    dataset = custom_tool_dataset(judge_model=judge_model, only=only)
+    # Headline pass/fail + the "got it right first try" and structural-shape checks.
+    dataset.add_evaluator(ToolProduced())
+    dataset.add_evaluator(FirstAttemptOk())
+    dataset.add_evaluator(ToolYamlContains())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_custom_tool_task(deps, usage_buffer=usage_buffer),
+        primary_score="ToolProduced",
+    )
+
+
 def build_router_tool_use(
     deps: GalaxyAgentDependencies,
     judge_model: Optional[Model] = None,
@@ -301,6 +325,7 @@ SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing_clarification_followup_nofix": build_routing_clarification_followup_nofix,
     "error_analysis": build_error_analysis,
     "tool_recommendation": build_tool_recommendation,
+    "custom_tool": build_custom_tool,
     "router_tool_use": build_router_tool_use,
     "bioinformatics_workflows": build_bioinformatics_workflows,
     "capabilities": build_capabilities,
