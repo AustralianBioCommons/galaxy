@@ -106,16 +106,6 @@ JobIdPathParam = Annotated[
 ]
 
 
-def _responder_agent_type(data: dict[str, Any]) -> str:
-    """Agent type that actually answered a stored turn.
-
-    Prefer the nested agent_response (the real responder, e.g. the specialist after a
-    router handoff) over the top-level agent_type, which records the *request* type
-    ("auto"). Older rows only stored the request type at the top level.
-    """
-    return (data.get("agent_response") or {}).get("agent_type") or data.get("agent_type", "unknown")
-
-
 @router.cbv
 class ChatAPI:
     """Chat interface for AI agents.
@@ -481,48 +471,7 @@ class ChatAPI:
         user: User = DependsOnUser,
     ) -> list[dict[str, Any]]:
         """Get all messages for a specific chat exchange."""
-        exchange = self.chat_manager.get_exchange_by_id(trans, exchange_id)
-        if not exchange:
-            return []
-
-        messages = []
-
-        for msg in exchange.messages:
-            try:
-                # Parse JSON content to extract individual messages
-                data = json.loads(msg.message)
-                # Add both user query and assistant response
-                if "query" in data:
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": data["query"],
-                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                        }
-                    )
-                if "response" in data:
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "content": data["response"],
-                            "agent_type": _responder_agent_type(data),
-                            "agent_response": data.get("agent_response"),
-                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                            "feedback": msg.feedback,
-                        }
-                    )
-            except (json.JSONDecodeError, AttributeError):
-                # Fallback for non-JSON messages
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": msg.message,
-                        "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                        "feedback": msg.feedback,
-                    }
-                )
-
-        return messages
+        return self.chat_manager.get_exchange_messages(trans, exchange_id)
 
     def _format_exchange_history(self, exchanges) -> list[ChatHistoryItemResponse]:
         """Convert a list of ChatExchange ORM objects into API response models."""
@@ -540,7 +489,7 @@ class ChatAPI:
                         id=exchange.id,
                         query=data.get("query", ""),
                         response=data.get("response", ""),
-                        agent_type=_responder_agent_type(data),
+                        agent_type=self.chat_manager.responder_agent_type(data),
                         agent_response=agent_response,
                         timestamp=message.create_time.isoformat() if message.create_time else None,
                         feedback=message.feedback,
