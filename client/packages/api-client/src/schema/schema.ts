@@ -24300,7 +24300,6 @@ export interface components {
             directory?: string | null;
             /**
              * Discover Via
-             * @default tool_provided_metadata
              * @constant
              */
             discover_via: "tool_provided_metadata";
@@ -27274,16 +27273,6 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /**
-             * Max
-             * @description Maximum number of datasets the user may select. ONLY valid when 'multiple' is true; leave unset for a single-dataset input.
-             */
-            max?: number | null;
-            /**
-             * Min
-             * @description Minimum number of datasets the user must select. ONLY valid when 'multiple' is true. Do NOT set this for a single-dataset input -- a data input is already required by default, so leave 'min' unset unless the input accepts multiple datasets.
-             */
-            min?: number | null;
             /**
              * Multiple
              * @description Set true to accept several datasets (a list) for this input instead of one.

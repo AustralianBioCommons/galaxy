@@ -181,6 +181,16 @@ def test_data_rejects_extensions_key():
         _validate({"name": "input1", "type": "data", "extensions": ["txt"]})
 
 
+@pytest.mark.parametrize("bound", [{"min": 1}, {"max": 5}, {"min": 1, "max": 5}])
+def test_data_rejects_min_max(bound):
+    # min/max (dataset-count bounds) are not part of the user-defined-tool data
+    # parameter -- they only apply to `multiple` inputs and authors misuse `min: 1`
+    # to mean "required". extra="forbid" rejects them up front rather than letting
+    # the tool fail at build time.
+    with pytest.raises(ValidationError):
+        _validate({"name": "input1", "type": "data", **bound})
+
+
 # ---------------------------------------------------------------------------
 # Green cases: structural groups
 # ---------------------------------------------------------------------------

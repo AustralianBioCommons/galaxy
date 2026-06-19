@@ -195,25 +195,13 @@ class YamlDataParameter(_YamlParamBase):
         bool,
         Field(description="Set true to accept several datasets (a list) for this input instead of one."),
     ] = False
-    min: Annotated[
-        Optional[int],
-        Field(
-            description=(
-                "Minimum number of datasets the user must select. ONLY valid when 'multiple' is true. "
-                "Do NOT set this for a single-dataset input -- a data input is already required by default, "
-                "so leave 'min' unset unless the input accepts multiple datasets."
-            )
-        ),
-    ] = None
-    max: Annotated[
-        Optional[int],
-        Field(
-            description=(
-                "Maximum number of datasets the user may select. ONLY valid when 'multiple' is true; "
-                "leave unset for a single-dataset input."
-            )
-        ),
-    ] = None
+    # NOTE: `min`/`max` (the min/max number of selected datasets) are intentionally
+    # NOT exposed here. They only have meaning for a `multiple` input and the runtime
+    # rejects them on a single one; in practice authors (and LLMs) reach for `min: 1`
+    # to mean "required" -- which a data input already is -- and then the tool fails
+    # at build time. Omitting the fields means such a tool is rejected up front with a
+    # clear `extra_forbidden` error instead. The internal model still supports them
+    # for XML tools.
 
     @field_validator("format", mode="before")
     @classmethod
@@ -225,8 +213,6 @@ class YamlDataParameter(_YamlParamBase):
             type="data",
             extensions=list(self.format),
             multiple=self.multiple,
-            min=self.min,
-            max=self.max,
             **_common_internal_kwargs(self),
         )
 

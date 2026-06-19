@@ -3832,7 +3832,6 @@ export interface components {
             directory?: string | null
             /**
              * Discover Via
-             * @default tool_provided_metadata
              * @constant
              */
             discover_via: "tool_provided_metadata"
