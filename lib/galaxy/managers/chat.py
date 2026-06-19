@@ -348,6 +348,64 @@ class ChatManager:
         return pydantic_messages
 
     @staticmethod
+    def responder_agent_type(data: dict[str, Any]) -> str:
+        """Agent type that actually answered a stored turn.
+
+        Prefer the nested agent_response (the real responder, e.g. the specialist after a
+        router handoff) over the top-level agent_type, which records the *request* type
+        ("auto"). Older rows only stored the request type at the top level.
+        """
+        return (data.get("agent_response") or {}).get("agent_type") or data.get("agent_type", "unknown")
+
+    def get_exchange_messages(self, trans: ProvidesUserContext, exchange_id: int) -> list[dict[str, Any]]:
+        """Return all messages for an exchange as user/assistant dicts.
+
+        Each stored message holds one query/response turn as JSON; the assistant turn is
+        badged with the agent that actually responded (see ``responder_agent_type``).
+        """
+        exchange = self.get_exchange_by_id(trans, exchange_id)
+        if not exchange:
+            return []
+
+        messages: list[dict[str, Any]] = []
+        for msg in exchange.messages:
+            try:
+                # Parse JSON content to extract individual messages
+                data = json.loads(msg.message)
+                # Add both user query and assistant response
+                if "query" in data:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": data["query"],
+                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
+                        }
+                    )
+                if "response" in data:
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": data["response"],
+                            "agent_type": self.responder_agent_type(data),
+                            "agent_response": data.get("agent_response"),
+                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
+                            "feedback": msg.feedback,
+                        }
+                    )
+            except (json.JSONDecodeError, AttributeError):
+                # Fallback for non-JSON messages
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.message,
+                        "timestamp": msg.create_time.isoformat() if msg.create_time else None,
+                        "feedback": msg.feedback,
+                    }
+                )
+
+        return messages
+
+    @staticmethod
     def _message_is_clarification(message) -> bool:
         """Whether a stored message's response was a clarifying question (by ``agent_type``)."""
         try:

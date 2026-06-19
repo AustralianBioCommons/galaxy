@@ -578,7 +578,11 @@ class QueryRouterAgent(BaseGalaxyAgent):
             previous_handoff_context = self._handoff_context
             self._handoff_context = context.copy() if context else {}
             try:
-                result = await self._run_with_retry(query, message_history=message_history)
+                # Fold the active interface context (the tool/dataset/etc. the user is
+                # viewing) into the prompt for queries the router answers directly --
+                # history rides the separate message_history channel, so strip it here.
+                prompt = self._prepare_prompt(query, self._strip_history_from_context(context or {}))
+                result = await self._run_with_retry(prompt, message_history=message_history)
             finally:
                 self._handoff_context = previous_handoff_context
             content = extract_result_content(result)

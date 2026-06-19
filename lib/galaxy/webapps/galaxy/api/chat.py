@@ -265,7 +265,7 @@ class ChatAPI:
                     conversation_data = {
                         "query": query_text,
                         "response": result.get("response", ""),
-                        "agent_type": agent_type,
+                        "agent_type": agent_resp.agent_type if agent_resp else agent_type,
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     message_content = json.dumps(conversation_data)
@@ -280,7 +280,7 @@ class ChatAPI:
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     exchange = self.chat_manager.create_page_chat(
-                        trans, page_id, query_text, storable_result, agent_type
+                        trans, page_id, query_text, storable_result, agent_resp.agent_type if agent_resp else agent_type
                     )
                     result["exchange_id"] = exchange.id
                 else:
@@ -290,7 +290,13 @@ class ChatAPI:
                         "agent_response": agent_resp.model_dump() if agent_resp else None,
                     }
                     exchange = await anyio.to_thread.run_sync(
-                        partial(self.chat_manager.create_general_chat, trans, query_text, storable_result, agent_type)
+                        partial(
+                            self.chat_manager.create_general_chat,
+                            trans,
+                            query_text,
+                            storable_result,
+                            agent_resp.agent_type if agent_resp else agent_type,
+                        )
                     )
                     result["exchange_id"] = exchange.id
 
@@ -465,48 +471,7 @@ class ChatAPI:
         user: User = DependsOnUser,
     ) -> list[dict[str, Any]]:
         """Get all messages for a specific chat exchange."""
-        exchange = self.chat_manager.get_exchange_by_id(trans, exchange_id)
-        if not exchange:
-            return []
-
-        messages = []
-
-        for msg in exchange.messages:
-            try:
-                # Parse JSON content to extract individual messages
-                data = json.loads(msg.message)
-                # Add both user query and assistant response
-                if "query" in data:
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": data["query"],
-                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                        }
-                    )
-                if "response" in data:
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "content": data["response"],
-                            "agent_type": data.get("agent_type", "unknown"),
-                            "agent_response": data.get("agent_response"),
-                            "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                            "feedback": msg.feedback,
-                        }
-                    )
-            except (json.JSONDecodeError, AttributeError):
-                # Fallback for non-JSON messages
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": msg.message,
-                        "timestamp": msg.create_time.isoformat() if msg.create_time else None,
-                        "feedback": msg.feedback,
-                    }
-                )
-
-        return messages
+        return self.chat_manager.get_exchange_messages(trans, exchange_id)
 
     def _format_exchange_history(self, exchanges) -> list[ChatHistoryItemResponse]:
         """Convert a list of ChatExchange ORM objects into API response models."""
@@ -524,7 +489,7 @@ class ChatAPI:
                         id=exchange.id,
                         query=data.get("query", ""),
                         response=data.get("response", ""),
-                        agent_type=data.get("agent_type", "unknown"),
+                        agent_type=self.chat_manager.responder_agent_type(data),
                         agent_response=agent_response,
                         timestamp=message.create_time.isoformat() if message.create_time else None,
                         feedback=message.feedback,
