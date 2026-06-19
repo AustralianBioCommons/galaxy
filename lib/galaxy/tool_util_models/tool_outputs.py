@@ -15,6 +15,7 @@ from typing import (
 )
 
 from pydantic import (
+    ConfigDict,
     Field,
     model_validator,
 )
@@ -54,6 +55,10 @@ SortCompT = Literal["lexical", "numeric"]
 # (or an LLM) only needs to supply ``pattern``. Requiring all of them in the model is
 # the friction that makes ``discover_datasets`` nearly impossible to author by hand.
 class DatasetCollectionDescription(ToolSourceBaseModel):
+    # extra="forbid" so a typo'd key (e.g. ``patern``) is rejected rather than silently
+    # absorbed by the metadata arm below (which would otherwise collect nothing).
+    model_config = ConfigDict(extra="forbid")
+
     discover_via: DiscoverViaT
     format: Optional[str] = None
     visible: bool = False
@@ -64,7 +69,12 @@ class DatasetCollectionDescription(ToolSourceBaseModel):
 
 
 class ToolProvidedMetadataDatasetCollection(DatasetCollectionDescription):
-    discover_via: Literal["tool_provided_metadata"] = "tool_provided_metadata"
+    # ``discover_via`` is required (no default) so an under-specified descriptor
+    # ({} / {format: ...} / a typo'd pattern) does NOT silently resolve to
+    # tool_provided_metadata -- it must say so explicitly. Pattern discovery (the
+    # default in the XML parser) is opt-out only via the ``FilePattern`` arm, which
+    # still requires a real ``pattern``.
+    discover_via: Literal["tool_provided_metadata"]
 
 
 class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):

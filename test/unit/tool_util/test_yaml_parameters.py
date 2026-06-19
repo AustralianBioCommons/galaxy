@@ -392,6 +392,35 @@ def test_collection_discovery_only_requires_pattern():
     assert (d.sort_key, d.sort_comp) == ("filename", "lexical")
 
 
+def test_collection_discovery_rejects_underspecified_descriptors():
+    """An under-specified or typo'd discovery descriptor must error -- it must NOT
+    silently resolve to tool_provided_metadata (which lints clean but, with no
+    galaxy.json written, collects nothing). `discover_via` is required on the metadata
+    arm and `extra="forbid"` catches typos; explicit pattern / tool_provided_metadata
+    forms still validate."""
+    from galaxy.tool_util_models.tool_outputs import (
+        FilePatternDatasetCollectionDescription,
+        IncomingToolOutputCollection,
+        ToolProvidedMetadataDatasetCollection,
+    )
+
+    def first(descriptor):
+        out = IncomingToolOutputCollection.model_validate(
+            {"type": "collection", "name": "o", "collection_type": "list", "discover_datasets": [descriptor]}
+        )
+        assert out.discover_datasets is not None
+        return out.discover_datasets[0]
+
+    # Explicit forms resolve to the right arm.
+    assert isinstance(first({"pattern": "x"}), FilePatternDatasetCollectionDescription)
+    assert isinstance(first({"discover_via": "tool_provided_metadata"}), ToolProvidedMetadataDatasetCollection)
+
+    # Under-specified / typo'd descriptors error instead of becoming tool_provided_metadata.
+    for bad in ({}, {"format": "fasta"}, {"patern": "x"}):
+        with pytest.raises(ValidationError):
+            first(bad)
+
+
 def test_simple_outputs_require_name_but_not_hidden_in_authoring_schema():
     """Regression: text/integer/float/boolean outputs must require `name` (a value
     output with no name can never be referenced) but must NOT require `hidden`.

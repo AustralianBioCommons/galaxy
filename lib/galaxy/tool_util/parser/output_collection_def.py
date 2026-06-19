@@ -140,9 +140,10 @@ class ToolProvidedMetadataDatasetCollection(DatasetCollectionDescription):
     discover_via = "tool_provided_metadata"
 
     def to_model(self) -> ToolProvidedMetadataDatasetCollectionModel:
+        # ``dbkey`` is not part of the pydantic discovery model (it was silently
+        # dropped before; the model now forbids extras), so don't pass it.
         return ToolProvidedMetadataDatasetCollectionModel(
             discover_via=self.discover_via,
-            dbkey=self.default_dbkey,
             format=self.default_ext,
             visible=self.default_visible,
             assign_primary_output=self.assign_primary_output,
@@ -191,9 +192,11 @@ class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):
             self.sort_comp = sort_comp
 
     def to_model(self) -> FilePatternDatasetCollectionDescriptionModel:
+        # ``dbkey`` and ``sort_by`` are not fields on the pydantic model (sort info is
+        # carried by sort_key/sort_comp/sort_reverse); they were silently dropped
+        # before and the model now forbids extras, so don't pass them.
         return FilePatternDatasetCollectionDescriptionModel(
             discover_via=self.discover_via,
-            dbkey=self.default_dbkey,
             format=self.default_ext,
             visible=self.default_visible,
             assign_primary_output=self.assign_primary_output,
@@ -203,7 +206,6 @@ class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):
             sort_key=self.sort_key,
             sort_comp=self.sort_comp,
             pattern=self.pattern,
-            sort_by=self.sort_by,
             sort_reverse=self.sort_reverse,
         )
 
