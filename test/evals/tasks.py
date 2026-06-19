@@ -257,6 +257,39 @@ def make_router_clarification_task(
     return router_clarification_task
 
 
+def make_router_followup_task(
+    deps: GalaxyAgentDependencies,
+    route_followup: bool = True,
+    usage_buffer: UsageBuffer = None,
+) -> Callable[[dict], Awaitable[str]]:
+    """Build an async callable for the followup dataset.
+
+    The case input is ``{"original_query", "assistant_answer", "followup"}``. Reconstructs the
+    prior turn (the user's request + a normal assistant answer) as conversation_history and
+    routes the elliptical ``followup``. With ``route_followup=True`` (the shipped default) the
+    router forwards the prior turn so "this"/"that" has a referent; with ``False`` it sets
+    ``ROUTING_HISTORY_TURNS = 0`` to withhold it -- the A/B that quantifies the fix's value.
+    Returns the router's chosen agent_type.
+    """
+
+    async def router_followup_task(case_input: dict) -> str:
+        history = [
+            {"role": "user", "content": case_input["original_query"]},
+            {"role": "assistant", "content": case_input["assistant_answer"]},
+        ]
+        router = QueryRouterAgent(deps)
+        if not route_followup:
+            router.ROUTING_HISTORY_TURNS = 0
+        response = await router.process(
+            case_input["followup"],
+            context={"conversation_history": history},
+        )
+        _record_response_usage(usage_buffer, response)
+        return response.agent_type
+
+    return router_followup_task
+
+
 def make_router_content_task(
     deps: GalaxyAgentDependencies,
     context: Optional[dict] = None,

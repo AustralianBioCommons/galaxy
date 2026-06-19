@@ -30,6 +30,7 @@ from .datasets import (
     routing_clarification_followup_dataset,
     routing_dataset,
     routing_depth_dataset,
+    routing_followup_dataset,
     staining_quantification_dataset,
     tool_recommendation_dataset,
 )
@@ -49,6 +50,7 @@ from .tasks import (
     make_orchestrator_plan_task,
     make_router_clarification_task,
     make_router_content_task,
+    make_router_followup_task,
     make_router_inspect_task,
     make_router_multiturn_task,
     make_router_task,
@@ -181,6 +183,47 @@ def build_routing_clarification_followup_nofix(
     answers have no referent, so this should score well below the fixed variant -- that gap is
     the seam's value."""
     return _build_routing_clarification_followup(deps, False, only, usage_buffer)
+
+
+def _build_routing_followup(
+    deps: GalaxyAgentDependencies,
+    route_followup: bool,
+    only: Optional[list[str]],
+    usage_buffer: Optional[list[dict[str, int]]],
+) -> BuiltDataset:
+    dataset = routing_followup_dataset(only=only)
+    dataset.add_evaluator(HandoffMatch())
+    return BuiltDataset(
+        dataset=dataset,
+        task=make_router_followup_task(deps, route_followup=route_followup, usage_buffer=usage_buffer),
+        primary_score="HandoffMatch",
+    )
+
+
+def build_routing_followup(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """Route a follow-up to a normal answer WITH the fix (the shipped behavior): the router
+    sees the prior user turn, so "what about a workflow for this?" routes to the right
+    specialist instead of asking what "this" means."""
+    return _build_routing_followup(deps, True, only, usage_buffer)
+
+
+def build_routing_followup_nofix(
+    deps: GalaxyAgentDependencies,
+    judge_model: Optional[Model] = None,
+    only: Optional[list[str]] = None,
+    include_galaxy_required: bool = False,
+    usage_buffer: Optional[list[dict[str, int]]] = None,
+) -> BuiltDataset:
+    """A/B control: route the same follow-ups WITHOUT the fix (prior user turn withheld). The
+    elliptical follow-up has no referent, so this should score well below the fixed variant --
+    that gap is the fix's value."""
+    return _build_routing_followup(deps, False, only, usage_buffer)
 
 
 def build_error_analysis(
@@ -323,6 +366,8 @@ SPECS: dict[str, Callable[..., BuiltDataset]] = {
     "routing_ambiguous": build_routing_ambiguous,
     "routing_clarification_followup": build_routing_clarification_followup,
     "routing_clarification_followup_nofix": build_routing_clarification_followup_nofix,
+    "routing_followup": build_routing_followup,
+    "routing_followup_nofix": build_routing_followup_nofix,
     "error_analysis": build_error_analysis,
     "tool_recommendation": build_tool_recommendation,
     "custom_tool": build_custom_tool,
