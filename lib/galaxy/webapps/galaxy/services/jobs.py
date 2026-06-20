@@ -262,6 +262,9 @@ class JobsService(ServiceBase):
             request_state = RequestToolState(inputs or {})
         request_state.validate(parameter_bundle, f"{tool.id} (request model)")
         request_internal_state = decode(request_state, parameter_bundle, trans.security.decode_id)
+        # request_internal records absent inputs as absent; static defaults (incl. url_default
+        # data inputs) are filled later, at dereference/job_internal time (see fill_static_defaults).
+        request_internal_state.validate(parameter_bundle, f"{tool.id} (request internal model)")
         sa_session = trans.sa_session
         tool_source_model = get_or_create_tool_source(sa_session, tool)
         tool_request = ToolRequest()

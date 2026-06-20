@@ -3194,6 +3194,33 @@ class TestToolsApi(ApiTestCase, TestsTools):
             assert len(response_object["jobs"]) == 2
             assert len(response_object["implicit_collections"]) == 1
 
+    @skip_without_tool("collection_paired_test")
+    def test_request_paired_collection_input_with_dce(self):
+        """Regression for https://github.com/galaxyproject/galaxy/issues/22923
+
+        A job that maps over a ``list:paired`` records its paired-collection
+        input as a ``DatasetCollectionElement`` (``src: dce``). Rerunning such a
+        job resubmits that ``dce`` reference through the structured tool-request
+        path, which must validate against the request model.
+        """
+        with self.dataset_populator.test_history() as history_id:
+            pair_ids = []
+            for _ in range(2):
+                pair_id = self.dataset_collection_populator.create_pair_in_history(
+                    history_id, contents=["forward", "reverse"], wait=True
+                ).json()["outputs"][0]["id"]
+                pair_ids.append(pair_id)
+            list_hdca = self.dataset_collection_populator.create_list_from_pairs(history_id, pair_ids)
+            # The element of a list:paired is itself a paired collection, referenced via a dce.
+            dce_id = list_hdca.json()["elements"][0]["id"]
+
+            inputs = {"f1": {"src": "dce", "id": dce_id}}
+            response = self.dataset_populator.tool_request_raw("collection_paired_test", inputs, history_id)
+            self._assert_status_code_is(response, 200)
+            tool_request_id = response.json()["tool_request_id"]
+            assert self.dataset_populator.wait_on_tool_request(tool_request_id)
+            self.dataset_populator.wait_for_history(history_id, assert_ok=True)
+
     @skip_without_tool("identifier_source")
     def test_default_identifier_source_map_over(self):
         with self.dataset_populator.test_history() as history_id:

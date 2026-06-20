@@ -12,6 +12,8 @@ from typing import (
     Optional,
 )
 
+from sqlalchemy import select
+
 from galaxy import (
     exceptions,
     model,
@@ -19,6 +21,7 @@ from galaxy import (
 from galaxy.managers.context import ProvidesHistoryContext
 from galaxy.managers.jobs import JobManager
 from galaxy.model import (
+    DatasetCollectionElement,
     History,
     HistoryDatasetAssociation,
     HistoryDatasetCollectionAssociation,
@@ -315,7 +318,24 @@ class WorkflowSummary(BaseWorkflowSummary):
         self.hda_hid_in_history: dict[int, int] = {}
         self.hdca_hid_in_history: dict[int, int] = {}
 
+        self.collection_element_hda_ids: set[int] = self.__collection_element_hda_ids()
+
         self.__summarize()
+
+    def __collection_element_hda_ids(self) -> set[int]:
+        """Ids of this history's HDAs that are elements of some collection.
+
+        Hidden contents now reach summarization (see History.all_contents), but a
+        collection's element datasets are represented by their collection during
+        extraction - "the collection or nothing" - so the hidden ones must be
+        skipped to avoid minting spurious per-element steps (e.g. one per map-over
+        element). Fetched once rather than per-dataset."""
+        stmt = (
+            select(HistoryDatasetAssociation.id)
+            .join(DatasetCollectionElement, DatasetCollectionElement.hda_id == HistoryDatasetAssociation.id)
+            .where(HistoryDatasetAssociation.history_id == self.history.id)
+        )
+        return set(self.trans.sa_session.scalars(stmt).all())
 
     def hid(self, content: HistoryItem) -> int:
         if content.history_content_type == "dataset_collection":
@@ -344,7 +364,7 @@ class WorkflowSummary(BaseWorkflowSummary):
         # just grab the implicitly mapped jobs and handle in second pass. Second pass is
         # needed because cannot allow selection of individual datasets from an implicit
         # mapping during extraction - you get the collection or nothing.
-        for content in self.history.visible_contents:
+        for content in self.history.all_contents:
             self.__summarize_content(content)
 
     def __summarize_content(self, content: HistoryItem) -> None:
@@ -417,6 +437,11 @@ class WorkflowSummary(BaseWorkflowSummary):
             self.jobs[DatasetCollectionCreationJob(dataset_collection)] = [(None, dataset_collection)]
 
     def __summarize_dataset(self, dataset: HistoryDatasetAssociation) -> None:
+        if not dataset.visible and dataset.id in self.collection_element_hda_ids:
+            # Hidden element of a collection - represented by its collection, not
+            # as a standalone step. Visible collection members are left alone so
+            # behavior matches the prior visible-only scan.
+            return
         if not self._check_state(dataset):
             return
 
@@ -803,13 +828,21 @@ def step_inputs_by_id(trans: ProvidesHistoryContext, job: Job) -> tuple[ToolInpu
 
 
 def _original_hda(hda: HistoryDatasetAssociation) -> HistoryDatasetAssociation:
-    while hda.copied_from_history_dataset_association:
+    # Follow plain copies back to their source, but stop at anything with its own
+    # creating job: collection-operation tools (Extract Dataset, Filter, Relabel,
+    # ...) produce a copy *and* record a job, and those are real workflow steps -
+    # normalizing past them would attribute the output to its source and drop the
+    # operation from the extracted workflow.
+    while hda.copied_from_history_dataset_association and not hda.creating_job_associations:
         hda = hda.copied_from_history_dataset_association
     return hda
 
 
 def _original_hdca(hdca: HistoryDatasetCollectionAssociation) -> HistoryDatasetCollectionAssociation:
-    while hdca.copied_from_history_dataset_collection_association:
+    # Same creating-job guard as _original_hda (see there for the rationale): a
+    # collection that records its own creating job - e.g. reimported with its job
+    # association - is a real step and must not normalize past copied_from.
+    while hdca.copied_from_history_dataset_collection_association and not hdca.creating_job_associations:
         hdca = hdca.copied_from_history_dataset_collection_association
     return hdca
 

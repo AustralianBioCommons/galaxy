@@ -193,6 +193,23 @@ def expand_flat_parameters_to_nested(incoming_copy: ToolRequestT) -> dict[str, A
     return nested_dict
 
 
+def _remove_internal_state_keys(state: Any) -> None:
+    """Remove ``__``-prefixed keys from every dict in the nested state.
+
+    ``visit_input_values`` injects internal book-keeping entries such as
+    ``__current_case__`` and ``__index__`` as side-effects.  These must not
+    reach the job-internal Pydantic validation layer, which uses ``extra='forbid'``.
+    """
+    if isinstance(state, dict):
+        for key in [k for k in state if k.startswith("__")]:
+            del state[key]
+        for v in state.values():
+            _remove_internal_state_keys(v)
+    elif isinstance(state, list):
+        for item in state:
+            _remove_internal_state_keys(item)
+
+
 def expand_meta_parameters(
     trans: WorkRequestContext, tool, incoming: ToolRequestT, input_format: InputFormatT
 ) -> ExpandedT:
@@ -319,7 +336,6 @@ def split_inputs_flat(inputs: dict[str, Any], classifier):
 
 
 def split_inputs_nested(inputs, nested_dict, classifier):
-    single_inputs: dict[str, Any] = {}
     matched_multi_inputs: dict[str, Any] = {}
     multiplied_multi_inputs: dict[str, Any] = {}
     unset_value = object()
@@ -330,9 +346,7 @@ def split_inputs_nested(inputs, nested_dict, classifier):
             return
 
         input_type, expanded_val = classifier(value, prefixed_name)
-        if input_type == input_classification.SINGLE:
-            single_inputs[prefixed_name] = expanded_val
-        elif input_type == input_classification.MATCHED:
+        if input_type == input_classification.MATCHED:
             matched_multi_inputs[prefixed_name] = expanded_val
         elif input_type == input_classification.MULTIPLIED:
             multiplied_multi_inputs[prefixed_name] = expanded_val
@@ -340,8 +354,8 @@ def split_inputs_nested(inputs, nested_dict, classifier):
     visit_input_values(
         inputs=inputs, input_values=nested_dict, callback=visitor, allow_case_inference=True, unset_value=unset_value
     )
-    single_inputs_nested = expand_flat_parameters_to_nested(single_inputs)
-    return (single_inputs_nested, matched_multi_inputs, multiplied_multi_inputs)
+    _remove_internal_state_keys(nested_dict)
+    return (nested_dict, matched_multi_inputs, multiplied_multi_inputs)
 
 
 ExpandedAsyncT = tuple[

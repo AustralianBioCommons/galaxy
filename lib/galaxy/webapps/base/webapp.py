@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import time
+from collections.abc import Hashable
 from contextlib import ExitStack
 from http.cookies import CookieError
 from typing import (
@@ -40,6 +41,7 @@ from galaxy.managers.session import GalaxySessionManager
 from galaxy.managers.users import UserManager
 from galaxy.model import History
 from galaxy.model.base import ensure_object_added_to_session
+from galaxy.model.orm.now import now as utc_now
 from galaxy.structured_app import (
     BasicSharedApp,
     MinimalApp,
@@ -337,7 +339,7 @@ class GalaxyWebTransaction(base.DefaultWebTransaction, context.ProvidesHistoryCo
         self.galaxy_session = None
         self.error_message = None
         self.host = self.request.host
-        self._short_term_cache: dict[tuple[str, ...], Any] = {}
+        self._short_term_cache: dict[tuple[Hashable, ...], Any] = {}
 
         # set any cross origin resource sharing headers if configured to do so
         self.set_cors_headers()
@@ -382,7 +384,7 @@ class GalaxyWebTransaction(base.DefaultWebTransaction, context.ProvidesHistoryCo
                 #
                 # Make sure we're not past the duration, and either log out or
                 # update timestamp.
-                now = datetime.datetime.now()
+                now = utc_now()
                 if self.galaxy_session.last_action:
                     expiration_time = self.galaxy_session.last_action + datetime.timedelta(
                         minutes=config.session_duration

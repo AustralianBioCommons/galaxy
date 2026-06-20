@@ -5,12 +5,20 @@ Provides search over Galaxy Training Network tutorials and FAQs
 using SQLite FTS5 full-text search with BM25 ranking.
 """
 
+import http.client
 import logging
+import os
 import re
 import shutil
 import sqlite3
 import urllib.request
 from dataclasses import dataclass
+from datetime import (
+    datetime,
+    timedelta,
+    timezone,
+)
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import (
     Any,
@@ -24,8 +32,26 @@ GTN_FAQ_BASE_URL = "https://training.galaxyproject.org/training-material/faqs"
 # an agent init forever. Total wall-clock can still exceed this if the
 # remote keeps sending small chunks, which is the trade for stdlib-only.
 GTN_DOWNLOAD_TIMEOUT_SECONDS = 60
+# HEAD is a small request; an unreachable depot during a freshness check
+# shouldn't hold the periodic queue for the full download budget.
+GTN_FRESHNESS_TIMEOUT_SECONDS = 10
+
+_ONE_SECOND = timedelta(seconds=1)
 
 log = logging.getLogger(__name__)
+
+
+def _parse_last_modified(header: Optional[str]) -> Optional[datetime]:
+    """Parse an HTTP Last-Modified header into an aware UTC datetime, or None."""
+    if not header:
+        return None
+    try:
+        parsed = parsedate_to_datetime(header)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _escape_like(value: str) -> str:
@@ -54,6 +80,8 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     'find "exact phrase" in data'
     >>> sanitize_fts5_query('find "exact phrase" in data', preserve_phrases=False)
     'find exact phrase in data'
+    >>> sanitize_fts5_query("color deconvolution site:example.org/path")
+    'color deconvolution site example org path'
     """
     if not query or not query.strip():
         return ""
@@ -62,7 +90,11 @@ def sanitize_fts5_query(query: str, preserve_phrases: bool = True) -> str:
     # word individually rather than treating the hyphenated form as one token.
     sanitized = query.replace("-", " ")
 
-    for char in ",():+?!;[]":
+    # Models sometimes paste URL- or operator-flavored tokens (site:, dotted
+    # hostnames, slashes, column-filter colons). Left in, ".", ":" and "/" reach
+    # FTS5 as syntax and the whole search errors out as no-results -- so strip
+    # them along with the other FTS5 operators.
+    for char in ",.:/()+?!;[]^=~@<>{}|&":
         sanitized = sanitized.replace(char, " ")
 
     # Phrase preservation only works with a balanced pair of quotes. An odd
@@ -195,6 +227,47 @@ class GTNSearchDB:
         return cls._download_database_to_path(Path(db_path), download_url or GTN_DATABASE_URL)
 
     @classmethod
+    def refresh_database_if_stale(
+        cls, db_path: str | Path, download_url: Optional[str] = None
+    ) -> Optional[dict[str, Any]]:
+        """HEAD the URL and re-download only if its Last-Modified is newer than the local file's mtime.
+
+        Returns the new metadata dict when a refresh happened, ``None`` when the
+        local copy was current. If the local file is missing, or the HEAD fails,
+        falls through to a full download -- safer than skipping silently when we
+        can't tell whether the local copy is current.
+        """
+        target = Path(db_path)
+        url = download_url or GTN_DATABASE_URL
+
+        if target.exists():
+            remote_mtime = cls._remote_last_modified(url)
+            if remote_mtime is not None:
+                local_mtime = datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc)
+                # depot's Last-Modified has second resolution; the 1-second slack
+                # absorbs rounding so a successful refresh isn't immediately re-triggered.
+                if remote_mtime <= local_mtime + _ONE_SECOND:
+                    return None
+
+        return cls._download_database_to_path(target, url)
+
+    @staticmethod
+    def _remote_last_modified(url: str) -> Optional[datetime]:
+        """HEAD ``url`` and return its parsed Last-Modified, or None on failure."""
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=GTN_FRESHNESS_TIMEOUT_SECONDS) as resp:
+                header = resp.headers.get("Last-Modified")
+        except (OSError, ValueError, http.client.HTTPException) as e:
+            # http.client.HTTPException covers malformed responses
+            # (RemoteDisconnected, BadStatusLine) that urllib doesn't wrap
+            # into URLError -- without it the periodic queue would record a
+            # failed run instead of falling through to a full download.
+            log.debug(f"GTN freshness HEAD failed for {url}: {e}")
+            return None
+        return _parse_last_modified(header)
+
+    @classmethod
     def _download_database_to_path(cls, db_path: Path, download_url: str) -> dict[str, Any]:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = db_path.with_suffix(f"{db_path.suffix}.tmp")
@@ -202,9 +275,17 @@ class GTNSearchDB:
         try:
             log.info(f"Downloading GTN database from {download_url} ...")
             with urllib.request.urlopen(download_url, timeout=GTN_DOWNLOAD_TIMEOUT_SECONDS) as response:
+                last_modified_header = response.headers.get("Last-Modified")
                 with open(tmp_path, "wb") as out:
                     shutil.copyfileobj(response, out)
             metadata = cls._validate_database_file(tmp_path)
+            # Stamp the file with depot's Last-Modified so the next stale check
+            # compares against the upstream mtime rather than "right now", which
+            # would also drift with any local clock skew.
+            remote_dt = _parse_last_modified(last_modified_header)
+            if remote_dt is not None:
+                remote_ts = remote_dt.timestamp()
+                os.utime(tmp_path, (remote_ts, remote_ts))
             tmp_path.replace(db_path)
             return metadata
         except (OSError, sqlite3.Error) as e:

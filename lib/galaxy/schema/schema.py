@@ -1759,6 +1759,9 @@ class PageIndexQueryPayload(Model):
     sort_by: PageSortByEnum = Field("update_time", title="Sort By", description="Sort pages by this attribute.")
     sort_desc: Optional[bool] = Field(default=False, title="Sort descending", description="Sort in descending order.")
     user_id: Optional[DecodedDatabaseIdField] = None
+    invocation_id: Optional[DecodedDatabaseIdField] = Field(
+        default=None, title="Invocation ID", description="Filter pages by workflow invocation."
+    )
     history_id: Optional[DecodedDatabaseIdField] = Field(
         default=None, title="History ID", description="Filter pages by history."
     )

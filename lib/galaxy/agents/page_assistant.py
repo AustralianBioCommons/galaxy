@@ -209,6 +209,7 @@ class PageAssistantAgent(BaseGalaxyAgent):
                 ),
                 str,  # Conversational response — questions, clarifications, no document content.
             ],
+            retries=self._get_retries(),
         )
 
         # Dynamic system prompt — reads self.page_content at call time

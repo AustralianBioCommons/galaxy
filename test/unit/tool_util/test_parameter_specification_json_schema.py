@@ -22,8 +22,10 @@ from typing import (
 )
 
 import jsonschema
+import jsonschema.exceptions
 import pytest
 import yaml
+from pydantic_extra_types.color import Color as _Color
 
 pytestmark = pytest.mark.skipif(
     sys.version_info < (3, 9), reason="jsonschema<4.24 on Python 3.8 mishandles additionalProperties in anyOf"
@@ -72,8 +74,21 @@ def _json_schema_for(bundle: ToolParameterBundleModel, state_representation: Sta
     return to_json_schema(model)
 
 
+_FORMAT_CHECKER = jsonschema.FormatChecker()
+
+
+@_FORMAT_CHECKER.checks("color", raises=jsonschema.exceptions.FormatError)
+def _check_color_format(value: object) -> bool:
+    if isinstance(value, str):
+        try:
+            _Color(value)
+        except Exception as e:
+            raise jsonschema.exceptions.FormatError(f"{value!r} is not a valid color", cause=e)
+    return True
+
+
 def _json_schema_validates(schema: Dict[str, Any], state_dict: RawStateDict) -> bool:
-    validator = jsonschema.Draft202012Validator(schema)
+    validator = jsonschema.Draft202012Validator(schema, format_checker=_FORMAT_CHECKER)
     errors = list(validator.iter_errors(state_dict))
     return len(errors) == 0
 

@@ -12,7 +12,6 @@ from typing import (
 from urllib.parse import urlparse
 
 from celery import current_task
-from lagom.exceptions import UnresolvableType
 from sqlalchemy import (
     and_,
     create_engine,
@@ -26,6 +25,8 @@ from sqlalchemy import (
 )
 
 from galaxy import model
+from galaxy.agents import iwc
+from galaxy.agents.gtn import GTNSearchDB
 from galaxy.celery import (
     celery_app,
     galaxy_task,
@@ -48,7 +49,6 @@ from galaxy.managers.markdown_util import generate_branded_pdf
 from galaxy.managers.model_stores import ModelStoreManager
 from galaxy.managers.notification import NotificationManager
 from galaxy.managers.queue_metrics import emit_queue_metrics
-from galaxy.managers.sse import SSEConnectionManager
 from galaxy.managers.tool_data import ToolDataImportManager
 from galaxy.managers.workflow_completion import WorkflowCompletionManager
 from galaxy.metadata.set_metadata import set_metadata_portable
@@ -768,25 +768,23 @@ def dispatch_pending_notifications(notification_manager: NotificationManager):
         log.info(f"Successfully dispatched {count} notifications.")
 
 
-@galaxy_task(action="emit queue and SSE observability metrics")
+@galaxy_task(action="emit queue and worker-process observability metrics")
 def emit_queue_metrics_task(app: MinimalManagerApp):
-    """Sample control-queue depth, SSE connection count, and worker rows → statsd.
+    """Sample control-queue depth and worker rows → statsd.
 
     Resolves the narrow collaborators ``emit_queue_metrics`` needs from the app
     container and passes them in — keeps the emitter module free of
     ``StructuredApp`` service-locator lookups.
-    """
-    try:
-        sse_manager: Optional[SSEConnectionManager] = app[SSEConnectionManager]
-    except UnresolvableType:
-        sse_manager = None
 
+    SSE connection counts are emitted by the web workers themselves (see
+    ``galaxy.managers.sse.SSEConnectionGaugeEmitter``); the Celery worker has no
+    live connections to sample.
+    """
     emit_queue_metrics(
         statsd_client=app.execution_timer_factory.galaxy_statsd_client,
         connection=app.amqp_internal_connection_obj,
         application_stack=app.application_stack,
         model=app.model,
-        sse_manager=sse_manager,
     )
 
 
@@ -827,6 +825,56 @@ def cleanup_jwds(sa_session: galaxy_scoped_session, object_store: BaseObjectStor
 def renew_vault_token(vault: Vault):
     """Renew the Hashicorp Vault token if configured and renewable."""
     renew_vault_token_if_needed(vault)
+
+
+@galaxy_task(action="refreshing IWC workflow manifest cache")
+def refresh_iwc_manifest(config: GalaxyAppConfiguration):
+    """Pre-warm the in-process IWC manifest cache.
+
+    The agent-ops layer caches the manifest at module scope with an hour
+    TTL; without this task the first user-driven IWC call after a worker
+    restart pays the full network fetch. Failures are logged and swallowed
+    so an iwc.galaxyproject.org outage doesn't kill the periodic queue --
+    on-demand callers still get the prior cached copy until the TTL lapses.
+    """
+    try:
+        manifest = iwc.refresh_manifest()
+    except Exception as e:  # noqa: BLE001 -- best-effort warm; resilience over precision
+        log.warning("refresh_iwc_manifest: fetch failed, keeping existing cache: %s", e)
+        return
+    log.info("refresh_iwc_manifest: cached %s top-level manifest entries", len(manifest))
+
+
+@galaxy_task(action="refreshing GTN training database")
+def refresh_gtn_database(config: GalaxyAppConfiguration):
+    """HEAD depot for the GTN search database and re-download only when newer.
+
+    Handlers open the database read-only per query, so an atomic rename here
+    is picked up by the next GalaxyAI request without a restart. The HEAD-first
+    pattern keeps the steady-state cost to a few hundred bytes per tick --
+    only when depot has actually been updated do we pull the full ~17MB.
+    Failures are logged and swallowed so a depot outage doesn't kill the
+    periodic queue.
+    """
+    db_path = config.gtn_database_path
+    if not db_path:
+        log.debug("refresh_gtn_database: gtn_database_path is unset, skipping")
+        return
+    try:
+        metadata = GTNSearchDB.refresh_database_if_stale(db_path, config.gtn_database_url)
+    except FileNotFoundError as e:
+        log.warning("refresh_gtn_database: download failed, keeping existing copy: %s", e)
+        return
+    if metadata is None:
+        log.debug("refresh_gtn_database: %s is current, no download needed", db_path)
+        return
+    log.info(
+        "refresh_gtn_database: refreshed %s (version=%s, tutorials=%s, faqs=%s)",
+        db_path,
+        metadata["version"],
+        metadata["tutorial_count"],
+        metadata["faq_count"],
+    )
 
 
 @galaxy_task(action="execute workflow completion hook")

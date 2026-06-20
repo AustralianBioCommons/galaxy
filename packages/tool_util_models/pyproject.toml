@@ -14,6 +14,7 @@ authors = [
 ]
 dependencies = [
     "pydantic>=2.7.4",
+    "pydantic-extra-types",
     "typing-extensions",
 ]
 classifiers = [

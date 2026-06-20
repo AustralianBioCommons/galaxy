@@ -717,6 +717,30 @@ steps:
             assert os.path.exists(output_dataset_paths[1])
             assert not os.path.exists(output_dataset_paths[0])
 
+    @skip_without_tool("conditional_name_digit_suffix")
+    def test_create_job_with_conditional_name_digit_suffix(self):
+        # Regression: expand_meta_parameters_async used to mangle conditional names ending
+        # in _N (e.g. "inner_options_1") by misidentifying them as repeat indices, causing
+        # Pydantic job-internal validation to fail with extra_forbidden / list_type errors.
+        with self.dataset_populator.test_history() as history_id:
+            response = self.dataset_populator.tool_request_raw(
+                tool_id="conditional_name_digit_suffix",
+                inputs={
+                    "outer": {
+                        "select": "a",
+                        "inner_options_1": {"mode": "by_index", "col": 1},
+                        "inner_options_2": {"mode": "by_name", "label": "foo"},
+                    }
+                },
+                history_id=history_id,
+            )
+            response.raise_for_status()
+            tool_request_id = response.json()["tool_request_id"]
+            submitted = self.dataset_populator.wait_on_tool_request(tool_request_id)
+            assert submitted, self.dataset_populator.get_tool_request(tool_request_id)
+            jobs = self.galaxy_interactor.jobs_for_tool_request(tool_request_id)
+            self.dataset_populator.wait_for_jobs(jobs, assert_ok=True)
+
     def _hack_to_skip_test_if_state_ok(self, job_state):
         if job_state().json()["state"] == "ok":
             message = "Job state switch from running to ok too quickly - the rest of the test requires the job to be in a running state. Skipping test."
@@ -1305,3 +1329,39 @@ steps:
         jobs = jobs_response.json()
         assert isinstance(jobs, list)
         return jobs
+
+
+class TestDataManagerJobsApi(ApiTestCase):
+    """API tests for data manager jobs submitted via the async POST /api/jobs endpoint."""
+
+    require_admin_user = True
+    dataset_populator: DatasetPopulator
+
+    def setUp(self):
+        super().setUp()
+        self.dataset_populator = DatasetPopulator(self.galaxy_interactor)
+
+    @skip_without_tool("data_manager")
+    def test_data_manager_async_submission_with_mismatched_conf_id(self):
+        # Regression for data manager jobs submitted via POST /api/jobs failing with
+        # "Invalid data manager requested" when the data_manager_conf.xml <data_manager id>
+        # differs from the tool XML <tool id>. The test tool "data_manager" (tool XML id)
+        # is registered in sample_data_manager_conf.xml as id="test_data_manager", which
+        # is exactly that mismatch. Before the fix, exec_after_process looked up the data
+        # manager using DataManagerJobAssociation.data_manager_id, which was set from the
+        # reconstructed tool's XML id ("data_manager") rather than the conf id
+        # ("test_data_manager"), causing the lookup to return None and the job to fail with
+        # exit code 0 but error state.
+        with self.dataset_populator.test_history() as history_id:
+            response = self.dataset_populator.tool_request_raw(
+                tool_id="data_manager",
+                inputs={"ignored_value": "test", "exit_code": 0},
+                history_id=history_id,
+                strict=False,
+            )
+            response.raise_for_status()
+            tool_request_id = response.json()["tool_request_id"]
+            submitted = self.dataset_populator.wait_on_tool_request(tool_request_id)
+            assert submitted, self.dataset_populator.get_tool_request(tool_request_id)
+            jobs = self.galaxy_interactor.jobs_for_tool_request(tool_request_id)
+            self.dataset_populator.wait_for_jobs(jobs, assert_ok=True)

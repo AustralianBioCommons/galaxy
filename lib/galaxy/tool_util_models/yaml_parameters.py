@@ -191,9 +191,17 @@ def _split_format(v):
 class YamlDataParameter(_YamlParamBase):
     type: Literal["data"]
     format: List[str] = ["data"]
-    multiple: bool = False
-    min: Optional[int] = None
-    max: Optional[int] = None
+    multiple: Annotated[
+        bool,
+        Field(description="Set true to accept several datasets (a list) for this input instead of one."),
+    ] = False
+    # NOTE: `min`/`max` (the min/max number of selected datasets) are intentionally
+    # NOT exposed here. They only have meaning for a `multiple` input and the runtime
+    # rejects them on a single one; in practice authors (and LLMs) reach for `min: 1`
+    # to mean "required" -- which a data input already is -- and then the tool fails
+    # at build time. Omitting the fields means such a tool is rejected up front with a
+    # clear `extra_forbidden` error instead. The internal model still supports them
+    # for XML tools.
 
     @field_validator("format", mode="before")
     @classmethod
@@ -205,8 +213,6 @@ class YamlDataParameter(_YamlParamBase):
             type="data",
             extensions=list(self.format),
             multiple=self.multiple,
-            min=self.min,
-            max=self.max,
             **_common_internal_kwargs(self),
         )
 

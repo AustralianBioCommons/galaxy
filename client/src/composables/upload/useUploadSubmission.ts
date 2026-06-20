@@ -10,7 +10,6 @@ import {
     markTrackedCompleted,
     markTrackedError,
     splitTrackedUploadsByType,
-    updateTrackedProgress,
 } from "@/composables/upload/uploadTracking";
 import { useUploadBatchOperations } from "@/composables/upload/useUploadBatchOperations";
 import { errorMessageAsString } from "@/utils/simple-error";
@@ -105,7 +104,10 @@ export function useUploadSubmission() {
                 },
                 progress: (percentage) => {
                     onProgress?.(percentage);
-                    updateTrackedProgress(uploadState, apiIds, percentage);
+                },
+                uploadIds: apiIds,
+                perFileProgress: (fileId, percentage) => {
+                    uploadState.updateProgress(fileId, percentage);
                 },
             };
 

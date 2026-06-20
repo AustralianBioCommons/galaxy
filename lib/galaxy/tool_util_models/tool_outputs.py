@@ -15,6 +15,7 @@ from typing import (
 )
 
 from pydantic import (
+    ConfigDict,
     Field,
     model_validator,
 )
@@ -49,24 +50,37 @@ SortKeyT = Literal["filename", "name", "designation", "dbkey"]
 SortCompT = Literal["lexical", "numeric"]
 
 
+# Defaults below mirror the XML parser (galaxy.tool_util.parser.output_collection_def):
+# every non-essential discovery attribute has a sensible default there, so an author
+# (or an LLM) only needs to supply ``pattern``. Requiring all of them in the model is
+# the friction that makes ``discover_datasets`` nearly impossible to author by hand.
 class DatasetCollectionDescription(ToolSourceBaseModel):
+    # extra="forbid" so a typo'd key (e.g. ``patern``) is rejected rather than silently
+    # absorbed by the metadata arm below (which would otherwise collect nothing).
+    model_config = ConfigDict(extra="forbid")
+
     discover_via: DiscoverViaT
-    format: Optional[str]
-    visible: bool
-    assign_primary_output: bool
-    directory: Optional[str]
-    recurse: bool
-    match_relative_path: bool
+    format: Optional[str] = None
+    visible: bool = False
+    assign_primary_output: bool = False
+    directory: Optional[str] = None
+    recurse: bool = False
+    match_relative_path: bool = False
 
 
 class ToolProvidedMetadataDatasetCollection(DatasetCollectionDescription):
+    # ``discover_via`` is required (no default) so an under-specified descriptor
+    # ({} / {format: ...} / a typo'd pattern) does NOT silently resolve to
+    # tool_provided_metadata -- it must say so explicitly. Pattern discovery (the
+    # default in the XML parser) is opt-out only via the ``FilePattern`` arm, which
+    # still requires a real ``pattern``.
     discover_via: Literal["tool_provided_metadata"]
 
 
 class FilePatternDatasetCollectionDescription(DatasetCollectionDescription):
-    discover_via: Literal["pattern"]
-    sort_key: SortKeyT
-    sort_comp: SortCompT
+    discover_via: Literal["pattern"] = "pattern"
+    sort_key: SortKeyT = "filename"
+    sort_comp: SortCompT = "lexical"
     sort_reverse: bool = False
     pattern: str
 
@@ -165,33 +179,66 @@ class IncomingToolOutputCollection(GenericToolOutputCollection[NotRequired[bool]
     hidden: Annotated[Optional[bool], Field(description="If true, the output will not be shown in the history.")] = None
 
 
-class ToolOutputSimple(GenericToolOutputBaseModel):
+class GenericToolOutputSimple(
+    GenericToolOutputBaseModel[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+    Generic[IncomingNotRequiredBoolT, IncomingNotRequiredStringT],
+):
     pass
 
 
-class ToolOutputText(ToolOutputSimple):
+# Internal / parser-facing variants: ``name`` and ``hidden`` are required, matching
+# how ``ToolOutput*Model`` instances are constructed in the output parser (which
+# always supplies both). Binding the type vars to ``[bool, str]`` mirrors
+# ``ToolOutputDataset`` / ``ToolOutputCollection``.
+class ToolOutputText(GenericToolOutputSimple[bool, str]):
     type: Literal["text"]
 
 
-class ToolOutputInteger(ToolOutputSimple):
+class ToolOutputInteger(GenericToolOutputSimple[bool, str]):
     type: Literal["integer"]
 
 
-class ToolOutputFloat(ToolOutputSimple):
+class ToolOutputFloat(GenericToolOutputSimple[bool, str]):
     type: Literal["float"]
 
 
-class ToolOutputBoolean(ToolOutputSimple):
+class ToolOutputBoolean(GenericToolOutputSimple[bool, str]):
+    type: Literal["boolean"]
+
+
+# Incoming / authoring variants: ``hidden`` is optional (it has a sensible
+# default), but ``name`` stays *required* -- unlike datasets/collections, a simple
+# value output has no discovery step to supply a name, so an unnamed one can never
+# be referenced. Previously these reused the strict types above, whose unbound type
+# vars also forced ``hidden`` to be required -- a bug that made the published schema
+# demand a ``hidden`` flag on every simple output.
+class IncomingToolOutputSimple(GenericToolOutputSimple[NotRequired[bool], str]):
+    hidden: Annotated[Optional[bool], Field(description="If true, the output will not be shown in the history.")] = None
+
+
+class IncomingToolOutputText(IncomingToolOutputSimple):
+    type: Literal["text"]
+
+
+class IncomingToolOutputInteger(IncomingToolOutputSimple):
+    type: Literal["integer"]
+
+
+class IncomingToolOutputFloat(IncomingToolOutputSimple):
+    type: Literal["float"]
+
+
+class IncomingToolOutputBoolean(IncomingToolOutputSimple):
     type: Literal["boolean"]
 
 
 IncomingToolOutputT = Union[
     IncomingToolOutputDataset,
     IncomingToolOutputCollection,
-    ToolOutputText,
-    ToolOutputInteger,
-    ToolOutputFloat,
-    ToolOutputBoolean,
+    IncomingToolOutputText,
+    IncomingToolOutputInteger,
+    IncomingToolOutputFloat,
+    IncomingToolOutputBoolean,
 ]
 IncomingToolOutput = Annotated[IncomingToolOutputT, Field(discriminator="type")]
 ToolOutputT = Union[
