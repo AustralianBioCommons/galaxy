@@ -159,7 +159,7 @@ mistune==3.2.1
 more-itertools==11.1.0
 mrcfile==1.5.4
 msal==1.37.0
-msgpack==1.1.2
+msgpack==1.2.1
 multidict==6.7.1
 mypy-extensions==1.1.0
 networkx==3.4.2 ; python_full_version < '3.11'

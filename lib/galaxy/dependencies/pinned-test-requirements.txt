@@ -78,7 +78,7 @@ matplotlib==3.10.9
 mdurl==0.1.2
 mirakuru==3.0.2
 mistune==3.2.1
-msgpack==1.1.2
+msgpack==1.2.1
 multidict==6.7.1
 mypy==2.1.0
 mypy-extensions==1.1.0
