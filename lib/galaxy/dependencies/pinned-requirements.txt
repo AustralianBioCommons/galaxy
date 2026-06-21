@@ -212,7 +212,7 @@ pydantic-evals==1.106.0
 pydantic-extra-types==2.11.1
 pydantic-graph==1.106.0
 pydantic-handlebars==0.2.1
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 pydantic-tes==0.4.0
 pydicom==3.0.2
 pydot==4.0.1
