@@ -629,32 +629,63 @@ class TestAgentUnitMocked:
         )
 
     @pytest.mark.asyncio
-    async def test_router_withholds_history_for_routing(self):
-        """Router routes on the current message, withholding conversation history from the
-        model. Feeding history dilutes the routing signal (evals show it degrades routing
-        monotonically), so ``message_history`` is not forwarded; specialists still get the
-        full history via the handoff context."""
+    async def test_router_forwards_prior_turn_for_followup(self):
+        """A follow-up to a normal answer ("what about a workflow for this?") needs the prior
+        turn for its referent, so the router forwards the whole last turn -- the prior request
+        AND its assistant reply. (A bare user message with no reply reads as a dangling request
+        and mis-routes.) Deep history is still withheld; specialists get it via the handoff."""
         router = QueryRouterAgent(self.deps)
         history: list[ModelMessage] = [
-            ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
-            ModelResponse(parts=[TextPart(content="You have 3.")]),
+            ModelRequest(parts=[UserPromptPart(content="Is there a tutorial for quantifying histological staining?")]),
+            ModelResponse(parts=[TextPart(content="Yes -- here is a GTN tutorial on color deconvolution.")]),
         ]
 
         with mock.patch.object(router, "_run_with_retry") as mock_run:
             mock_result = mock.Mock(spec=["output"])
-            mock_result.output = "Following up: here is more detail."
+            mock_result.output = "Routed."
             mock_run.return_value = mock_result
 
             await router.process(
-                "Tell me more about the second one",
+                "What about a workflow for this?",
                 context={"conversation_history": history},
             )
 
             mock_run.assert_called_once()
             args, kwargs = mock_run.call_args
-            # Routing decision is made on the current message, not the accumulated history.
-            assert kwargs["message_history"] is None
-            assert args[0] == "Tell me more about the second one"
+            assert args[0] == "What about a workflow for this?"
+            forwarded = kwargs["message_history"]
+            assert forwarded is not None
+            # The whole prior turn rides along -- request and reply both.
+            contents = [part.content for message in forwarded for part in message.parts]
+            assert any("histological staining" in content for content in contents)
+            assert any("color deconvolution" in content for content in contents)
+
+    @pytest.mark.asyncio
+    async def test_router_followup_history_capped_to_last_turn(self):
+        """Across a deeper conversation the router forwards only the most recent turn
+        (ROUTING_HISTORY_TURNS) -- both its messages, not the older turns -- enough to resolve
+        the referent without re-diluting the routing signal that #22791 protects."""
+        router = QueryRouterAgent(self.deps)
+        history: list[ModelMessage] = [
+            ModelRequest(parts=[UserPromptPart(content="What histories do I have?")]),
+            ModelResponse(parts=[TextPart(content="You have 3.")]),
+            ModelRequest(parts=[UserPromptPart(content="Tell me about RNA-seq alignment tools")]),
+            ModelResponse(parts=[TextPart(content="HISAT2 and STAR are common aligners.")]),
+        ]
+
+        with mock.patch.object(router, "_run_with_retry") as mock_run:
+            mock_result = mock.Mock(spec=["output"])
+            mock_result.output = "Routed."
+            mock_run.return_value = mock_result
+
+            await router.process("Is there a workflow for that?", context={"conversation_history": history})
+
+            _, kwargs = mock_run.call_args
+            forwarded = kwargs["message_history"]
+            assert forwarded is not None
+            # Only the last turn (both messages), not the earlier "What histories" turn.
+            contents = [part.content for message in forwarded for part in message.parts]
+            assert contents == ["Tell me about RNA-seq alignment tools", "HISAT2 and STAR are common aligners."]
 
     @pytest.mark.asyncio
     async def test_router_injects_interface_context_into_prompt(self):
