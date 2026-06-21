@@ -13,6 +13,7 @@ from .routing_depth import (
     build_history,
     routing_depth_dataset,
 )
+from .routing_followup import routing_followup_dataset
 from .staining_quantification import staining_quantification_dataset
 from .tool_recommendation import tool_recommendation_dataset
 
@@ -28,6 +29,7 @@ __all__ = [
     "routing_clarification_followup_dataset",
     "routing_dataset",
     "routing_depth_dataset",
+    "routing_followup_dataset",
     "staining_quantification_dataset",
     "tool_recommendation_dataset",
 ]

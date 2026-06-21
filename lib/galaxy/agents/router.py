@@ -51,13 +51,15 @@ class QueryRouterAgent(BaseGalaxyAgent):
     agent_type = AgentType.ROUTER
     _handoff_context: Optional[dict[str, Any]] = None
 
-    # How many recent conversation turns the router sees when making its routing
-    # decision. Evals show routing accuracy degrades monotonically as more history is
-    # fed to the router -- a tool/workflow question that routes correctly on turn 1 gets
-    # answered directly deep in a conversation. Routing on the current message alone
-    # (0 turns) recovers it; specialists still receive the full conversation_history via
-    # the handoff context, so nothing downstream loses information.
-    ROUTING_HISTORY_TURNS = 0
+    # The current message drives routing, plus the most recent conversation turn(s) so an
+    # elliptical follow-up ("what about a workflow for this?", or the answer to a clarifying
+    # question -- "the second one") keeps its referent. Capped at ROUTING_HISTORY_TURNS:
+    # forwarding the whole deep conversation degrades routing -- it biases the model toward
+    # answering directly (the #22791 finding) -- but forwarding the last turn does not. It's
+    # the whole turn, request and reply: a bare user message with no assistant reply reads as
+    # a dangling/compound request and mis-routes. Specialists always receive the full
+    # conversation_history via the handoff context.
+    ROUTING_HISTORY_TURNS = 1
 
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, str]:
         model_name = self._get_agent_config("model", "")
@@ -499,7 +501,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
             - A failure is reported with no error text, exit code, or tool name ("It keeps failing")
             - The intent could plausibly mean several different things -- a tool, a tutorial,
               usage help, or debugging ("I need help with variant calling")
-            - A follow-up's referent cannot be determined from the message itself
+            - A follow-up's referent cannot be resolved even from the recent turn provided
 
             Do NOT use this when the current message is clear enough to route or answer on its
             own -- a confident route or answer is always better than an unnecessary question.
@@ -523,33 +525,16 @@ class QueryRouterAgent(BaseGalaxyAgent):
         return [i for i, message in enumerate(full_history) if _is_turn_start(message)]
 
     def _routing_history(self, full_history: Optional[list]) -> Optional[list]:
-        """The history the router uses for its routing decision.
-
-        Capped at ``ROUTING_HISTORY_TURNS`` recent turns (0 -> none). Conversation history
-        dilutes the routing signal and biases the model toward answering directly, so the
-        router routes on the current message while specialists still get the full history.
-        """
+        """The most recent ``ROUTING_HISTORY_TURNS`` turn(s) of ``full_history``, or None when
+        capped to 0 or there's no history. See ``ROUTING_HISTORY_TURNS`` for the rationale."""
         if not full_history or self.ROUTING_HISTORY_TURNS <= 0:
             return None
-
-        turn_starts = self._turn_start_indices(full_history)
-        if len(turn_starts) <= self.ROUTING_HISTORY_TURNS:
-            return full_history
-        return full_history[turn_starts[-self.ROUTING_HISTORY_TURNS] :]
-
-    def _clarification_routing_history(self, full_history: Optional[list]) -> list:
-        """The last conversation turn (original request + the clarifying question we asked).
-
-        A narrow exception to history-withholding: when the user is answering a clarification,
-        the router needs that turn to route an elliptical answer like "the second one" -- on
-        its own it has no referent. Specialists still receive the full history via the handoff.
-        """
-        if not full_history:
-            return []
         turn_starts = self._turn_start_indices(full_history)
         if not turn_starts:
-            return full_history
-        return full_history[turn_starts[-1] :]
+            return None
+        if len(turn_starts) > self.ROUTING_HISTORY_TURNS:
+            return full_history[turn_starts[-self.ROUTING_HISTORY_TURNS] :]
+        return full_history
 
     async def process(self, query: str, context: Optional[dict[str, Any]] = None) -> AgentResponse:
         validation_error = self._validate_query(query)
@@ -558,22 +543,16 @@ class QueryRouterAgent(BaseGalaxyAgent):
 
         try:
             full_history = self._extract_message_history(context)
-            # Route on the current message; deep history degrades the routing decision.
-            # Specialists still receive the full conversation_history via _handoff_context.
-            message_history: Optional[list]
-            if context and context.get("responding_to_clarification") and full_history:
-                # The previous turn asked a clarifying question -- route the answer using
-                # that one turn so an elliptical reply ("the second one") has a referent.
-                message_history = self._clarification_routing_history(full_history)
-                log.info(f"Router: answering a clarification, routing on the last turn ({len(message_history)} msgs)")
+            # Route on the current message plus the most recent turn(s) (see ROUTING_HISTORY_TURNS).
+            # The responding_to_clarification context flag is intentionally not consulted: forwarding
+            # the last turn handles clarification answers and ordinary follow-ups the same way.
+            message_history = self._routing_history(full_history)
+            if message_history:
+                log.info(f"Router: routing on the current message plus the last turn ({len(message_history)} msgs)")
+            elif full_history:
+                log.info(f"Router: routing on the current message, withholding {len(full_history)} history messages")
             else:
-                message_history = self._routing_history(full_history)
-                if full_history and not message_history:
-                    log.info(f"Router: routing on current message, withholding {len(full_history)} history messages")
-                elif message_history:
-                    log.info(f"Router: routing on {len(message_history)} recent messages")
-                else:
-                    log.info("Router: processing query with no conversation history")
+                log.info("Router: processing query with no conversation history")
 
             previous_handoff_context = self._handoff_context
             self._handoff_context = context.copy() if context else {}
