@@ -100,7 +100,7 @@ mdurl==0.1.2
 mirakuru==3.0.2
 mistune==3.2.1
 more-itertools==11.1.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x'
-msgpack==1.1.2
+msgpack==1.2.1
 multidict==6.7.1
 mypy==2.1.0
 mypy-extensions==1.1.0
