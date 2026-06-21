@@ -51,9 +51,33 @@ class GTNTrainingAgent(BaseGalaxyAgent):
     """Searches GTN tutorials to help users find training materials and learning paths."""
 
     agent_type = AgentType.GTN_TRAINING
+    capability_blurb = (
+        "Find Galaxy Training Network tutorials and step-by-step guidance for an analysis you want to learn."
+    )
+
+    # The model tends to keep re-searching long after it has enough material,
+    # and every extra round re-sends the whole growing transcript -- a single
+    # query was costing ~18 search rounds / ~90k tokens. Cap the number of
+    # data-gathering tool calls and, once spent, return a terminal instruction
+    # so the model synthesizes from what it already has instead of looping.
+    MAX_TOOL_CALLS = 3
+    # Note: name the search tools explicitly rather than saying "don't call any
+    # tools" -- the structured response is itself delivered via an output tool
+    # call, so a blanket "no tools" instruction makes the model emit prose that
+    # fails structured-output validation.
+    _TOOL_BUDGET_MESSAGE = (
+        "SEARCH BUDGET REACHED. You already have enough material to answer. "
+        "Do NOT call search_gtn_tutorials, search_gtn_faqs, "
+        "search_tutorials_by_tools, or get_tutorial_content again. Produce your "
+        "final structured answer now from the results and tutorial content "
+        "already returned above. If none is a strong match, say so and point to "
+        "the relevant GTN topic page."
+    )
 
     def __init__(self, deps: GalaxyAgentDependencies):
         super().__init__(deps)
+
+        self._tool_calls = 0
 
         db_path = getattr(deps.config, "gtn_database_path", None)
         download_url = getattr(deps.config, "gtn_database_url", None)
@@ -66,12 +90,21 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             log.warning(f"GTN database not available: {e}")
             self.gtn_db = None
 
+    def _charge_tool_budget(self) -> Optional[str]:
+        """Count a data-gathering tool call; once over budget return a stop
+        message instead of more data so the model answers from what it has."""
+        self._tool_calls += 1
+        if self._tool_calls > self.MAX_TOOL_CALLS:
+            return self._TOOL_BUDGET_MESSAGE
+        return None
+
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, Any]:
         if not self._supports_structured_output():
             return Agent(
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         agent = Agent(
@@ -79,6 +112,11 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             deps_type=GalaxyAgentDependencies,
             output_type=GTNSearchResponse,
             system_prompt=self.get_system_prompt(),
+            # gpt-oss occasionally emits prose instead of a valid GTNSearchResponse;
+            # the pydantic-ai default of 1 output retry turns that into a hard error.
+            # Configurable via inference_services, defaulting to 3 so an occasional
+            # malformed output recovers.
+            retries=self._get_retries(),
         )
 
         @agent.tool
@@ -91,6 +129,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             limit: int = 5,
         ) -> str:
             """Search GTN tutorials using full-text search over titles, descriptions, and content."""
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             if not self.gtn_db:
                 return json.dumps({"error": "GTN database not available"})
             try:
@@ -119,6 +160,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             max_length: int = 1500,
         ) -> str:
             """Get the full content of a specific tutorial by topic and name."""
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             if not self.gtn_db:
                 return "GTN database not available"
             try:
@@ -154,6 +198,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             over ``search_gtn_tutorials`` for queries shorter than about
             eight words or phrased as ``what is X`` / ``how do I X``.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             if not self.gtn_db:
                 return json.dumps({"error": "GTN database not available"})
             try:
@@ -175,6 +222,9 @@ class GTNTrainingAgent(BaseGalaxyAgent):
             limit: int = 5,
         ) -> str:
             """Find tutorials that use specific Galaxy tools."""
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             if not self.gtn_db:
                 return json.dumps({"error": "GTN database not available"})
             try:
@@ -200,6 +250,8 @@ class GTNTrainingAgent(BaseGalaxyAgent):
         validation_error = self._validate_query(query)
         if validation_error:
             return self._validation_error_response(validation_error)
+
+        self._tool_calls = 0
 
         if not self.gtn_db:
             return self._build_response(

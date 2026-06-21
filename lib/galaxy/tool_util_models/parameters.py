@@ -9,6 +9,7 @@ from typing import (
     Dict,
     get_args,
     Iterable,
+    Iterator,
     List,
     Mapping,
     NamedTuple,
@@ -41,6 +42,7 @@ from pydantic import (
     TypeAdapter,
 )
 from pydantic.json_schema import SkipJsonSchema
+from pydantic_extra_types.color import Color
 from typing_extensions import (
     Annotated,
     Literal,
@@ -174,17 +176,25 @@ def _label_value_dicts(options: List[Any]) -> List[Dict[str, Any]]:
     return [{"label": o.label, "value": o.value, "selected": o.selected} for o in options]
 
 
+_UNSET: Any = object()
+
+
 def dynamic_model_information_from_py_type(
     param_model: ParamModel,
     py_type: Type,
     requires_value: Optional[bool] = None,
-    validators=None,
+    validators: Optional[Dict[str, Any]] = None,
     extra_json_schema: Optional[Dict[str, Any]] = None,
-):
+    default: Any = _UNSET,
+) -> DynamicModelInformation:
     name = safe_field_name(param_model.name)
-    if requires_value is None:
-        requires_value = param_model.request_requires_value
-    initialize = ... if requires_value else None
+    if default is not _UNSET:
+        initialize = default
+        requires_value = False
+    else:
+        if requires_value is None:
+            requires_value = param_model.request_requires_value
+        initialize = ... if requires_value else None
     py_type_is_optional = is_optional(py_type)
     validators = validators or {}
     if not py_type_is_optional and not requires_value:
@@ -459,6 +469,26 @@ class IntegerParameterModel(BaseGalaxyToolParameterModelDefinition):
         return not self.optional and self.value is None
 
 
+_INFINITY_SENTINEL = "__Infinity__"
+_NEG_INFINITY_SENTINEL = "__-Infinity__"
+
+
+def _convert_infinity_sentinel(v: Any) -> Any:
+    """Convert Galaxy JSON sentinel strings for infinity back to Python floats.
+
+    Galaxy's custom JSON encoder (galaxy.util.json.safe_dumps) serializes
+    float('inf') as '__Infinity__' and float('-inf') as '__-Infinity__' to
+    produce valid JSON.  When these sentinel values appear in deserialized
+    parameter dicts (e.g. from GET /api/tools/{id}/test_data) Pydantic must
+    accept them as valid float input.
+    """
+    if v == _INFINITY_SENTINEL:
+        return float("inf")
+    elif v == _NEG_INFINITY_SENTINEL:
+        return float("-inf")
+    return v
+
+
 class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     parameter_type: Literal["gx_float"] = "gx_float"
     type: Literal["float"]
@@ -466,6 +496,11 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
     min: Optional[float] = None
     max: Optional[float] = None
     validators: List[NumberCompatiableValidators] = []
+
+    @field_validator("value", "min", "max", mode="before")
+    @classmethod
+    def convert_infinity_sentinels(cls, v: Any) -> Any:
+        return _convert_infinity_sentinel(v)
 
     def field_kwargs(self) -> Dict[str, Any]:
         kwargs = super().field_kwargs()
@@ -493,21 +528,28 @@ class FloatParameterModel(BaseGalaxyToolParameterModelDefinition):
         if self.min is not None or self.max is not None:
             validators.append(InRangeParameterValidatorModel(min=self.min, max=self.max, implicit=True))
         py_type = decorate_type_with_validators_if_needed(py_type, validators)
-        return dynamic_model_information_from_py_type(self, py_type, requires_value=requires_value)
+        # Convert Galaxy JSON sentinel strings ("__Infinity__", "__-Infinity__") to Python floats
+        # before Pydantic validates the field. These sentinels appear when float('inf') values are
+        # round-tripped through Galaxy's safe_dumps/json.loads path (e.g. GET /api/tools/{id}/test_data).
+        dynamic_validators: Dict[str, Any] = {
+            "infinity_sentinel": field_validator(safe_field_name(self.name), mode="before")(_convert_infinity_sentinel)
+        }
+        return dynamic_model_information_from_py_type(
+            self, py_type, requires_value=requires_value, validators=dynamic_validators
+        )
 
     @property
     def request_requires_value(self) -> bool:
         return False
 
 
-DataSrcT = Literal["hda", "ldda"]
-MultiDataSrcT = Literal["hda", "ldda", "hdca", "dce"]
-# @jmchilton you meant CollectionSrcT - fix that at some point please.
-CollectionStrT = Literal["hdca"]
+# External collection source type. ``dce`` is accepted because a job that maps
+# over a nested collection (e.g. subcollection mapping over a ``list:paired``)
+# records its input as a ``DatasetCollectionElement``; rerunning such a job
+# resubmits that ``dce`` reference through the request model.
+CollectionSrcT = Literal["hdca", "dce"]
 # Internal collection source type - includes dce for subcollection mapping
 CollectionInternalSrcT = Literal["hdca", "dce"]
-
-TestCaseDataSrcT = Literal["File"]
 
 
 class LegacyRequestModelAttributes(StrictModel):
@@ -1149,6 +1191,7 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
     multiple: Annotated[bool, Field(description="Allow multiple values to be selected.")] = False
     min: Optional[int] = None
     max: Optional[int] = None
+    url_default: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -1224,14 +1267,20 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     def pydantic_template(self, state_representation: StateRepresentationT) -> DynamicModelInformation:
         if state_representation in ["request", "relaxed_request"]:
-            return allow_batching(dynamic_model_information_from_py_type(self, self.py_type), BatchDataInstance)
+            requires_value = None if not self.url_default else False
+            return allow_batching(
+                dynamic_model_information_from_py_type(self, self.py_type, requires_value=requires_value),
+                BatchDataInstance,
+            )
         elif state_representation == "landing_request":
             return allow_batching(
                 dynamic_model_information_from_py_type(self, self.py_type, requires_value=False), BatchDataInstance
             )
         elif state_representation == "request_internal":
+            requires_value = None if not self.url_default else False
             return allow_batching(
-                dynamic_model_information_from_py_type(self, self.py_type_internal), BatchDataInstanceInternal
+                dynamic_model_information_from_py_type(self, self.py_type_internal, requires_value=requires_value),
+                BatchDataInstanceInternal,
             )
         elif state_representation == "landing_request_internal":
             return allow_batching(
@@ -1247,9 +1296,13 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
             return dynamic_model_information_from_py_type(self, self.py_type_job_internal, requires_value=True)
         elif state_representation == "job_runtime":
             return dynamic_model_information_from_py_type(self, self.py_type_internal_json, requires_value=True)
-        elif state_representation == "test_case_xml":
-            return dynamic_model_information_from_py_type(self, self.py_type_test_case)
-        elif state_representation == "test_case_json":
+        elif state_representation in ("test_case_xml", "test_case_json"):
+            if self.url_default:
+                return dynamic_model_information_from_py_type(
+                    self,
+                    self.py_type_test_case,
+                    default={"class": "File", "location": self.url_default},
+                )
             return dynamic_model_information_from_py_type(self, self.py_type_test_case)
         elif state_representation == "workflow_step":
             return dynamic_model_information_from_py_type(self, type(None), requires_value=False)
@@ -1262,16 +1315,16 @@ class DataParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     @property
     def request_requires_value(self) -> bool:
-        return not self.optional
+        return not self.optional and self.url_default is None
 
 
 class DataCollectionRequest(StrictModel):
-    src: CollectionStrT
+    src: CollectionSrcT
     id: StrictStr
 
 
 class BatchCollectionInstance(StrictModel):
-    src: CollectionStrT
+    src: CollectionSrcT
     id: StrictStr
     map_over_type: Optional[str] = None
 
@@ -1540,15 +1593,10 @@ def ensure_color_valid(value: Optional[Any]):
         return
     if not isinstance(value, str):
         raise ValueError(f"Invalid color value type {value.__class__} encountered.")
-    value_str: str = value
-    message = f"Invalid color value string format {value_str} encountered."
-    if len(value_str) != 7:
-        raise ValueError(message + "0")
-    if value_str[0] != "#":
-        raise ValueError(message + "1")
-    for byte_str in value_str[1:]:
-        if byte_str not in "0123456789abcdef":
-            raise ValueError(message + "2")
+    try:
+        Color(value)
+    except Exception as e:
+        raise ValueError(f"Invalid color value {value!r}: {e}")
 
 
 class ColorParameterModel(BaseGalaxyToolParameterModelDefinition):
@@ -1558,7 +1606,7 @@ class ColorParameterModel(BaseGalaxyToolParameterModelDefinition):
 
     def field_kwargs(self) -> Dict[str, Any]:
         kwargs = super().field_kwargs()
-        kwargs["json_schema_extra"]["pattern"] = "^#[0-9a-f]{6}$"
+        kwargs["json_schema_extra"]["format"] = "color"
         return kwargs
 
     @property
@@ -2531,6 +2579,28 @@ def simple_input_models(
     parameters: Union[List[ToolParameterModel], List[ToolParameterT]],
 ) -> Iterable[ToolParameterT]:
     return [to_simple_model(m) for m in parameters]
+
+
+def iter_parameter_models(parameters: Iterable[ToolParameterT]) -> Iterator[ToolParameterT]:
+    """Yield every parameter in a parameter tree, depth-first.
+
+    Descends into repeats, sections and *all* branches of every conditional - the purely
+    structural view of the tree, independent of any state. A conditional yields the
+    conditional itself, then its discriminator ``test_parameter``, then every parameter
+    across all of its whens; a repeat/section yields the group node then its children.
+
+    Use this for structure-only queries (collecting names, validating types). When the walk
+    needs to follow values - and so only the active when of each conditional - use
+    ``visit_input_values`` instead.
+    """
+    for parameter in parameters:
+        yield parameter
+        if isinstance(parameter, ConditionalParameterModel):
+            yield parameter.test_parameter
+            for when in parameter.whens:
+                yield from iter_parameter_models(when.parameters)
+        elif isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
+            yield from iter_parameter_models(parameter.parameters)
 
 
 def create_model_strict(*args, **kwd) -> Type[BaseModel]:

@@ -70,6 +70,38 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
     """Agent for recommending Galaxy tools based on user requirements."""
 
     agent_type = AgentType.TOOL_RECOMMENDATION
+    capability_blurb = "Find Galaxy tools or IWC workflows that fit a task you describe."
+
+    # The model can keep re-searching tools and workflows long after it has
+    # enough to recommend from. Left unbounded it eventually trips pydantic-ai's
+    # default request_limit (50) and the whole turn errors out. Cap the number of
+    # data-gathering tool calls and, once spent, hand back a terminal instruction
+    # so the model produces its recommendation from what it already found.
+    MAX_TOOL_CALLS = 8
+    # Name the search tools to avoid rather than saying "no tools" -- the
+    # structured recommendation is itself delivered via an output tool call, so a
+    # blanket "no tools" instruction makes the model emit prose that fails
+    # structured-output validation.
+    _TOOL_BUDGET_MESSAGE = (
+        "SEARCH BUDGET REACHED. You already have enough information to recommend. "
+        "Do NOT call search_galaxy_tools, get_galaxy_tool_details, "
+        "get_galaxy_tool_categories, search_iwc_workflows, or "
+        "get_iwc_workflow_details again. Produce your final structured "
+        "recommendation now from the tools and workflows already found above. If "
+        "nothing is a strong match, say so and recommend the closest option."
+    )
+
+    def __init__(self, deps: GalaxyAgentDependencies):
+        super().__init__(deps)
+        self._tool_calls = 0
+
+    def _charge_tool_budget(self) -> Optional[str]:
+        """Count a data-gathering tool call; once over budget return a stop
+        message instead of more data so the model recommends from what it has."""
+        self._tool_calls += 1
+        if self._tool_calls > self.MAX_TOOL_CALLS:
+            return self._TOOL_BUDGET_MESSAGE
+        return None
 
     def _create_agent(self) -> Agent[GalaxyAgentDependencies, Any]:
         if self._supports_structured_output():
@@ -78,12 +110,14 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
                 deps_type=GalaxyAgentDependencies,
                 output_type=SimplifiedToolRecommendationResult,
                 system_prompt=self.get_system_prompt(),
+                retries=self._get_retries(),
             )
         else:
             agent = Agent(
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         @agent.tool
@@ -93,6 +127,9 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
             Use this to find real tool IDs for tools you want to recommend.
             Returns tool id, name, description, and category for matching tools.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             results = await self.search_tools(query)
             if not results:
                 return f"No tools found matching '{query}'"
@@ -111,6 +148,9 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
             Use this after searching to get more details about a tool you want to recommend,
             including input/output formats, version, and requirements.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             details = await self.get_tool_details(tool_id)
             if "error" in details:
                 return f"Error: {details['error']}"
@@ -137,6 +177,9 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
 
             Use this to understand what kinds of tools are available before searching.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             categories = await self.get_tool_categories()
             if not categories:
                 return "No tool categories found"
@@ -151,6 +194,9 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
             single tool. Returns ranked workflow entries with trsID, name,
             description, step count, and the tools each workflow uses.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             results = await self.search_iwc_workflows(query, limit=limit)
             if not results:
                 return f"No IWC workflows found matching '{query}'"
@@ -170,6 +216,9 @@ class ToolRecommendationAgent(BaseGalaxyAgent):
             Use after search_iwc_workflows to get the complete tool list,
             authors, categories, and readme summary before recommending.
             """
+            over_budget = self._charge_tool_budget()
+            if over_budget:
+                return over_budget
             details = await self.get_iwc_workflow_details(trs_id)
             if details is None:
                 return f"No IWC workflow found with trsID {trs_id}"

@@ -126,9 +126,9 @@ from galaxy.tool_util.verify.interactor import ToolTestDescription
 from galaxy.tool_util.verify.parse import parse_tool_test_descriptions
 from galaxy.tool_util.verify.test_data import TestDataNotFoundError
 from galaxy.tool_util.version import (
-    LegacyVersion,
     parse_version,
 )
+from galaxy.tool_util.version_updates import WORKFLOW_SAFE_TOOL_VERSION_UPDATES
 from galaxy.tool_util_models.parameters import (
     MaybeToolParameterBundle,
     ToolParameterBundleModel,
@@ -386,11 +386,6 @@ IMPLICITLY_REQUIRED_TOOL_FILES: dict[str, dict] = {
 }
 
 
-class safe_update(NamedTuple):
-    min_version: Union[LegacyVersion, Version]
-    current_version: Union[LegacyVersion, Version]
-
-
 class RawToolSource(NamedTuple):
     """Compact representation of a tool's raw source for transport/serialization.
 
@@ -401,28 +396,6 @@ class RawToolSource(NamedTuple):
 
     raw_tool_source: str
     tool_source_class: str
-
-
-# Tool updates that did not change parameters in a way that requires rebuilding workflows
-WORKFLOW_SAFE_TOOL_VERSION_UPDATES = {
-    "Filter1": safe_update(parse_version("1.1.0"), parse_version("1.1.1")),
-    "__BUILD_LIST__": safe_update(parse_version("1.0.0"), parse_version("1.1.0")),
-    "__APPLY_RULES__": safe_update(parse_version("1.0.0"), parse_version("1.1.0")),
-    "__EXTRACT_DATASET__": safe_update(parse_version("1.0.0"), parse_version("1.0.2")),
-    "__RELABEL_FROM_FILE__": safe_update(parse_version("1.0.0"), parse_version("1.1.0")),
-    "Grep1": safe_update(parse_version("1.0.1"), parse_version("1.0.4")),
-    "Show beginning1": safe_update(parse_version("1.0.0"), parse_version("1.0.2")),
-    "Show tail1": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-    "sort1": safe_update(parse_version("1.1.0"), parse_version("1.2.0")),
-    "Convert characters1": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-    "CONVERTER_interval_to_bgzip_0": safe_update(parse_version("1.0.1"), parse_version("1.0.2")),
-    "CONVERTER_Bam_Bai_0": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-    "CONVERTER_cram_to_bam_0": safe_update(parse_version("1.0.1"), parse_version("1.0.2")),
-    "CONVERTER_fasta_to_fai": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-    "CONVERTER_sam_to_bigwig_0": safe_update(parse_version("1.0.2"), parse_version("1.0.3")),
-    "CONVERTER_bam_to_coodinate_sorted_bam": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-    "CONVERTER_bam_to_qname_sorted_bam": safe_update(parse_version("1.0.0"), parse_version("1.0.1")),
-}
 
 
 def get_safe_version(tool: "Tool", requested_tool_version: str) -> Optional[str]:
@@ -3772,7 +3745,10 @@ class DataManagerTool(OutputParameterJSONTool):
             return
         super().exec_after_process(app, inp_data, out_data, param_dict, job=job, final_job_state=final_job_state)
         # process results of tool
-        data_manager_id = job.data_manager_association.data_manager_id
+        # Use self.data_manager_id (from data_manager_conf.xml, set at toolbox load time) because
+        # the async API reconstructs the tool from raw XML without data_manager_id, causing the
+        # DataManagerJobAssociation to store the tool XML id instead of the conf id when those differ.
+        data_manager_id = self.data_manager_id or job.data_manager_association.data_manager_id
         data_manager = self.app.data_managers.get_manager(data_manager_id)
         assert (
             data_manager is not None
@@ -4739,6 +4715,8 @@ class RelabelFromFileTool(DatabaseOperationTool):
 
         def add_copied_value_to_new_elements(new_label, dce_object, columns):
             new_label = new_label.strip()
+            if not re.match(r"^[\w\- \.,]+$", new_label):
+                raise exceptions.MessageException(f"Invalid new collection identifier [{new_label}]")
             if new_label in new_elements:
                 raise exceptions.MessageException(
                     f"New identifier [{new_label}] appears twice in resulting collection, these values must be unique."
@@ -4796,9 +4774,6 @@ class RelabelFromFileTool(DatabaseOperationTool):
             for i, dce in enumerate(hdca.collection.elements):
                 dce_object = dce.element_object
                 add_copied_value_to_new_elements(new_labels[i], dce_object, dce.columns)
-        for key in new_elements.keys():
-            if not re.match(r"^[\w\- \.,]+$", key):
-                raise exceptions.MessageException(f"Invalid new collection identifier [{key}]")
         self._add_datasets_to_history(history, new_elements.values())
         output_collections.create_collection(
             next(iter(self.outputs.values())),

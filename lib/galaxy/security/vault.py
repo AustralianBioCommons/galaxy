@@ -38,6 +38,12 @@ class Vault(abc.ABC):
     A simple abstraction for reading/writing from external vaults.
     """
 
+    # Whether this backend uses canonical (no-leading-slash) keys.
+    # Hashicorp Vault 2.0 rejects leading/double slashes, so it must use
+    # canonical keys. DatabaseVault keeps using the legacy /{prefix}/{key}
+    # form used by Galaxy <= 26.0, so existing rows are found in place.
+    use_canonical_keys = True
+
     @abc.abstractmethod
     def read_secret(self, key: str) -> Optional[str]:
         """
@@ -191,6 +197,8 @@ class HashicorpVault(Vault):
 
 
 class DatabaseVault(Vault):
+    use_canonical_keys = False
+
     def __init__(self, sa_session, config):
         self.sa_session = sa_session
         self.encryption_keys = config.get("encryption_keys")
@@ -303,8 +311,9 @@ class VaultKeyPrefixWrapper(Vault):
     def __init__(self, vault: Vault, prefix: str):
         self.vault = vault
         # Strip conventional outer slashes so admins can write `/galaxy`,
-        # `galaxy`, or `/galaxy/` interchangeably in config. Reject anything
-        # that would still produce a non-canonical Vault path after stripping.
+        # `galaxy`, or `/galaxy/` interchangeably in config. Reject empty
+        # prefixes or prefixes that would be invalid in either canonical or
+        # legacy form (double slashes or whitespace adjacent to a slash).
         stripped = prefix.strip("/")
         if not stripped or VAULT_KEY_INVALID_REGEX.search(stripped):
             raise InvalidVaultConfigException(
@@ -313,11 +322,16 @@ class VaultKeyPrefixWrapper(Vault):
             )
         self.prefix = stripped
 
+    def _prefixed(self, key: str) -> str:
+        if self.vault.use_canonical_keys:
+            return f"{self.prefix}/{key}"
+        return f"/{self.prefix}/{key}"
+
     def read_secret(self, key: str) -> Optional[str]:
-        return self.vault.read_secret(f"{self.prefix}/{key}")
+        return self.vault.read_secret(self._prefixed(key))
 
     def write_secret(self, key: str, value: str) -> None:
-        return self.vault.write_secret(f"{self.prefix}/{key}", value)
+        return self.vault.write_secret(self._prefixed(key), value)
 
     def list_secrets(self, key: str) -> list[str]:
         raise NotImplementedError()

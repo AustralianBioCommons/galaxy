@@ -11,6 +11,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Union,
 )
 
 from galaxy.tool_util_models.parameters import (
@@ -37,6 +38,7 @@ from galaxy.tool_util_models.parameters import (
     GenomeBuildParameterModel,
     HiddenParameterModel,
     IntegerParameterModel,
+    iter_parameter_models,
     RepeatParameterModel,
     SectionParameterModel,
     SelectParameterModel,
@@ -76,7 +78,7 @@ DereferenceCallable = Callable[[DataRequestUri], DataRequestInternalHda]
 DereferenceCollectionCallable = Callable[[DataRequestCollectionUri], DataRequestInternalHdca]
 # interfaces for adapting test data dictionaries to tool request dictionaries
 # e.g. {class: File, path: foo.bed} => {src: hda, id: ab1235cdfea3}
-AdaptDatasets = Callable[[JsonTestDatasetDefDict], DataRequestHda]
+AdaptDatasets = Callable[[JsonTestDatasetDefDict], Union[DataRequestHda, DataRequestUri]]
 AdaptCollections = Callable[[JsonTestCollectionDefDict], DataCollectionRequest]
 
 OPENAPI_REF_TEMPLATE = "#/components/schemas/{model}"
@@ -229,6 +231,11 @@ def strictify(relaxed_state: RelaxedRequestToolState, input_models: ToolParamete
     return request_state
 
 
+def _deferred_url_default_request(url: str) -> Dict[str, Any]:
+    """Build the deferred dataset request used to materialize a data param's url_default."""
+    return DataRequestUri(url=url, ext="auto", deferred=True).model_dump()
+
+
 def dereference(
     internal_state: RequestInternalToolState,
     input_models: ToolParameterBundle,
@@ -255,6 +262,8 @@ def dereference(
     def dereference_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
             if value is None:
+                if parameter.url_default:
+                    return dereference_dict(_deferred_url_default_request(parameter.url_default))
                 return VISITOR_NO_REPLACEMENT
             if parameter.multiple and isinstance(value, list):
                 return list(map(dereference_dict, value))
@@ -269,9 +278,15 @@ def dereference(
         else:
             return VISITOR_NO_REPLACEMENT
 
+    # Materialize url_default data inputs that were legitimately absent from the
+    # request_internal state. We do this on a copy so the persisted request keeps
+    # recording absent inputs as absent - the deferred URLs only need to exist from
+    # the dereference stage onwards (where URLs become datasets), not in the request.
+    state_with_url_defaults = deepcopy(internal_state.input_state)
+    _fill_url_defaults(state_with_url_defaults, input_models)
     request_state_dict = visit_input_values(
         input_models,
-        internal_state,
+        RequestInternalToolState(state_with_url_defaults),
         dereference_callback,
     )
     request_state = RequestInternalDereferencedToolState(request_state_dict)
@@ -397,7 +412,7 @@ def encode_test(
     input_models: ToolParameterBundle,
     adapt_datasets: AdaptDatasets,
     adapt_collections: AdaptCollections,
-):
+) -> RequestToolState:
 
     def encode_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
@@ -410,6 +425,8 @@ def encode_test(
                     assert isinstance(value, dict), str(value)
                     test_dataset = cast(JsonTestDatasetDefDict, value)
                     return adapt_datasets(test_dataset).model_dump()
+            elif parameter.url_default:
+                return _deferred_url_default_request(parameter.url_default)
         elif isinstance(parameter, DataCollectionParameterModel):
             if value is not None:
                 assert isinstance(value, dict), str(value)
@@ -444,11 +461,16 @@ def encode_test(
 
 
 def fill_static_defaults(
-    tool_state: Dict[str, Any], input_models: ToolParameterBundle, profile: float, partial: bool = True
+    tool_state: Dict[str, Any],
+    input_models: ToolParameterBundle,
+    profile: float,
+    partial: bool = True,
 ) -> Dict[str, Any]:
-    """If additional defaults might stem from Galaxy runtime, partial should be true.
+    """Fill static defaults into a job_internal tool state; pass only that representation.
 
-    Setting partial to True, prevents runtime validation.
+    Request/request_internal states record absent inputs as absent - filling them here would
+    declare inputs that were never requested. Pass partial=True when further defaults may stem
+    from Galaxy runtime; partial=True skips final runtime validation.
     """
     _fill_defaults(tool_state, input_models)
 
@@ -535,6 +557,55 @@ def _fill_default_for(tool_state: Dict[str, Any], parameter: ToolParameterT) -> 
             # a layer somewhere to deal with this behavior further up the stack and clean up these models.
             if not parameter.optional and tool_state[parameter_name] is None:
                 tool_state[parameter_name] = parameter.default_value if parameter.default_value is not None else ""
+
+
+def _fill_url_defaults(tool_state: Dict[str, Any], input_models: ToolParameterBundle) -> None:
+    for parameter in input_models.parameters:
+        _fill_url_default_for(tool_state, parameter)
+
+
+def _fill_url_default_for(tool_state: Dict[str, Any], parameter: ToolParameterT) -> None:
+    """Inject deferred ``url_default`` data requests for absent data parameters.
+
+    Unlike :func:`_fill_default_for` this materializes *only* ``url_default`` data
+    inputs and deliberately leaves every other static default absent - those belong to
+    later stages. It runs on a transient copy during :func:`dereference` so the URLs
+    resolve to datasets at the right stage without the persisted request_internal state
+    recording inputs that were never part of the request. Containers are only descended
+    into (and so only created in the copy) when they actually contain a url_default.
+    """
+    parameter_name = parameter.name
+    if isinstance(parameter, DataParameterModel):
+        if parameter_name not in tool_state and parameter.url_default:
+            tool_state[parameter_name] = _deferred_url_default_request(parameter.url_default)
+    elif isinstance(parameter, ConditionalParameterModel):
+        raw_state = tool_state.get(parameter_name)
+        conditional_seed = raw_state if isinstance(raw_state, dict) else {}
+        test_parameter_name = parameter.test_parameter.name
+        explicit_test_value: Optional[DiscriminatorType] = conditional_seed.get(test_parameter_name)
+        test_value = validate_explicit_conditional_test_value(test_parameter_name, explicit_test_value)
+        when = _select_which_when(parameter, test_value, conditional_seed)
+        if not _parameters_have_url_default(when.parameters):
+            return
+        conditional_state = _initialize_conditional_state(parameter, tool_state)
+        _fill_url_defaults(conditional_state, when)
+    elif isinstance(parameter, RepeatParameterModel):
+        if not _parameters_have_url_default(parameter.parameters):
+            return
+        for instance_state in _initialize_repeat_state(parameter, tool_state):
+            _fill_url_defaults(instance_state, parameter)
+    elif isinstance(parameter, SectionParameterModel):
+        if not _parameters_have_url_default(parameter.parameters):
+            return
+        section_state = _initialize_section_state(parameter, tool_state)
+        _fill_url_defaults(section_state, parameter)
+
+
+def _parameters_have_url_default(parameters: Sequence[ToolParameterT]) -> bool:
+    return any(
+        isinstance(parameter, DataParameterModel) and bool(parameter.url_default)
+        for parameter in iter_parameter_models(parameters)
+    )
 
 
 def _initialize_section_state(parameter: SectionParameterModel, tool_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -693,17 +764,12 @@ def assert_yaml_v1_parameters(parameters: Sequence[ToolParameterT]) -> None:
     an unsupported type silently pass through ``runtimeify``'s default-case
     ``VISITOR_NO_REPLACEMENT``.
     """
-    for parameter in parameters:
+    for parameter in iter_parameter_models(parameters):
         if type(parameter) not in YAML_V1_SUPPORTED_PARAMETER_MODELS:
             raise AssertionError(
                 f"YAML-origin tool produced unsupported parameter type "
                 f"{type(parameter).__name__} for parameter {getattr(parameter, 'name', '?')!r}"
             )
-        if isinstance(parameter, ConditionalParameterModel):
-            for when in parameter.whens:
-                assert_yaml_v1_parameters(when.parameters)
-        elif isinstance(parameter, (RepeatParameterModel, SectionParameterModel)):
-            assert_yaml_v1_parameters(parameter.parameters)
 
 
 def runtimeify(
@@ -729,6 +795,8 @@ def runtimeify(
 
     def to_runtime_callback(parameter: ToolParameterT, value: Any):
         if isinstance(parameter, DataParameterModel):
+            if value is None:
+                return VISITOR_NO_REPLACEMENT
             if parameter.multiple and isinstance(value, list):
                 return list(map(adapt_dict, value))
             else:

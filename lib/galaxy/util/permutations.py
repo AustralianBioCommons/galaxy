@@ -8,7 +8,11 @@ with itertools product and permutations. These are open questions.
 """
 
 import copy
-from typing import Tuple
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+)
 
 from galaxy.exceptions import MessageException
 from galaxy.util.bunch import Bunch
@@ -103,21 +107,28 @@ def state_copy(inputs, nested):
     return state_dict_copy
 
 
-def state_set_value(state_dict, key, value, nested):
+def state_set_value(state_dict: dict, key: str, value: Any, nested: bool) -> None:
     if "|" not in key or not nested:
         state_dict[key] = value
     else:
         first, rest = key.split("|", 1)
         if first not in state_dict and looks_like_flattened_repeat_key(first):
             repeat_name, index = split_flattened_repeat_key(first)
-            if repeat_name not in state_dict:
-                state_dict[repeat_name] = []
-            repeat_state = state_dict[repeat_name]
-            while len(repeat_state) <= index:
-                repeat_state.append({})
-            state_set_value(repeat_state[index], rest, value, nested)
-        else:
-            state_set_value(state_dict[first], rest, value, nested)
+            # Only treat as a flattened repeat key if the repeat list already exists
+            # or this is the first element (index 0). This avoids misidentifying
+            # conditional names ending in _N (e.g. "inner_options_1") as repeat indices
+            # when no repeat list has been started yet.
+            if index == 0 or isinstance(state_dict.get(repeat_name), list):
+                if repeat_name not in state_dict:
+                    state_dict[repeat_name] = []
+                repeat_state = state_dict[repeat_name]
+                while len(repeat_state) <= index:
+                    repeat_state.append({})
+                state_set_value(repeat_state[index], rest, value, nested)
+                return
+        if first not in state_dict:
+            state_dict[first] = {}
+        state_set_value(state_dict[first], rest, value, nested)
 
 
 def state_remove_value(state_dict, key, nested):
@@ -147,7 +158,7 @@ def state_get_value(state_dict, key, nested):
             return state_get_value(state_dict[first], rest, nested)
 
 
-def is_in_state(state_dict, key, nested):
+def is_in_state(state_dict: Optional[dict], key: str, nested: bool) -> bool:
     if not state_dict:
         return False
     if "|" not in key or not nested:
@@ -155,7 +166,7 @@ def is_in_state(state_dict, key, nested):
     else:
         first, rest = key.split("|", 1)
         # repeats?
-        is_in_state(state_dict.get(first), rest, nested)
+        return is_in_state(state_dict.get(first), rest, nested)
 
 
 def looks_like_flattened_repeat_key(key: str) -> bool:

@@ -4264,6 +4264,16 @@ class History(Base, HasTags, UsesAnnotations, HasName, Serializable, UsesCreateA
     def visible_contents(self):
         return self.contents_iter(types=["dataset", "dataset_collection"], visible=True)
 
+    @property
+    def all_contents(self):
+        """Return every content (hidden, deleted and purged included) ordered by hid.
+
+        Workflow extraction reconstructs provenance from the jobs behind history
+        items, so it needs the hidden intermediates IWC-style workflows produce -
+        not just the visible outputs.
+        """
+        return self.contents_iter(types=["dataset", "dataset_collection"])
+
     def contents_iter(self, **kwds):
         """
         Fetch filtered list of contents of history.

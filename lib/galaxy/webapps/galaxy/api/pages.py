@@ -31,6 +31,7 @@ from galaxy.schema.schema import (
     SharingStatus,
     UpdatePagePayload,
 )
+from galaxy.webapps.base.api import GalaxyStreamingResponse
 from galaxy.webapps.galaxy.api import (
     depends,
     DependsOnTrans,
@@ -82,6 +83,10 @@ OffsetQueryParam: int = Query(
     title="Number of pages to skip in sorted query (to enable pagination).",
 )
 
+InvocationIdQueryParam: Optional[DecodedDatabaseIdField] = Query(
+    default=None, title="Invocation ID", description="Filter pages by this workflow invocation ID."
+)
+
 HistoryIdQueryParam: Optional[DecodedDatabaseIdField] = Query(
     default=None,
     title="Filter pages by history ID.",
@@ -127,6 +132,7 @@ class FastAPIPages:
         sort_by: PageSortByEnum = SortByQueryParam,
         sort_desc: bool = SortDescQueryParam,
         user_id: Optional[DecodedDatabaseIdField] = UserIdQueryParam,
+        invocation_id: Optional[DecodedDatabaseIdField] = InvocationIdQueryParam,
         history_id: Optional[DecodedDatabaseIdField] = HistoryIdQueryParam,
     ) -> PageSummaryList:
         """Get a list with summary information of all Pages available to the user."""
@@ -141,6 +147,7 @@ class FastAPIPages:
             sort_by=sort_by,
             sort_desc=sort_desc,
             user_id=user_id,
+            invocation_id=invocation_id,
             history_id=history_id,
         )
         pages, total_matches = self.service.index(trans, payload, include_total_count=True)
@@ -210,7 +217,7 @@ class FastAPIPages:
         This feature may not be available in this Galaxy.
         """
         pdf_bytes = self.service.show_pdf(trans, id)
-        return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf")
+        return GalaxyStreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf")
 
     @router.post(
         "/api/pages/{id}/prepare_download",

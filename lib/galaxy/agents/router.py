@@ -5,7 +5,7 @@ Uses pydantic-ai output functions to either:
 - Answer general Galaxy questions directly (returns str)
 - Hand off to error_analysis for job debugging
 - Hand off to custom_tool for explicit tool creation requests
-- Hand off to tool_recommendation for tool discovery
+- Hand off to tool_recommendation for tool and IWC workflow discovery
 - Hand off to gtn_training for tutorial and learning requests
 
 Also exposes a small set of @agent.tool fast-path tools for read-only browsing
@@ -15,6 +15,7 @@ router can answer those directly without round-tripping through a specialist.
 
 import json
 import logging
+import re
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -27,6 +28,7 @@ from pydantic import ValidationError
 from pydantic_ai import (
     Agent,
     RunContext,
+    UnexpectedModelBehavior,
 )
 
 from galaxy.agents.operations import AgentOperationsManager
@@ -65,6 +67,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 self._get_model(),
                 deps_type=GalaxyAgentDependencies,
                 system_prompt=self._get_simple_system_prompt(),
+                retries=self._get_retries(),
             )
 
         error_handoff = self._create_error_analysis_handoff()
@@ -91,6 +94,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 str,  # Default: answer directly
             ],
             system_prompt=self.get_system_prompt(),
+            retries=self._get_retries(),
         )
 
         self._register_fast_path_tools(agent)
@@ -232,9 +236,40 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ops = _ops(ctx)
             return await anyio.to_thread.run_sync(ops.list_user_file_sources)
 
+    # Display order for the "what can you do" capability list. Only agents enabled in
+    # this deployment (and that define a capability_blurb) are listed -- so the answer
+    # never advertises a specialist that's turned off and would error on handoff.
+    # ROUTER, PAGE_ASSISTANT, and WORKFLOW_REPORT are intentionally absent: they define
+    # no user-facing capability_blurb (the router isn't a specialist; the others aren't
+    # reachable from this surface), so they never belong in this answer.
+    _CAPABILITY_DISPLAY_ORDER = (
+        AgentType.TOOL_RECOMMENDATION,
+        AgentType.HISTORY,
+        AgentType.GTN_TRAINING,
+        AgentType.ERROR_ANALYSIS,
+        AgentType.ORCHESTRATOR,
+        AgentType.CUSTOM_TOOL,
+    )
+
+    def _capabilities_section(self) -> str:
+        """Render markdown bullets for the specialist capabilities enabled here."""
+        get_blurb = self.deps.get_capability_blurb
+        if get_blurb is None:
+            return ""
+        bullets = []
+        for agent_type in self._CAPABILITY_DISPLAY_ORDER:
+            blurb = get_blurb(agent_type)
+            if blurb:
+                bullets.append(f"- {blurb}")
+        return "\n".join(bullets)
+
     def get_system_prompt(self) -> str:
         prompt_path = Path(__file__).parent / "prompts" / "router.md"
-        return prompt_path.read_text()
+        # Strip any leading whitespace a markdown formatter may have added before the
+        # placeholder (prettier indents it under the preceding list item) so the injected
+        # bullets align at the list's top level. lambda replacement avoids backslash escapes.
+        section = self._capabilities_section()
+        return re.sub(r"[ \t]*\{\{CAPABILITIES\}\}", lambda _m: section, prompt_path.read_text())
 
     def _serialize_handoff(self, response: AgentResponse, target_agent: str) -> str:
         """Wrap a delegated agent's response in JSON to pass through the router's output function."""
@@ -330,13 +365,14 @@ class QueryRouterAgent(BaseGalaxyAgent):
             ctx: RunContext[GalaxyAgentDependencies],
             query: str,
         ) -> str:
-            """Route to tool recommendation agent for finding Galaxy tools.
+            """Route to tool recommendation agent for finding Galaxy tools and IWC workflows.
 
             Use this when the user:
             - Asks what tool to use for a task ("what tool aligns reads?")
             - Wants to find tools for a specific analysis type
             - Needs help discovering available tools
             - Asks "is there a tool that does X?"
+            - Asks to import or find a workflow from IWC for an analysis (it searches IWC and surfaces an import action)
 
             Do NOT use for:
             - How to USE a specific tool (answer directly)
@@ -344,7 +380,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
             - Job errors (use hand_off_to_error_analysis)
 
             Args:
-                query: The tool discovery question
+                query: The tool or workflow discovery question
             """
             return await self._execute_handoff(ctx, AgentType.TOOL_RECOMMENDATION, query)
 
@@ -542,7 +578,11 @@ class QueryRouterAgent(BaseGalaxyAgent):
             previous_handoff_context = self._handoff_context
             self._handoff_context = context.copy() if context else {}
             try:
-                result = await self._run_with_retry(query, message_history=message_history)
+                # Fold the active interface context (the tool/dataset/etc. the user is
+                # viewing) into the prompt for queries the router answers directly --
+                # history rides the separate message_history channel, so strip it here.
+                prompt = self._prepare_prompt(query, self._strip_history_from_context(context or {}))
+                result = await self._run_with_retry(prompt, message_history=message_history)
             finally:
                 self._handoff_context = previous_handoff_context
             content = extract_result_content(result)
@@ -578,7 +618,7 @@ class QueryRouterAgent(BaseGalaxyAgent):
                 query=query,
             )
 
-        except (OSError, ValueError) as e:
+        except (UnexpectedModelBehavior, OSError, ValueError) as e:
             log.warning(f"Router agent error, using fallback: {e}")
             return self._handle_fallback(query, context, str(e))
 
@@ -610,23 +650,19 @@ For specific tools, please also cite the individual tool publications.""",
         )
 
     def _get_simple_system_prompt(self) -> str:
+        # Fallback prompt for models that can't do tool calling (e.g. DeepSeek): this
+        # router has no handoffs and no read-only lookup tools, so it can ONLY hold a
+        # conversation. Keep the prompt honest about that -- it must not imply it can
+        # inspect the user's Galaxy or perform actions, since it genuinely cannot.
         return """You are Galaxy's AI assistant. You ONLY answer questions about the Galaxy platform, Galaxy tools, and scientific data analysis (genomics, proteomics, bioinformatics, etc.).
 
-CRITICAL: Never guess or make up information. If you don't know something, say so. Never fabricate tool names, parameters, or scientific claims. It's better to admit uncertainty than provide incorrect information.
+On this connection you can only hold a conversation: you answer questions and guide the user from your own knowledge -- explaining how Galaxy and its tools work, interpreting error messages they paste in, and recommending analysis approaches. You cannot look anything up in their Galaxy (you can't list or read their histories, workflows, datasets, or installed tools), you cannot run tools, jobs, or workflows, you cannot upload data, and you cannot change any settings. When something needs their data or an action, explain how they can do it themselves in Galaxy or point them to the Galaxy Training Network (https://training.galaxyproject.org/).
 
-For general Galaxy questions: Answer directly and helpfully.
+CRITICAL: Never guess or make up information. Never fabricate tool names, parameters, or scientific claims. If you don't know something, say so -- it is better to admit uncertainty than to provide incorrect information.
 
-For job failures or errors: Explain what might have gone wrong and suggest solutions.
+If asked what you can do, describe only this: answering questions about Galaxy, tool usage, and bioinformatics, and guiding the user through how to do things themselves. Do not claim to inspect their data, run anything, or build tools for them.
 
-For tool creation requests: Explain that you can help design Galaxy tools and provide guidance.
-
-For history analysis requests: Explain that you can help summarize their analysis, generate methods sections, or describe what was done in a history.
-
-For training/tutorial requests: Search the Galaxy Training Network for relevant tutorials.
-
-For off-topic questions: Politely explain you can only help with Galaxy and scientific analysis.
-
-When uncertain, suggest the user check Galaxy documentation or the Galaxy Training Network (https://training.galaxyproject.org/)."""
+For off-topic questions (general coding, non-scientific topics), politely explain that you can only help with Galaxy and scientific analysis."""
 
     def _get_fallback_content(self) -> str:
         return (

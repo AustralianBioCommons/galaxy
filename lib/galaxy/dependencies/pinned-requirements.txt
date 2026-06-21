@@ -98,7 +98,7 @@ google-auth==2.53.0
 google-cloud-batch==0.22.0
 google-genai==2.8.0
 googleapis-common-protos==1.75.0
-gravity==1.2.2
+gravity==1.2.3
 greenlet==3.5.1 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
 griffelib==2.0.2
 groq==1.4.0
@@ -209,6 +209,7 @@ pydantic-ai==1.106.0
 pydantic-ai-slim==1.106.0
 pydantic-core==2.46.4
 pydantic-evals==1.106.0
+pydantic-extra-types==2.11.1
 pydantic-graph==1.106.0
 pydantic-handlebars==0.2.1
 pydantic-settings==2.14.1

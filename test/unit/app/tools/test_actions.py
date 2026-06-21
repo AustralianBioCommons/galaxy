@@ -51,6 +51,18 @@ TWO_OUTPUTS = """<tool id="test_tool" name="Test Tool">
 </tool>
 """
 
+# Tool with a multiple="true" data parameter – used to test on_string handling for collections.
+MULTIPLE_DATA_TOOL = """<tool id="test_tool" name="Test Tool" version="1.0" profile="26.1">
+    <command>cat "$param1" &lt; $out1</command>
+    <inputs>
+        <param type="data" format="tabular" name="param1" multiple="true" value="" />
+    </inputs>
+    <outputs>
+        <data name="out1" format="data" />
+    </outputs>
+</tool>
+"""
+
 
 def test_on_text_for_numeric_ids():
     def assert_on_text_is(expected, hids):
@@ -83,6 +95,27 @@ def test_on_text_for_dataset_and_collections():
 
 
 class TestDefaultToolAction(TestCase, tools_support.UsesTools):
+    def test_on_text_multiple_true_collection(self):
+        # Create a collection with three datasets
+        hdca = model.HistoryDatasetCollectionAssociation()
+        hdca.id = 999
+        hdca.hid = 55
+        collection = model.DatasetCollection()
+        hdca.collection = collection
+        # add three datasets to the collection
+        hda1 = self.__add_dataset()
+        hda2 = self.__add_dataset()
+        hda3 = self.__add_dataset()
+        model.DatasetCollectionElement(collection=collection, element=hda1)
+        model.DatasetCollectionElement(collection=collection, element=hda2)
+        model.DatasetCollectionElement(collection=collection, element=hda3)
+        collection.collection_type = "list"
+        self.history.dataset_collections.append(hdca)
+        # incoming param with the collection
+        incoming = {"param1": hdca}
+        job, output = self._simple_execute(contents=MULTIPLE_DATA_TOOL, incoming=incoming)
+        assert output["out1"].name == f"Test Tool on collection {hdca.hid}"
+
     def setUp(self):
         self.setup_app()
         history = model.History()

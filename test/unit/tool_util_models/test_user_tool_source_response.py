@@ -47,6 +47,7 @@ BASE_TOOL: Dict[str, Any] = {
     "class": "GalaxyUserTool",
     "id": "legacy-tool",
     "name": "Legacy",
+    "version": "1.0.0",
     "container": "busybox",
     "shell_command": "echo $(inputs.msg)",
     "outputs": [],
@@ -85,6 +86,18 @@ def test_lift_status_lifted_for_drift_only():
     for inp in dumped["inputs"]:
         assert "parameter_type" not in inp
         assert "argument" not in inp
+
+
+def test_lift_status_invalid_for_missing_version_still_returns_tool():
+    """`version` is required, so a stored row that predates the requirement can't be
+    auto-lifted. It is still returned to its author -- as the raw dict with an
+    'invalid' status -- so they can see and fix what they defined, rather than the
+    endpoint 500-ing or hiding the tool."""
+    versionless = {k: v for k, v in BASE_TOOL.items() if k != "version"}
+    status, parsed, errors = lift_user_tool_source(versionless)
+    assert status == "invalid"
+    assert parsed == versionless  # returned verbatim
+    assert any("version" in e for e in errors)
 
 
 def test_lift_handles_nested_conditional_drift():

@@ -79,18 +79,20 @@ def parse_tool_test_descriptions(
         validation_exception: Optional[Exception] = None
         request_and_schema: Optional[TestRequestAndSchema] = None
         tool_parameter_bundle: Optional[ToolParameterBundleModel] = None
-        if validate_on_load:
-            try:
-                if parameters is None:
-                    tool_parameter_bundle = input_models_for_tool_source(tool_source)
-                    parameters = tool_parameter_bundle.parameters
-                validated_test_case = case_state(raw_test_dict, parameters, profile, validate=True)
-                request_and_schema = TestRequestAndSchema(
-                    validated_test_case.tool_state,
-                    tool_parameter_bundle or ToolParameterBundleModel(parameters=parameters),
-                )
-            except Exception as e:
+        try:
+            if parameters is None:
+                tool_parameter_bundle = input_models_for_tool_source(tool_source)
+                parameters = tool_parameter_bundle.parameters
+            validated_test_case = case_state(raw_test_dict, parameters, profile, validate=validate_on_load)
+            request_and_schema = TestRequestAndSchema(
+                validated_test_case.tool_state,
+                tool_parameter_bundle or ToolParameterBundleModel(parameters=parameters),
+            )
+        except Exception as e:
+            if validate_on_load:
                 validation_exception = e
+            else:
+                validation_skipped_reason = f"could not build request: {e}"
 
         if validation_exception:
             tool_id, tool_version = _tool_id_and_version(tool_source, tool_guid)

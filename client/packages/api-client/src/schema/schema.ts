@@ -11110,6 +11110,8 @@ export interface components {
              * @constant
              */
             type: "data";
+            /** Url Default */
+            url_default?: string | null;
         };
         /** DataRequestCollectionUri */
         DataRequestCollectionUri: {
@@ -12973,30 +12975,42 @@ export interface components {
         };
         /** FilePatternDatasetCollectionDescription */
         FilePatternDatasetCollectionDescription: {
-            /** Assign Primary Output */
+            /**
+             * Assign Primary Output
+             * @default false
+             */
             assign_primary_output: boolean;
             /** Directory */
-            directory: string | null;
+            directory?: string | null;
             /**
              * Discover Via
+             * @default pattern
              * @constant
              */
             discover_via: "pattern";
             /** Format */
-            format: string | null;
-            /** Match Relative Path */
+            format?: string | null;
+            /**
+             * Match Relative Path
+             * @default false
+             */
             match_relative_path: boolean;
             /** Pattern */
             pattern: string;
-            /** Recurse */
+            /**
+             * Recurse
+             * @default false
+             */
             recurse: boolean;
             /**
              * Sort Comp
+             * @default lexical
              * @enum {string}
              */
             sort_comp: "lexical" | "numeric";
             /**
              * Sort Key
+             * @default filename
              * @enum {string}
              */
             sort_key: "filename" | "name" | "designation" | "dbkey";
@@ -13005,7 +13019,10 @@ export interface components {
              * @default false
              */
             sort_reverse: boolean;
-            /** Visible */
+            /**
+             * Visible
+             * @default false
+             */
             visible: boolean;
         };
         /** FileRequestUri */
@@ -16079,6 +16096,29 @@ export interface components {
              */
             type: "in_range";
         };
+        /** IncomingToolOutputBoolean */
+        IncomingToolOutputBoolean: {
+            /**
+             * Hidden
+             * @description If true, the output will not be shown in the history.
+             */
+            hidden?: boolean | null;
+            /**
+             * Label
+             * @description Output label. Will be used as dataset name in history.
+             */
+            label?: string | null;
+            /**
+             * Name
+             * @description Parameter name. Used when referencing parameter in workflows.
+             */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "boolean";
+        };
         /** IncomingToolOutputCollection */
         IncomingToolOutputCollection: {
             /** Collection Type */
@@ -16171,6 +16211,75 @@ export interface components {
              * @enum {string}
              */
             type: "data";
+        };
+        /** IncomingToolOutputFloat */
+        IncomingToolOutputFloat: {
+            /**
+             * Hidden
+             * @description If true, the output will not be shown in the history.
+             */
+            hidden?: boolean | null;
+            /**
+             * Label
+             * @description Output label. Will be used as dataset name in history.
+             */
+            label?: string | null;
+            /**
+             * Name
+             * @description Parameter name. Used when referencing parameter in workflows.
+             */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "float";
+        };
+        /** IncomingToolOutputInteger */
+        IncomingToolOutputInteger: {
+            /**
+             * Hidden
+             * @description If true, the output will not be shown in the history.
+             */
+            hidden?: boolean | null;
+            /**
+             * Label
+             * @description Output label. Will be used as dataset name in history.
+             */
+            label?: string | null;
+            /**
+             * Name
+             * @description Parameter name. Used when referencing parameter in workflows.
+             */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "integer";
+        };
+        /** IncomingToolOutputText */
+        IncomingToolOutputText: {
+            /**
+             * Hidden
+             * @description If true, the output will not be shown in the history.
+             */
+            hidden?: boolean | null;
+            /**
+             * Label
+             * @description Output label. Will be used as dataset name in history.
+             */
+            label?: string | null;
+            /**
+             * Name
+             * @description Parameter name. Used when referencing parameter in workflows.
+             */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "text";
         };
         /** InferredCollectionTypeLogEntry */
         InferredCollectionTypeLogEntry: {
@@ -24205,116 +24314,36 @@ export interface components {
              */
             uuid: string;
         };
-        /** ToolOutputBoolean */
-        ToolOutputBoolean: {
-            /**
-             * Hidden
-             * @description If true, the output will not be shown in the history.
-             */
-            hidden: unknown;
-            /**
-             * Label
-             * @description Output label. Will be used as dataset name in history.
-             */
-            label?: string | null;
-            /**
-             * Name
-             * @description Parameter name. Used when referencing parameter in workflows.
-             */
-            name: unknown;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "boolean";
-        };
-        /** ToolOutputFloat */
-        ToolOutputFloat: {
-            /**
-             * Hidden
-             * @description If true, the output will not be shown in the history.
-             */
-            hidden: unknown;
-            /**
-             * Label
-             * @description Output label. Will be used as dataset name in history.
-             */
-            label?: string | null;
-            /**
-             * Name
-             * @description Parameter name. Used when referencing parameter in workflows.
-             */
-            name: unknown;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "float";
-        };
-        /** ToolOutputInteger */
-        ToolOutputInteger: {
-            /**
-             * Hidden
-             * @description If true, the output will not be shown in the history.
-             */
-            hidden: unknown;
-            /**
-             * Label
-             * @description Output label. Will be used as dataset name in history.
-             */
-            label?: string | null;
-            /**
-             * Name
-             * @description Parameter name. Used when referencing parameter in workflows.
-             */
-            name: unknown;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "integer";
-        };
-        /** ToolOutputText */
-        ToolOutputText: {
-            /**
-             * Hidden
-             * @description If true, the output will not be shown in the history.
-             */
-            hidden: unknown;
-            /**
-             * Label
-             * @description Output label. Will be used as dataset name in history.
-             */
-            label?: string | null;
-            /**
-             * Name
-             * @description Parameter name. Used when referencing parameter in workflows.
-             */
-            name: unknown;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "text";
-        };
         /** ToolProvidedMetadataDatasetCollection */
         ToolProvidedMetadataDatasetCollection: {
-            /** Assign Primary Output */
+            /**
+             * Assign Primary Output
+             * @default false
+             */
             assign_primary_output: boolean;
             /** Directory */
-            directory: string | null;
+            directory?: string | null;
             /**
              * Discover Via
              * @constant
              */
             discover_via: "tool_provided_metadata";
             /** Format */
-            format: string | null;
-            /** Match Relative Path */
+            format?: string | null;
+            /**
+             * Match Relative Path
+             * @default false
+             */
             match_relative_path: boolean;
-            /** Recurse */
+            /**
+             * Recurse
+             * @default false
+             */
             recurse: boolean;
-            /** Visible */
+            /**
+             * Visible
+             * @default false
+             */
             visible: boolean;
         };
         /** ToolReportForDataset */
@@ -25721,7 +25750,15 @@ export interface components {
              */
             version: string;
         };
-        /** UserToolSource */
+        /**
+         * UserToolSource
+         * @description Full unprivileged tool source, including the optional ``tests`` block.
+         *
+         *     This is the model persisted and validated on the API surface
+         *     (``DynamicUnprivilegedToolCreatePayload.representation``). LLM authoring
+         *     uses the slimmer ``UserToolSourceAuthoringView`` parent; ``tests`` is added
+         *     back here so direct authors and stored rows can still carry tests.
+         */
         "UserToolSource-Input": {
             /** citations */
             citations?: components["schemas"]["Citation"][] | null;
@@ -25784,10 +25821,10 @@ export interface components {
             outputs: (
                 | components["schemas"]["IncomingToolOutputDataset"]
                 | components["schemas"]["IncomingToolOutputCollection"]
-                | components["schemas"]["ToolOutputText"]
-                | components["schemas"]["ToolOutputInteger"]
-                | components["schemas"]["ToolOutputFloat"]
-                | components["schemas"]["ToolOutputBoolean"]
+                | components["schemas"]["IncomingToolOutputText"]
+                | components["schemas"]["IncomingToolOutputInteger"]
+                | components["schemas"]["IncomingToolOutputFloat"]
+                | components["schemas"]["IncomingToolOutputBoolean"]
             )[];
             /** profile */
             profile?: number | null;
@@ -25806,7 +25843,7 @@ export interface components {
             /**
              * shell_command
              * @description A string that contains the command to be executed. Parameters can be referenced inside $().
-             * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
+             * @example head -n '$(inputs.num_lines)' '$(inputs.input_file.path)' > output.txt
              */
             shell_command: string;
             /** tests */
@@ -25816,11 +25853,19 @@ export interface components {
              * @description Version for the tool.
              * @example 0.1.0
              */
-            version?: string | null;
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
-        /** UserToolSource */
+        /**
+         * UserToolSource
+         * @description Full unprivileged tool source, including the optional ``tests`` block.
+         *
+         *     This is the model persisted and validated on the API surface
+         *     (``DynamicUnprivilegedToolCreatePayload.representation``). LLM authoring
+         *     uses the slimmer ``UserToolSourceAuthoringView`` parent; ``tests`` is added
+         *     back here so direct authors and stored rows can still carry tests.
+         */
         "UserToolSource-Output": {
             /** citations */
             citations?: components["schemas"]["Citation"][] | null;
@@ -25883,10 +25928,10 @@ export interface components {
             outputs: (
                 | components["schemas"]["IncomingToolOutputDataset"]
                 | components["schemas"]["IncomingToolOutputCollection"]
-                | components["schemas"]["ToolOutputText"]
-                | components["schemas"]["ToolOutputInteger"]
-                | components["schemas"]["ToolOutputFloat"]
-                | components["schemas"]["ToolOutputBoolean"]
+                | components["schemas"]["IncomingToolOutputText"]
+                | components["schemas"]["IncomingToolOutputInteger"]
+                | components["schemas"]["IncomingToolOutputFloat"]
+                | components["schemas"]["IncomingToolOutputBoolean"]
             )[];
             /** profile */
             profile?: number | null;
@@ -25905,7 +25950,7 @@ export interface components {
             /**
              * shell_command
              * @description A string that contains the command to be executed. Parameters can be referenced inside $().
-             * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
+             * @example head -n '$(inputs.num_lines)' '$(inputs.input_file.path)' > output.txt
              */
             shell_command: string;
             /** tests */
@@ -25915,7 +25960,7 @@ export interface components {
              * @description Version for the tool.
              * @example 0.1.0
              */
-            version?: string | null;
+            version: string;
             /** xrefs */
             xrefs?: components["schemas"]["XrefDict"][] | null;
         };
@@ -27281,12 +27326,9 @@ export interface components {
             help?: string | null;
             /** Label */
             label?: string | null;
-            /** Max */
-            max?: number | null;
-            /** Min */
-            min?: number | null;
             /**
              * Multiple
+             * @description Set true to accept several datasets (a list) for this input instead of one.
              * @default false
              */
             multiple: boolean;
@@ -27690,10 +27732,10 @@ export interface components {
             outputs: (
                 | components["schemas"]["IncomingToolOutputDataset"]
                 | components["schemas"]["IncomingToolOutputCollection"]
-                | components["schemas"]["ToolOutputText"]
-                | components["schemas"]["ToolOutputInteger"]
-                | components["schemas"]["ToolOutputFloat"]
-                | components["schemas"]["ToolOutputBoolean"]
+                | components["schemas"]["IncomingToolOutputText"]
+                | components["schemas"]["IncomingToolOutputInteger"]
+                | components["schemas"]["IncomingToolOutputFloat"]
+                | components["schemas"]["IncomingToolOutputBoolean"]
             )[];
             /** profile */
             profile?: number | null;
@@ -27712,7 +27754,7 @@ export interface components {
             /**
              * shell_command
              * @description A string that contains the command to be executed. Parameters can be referenced inside $().
-             * @example head -n '$(inputs.n_lines)' '$(inputs.data_input.path)'
+             * @example head -n '$(inputs.num_lines)' '$(inputs.input_file.path)' > output.txt
              */
             shell_command: string;
             /** tests */
@@ -44953,6 +44995,8 @@ export interface operations {
                 /** @description Sort in descending order? */
                 sort_desc?: boolean;
                 user_id?: string | null;
+                /** @description Filter pages by this workflow invocation ID. */
+                invocation_id?: string | null;
                 history_id?: string | null;
             };
             header?: {

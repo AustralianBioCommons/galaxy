@@ -106,6 +106,8 @@ CachedTarget = Union[CachedMulledImageSingleTarget, CachedV1MulledImageMultiTarg
 
 
 class CacheDirectory(metaclass=ABCMeta):
+    cacher_type: str
+
     def __init__(self, path: str, hash_func: Literal["v1", "v2"] = "v2") -> None:
         self.path = path
         self.hash_func = hash_func

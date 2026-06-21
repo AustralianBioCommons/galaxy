@@ -2289,6 +2289,7 @@ class JobSubmitter:
             sa_session.commit()
         except Exception as e:
             log.exception("Problem validating tool state after request created")
+            sa_session.rollback()
             tool_request.state = ToolRequest.states.FAILED
             state_message: dict = {"err_msg": str(e)}
             if isinstance(e, MessageException) and e.extra_error_info:

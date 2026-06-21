@@ -37,7 +37,10 @@ A method that requires a user but not a history should declare its
 # more checks against this issue.
 import abc
 import string
-from collections.abc import Callable
+from collections.abc import (
+    Callable,
+    Hashable,
+)
 from json import dumps
 from typing import (
     Any,
@@ -190,6 +193,11 @@ class ProvidesAppContext:
         return self.app.install_model
 
 
+# Sentinel distinguishing a cached value (which may legitimately be ``None``)
+# from a cache miss in ``get_or_set_cache_value``.
+_CACHE_MISS: Any = object()
+
+
 class ProvidesUserContext(ProvidesAppContext):
     """For transaction-like objects to provide Galaxy convenience layer for
     reasoning about users.
@@ -201,13 +209,24 @@ class ProvidesUserContext(ProvidesAppContext):
     workflow_building_mode: Literal[1, True, False] = False
     galaxy_session: Optional[GalaxySession] = None
     _tag_handler: Optional[GalaxyTagHandlerSession] = None
-    _short_term_cache: dict[tuple[str, ...], Any]
+    _short_term_cache: dict[tuple[Hashable, ...], Any]
 
-    def set_cache_value(self, args: tuple[str, ...], value: Any):
+    def set_cache_value(self, args: tuple[Hashable, ...], value: Any):
         self._short_term_cache[args] = value
 
-    def get_cache_value(self, args: tuple[str, ...], default: Any = None) -> Any:
+    def get_cache_value(self, args: tuple[Hashable, ...], default: Any = None) -> Any:
         return self._short_term_cache.get(args, default)
+
+    def get_or_set_cache_value(self, args: tuple[Hashable, ...], factory: Callable[[], Any]) -> Any:
+        """Return the cached value for ``args``, computing and storing it via
+        ``factory`` on a miss. Request-scoped memoization for work repeated
+        within a single transaction (e.g. identical history-option queries
+        otherwise issued once per parameter while building a workflow Run form)."""
+        value = self.get_cache_value(args, _CACHE_MISS)
+        if value is _CACHE_MISS:
+            value = factory()
+            self.set_cache_value(args, value)
+        return value
 
     @property
     def tag_handler(self):
