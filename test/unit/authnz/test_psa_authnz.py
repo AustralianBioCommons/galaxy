@@ -536,3 +536,36 @@ def test_sync_user_profile_updates_when_account_interface_disabled():
     manager.update_username.assert_called_once_with(trans, user, "newname", commit=False)
     assert session.commit.call_count == 1
     notify.assert_called_once()
+
+
+def test_authenticate_does_not_mutate_backend_default_scope(psa_authnz):
+    """
+    Previously had a bug where the backend default scope was being mutated
+    when extra scopes were added to the config. This test ensures that
+    the backend default scope is not mutated, and the scopes
+    remain the same across multiple calls to authenticate().
+    """
+    shared_default_scope = ["openid", "email", "profile"]
+    psa_authnz.config["EXTRA_SCOPES"] = ["offline_access", "custom_scope"]
+
+    class FakeBackend:
+        name = "oidc"
+        DEFAULT_SCOPE = shared_default_scope
+
+    observed_scopes = []
+
+    def fake_do_auth(backend):
+        observed_scopes.append(list(backend.DEFAULT_SCOPE))
+        return MagicMock()
+
+    with (
+        patch("galaxy.authnz.psa_authnz.on_the_fly_config"),
+        patch.object(psa_authnz, "_load_backend", side_effect=[FakeBackend(), FakeBackend()]),
+        patch("galaxy.authnz.psa_authnz.do_auth", side_effect=fake_do_auth),
+    ):
+        psa_authnz.authenticate(make_mock_trans())
+        psa_authnz.authenticate(make_mock_trans())
+
+    expected = ["openid", "email", "profile", "offline_access", "custom_scope"]
+    assert observed_scopes == [expected, expected]
+    assert shared_default_scope == ["openid", "email", "profile"]
