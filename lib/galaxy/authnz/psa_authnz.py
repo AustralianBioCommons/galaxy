@@ -318,9 +318,6 @@ class PSAAuthnz(IdentityProvider):
         ):
             backend.DEFAULT_SCOPE.append("https://www.googleapis.com/auth/cloud-platform")
 
-        if self.config["EXTRA_SCOPES"] is not None:
-            backend.DEFAULT_SCOPE.extend(self.config["EXTRA_SCOPES"])
-
         return do_auth(backend)
 
     def callback(self, state_token, authz_code, trans, login_redirect_url):
